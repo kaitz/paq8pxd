@@ -415,15 +415,8 @@ int compress (FILE *fdin, FILE *fdout,int file_size,int info,int info2) {
     unsigned int    len, frame_size, frame_len,data_size ;
     unsigned int    is_float;
 
-    int wavsr=0;
-    switch ((info>>5)&3) {
-      case 3: wavsr=44100; break;
-      case 2: wavsr=22050; break;
-      case 1: wavsr=11025; break;
-      case 0: wavsr=8000; break;
-      default: wavsr = -1;
-    }
-    if (wavsr==-1) quit("Error (tta): encode wav wsr");
+    int wavsr=info2;
+    
     frame_size    = (int) (FRAME_TIME * wavsr);
     int bits=(((info&31)%4)/2)*8+8;
     num_chan    = (info&31)%2+1;
@@ -481,7 +474,7 @@ void combine_float (int frame_len, int num_chan, int **buffer) {
     }
 }
 
-int decompress (FILE *fdin, FILE *fdout,int dlen, int info, int info2) {
+int decompress (FILE *fdin, FILE *fdout,int dlen, int info, int info2,int smr) {
     int    **buffer;
     unsigned int    i, num_chan, byte_size;
     unsigned int    is_float, frame_size, frame_len;
@@ -491,15 +484,8 @@ int decompress (FILE *fdin, FILE *fdout,int dlen, int info, int info2) {
     int tta_level        = 3;
     byte_size        = (bits + 7) / 8;
     //get SampleRate
-    int wavsr=0;
-    switch ((info>>5)&3) {
-      case 3: wavsr=44100; break;
-      case 2: wavsr=22050; break;
-      case 1: wavsr=11025; break;
-      case 0: wavsr=8000; break;
-      default: wavsr = -1;
-    }
-    if (wavsr==-1) quit("encode wav wsr");
+    int wavsr=smr;
+    
     frame_size        = (int) (FRAME_TIME * wavsr);
     num_chan        = (info&31)%2+1;
     len                = (info2/byte_size)/num_chan;
