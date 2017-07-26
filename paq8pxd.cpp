@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Apr. 18, 2013
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 14, 2013
 
     Copyright (C) 2008 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -501,13 +501,18 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V4
-small changes in wrt
-
-
+DIFFERENCES FROM PAQ8PXD_V5
+changes in wrt, use 0-9 ind dict if count is larger then a-zA-Z
+8-bit image model changes
+base64 changes
+contextmap from Tangelo
+fixes in DMC model
+cleanup of unused varibles
+fixes in wordmodel
+etc.
 */
 
-#define PROGNAME "paq8pxd"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd7"  // Please change this if you change the program.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1034,7 +1039,7 @@ StateTable::StateTable(): ns(1024) {
 ///////////////////////////// Squash //////////////////////////////
 
 // return p = 1/(1 + exp(-d)), d scaled by 8 bits, p scaled by 12 bits
-int squash(int d) {
+/*int squash(int d) {
   static const int t[33]={
     1,2,3,6,10,16,27,45,73,120,194,310,488,747,1101,
     1546,2047,2549,2994,3348,3607,3785,3901,3975,4022,
@@ -1044,8 +1049,31 @@ int squash(int d) {
   int w=d&127;
   d=(d>>7)+16;
   return (t[d]*(128-w)+t[(d+1)]*w+64) >> 7;
-}
+} 
+*/
+class Squash {
+  Array<U16> t;
+public:
+  Squash();
+  int operator()(int p) const {
+    if (p>2047) return 4095;
+  if (p<-2047) return 0;
+    return t[p+2048];
+  }
+} squash;
 
+Squash::Squash(): t(4096) {
+                  int ts[33]={
+    1,2,3,6,10,16,27,45,73,120,194,310,488,747,1101,
+    1546,2047,2549,2994,3348,3607,3785,3901,3975,4022,
+    4050,4068,4079,4085,4089,4092,4093,4094};
+    int w,d;
+  for (int i=-2047; i<=2047; ++i){
+    w=i&127;
+  d=(i>>7)+16;
+  t[i+2048]=(ts[d]*(128-w)+ts[(d+1)]*w+64) >> 7;
+    }
+}
 //////////////////////////// Stretch ///////////////////////////////
 
 // Inverse of squash. d = ln(p/(1-p)), d scaled by 8 bits, p by 12 bits.
@@ -1094,7 +1122,7 @@ Stretch::Stretch(): t(4096) {
 
 // dot_product returns dot product t*w of n elements.  n is rounded
 // up to a multiple of 8.  Result is scaled down by 8 bits.
-#ifdef NOASM  // no assembly language
+/*#ifdef NOASM  // no assembly language
 int dot_product(short *t, short *w, int n) {
   int sum=0;
   n=(n+7)&-8;
@@ -1123,6 +1151,136 @@ void train(short *t, short *w, int n, int err) {
 #else
 extern "C" void train(short *t, short *w, int n, int err);  // in NASM
 #endif
+*/
+
+#if !defined(__GNUC__)
+
+#if (2 == _M_IX86_FP) // 2 if /arch:SSE2 was used.
+# define __SSE2__
+#elif (1 == _M_IX86_FP) // 1 if /arch:SSE was used.
+# define __SSE__
+#endif
+
+#endif /* __GNUC__ */
+
+/**
+ * Vector product a*b of n signed words, returning signed integer scaled down by 8 bits.
+ * n is rounded up to a multiple of 8.
+ */
+static int dot_product (const short* const t, const short* const w, int n);
+
+/**
+ * Train n neural network weights w[n] on inputs t[n] and err.
+ * w[i] += ((t[i]*2*err)+(1<<16))>>17 bounded to +- 32K.
+ * n is rounded up to a multiple of 8.
+ */
+static void train (const short* const t, short* const w, int n, const int e);
+
+#if defined(__SSE2__) // faster
+#include <emmintrin.h>
+#define OPTIMIZE "SSE2-"
+
+static int dot_product (const short* const t, const short* const w, int n) {
+  assert(n == ((n + 7) & -8));
+  __m128i sum = _mm_setzero_si128 ();
+  while ((n -= 8) >= 0) { // Each loop sums eight products
+    __m128i tmp = _mm_madd_epi16 (*(__m128i *) &t[n], *(__m128i *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
+    tmp = _mm_srai_epi32 (tmp, 8); //                                        (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
+    sum = _mm_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
+  }
+  sum = _mm_add_epi32 (sum, _mm_srli_si128 (sum, 8)); // Add eight sums together ...
+  sum = _mm_add_epi32 (sum, _mm_srli_si128 (sum, 4));
+  return _mm_cvtsi128_si32 (sum); //                     ...  and scale back to integer
+}
+
+static void train (const short* const t, short* const w, int n, const int e) {
+  assert(n == ((n + 7) & -8));
+  if (e) {
+    const __m128i one = _mm_set1_epi16 (1);
+    const __m128i err = _mm_set1_epi16 (short(e));
+    while ((n -= 8) >= 0) { // Each iteration adjusts eight weights
+      __m128i tmp = _mm_adds_epi16 (*(__m128i *) &t[n], *(__m128i *) &t[n]); // t[n] * 2
+      tmp = _mm_mulhi_epi16 (tmp, err); //                                     (t[n] * 2 * err) >> 16
+      tmp = _mm_adds_epi16 (tmp, one); //                                     ((t[n] * 2 * err) >> 16) + 1
+      tmp = _mm_srai_epi16 (tmp, 1); //                                      (((t[n] * 2 * err) >> 16) + 1) >> 1
+      tmp = _mm_adds_epi16 (tmp, *(__m128i *) &w[n]); //                    ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
+      *(__m128i *) &w[n] = tmp; //                                          save the new eight weights, bounded to +- 32K
+    }
+  }
+}
+
+#elif defined(__SSE__) // fast
+#include <xmmintrin.h>
+#define OPTIMIZE "SSE-"
+
+static sint32 dot_product (const sint16* const t, const sint16* const w, sint32 n) {
+  assert(n == ((n + 7) & -8));
+  __m64 sum = _mm_setzero_si64 ();
+  while ((n -= 8) >= 0) { // Each loop sums eight products
+    __m64 tmp = _mm_madd_pi16 (*(__m64 *) &t[n], *(__m64 *) &w[n]); //   t[n] * w[n] + t[n+1] * w[n+1]
+    tmp = _mm_srai_pi32 (tmp, 8); //                                    (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
+    sum = _mm_add_pi32 (sum, tmp); //                            sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
+
+    tmp = _mm_madd_pi16 (*(__m64 *) &t[n + 4], *(__m64 *) &w[n + 4]); // t[n+4] * w[n+4] + t[n+5] * w[n+5]
+    tmp = _mm_srai_pi32 (tmp, 8); //                                    (t[n+4] * w[n+4] + t[n+5] * w[n+5]) >> 8
+    sum = _mm_add_pi32 (sum, tmp); //                            sum += (t[n+4] * w[n+4] + t[n+5] * w[n+5]) >> 8
+  }
+  sum = _mm_add_pi32 (sum, _mm_srli_si64 (sum, 32)); // Add eight sums together ...
+  const sint32 retval = _mm_cvtsi64_si32 (sum); //                     ...  and scale back to integer
+  _mm_empty(); // Empty the multimedia state
+  return retval;
+}
+
+static void train (const sint16* const t, sint16* const w, sint32 n, const sint32 e) {
+  assert(n == ((n + 7) & -8));
+  if (e) {
+    const __m64 one = _mm_set1_pi16 (1);
+    const __m64 err = _mm_set1_pi16 (sint16(e));
+    while ((n -= 8) >= 0) { // Each iteration adjusts eight weights
+      __m64 tmp = _mm_adds_pi16 (*(__m64 *) &t[n], *(__m64 *) &t[n]); //   t[n] * 2
+      tmp = _mm_mulhi_pi16 (tmp, err); //                                 (t[n] * 2 * err) >> 16
+      tmp = _mm_adds_pi16 (tmp, one); //                                 ((t[n] * 2 * err) >> 16) + 1
+      tmp = _mm_srai_pi16 (tmp, 1); //                                  (((t[n] * 2 * err) >> 16) + 1) >> 1
+      tmp = _mm_adds_pi16 (tmp, *(__m64 *) &w[n]); //                  ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
+      *(__m64 *) &w[n] = tmp; //                                       save the new four weights, bounded to +- 32K
+
+      tmp = _mm_adds_pi16 (*(__m64 *) &t[n + 4], *(__m64 *) &t[n + 4]); // t[n+4] * 2
+      tmp = _mm_mulhi_pi16 (tmp, err); //                                 (t[n+4] * 2 * err) >> 16
+      tmp = _mm_adds_pi16 (tmp, one); //                                 ((t[n+4] * 2 * err) >> 16) + 1
+      tmp = _mm_srai_pi16 (tmp, 1); //                                  (((t[n+4] * 2 * err) >> 16) + 1) >> 1
+      tmp = _mm_adds_pi16 (tmp, *(__m64 *) &w[n + 4]); //              ((((t[n+4] * 2 * err) >> 16) + 1) >> 1) + w[n]
+      *(__m64 *) &w[n + 4] = tmp; //                                   save the new four weights, bounded to +- 32K
+    }
+    _mm_empty(); // Empty the multimedia state
+  }
+}
+#else
+// dot_product returns dot product t*w of n elements.  n is rounded
+// up to a multiple of 8.  Result is scaled down by 8 bits.
+int dot_product(short *t, short *w, int n) {
+  int sum=0;
+  n=(n+7)&-8;
+  for (int i=0; i<n; i+=2)
+    sum+=(t[i]*w[i]+t[i+1]*w[i+1]) >> 8;
+  return sum;
+}
+
+// Train neural network weights w[n] given inputs t[n] and err.
+// w[i] += t[i]*err, i=0..n-1.  t, w, err are signed 16 bits (+- 32K).
+// err is scaled 16 bits (representing +- 1/2).  w[i] is clamped to +- 32K
+// and rounded.  n is rounded up to a multiple of 8.
+
+void train(short *t, short *w, int n, int err) {
+  n=(n+7)&-8;
+  for (int i=0; i<n; ++i) {
+    int wt=w[i]+(((t[i]*err*2>>16)+1)>>1);
+    if (wt<-32768) wt=-32768;
+    if (wt>32767) wt=32767;
+    w[i]=wt;
+  }
+}
+#endif // slow!
+
 
 class Mixer {
   const int N, M, S;   // max inputs, max contexts, max context sets
@@ -1141,7 +1299,7 @@ public:
     for (int i=0; i<ncxt; ++i) {
       int err=((y<<12)-pr[i])*7;
       assert(err>=-32768 && err<32768);
-      if (err) train(&tx[0], &wx[cxt[i]*N], nx, err);
+      train(&tx[0], &wx[cxt[i]*N], nx, err);
     }
     nx=base=ncxt=0;
   }
@@ -1485,6 +1643,68 @@ public:
   }
 };
 
+ 
+inline int mix3(Mixer& m, int s, StateMap& sm) {
+  int p1=sm.p(s);
+  //int n0=-!nex(s,2);
+  //int n1=-!nex(s,3);
+  int st=stretch(p1)>>2;
+  m.add(st);
+  p1>>=4;
+  int p0=255-p1;
+  m.add(p1-p0);
+ /// m.add(st*(n1-n0));
+ // m.add((p1&n0)-(p0&n1));
+  //m.add((p1&n1)-(p0&n0));
+  return s>0;
+}
+
+// Medium ContextMap
+class MContextMap {
+  Array<U8, 64> t;
+  Array<U8*>  cp;
+  Array<U32> cxt;
+  int cn;
+  StateMap *sm;
+public:
+  MContextMap(size_t m,int c):t(m), cn(0) , cp(c), cxt(c) {
+          sm=new StateMap[c];
+    for (int i = 0; i < c; ++i) { cp[i] = 0; }
+  }
+  ~MContextMap(){ delete[] sm;}
+  void set(U32 cx) {
+    cxt[cn++] = cx * 16;
+  }
+  int mix(Mixer&m) {
+      int result=0;
+    for (int i = 0; i < cn; ++i) {
+      if (cp[i]) {
+      *cp[i] = nex(*cp[i], y);
+      }
+    }
+    const int c0b = c0 < 16 ? c0 : (16 * (1 + ((c0 >> (bpos - 4)) & 15))) +
+              ((c0 & ((1 << (bpos - 4)) - 1)) | (1 << (bpos - 4)));
+    for (int i = 0; i < cn; ++i) {
+      cp[i] = &t[(cxt[i] + c0b) & (t.size() - 1)]; // Update bit context pointers
+    }
+    for (int i = 0; i < cn; ++i) {
+    // mix3(m, *cp[i], sm[i]); // Predict from bit context
+      if (cp[i])
+   {
+    result+=mix3(m, *cp[i], sm[i]); // Predict from bit context
+   }
+   else
+   {
+    mix3(m, 0, sm[i]);
+   }
+    }
+  
+    if (bpos == 7) cn = 0;
+    return result;
+  }
+};
+
+
 // Context map for large contexts.  Most modeling uses this type of context
 // map.  It includes a built in RunContextMap to predict the last byte seen
 // in the same context, and also bit-level contexts that map to a bit
@@ -1756,7 +1976,7 @@ int col=0;
 static U32 frstchar=0,spafdo=0,spaces=0,spacecount=0, words=0,wordcount=0,wordlen=0,wordlen1=0;
 void wordModel(Mixer& m) {
 	static U32 word0=0, word1=0, word2=0, word3=0, word4=0, word5=0;  // hashes
-	static U32 xword0=0,xword1=0,xword2=0,xword3=0,cword0=0,ccword=0;
+	static U32 xword0=0,xword1=0,xword2=0,cword0=0,ccword=0;
 	static U32 number0=0, number1=0;  // hashes
 	static U32 text0=0;  // hash stream of letters
 	static ContextMap cm(MEM*16, 45);
@@ -1789,11 +2009,14 @@ void wordModel(Mixer& m) {
 				wordlen1=wordlen;
 				if (c==':') cword0=word0;
 				if (c==']') xword0=word0;
+			//	if (c==0x27) xword0=word0;
 				ccword=0;
 				word0=wordlen=0;
 				if((c=='.'||c=='!'||c=='?') && buf(2)!=10 && filetype!=EXE) f=1; 
-				if ((c4&0xFFFF)==0x3D3D) xword1=word1,xword2=word2; // '=='
+				
 			}
+			if ((c4&0xFFFF)==0x3D3D) xword1=word1,xword2=word2; // '=='
+				if ((c4&0xFFFF)==0x2727) xword1=word1,xword2=word2; // ''
 			if (c==32 || c==10 ) { ++spaces, ++spacecount; if (c==10 ) nl1=nl, nl=pos-1;}
 			else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') spafdo=0,ccword=c*31; 
 			else { ++spafdo; spafdo=min(63,spafdo); }
@@ -1843,12 +2066,12 @@ void wordModel(Mixer& m) {
 		cm.set(h+word1+word2*29);
 		cm.set(text0&0xffffff);
 		cm.set(text0&0xfffff);
-        if (filetype==DICTTXT){
-		  cm.set(word0+xword0*31);
+          cm.set(word0+xword0*31);
 		  cm.set(word0+xword1*31);
 		  cm.set(word0+xword2*31);
-        }
-		cm.set(word0+cword0*31);
+		  cm.set(frstchar+xword2*31);
+        
+        cm.set(word0+cword0*31);
 		cm.set(number0+cword0*31);
 		cm.set(h+word2);
 		cm.set(h+word3);
@@ -1870,7 +2093,6 @@ void wordModel(Mixer& m) {
 		cm.set(col<<8|buf(1));
 		cm.set(col*(c==32));
 		cm.set(col);
-		cm.set(buf(1)^above);//for wordlist
 		
    int fl = 0;
     if ((c4&0xff) != 0) {
@@ -2109,8 +2331,7 @@ void im24bitModel(Mixer& m, int w) {
   const int SC=0x20000;
   static SmallStationaryContextMap scm1(SC), scm2(SC),
     scm3(SC), scm4(SC), scm5(SC), scm6(SC), scm7(SC), scm8(SC), scm9(SC*2), scm10(512);
-  static ContextMap cm(MEM*4, 13+1+1);
-
+  static ContextMap cm(MEM*4, 15);
   // Select nearby pixels as context
   if (!bpos) {
     assert(w>3);
@@ -2135,6 +2356,7 @@ void im24bitModel(Mixer& m, int w) {
     cm.set(hash(++i, buf(w*3-3), buf(w*3-6)));
     cm.set(hash(++i, buf(w*3+3), buf(w*3+6)));
     cm.set(hash(++i, mean, logvar>>4));
+
     scm1.set(buf(3)+buf(w)-buf(w+3));
     scm2.set(buf(3)+buf(w-3)-buf(w));
     scm3.set(buf(3)*2-buf(6));
@@ -2160,7 +2382,7 @@ void im24bitModel(Mixer& m, int w) {
   cm.mix(m);
   static int col=0;
   if (++col>=24) col=0;
-  m.set(2, 8);
+  m.set((buf(3)+buf(6))>>6, 8);
   m.set(col, 24);
   m.set((buf(1)>>4)*3+(pos%3), 48);
   m.set(c0, 256);
@@ -2174,9 +2396,9 @@ void im24bitModel(Mixer& m, int w) {
 void im8bitModel(Mixer& m, int w) {
   const int SC=0x20000;
   static SmallStationaryContextMap scm1(SC), scm2(SC),
-    scm3(SC), scm4(SC), scm5(SC), scm6(SC*2),scm7(SC);
-  static ContextMap cm(MEM*4, 32-2);
-
+    scm3(SC), scm4(SC), scm5(SC), scm6(SC*2)/*,scm7(SC*2)*/,scm8(SC);
+  static MContextMap cm(MEM*4, 32+1+1+4+2+4+7-7);
+static int ml,ml1=0;
   // Select nearby pixels as context
   if (!bpos) {
     assert(w>3);
@@ -2185,12 +2407,12 @@ void im8bitModel(Mixer& m, int w) {
     mean>>=2;
     const int logvar=ilog(var);
     int i=0;
-    int edg=0;
+    /*int edg=0;
     if (buf(w+1)>=max(buf(2),buf(w))) edg=max(buf(2),buf(w));
     else if (buf(w+1)<=min(buf(2),buf(w))) edg=min(buf(2),buf(w));
-    else edg=buf(2)+buf(w)-buf(w+1);
+    else edg=buf(2)+buf(w)-buf(w+1);*/
     // 2 x
-    cm.set(hash(++i, edg, buf(1)));
+    cm.set(hash(++i, buf(1),0));
     cm.set(hash(++i, buf(2), 0));
     cm.set(hash(++i, buf(w), 0));
     cm.set(hash(++i, buf(w+1), 0));
@@ -2222,12 +2444,32 @@ void im8bitModel(Mixer& m, int w) {
     cm.set(hash(++i, (((buf(1)-buf(w-1))>>1)+buf(w))>>2));
     cm.set(hash(++i, (((buf(w-1)-buf(w))>>1)+buf(1))>>2));
     cm.set(hash(++i, (-buf(1)+buf(w-1)+buf(w))>>2));
-    scm1.set(edg);//(buf(1)+buf(w))>>1);
+    
+    cm.set(hash(++i,(buf(1)*2-buf(2))>>1));
+    cm.set(hash(++i,mean,logvar));
+    cm.set(hash(++i,(buf(w)*2-buf(w*2))>>1));
+    cm.set(hash(++i,(buf(1)+buf(w)-buf(w+1))>>1));
+    
+    cm.set(hash(++i, (buf(4)+buf(3))>>2,(buf(w-1)+buf(w))>>2));
+    cm.set(hash(++i, (buf(4)+buf(3))>>1,(buf(w)+buf(w*2))>>1));
+    cm.set(hash(++i, (buf(4)+buf(3))>>1,(buf(w-1)+buf(w*2-2))>>1));
+    cm.set(hash(++i, (buf(4)+buf(3))>>1,(buf(w+1)+buf(w*2+2))>>1));
+    cm.set(hash(++i, (buf(4)+buf(1))>>2,(buf(w-3)+buf(w))>>2));
+    cm.set(hash(++i, (buf(4)+buf(1))>>1,(buf(w)+buf(w*2))>>1));
+    cm.set(hash(++i, (buf(4)+buf(1))>>1,(buf(w-3)+buf(w*2-3))>>1));
+    cm.set(hash(++i, (buf(4)+buf(1))>>1,(buf(w+3)+buf(w*2+3))>>1));
+    cm.set(hash(++i, buf(w)>>2, buf(3)>>2, buf(w-1)>>2));
+    cm.set(hash(++i, buf(3)>>2, buf(w-2)>>2, buf(w*2-2)>>2));
+        
+    scm1.set((buf(1)+buf(w))>>1);
     scm2.set((buf(1)+buf(w)-buf(w+1))>>1);
     scm3.set((buf(1)*2-buf(2))>>1);
     scm4.set((buf(w)*2-buf(w*2))>>1);
     scm5.set((buf(1)+buf(w)-buf(w-1))>>1);
+    ml1=mean;
+    ml=mean>>1|(logvar<<1&0x180);
     scm6.set(mean>>1|(logvar<<1&0x180));
+   // scm7.set(edg);
   }
 
   // Predict next bit
@@ -2237,7 +2479,8 @@ void im8bitModel(Mixer& m, int w) {
   scm4.mix(m);
   scm5.mix(m);
   scm6.mix(m);
-  scm7.mix(m); // Amazingly but improves compression!
+ // scm7.mix(m);
+  scm8.mix(m); // Amazingly but improves compression!
   cm.mix(m);
   static int col=0;
   if (++col>=8) col=0; // reset after every 24 columns?
@@ -2245,6 +2488,8 @@ void im8bitModel(Mixer& m, int w) {
   m.set(col, 8);
   m.set((buf(w)+buf(1))>>4, 32);
   m.set(c0, 256);
+  m.set(ml, 512);
+  m.set(ml1, 1024);
 }
 
 //////////////////////////// im1bitModel /////////////////////////////////
@@ -2327,8 +2572,8 @@ int jpegModel(Mixer& m) {
     //   xx is the first 2 extra bits, and the last 2 bits are 1 (since
     //   this never occurs in a valid RS code).
   static int cpos=0;  // position in cbuf
-  static U32 huff1=0, huff2=0, huff3=0, huff4=0;  // hashes of last codes
-  static int rs1, rs2, rs3, rs4;  // last 4 RS codes
+  //static U32 huff1=0, huff2=0, huff3=0, huff4=0;  // hashes of last codes
+  static int rs1;//, rs2, rs3, rs4;  // last 4 RS codes
   static int ssum=0, ssum1=0, ssum2=0, ssum3=0;
     // sum of S in RS codes in block and sum of S in first component
 
@@ -2556,13 +2801,13 @@ int jpegModel(Mixer& m) {
       }
       if (rs>=0) {
         if (huffsize+(rs&15)==huffbits) { // done decoding
-          huff4=huff3;
-          huff3=huff2;
-          huff2=huff1;
-          huff1=hash(huffcode, huffbits);
-          rs4=rs3;
-          rs3=rs2;
-          rs2=rs1;
+         // huff4=huff3;
+         // huff3=huff2;
+         // huff2=huff1;
+         // huff1=hash(huffcode, huffbits);
+         // rs4=rs3;
+         // rs3=rs2;
+         // rs2=rs1;
           rs1=rs;
           int x=0;  // decoded extra bits
           if (mcupos&63) {  // AC
@@ -3013,6 +3258,7 @@ void indirectModel(Mixer& m) {
   cm.mix(m);
 }
 
+
 //////////////////////////// dmcModel //////////////////////////
 
 // Model using DMC.  The bitwise context is represented by a state graph,
@@ -3056,8 +3302,11 @@ void dmcModel(Mixer& m) {
       t[top].state=t[next].state;
       t[curr].nx[y]=top;
       ++top;
-      if (top==MEM*2) threshold=512;
-      if (top==MEM*3) threshold=768;
+      if (top==(t.size()*4)/8) { //        5/8, 4/8, 3/8
+        threshold=512;
+      } else if (top==(t.size()*6)/8) { // 6/8, 6/8, 7/8
+        threshold=768;
+      }
     }
   }
 
@@ -3085,10 +3334,9 @@ void dmcModel(Mixer& m) {
   }
 
   // update count, state
-  if (y) {
-    if (t[curr].c1<3800) t[curr].c1+=256;
-  }
-  else if (t[curr].c0<3800) t[curr].c0+=256;
+   if (y) {
+    if (t[curr].c1<=3840) t[curr].c1+=256;
+   } else  if (t[curr].c0<=3840)   t[curr].c0+=256;
   t[curr].state=nex(t[curr].state, y);
   curr=t[curr].nx[y];
 
@@ -3111,7 +3359,7 @@ void nestModel(Mixer& m)
     const int lc = (c >= 'A' && c <= 'Z'?c+'a'-'A':c);
     if (lc == 'a' || lc == 'e' || lc == 'i' || lc == 'o' || lc == 'u') vv = 1; else
     if (lc >= 'a' && lc <= 'z') vv = 2; else
-    if (lc == ' ' || lc == '.' || lc == ',' || lc == '\n') vv = 3; else
+    if (lc == ' ' || lc == '.' || lc == ',' || lc == '!' || lc == '?' || lc == '\n') vv = 3; else
     if (lc >= '0' && lc <= '9') vv = 4; else
     if (lc == 'y') vv = 5; else
     if (lc == '\'') vv = 6; else vv=(c&32)?7:0;
@@ -3249,13 +3497,14 @@ int normalModel(Mixer& m) {
   rcm10.mix(m);
   return cm.mix(m);
 }
+
 //////////////////////////// contextModel //////////////////////
 
 // This combines all the context models with a Mixer.
 
 int contextModel2() {
  
-  static Mixer m(845+80, 3095+256*7+256*8+256*7+2048+256*7-256*4-264, 7);
+  static Mixer m(925, 3095+256*7+256*8+256*7+2048+256*7-256*4-264, 7);
  
   static Filetype ft2;//,filetype=DEFAULT;
   static int size=0;  // bytes remaining in block
@@ -3308,7 +3557,7 @@ int contextModel2() {
 			c=(words>>1)&63;
 			m.set((w4&3)*64+c+order*256, 256*7); 
 			m.set(c0, 256);
-			m.set(ismatch, 256);
+  			m.set(ismatch, 256);
 			m.set(256*order + (w4&240) + (b3>>4), 256*7);
 			c=(w4&255)+256*bpos;
 			m.set(c, 256*8);
@@ -3322,9 +3571,9 @@ int contextModel2() {
 			c=bpos*256+((c0<<(8-bpos))&255);
 			c3 = (words<<bpos) & 255;
 			m.set(c+(c3>>bpos), 2048);
+
 			int pr=m.p();
 			return pr;
-			break;
 		}
 	case IMAGE4:
 		{ 
@@ -3367,7 +3616,6 @@ int contextModel2() {
   m.set(c2, 256);
   m.set(c3, 256);
   m.set(ismatch, 256);*/
-  
   if (bpos)
   {
     c=d; if (bpos==1)c+=c3/2;
@@ -3415,7 +3663,7 @@ if (c0>=256) {
 		w5=w5*4+i;
 		b3=b2;
         b2=c0;   
-		int f2=buf(2);
+		//int f2=buf(2);
 	    x4=x4*256+c0,x5=(x5<<8)+c0;
 	    if(c0=='.' || c0=='!' || c0=='?' || c0=='/'|| c0==')') {
 			w5=(w5<<8)|0x3ff,f4=(f4&0xfffffff0)+2,x5=(x5<<8)+c0,x4=x4*256+c0;
@@ -3740,7 +3988,7 @@ int expand_cd_sector(U8 *data, int a, int test) {
   for (int i=0; i<2352; i++) if (d2[i]!=data[i] && test) return 0; else data[i]=d2[i];
   return mode+form-1;
 }
-
+int wrtn=0;
 // Detect EXE or JPEG data
 Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0) {
   U32 buf1=0, buf0=0;  // last 8 bytes
@@ -3765,12 +4013,14 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
   int cdi=0,cda=0,cdm=0;  // For CD sectors detection
   U32 cdf=0;
  // For TEXT
-  int txtStart=0,txtLen=0,txtOff=0,txtbinc=0,txtbinp=0;
+  int txtStart=0,txtLen=0,txtOff=0,txtbinc=0,txtbinp=0,txta=0,txt0=0;
   int utfc=0,utfb=0,txtIsUTF8=0; //utf count 2-6, current byte
   const int txtMinLen=1024*512;
   //base64
   int b64s=0,b64s1=0,b64p=0,b64slen=0,b64h=0;
   int base64start=0,base64end=0,b64line=0,b64nl=0,b64lcount=0;
+  //int b64f=0,b64fstart=0,b64flen=0,b64send=0,b64fline=0; //force base64 detection
+
 
   // For image detection
   static int deth=0,detd=0;  // detected header/data size in bytes
@@ -4057,7 +4307,9 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
       e8e9count=e8e9pos=0;
     }
   
-    //detect base64 in html/xml container, single stream
+    // base64 encoded data detection
+    //
+    // detect base64 in html/xml container, single stream
     // ';base64,' or '![CDATA['
     if (b64s1==0 && ((buf1==0x3b626173 && buf0==0x6536342c)||(buf1==0x215b4344 && buf0==0x4154415b))) b64s1=1,b64h=i+1,base64start=i+1; //' base64'
     else if (b64s1==1 && (isalnum(c) || (c == '+') || (c == '/')||(c == '=')) ) {
@@ -4067,9 +4319,8 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
          if (base64end -base64start>128) B64_DET(BASE64,b64h, 8,base64end -base64start);
     }
    
-     
    // detect base64 in eml, etc. multiline
-   if (b64s==0 && buf0==0x73653634 && (buf1&0xffffff)==0x206261) b64s=1,b64p=i-6,b64h=0,b64slen=0,b64lcount=0; //' base64'
+   if (b64s==0 && buf0==0x73653634 && ((buf1&0xffffff)==0x206261 || (buf1&0xffffff)==0x204261)) b64s=1,b64p=i-6,b64h=0,b64slen=0,b64lcount=0; //' base64' ' Base64'
     else if (b64s==1 && buf0==0x0D0A0D0A ) {
         b64s=2,b64h=i+1,b64slen=b64h-b64p;
         base64start=i+1;
@@ -4102,13 +4353,36 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
     }
     else if (b64s==2 && !(is_base64(c) || c=='='))   b64s=0;
     
+     // brute force base64 - need more work like end of line check & validation
+     // like .ddoc files
+   /* if (b64s==0 && b64f==0 && is_base64(c) && c!=10 && c!=13 ) b64f=1,b64fstart=i,b64send=0,b64fline==0;
+    else if (b64f==1 && (buf0==0x0D0A0D0A) & (i -b64fstart<128)) b64f=b64fstart=b64send=b64fline=0;
+    else if (b64f==1 && (is_base64(c) || (c==10 || c==13)) && b64send==0) {
+        if((c==10 || c==13) && b64fline==0 ) b64fline=i-b64fstart;
+        }
+    else if (b64f==1 && !is_base64(c) ) {
+        if ((buf0&0xff)==0x3D && b64send<1){ 
+           b64send++;
+        }
+        else{
+        if (b64send<2){
+           if ((buf0&0xff)==0x3D) b64send++;
+           if (i -b64fstart>(1024*4)) B64_DET(BASE64,b64fstart,0,i -b64fstart-1);
+           b64f=b64fstart=b64send=0;
+           }
+           }
+         }
+    else  b64f=b64fstart=b64send=b64fline=0;*/
+
+    
      //Detect text and utf-8 
     if (txtStart==0 && !soi && !pgm && !rgbi && !bmp && !wavi && !tga && !b64s1 && !b64s &&
-        ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart=1,txtOff=i;
+        ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart=1,txtOff=i,txt0=0,txta=0;
     if (txtStart   ) {
-                 
        if ((c<128 && c>=32) || c==0 || c==10 || c==13 || c==0x12 || c==9) {
             ++txtLen;
+		if ((c>='a' && c<='z') ||  (c>='A' && c<='Z')) txta++;
+		if (c>='0' && c<='9') txt0++;
             if (i-txtbinp>512) txtbinc=txtbinc>>2;
        }
        else if ((c&0xE0)==0xc0 && utfc==0){ //if possible UTF8 2 byte
@@ -4155,11 +4429,10 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
             utfc=utfb=txtIsUTF8=0;
             if (txtbinc>=128){
             if (txtLen<txtMinLen) {
-                                  
-            txtStart=txtLen=txtOff=utfc=utfb=txtbinc=txtIsUTF8=0;
+               txtStart=txtLen=txtOff=utfc=utfb=txtbinc=txtIsUTF8=0;
             }
-
             else{
+                    if (txta<txt0) wrtn=1; else wrtn=0; //use num0-9
                  if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
                  if (txtIsUTF8==1)
                     return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
@@ -4176,26 +4449,23 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
             txtStart=txtLen=txtOff=utfc=utfb=txtbinc=0;
        }
        else if (txtLen>=txtMinLen) {
-         txtbinc=txtbinc+1;
-         txtbinp=i;
-          ++txtLen;
+            txtbinc=txtbinc+1;
+            txtbinp=i;
+            ++txtLen;
             if (txtbinc>=128){
-		   if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
-
-          if (txtIsUTF8==1)
-           return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
-          else
-     
-            return fseek(in, start+txtOff, SEEK_SET),TEXT;
+                                 if (txta<txt0)   wrtn=1; else wrtn=0 ;
+		       if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
+            if (txtIsUTF8==1)
+               return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
+            else
+                return fseek(in, start+txtOff, SEEK_SET),TEXT;
             }
        }
     } 
   }
  if (txtStart) {
-        if (txtLen<txtMinLen) {
-            txtStart=txtLen=txtOff=0;
-       }
-       else if (txtLen>=txtMinLen) {
+	   if (txtLen>=txtMinLen) {
+                                if (txta<txt0)   wrtn=1; else wrtn=0 ;
 		   if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
            if (txtIsUTF8==1)
             return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
@@ -4391,7 +4661,7 @@ int decode_exe(Encoder& en, int size, FILE *out, FMode mode, int &diffFound, lon
 void encode_txt(FILE* in, FILE* out, int len) {
    XWRT_Encoder* wrt;
    wrt=new XWRT_Encoder();
-   wrt->defaultSettings();
+   wrt->defaultSettings(wrtn);
    wrt->WRT_start_encoding(in,out,len,false);
    delete wrt;
 }
@@ -4412,7 +4682,7 @@ int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
 		putc(c,dtmp);	
 	}
 	fseek(dtmp,0, SEEK_SET);
-	wrt->defaultSettings();
+	wrt->defaultSettings(0);
 	bb=wrt->WRT_start_decoding(dtmp);
     for ( int i=0; i<bb; i++) {
 		b=wrt->WRT_decode();	
@@ -4429,7 +4699,7 @@ int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
 }
 
 //
-//decode/encode base64 
+// decode/encode base64 
 //
 static const char  table1[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 bool isbase64(unsigned char c) {
@@ -4444,19 +4714,28 @@ void encodeblock( unsigned char in[3], unsigned char out[4], int len ){
 
 int decode_base64(FILE *in, int size, FILE *out, FMode mode, int &diffFound){
     FILE* dtmp1;
-	char c;
-	int b=0,bb=0;
+	int b=0;
 	dtmp1=tmpfile();
     unsigned char inn[3], outn[4];
     int i,len1=0, len=0, blocksout = 0;
     int fle=0;
     int linesize=0;
     int outlen=0;
+    int tlf=0;
     linesize=getc(in);
     outlen=getc(in);
     outlen+=(getc(in)<<8);
     outlen+=(getc(in)<<16);
-    outlen+=(getc(in)<<24);
+    tlf=(getc(in));
+    outlen+=((tlf&63)<<24);
+    tlf=(tlf&192);
+    if (tlf==128)
+       tlf=10;        // LF: 10
+    else if (tlf==64)
+         tlf=13;        // LF: 13
+    else 
+         tlf=0;
+ 
     while(!feof(in)){
         len=0;
         for(i=0;i<3;i++){
@@ -4478,7 +4757,8 @@ int decode_base64(FILE *in, int size, FILE *out, FMode mode, int &diffFound){
         }
         if(blocksout>=(linesize/4) && linesize!=0){
             if( blocksout &&  !feof(in) && fle<=outlen) { //no nl if eof
-                fprintf( dtmp1, "\r\n" );
+                if (tlf) putc(tlf,dtmp1),fle--;
+                else fprintf( dtmp1, "\r\n" );
                 fle++;
                 fle++;
             }
@@ -4513,8 +4793,8 @@ void encode_base64(FILE* in, FILE* out, int len) {
   int i = 0;
   int j = 0;
   int b=0;
-  int bb=0;
   int lfp=0;
+  int tlf=0;
   char src[4];
   fputc(0, out); //nl lenght
   fputc(0, out);
@@ -4524,7 +4804,8 @@ void encode_base64(FILE* in, FILE* out, int len) {
 
   while (b=fgetc(in),in_len++ , ( b != '=') && is_base64(b) && in_len<=len) {
     if (b==13 || b==10) {
-       if (lfp==0) lfp=in_len ;
+       if (lfp==0) lfp=in_len ,tlf=b;
+       if (tlf!=b) tlf=0;
        continue;
     }
     src[i++] = b; 
@@ -4562,10 +4843,16 @@ void encode_base64(FILE* in, FILE* out, int len) {
   fputc(len&255, out);
   fputc(len>>8&255, out);
   fputc(len>>16&255, out);
-  fputc(len>>24&255, out);
+  if (tlf!=0) {
+              if (tlf==10)
+                fputc(128, out);
+              else
+                fputc(64, out);
+                }
+  else
+  fputc(len>>24&63, out); //1100 0000
   fseek(out,0, SEEK_END);
 }
-
 
 //////////////////// Compress, Decompress ////////////////////////////
 

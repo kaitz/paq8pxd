@@ -86,7 +86,7 @@ FILE* XWRT_fileout;
 unsigned char** dict=NULL;
 int* dictfreq=NULL;
 unsigned char* dictlen=NULL;
-
+int wrtnum=0;
 #define PUTC(c) { putc(c,XWRT_fileout); }
 #define GETC(c) { c=getc(XWRT_file); }
 size_t fread_fast(unsigned char* dst, int len, FILE* file);
@@ -238,9 +238,9 @@ void CContainers::writeMemBuffers(int preprocFlag){
 	std::map<std::string,CMemoryBuffer*>::iterator it;
 
 	int fileLen=0;
-	int len=0;
-	int lenCompr=0;
-	int allocated=0;
+	//int len=0;
+	//int lenCompr=0;
+	//int allocated=0;
 
 	for (it=memmap.begin(); it!=memmap.end(); it++)
 	{
@@ -251,8 +251,8 @@ void CContainers::writeMemBuffers(int preprocFlag){
 
 		if (fileLen>0)
 		{
-			allocated+=b->Allocated();
-			len+=fileLen;
+//			allocated+=b->Allocated();
+	//		len+=fileLen;
 			
 			PUTC((int)it->first.size());
 			for (int i=0; i<(int)it->first.size(); i++)
@@ -264,23 +264,23 @@ void CContainers::writeMemBuffers(int preprocFlag){
 			PUTC(fileLen);
 
 			fwrite_fast(it->second->TargetBuf,it->second->TgtPtr,XWRT_fileout);
-			lenCompr+=fileLen;
+//			lenCompr+=fileLen;
 		}
 	}
 	PUTC(0)
-	PRINT_DICT(("dataSize=%d compr=%d allocated=%d\n",len,lenCompr,allocated));
+	//PRINT_DICT(("dataSize=%d compr=%d allocated=%d\n",len,lenCompr,allocated));
 
 	freeMemBuffers(true);
 	prepareMemBuffers();
 }
 
 void CContainers::readMemBuffers(int preprocFlag, int maxMemSize){
-	unsigned char* buf=NULL;
-	unsigned int bufLen=0;
+	//unsigned char* buf=NULL;
+//	unsigned int bufLen=0;
 	unsigned int fileLen;
-	unsigned int ui;
-	int len=0;
-	int lenCompr=0;
+//	unsigned int ui;
+//	int len=0;
+//	int lenCompr=0;
 	int i,c;
 	unsigned char s[STRING_MAX_SIZE];
 
@@ -317,15 +317,15 @@ void CContainers::readMemBuffers(int preprocFlag, int maxMemSize){
 			fileLen=fileLen*256+c;
 		}
 		
-		len+=fileLen;
-		lenCompr+=fileLen;
+		//len+=fileLen;
+		//lenCompr+=fileLen;
 		memout_tmp->AllocSrcBuf(fileLen);
 
 		fread_fast(memout_tmp->SourceBuf,memout_tmp->SrcLen,XWRT_file);
 
 		//printStatus(fileLen,0,false);
 	}
-	PRINT_DICT(("readMemBuffers() dataSize=%d compr=%d allocated=%d\n",len,lenCompr,maxMemSize+10240));
+	//PRINT_DICT(("readMemBuffers() dataSize=%d compr=%d allocated=%d\n",len,lenCompr,maxMemSize+10240));
 }
 
 void CContainers::freeMemBuffers(bool freeMem){
@@ -353,7 +353,7 @@ public:
 	XWRT_Common(int fileBufferSize=17); // 128 kb
 	~XWRT_Common();
 
-	void defaultSettings();
+	void defaultSettings(int n);
 	unsigned int flen( FILE* &f );
 	
 	CContainers cont;
@@ -487,7 +487,7 @@ unsigned char* XWRT_Common::loadDynamicDictionary(unsigned char* mem,unsigned ch
 	int count=sortedDictSize;
 	for (i=0; i<count; i++)
 	{
-		std::string s=sortedDict[i];
+		//std::string s=sortedDict[i];
 		int len=(int)sortedDict[i].size();
 		memcpy(mem,sortedDict[i].c_str(),len+1);
 		if (addWord(mem,len)==0)
@@ -522,7 +522,7 @@ void XWRT_Common::initializeLetterSet(){
 	if (reservedSet[c])
 	letterSet[c]=RESERVEDCHAR;
 	for (c=0; c<256; c++)  //                                                - _ . , :
-	if (c>127 || letterSet[c]==LOWERCHAR || letterSet[c]==UPPERCHAR || letterSet[c]==NUMBERCHAR ||c==' ' /*|| c=='\''*/) // || c=='&') 
+	if (c>127 || letterSet[c]==LOWERCHAR || letterSet[c]==UPPERCHAR || (letterSet[c]==NUMBERCHAR && wrtnum==1) ||c==' ' /*|| c=='\''*/) // || c=='&') 
 	wordSet[c]=1;
 	else
 	wordSet[c]=0;
@@ -610,8 +610,8 @@ void XWRT_Common::initializeCodeWords(int word_count,bool initMem){
 }
 // read dictionary from files to arrays
 bool XWRT_Common::initialize(bool encoding){
-	int i,c,fileLen;
-	FILE* file;
+//	int fileLen;
+//	FILE* file;
 	WRT_deinitialize();
 	memset(&word_hash[0],0,HASH_TABLE_SIZE*sizeof(word_hash[0]));
 	
@@ -652,7 +652,7 @@ void XWRT_Common::WRT_deinitialize(){
 	sizeDict=0;
 }
 
-void XWRT_Common::defaultSettings(){
+void XWRT_Common::defaultSettings(int n){
 	RESET_OPTIONS;
 	TURN_ON(OPTION_TRY_SHORTER_WORD);
 	maxMemSize=8*1024*1024;
@@ -660,7 +660,8 @@ void XWRT_Common::defaultSettings(){
 	maxDictSize=65535*32700;
 	tryShorterBound=3;//4
 	minWordFreq=7*2; //7*2 64;
-	
+	wrtnum=n;
+	//printf("WRT: num: %d",wrtnum);
 	//maxDictSize=	//e
 	//minWordFreq=  // f
 	//maxMemSize  maxMemSize*=1024*1024;//m
@@ -669,7 +670,7 @@ void XWRT_Common::defaultSettings(){
 
 size_t fread_fast(unsigned char* dst, int len, FILE* file){
 	return fread(dst,1,len,file);
-	int rd;
+/*	int rd;
 	size_t sum=0;
 	while (len > 1<<17) // 128 kb
 	{
@@ -679,11 +680,11 @@ size_t fread_fast(unsigned char* dst, int len, FILE* file){
 		sum+=rd;
 	}
 	sum+=fread(dst,1,len,file);
-	return sum;
+	return sum;*/
 }
 size_t fwrite_fast(unsigned char* dst, int len, FILE* file){
 	return fwrite(dst,1,len,file);
-	int wt;
+	/*int wt;
 	size_t sum=0;
 	while (len > 1<<17) // 128 kb
 	{
@@ -693,7 +694,7 @@ size_t fwrite_fast(unsigned char* dst, int len, FILE* file){
 		sum+=wt;
 	}
 	sum+=fwrite(dst,1,len,file);
-	return sum;
+	return sum;*/
 }
 //////////////////////////////////////////
 
@@ -845,7 +846,7 @@ inline int XWRT_Decoder::decodeCodeWord(unsigned char* &s,int& c){
 
 int XWRT_Decoder::WRT_decode(){
 	int rchar=0;
-	int c;
+//	int c;
 	static int s_sizep=0;
 	if (s_sizep<s_size && s_sizep!=0 ){
 		rchar=WRTd_s[s_sizep];
@@ -922,11 +923,11 @@ int XWRT_Decoder::WRT_decode(){
 		}
 
 		if (WRTd_c>='0' && WRTd_c<='9'){
-			unsigned int no,mult;
-			int c,i;
-			no=0;
-			mult=1;
-			static int wType=0;
+			//unsigned int no,mult;
+			//int c,i;
+			//no=0;
+			//mult=1;
+			//static int wType=0;
 			rchar=WRTd_c;
 			DECODE_GETC(WRTd_c);
 			last_c=rchar;
@@ -1010,7 +1011,7 @@ void XWRT_Decoder::read_dict(){
 
 
 int XWRT_Decoder::WRT_start_decoding(FILE* in){
-	int i,j,k,c;
+	int c;
 	XWRT_file=in;
 	last_c=0;
 	WRTd_upper=false;
@@ -1018,7 +1019,7 @@ int XWRT_Decoder::WRT_start_decoding(FILE* in){
 	s_size=0;
 	collision=0;
 
-	defaultSettings(); 
+	defaultSettings(0); 
 	GETC(maxMemSize); 
 	maxMemSize*=1024*1024;
 	int fileLen;
@@ -1085,7 +1086,7 @@ private:
 	inline int checkHash(unsigned char* &s,int &s_size,int h);
 	inline void stringHash(const unsigned char *ptr, int len,int& hash);
 	
-	void encodeMixed(unsigned char* s,int s_size,int& c);
+	//void encodeMixed(unsigned char* s,int s_size,int& c);
 	void sortDict(int size);
 
 	void write_dict();
@@ -1318,7 +1319,7 @@ inline void XWRT_Encoder::toLower(unsigned char* s,int &s_size){
 	for (int i=0; i<s_size; i++)
 	s[i]=tolower(s[i]);
 }
-void XWRT_Encoder::encodeMixed(unsigned char* s,int s_size,int& old_c){
+/*void XWRT_Encoder::encodeMixed(unsigned char* s,int s_size,int& old_c){
 	int c,size,start,ptr=0;
 	EWordType wordType;
 	unsigned char* s2;
@@ -1356,7 +1357,7 @@ void XWRT_Encoder::encodeMixed(unsigned char* s,int s_size,int& old_c){
 		encodeAsText(s2,size,wordType);
 	}
 	while (ptr<s_size);
-}
+}*/
 // encode word "s" using dictionary
 void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int& c){
 	if (detect)	{
@@ -1365,8 +1366,8 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
 			//printf("%s %d %d\n",s,s_size,wordType);
 			toLower(s,s_size);
 		}
-		if (s_size<3 && s[0]>='0' && s[0]<='9') return; //???
-		
+		if ((s_size<3 && s[0]>='0' && s[0]<='9') && wrtnum==1) return; //???
+	//	if (s_size==4 && ((s[0]=='1' && s[1]=='9') || (s[0]=='2' && s[1]=='0'))) return;
 		
 		checkWord(s,s_size,c);
 		return;
@@ -1378,7 +1379,7 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
 	int i=-1;
 	int size=0;
 	int flagToEncode=-1;
-	bool justAdded=false;
+//	bool justAdded=false;
 	
 	if (s_size>=WORD_MIN_SIZE){
 		checkHashExactly(s,s_size,i);
@@ -1507,14 +1508,14 @@ void XWRT_Encoder::WRT_encode(int filelen){
 			}
 			
 			
-			/*if (letterType==NUMBERCHAR){	
+			if (letterType==NUMBERCHAR && wrtnum==0){	
 				encodeWord(s,s_size,wordType,c);
 				s_size=0;
 				ENCODE_PUTC(c);
 				ENCODE_GETC(c);
 				//	wordType=LOWERWORD;
 				continue;
-			}		*/
+			}		
 			
 		}
 		if (wordSet[c]){
@@ -1576,7 +1577,7 @@ void XWRT_Encoder::WRT_encode(int filelen){
 						wordType=FIRSTUPPER;
 						for(int i=1;i<=s_size;i++){
 							if (letterSet[s[i]]==UPPERCHAR){
-								wordType==VARWORD;
+								wordType=VARWORD;
 								break;
 							}
 						}
