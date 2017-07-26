@@ -15,7 +15,6 @@ XWRT_Common::XWRT_Common(int fileBufferSize) :  dictmem(NULL),
 		fileBufferSize=10; // 1 KB
 	if (fileBufferSize>23)
 		fileBufferSize=23; // 8 MB
-	mFileBufferSize=1<<fileBufferSize;
 	word_hash=new int[HASH_TABLE_SIZE];
 	if (!word_hash)
 		OUT_OF_MEMORY();
@@ -119,21 +118,6 @@ unsigned char* XWRT_Common::loadDynamicDictionary(unsigned char* mem,unsigned ch
 	return mem;
 }
 
-void XWRT_Common::tryAddSymbol(int c)
-{
-	if (!decoding)
-	{
-		if (value[c]<500+200*(fileLenMB/5))
-		{
-			addSymbols[c]=1;
-			detectedSymbols[detectedSym++]=1;
-		}
-		else
-			detectedSymbols[detectedSym++]=0;
-	}
-	else
-		addSymbols[c]=detectedSymbols[detectedSym++];
-}
 void XWRT_Common::initializeLetterSet()
 {
 	int c;
@@ -153,24 +137,6 @@ void XWRT_Common::initializeLetterSet()
 			wordSet[c]=1;
 		else
 			wordSet[c]=0;
-	for (c=0; c<256; c++)
-		if (c=='&' || c=='#' || c==';' || c>=128 || letterSet[c]==LOWERCHAR || letterSet[c]==UPPERCHAR || letterSet[c]==NUMBERCHAR || c=='.' || c=='-' || c=='_' || c==':') 
-			startTagSet[c]=1;
-		else
-			startTagSet[c]=0;
-	
-	{
-		for (c=0; c<256; c++)
-			if (letterSet[c]!=LOWERCHAR && c!='.' && c!='-') 
-				urlSet[c]=1;
-			else
-				urlSet[c]=0;
-	}
-	for (c=0; c<256; c++)
-		if (c==9 || c=='\r' || c=='\n' || c==32 || c=='>' || c=='?' || c=='!' || c=='/') 
-			whiteSpaceSet[c]=1;
-		else
-			whiteSpaceSet[c]=0;
 }
 void XWRT_Common::initializeCodeWords(int word_count,bool initMem)
 {
@@ -182,7 +148,6 @@ void XWRT_Common::initializeCodeWords(int word_count,bool initMem)
 		codeword2sym[c]=0;
 		sym2codeword[c]=0;
 		reservedSet[c]=0;
-		reservedFlags[c]=0;
 		outputSet[c]=0;
 	}
 	for (c=0; c<256; c++)
@@ -266,7 +231,7 @@ void XWRT_Common::initializeCodeWords(int word_count,bool initMem)
 		if (!dict || !dictlen)
 			OUT_OF_MEMORY();
 	}
-	PRINT_DICT(("codewordType=%d %d %d %d %d(%d) charsUsed=%d sizeDict=%d\n",codewordType,dict1size,dict2size,dict3size,dict4size,dictionary,charsUsed,sizeDict));
+	PRINT_DICT((" %d %d %d %d(%d) charsUsed=%d sizeDict=%d\n",dict1size,dict2size,dict3size,dict4size,dictionary,charsUsed,sizeDict));
 }
 // read dictionary from files to arrays
 bool XWRT_Common::initialize(bool encoding)
@@ -326,7 +291,7 @@ void XWRT_Common::defaultSettings()
 	maxDynDictBuf=8*4;
 	maxDictSize=65535*32700;
 	tryShorterBound=4;
-	minWordFreq=64;
+	minWordFreq=7*2; //64;
 	
 //maxDictSize=	//e
 //minWordFreq=  // f

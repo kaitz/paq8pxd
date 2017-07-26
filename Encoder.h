@@ -39,7 +39,7 @@ private:
 	int s_size;
 	int last_c_bak,last_c,last_last_c;
 	int filelento;
-	//unsigned char* getcBuffer;
+
 
 	unsigned char* dynmem;
 	unsigned char *dictbound;

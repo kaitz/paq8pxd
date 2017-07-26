@@ -1231,7 +1231,7 @@ void train(short *t, short *w, int n, int err) {
 #else
 extern "C" void train(short *t, short *w, int n, int err);  // in NASM
 #endif
-
+U32 perror1=0,ptotal1=0;
 class Mixer {
   const int N, M, S;   // max inputs, max contexts, max context sets
   Array<short, 16> tx; // N inputs from add()
@@ -1243,14 +1243,16 @@ class Mixer {
   Array<int> pr;   // last result (scaled 12 bits)
   Mixer* mp;       // points to a Mixer to combine results
 public:
+
   Mixer(int n, int m, int s=1, int w=0);
 
   // Adjust weights to minimize coding cost of last prediction
   void update() {
     for (int i=0; i<ncxt; ++i) {
       int err=((y<<12)-pr[i])*7;
+      ptotal1++;
       assert(err>=-32768 && err<32768);
-      if (err) train(&tx[0], &wx[cxt[i]*N], nx, err);
+      if (err) train(&tx[0], &wx[cxt[i]*N], nx, err),perror1++;
     }
     nx=base=ncxt=0;
   }
@@ -1260,6 +1262,7 @@ public:
     assert(nx<N);
     tx[nx++]=x;
   }
+  
 
   // Set a context (call S times, sum of ranges <= M)
   void set(int cx, int range) {
@@ -1277,8 +1280,12 @@ public:
     if (mp) {  // combine outputs
       mp->update();
       for (int i=0; i<ncxt; ++i) {
-        pr[i]=squash(dot_product(&tx[0], &wx[cxt[i]*N], nx)>>5);
-        mp->add(stretch(pr[i]));
+         int dp=((dot_product(&tx[0], &wx[cxt[i]*N], nx)*7)>>8);
+          pr[i]=squash(dp);
+          mp->add(dp);
+        //pr[i]=squash(dot_product(&tx[0], &wx[cxt[i]*N], nx)>>5);
+       // mp->add(stretch(pr[i]));
+
       }
       mp->set(0, 1);
       return mp->p();
@@ -1846,6 +1853,32 @@ int matchModel(Mixer& m) {
 }
 
 //////////////////////////// wordModel /////////////////////////
+U32 b2=0,b3=0,w4=0;
+U32 w5=0,f4=0,tt=0;
+U32 WRT_mpw[16]= { 3, 3, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 1, 0, 0, 0 };
+U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 6, 7, 7, 7 };
+/*U8 WRT_mtt[256]= {
+    0,   0,   0,1*32,   0,   0,  0,    0,    0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0, 1*32,   0,   0,   0,   0,   0,   0,   0,
+ 2*32,4*32,3*32,3*32,4*32,6*32,6*32,7*32, 5*32,4*32,   0,4*32,3*32,4*32,   0,1*32,
+   32,  32,  32,  32,  32,  32,  32,  32,   32,  32,7*32,3*32,3*32,4*32,3*32,4*32,
+
+    0,5*32,5*32,5*32,5*32,5*32,5*32,5*32, 5*32,5*32,5*32,5*32,5*32,5*32,5*32,5*32,
+ 5*32,5*32,5*32,5*32,5*32,5*32,5*32,5*32, 5*32,5*32,5*32,6*32,4*32,3*32,4*32,4*32,
+
+ 4*32,5*32,5*32,5*32,5*32,5*32,5*32,5*32, 5*32,5*32,5*32,5*32,5*32,5*32,5*32,5*32,
+ 5*32,5*32,5*32,5*32,5*32,5*32,5*32,5*32, 5*32,5*32,5*32,4*32,4*32,4*32,4*32,4*32,
+
+ 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32, 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32,
+ 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32, 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32,
+ 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32, 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32,
+ 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32, 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32,
+ 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32, 6*32,6*32,6*32,6*32,6*32,6*32,6*32,6*32,
+
+ 7*32,7*32,7*32,7*32,7*32,7*32,7*32,7*32, 7*32,7*32,7*32,7*32,7*32,7*32,7*32,7*32,
+ 7*32,7*32,7*32,7*32,7*32,7*32,7*32,7*32, 7*32,7*32,7*32,7*32,7*32,7*32,7*32,7*32,
+ 7*32,7*32,7*32,7*32,7*32,7*32,7*32,7*32, 7*32,7*32,7*32,7*32,7*32,7*32,7*32,7*32,
+ };*/
 
 // Model English text (words and columns/end of line)
 static U32 frstchar=0, spafdo=0, spaces=0, spacecount=0, words=0, wordcount=0,wordlen=0,wordlen1=0;
@@ -1853,7 +1886,7 @@ void wordModel(Mixer& m) {
   static U32 word0=0, word1=0, word2=0, word3=0, word4=0, word5=0;  // hashes
   static U32 number0=0, number1=0;  // hashes
   static U32 text0=0;  // hash stream of letters
-  static ContextMap cm(MEM*16, 20+3+3+6+1+1+1+1+1+1+2+1+1+1+1);
+  static ContextMap cm(MEM*16, 20+3+3+6+1+1+1+1+1+1+2+1+1+1+1+4+1+1);
   static int nl1=-3, nl=-2;  // previous, current newline position
   // Update word hashes
   if (bpos==0) {
@@ -1864,7 +1897,7 @@ void wordModel(Mixer& m) {
     words=words*2;
 
     if (c>='A' && c<='Z') c+='a'-'A';
-    if ((c>='a' && c<='z') || c>=128) {
+    if ((c>='a' && c<='z') || (c>=128 &&(b2!=3))) {
              
       ++words, ++wordcount;
       word0=word0*263*32+c;
@@ -1898,7 +1931,7 @@ void wordModel(Mixer& m) {
     cm.set(frstchar<<11|c);
     cm.set(col<<8|frstchar);
     cm.set(spaces<<8|(words&255));
-
+cm.set(spafdo*8 * ((w4&3)==1) );
 
     cm.set(number0+word2*31);
     cm.set(number0+word1*31);
@@ -1943,8 +1976,12 @@ void wordModel(Mixer& m) {
     cm.set(col<<8|buf(1));
     cm.set(col*(c==32));
     cm.set(col);
-    
-    
+  
+     cm.set(w4&15);
+    cm.set(f4);
+    cm.set((w4&63)*128+(5<<17));
+      cm.set((f4&0xffff)<<11|frstchar);
+     cm.set((words&12)*16+(w4&12)*4+(b2>>4));
   }
   cm.mix(m);
 }
@@ -2016,6 +2053,47 @@ void recordModel(Mixer& m) {
   cp.mix(m);
 }
 
+void recordModel1(Mixer& m) {
+  static int cpos1[256];
+  static int wpos1[0x10000]; // buf(1..2) -> last position
+  static ContextMap cm(32768, 2), cn(32768/2, 4+1), co(32768*2, 4),cp(32768*2, 3), cq(32768*4, 3);
+
+  // Find record length
+  if (!bpos) {
+    int w=c4&0xffff, c=w&255, d=w&0xf0ff,e=c4&0xffffff;
+    cm.set(c<<8| (min(255, pos-cpos1[c])/4));
+    cm.set(w<<9| llog(pos-wpos1[w])>>2);
+
+    cn.set(w);
+    cn.set(d<<8);
+    cn.set(c<<16);
+    cn.set((f4&0xfffff)); 
+    int col=pos&3;
+    cn.set(col|2<<12);
+
+    co.set(c    );
+    co.set(w<<8 );
+    co.set(w5&0x3ffff);
+    co.set(e<<3);
+    
+    cp.set(d    );
+    cp.set(c<<8 );
+    cp.set(w<<16);
+
+    cq.set(w<<3 );
+    cq.set(c<<19);
+    cq.set(e);
+    // update last context positions
+
+    cpos1[c]=pos;
+    wpos1[w]=pos;
+  }
+  cm.mix(m);
+  cn.mix(m);
+  co.mix(m);
+  cq.mix(m);
+  cp.mix(m);
+}
 
 //////////////////////////// sparseModel ///////////////////////
 
@@ -3189,7 +3267,8 @@ void nestModel(Mixer& m)
 }
 
 void sparseModel1(Mixer& m, int seenbefore, int howmany) {
-  static ContextMap cm(MEM*2, 12+2*7);
+  static ContextMap cm(MEM*2, 9+2*6);
+  static ContextMap cn(MEM, 3);
   if (bpos==0) {
     cm.set(seenbefore);
     cm.set(howmany);
@@ -3199,16 +3278,16 @@ void sparseModel1(Mixer& m, int seenbefore, int howmany) {
     cm.set(c4&0x00f0f0ff);
     cm.set(c4&0x00ff00ff);
     cm.set(c4&0xff0000ff);
-    cm.set(c4&0x00f8f8f8);
-    cm.set(c4&0xf8f8f8f8);
-    cm.set(c4&0x00f0f0f0);
-    cm.set(c4&0xf0f0f0f0);
-    for (int i=1; i<8; ++i) {
+    for (int i=1; i<7; ++i) {
       cm.set(seenbefore|buf(i)<<8);
       cm.set((buf(i+3)<<8)|buf(i+1));
     }
+    cn.set(words&0x1ffff);
+    cn.set((f4&0x000fffff));
+    cn.set((tt&0x00000fff));
   }
   cm.mix(m);
+  cn.mix(m);
 }
 
 //////////////////////////// contextModel //////////////////////
@@ -3217,13 +3296,13 @@ void sparseModel1(Mixer& m, int seenbefore, int howmany) {
 typedef enum {DEFAULT, JPEG, HDR, IMAGE1, IMAGE8, IMAGE24, AUDIO, EXE, CD, TEXT, TXTUTF8, TXT0, DICTTXT} Filetype;
 
 // This combines all the context models with a Mixer.
-
+ Filetype filetype=DEFAULT;
 int contextModel2() {
   static ContextMap cm(MEM*32, 9);
   static RunContextMap rcm7(MEM), rcm9(MEM), rcm10(MEM);
-  static Mixer m(845+80, 3095, 7);
+  static Mixer m(845+80, 3095+256*7+256*8+256*7+2048+256*7-256*4-264, 7);
   static U32 cxt[16];  // order 0-11 contexts
-  static Filetype ft2,filetype=DEFAULT;
+  static Filetype ft2;//,filetype=DEFAULT;
   static int size=0;  // bytes remaining in block
   static int info=0;  // image width or audio type
 
@@ -3271,7 +3350,7 @@ int contextModel2() {
     cm.set(cxt[14]);
   }
   int order=cm.mix(m);
-
+    
   rcm7.mix(m);
   rcm9.mix(m);
   rcm10.mix(m);
@@ -3286,51 +3365,77 @@ int contextModel2() {
     nestModel(m);
     if (filetype==EXE) exeModel(m);
   }*/
- if (level>=4 && filetype!=IMAGE1) {
+if (level>=4 && filetype!=IMAGE1) {
+         
 	switch (filetype)
 	{
-    case DICTTXT:
-    case TXTUTF8:
-	case TEXT: { 
-        sparseModel1(m,ismatch,order);
-		nestModel(m);
-		wordModel(m);
-		indirectModel(m);
-		dmcModel(m);
-		break;
+	case DICTTXT:
+		{ 
+			sparseModel1(m,ismatch,order);
+			nestModel(m);
+			wordModel(m);
+			indirectModel(m);
+			dmcModel(m);
+			recordModel1(m);
+			
+			order = order-2;
+			if (order<0) order=0;
+			U32 c1=buf(1), c2=buf(2), c3=buf(3), c;
+			
+			c=(words>>1)&63;
+			m.set((w4&3)*64+c+order*256, 256*7); 
+			m.set(c0, 256);
+			m.set(ismatch, 256);
+			m.set(256*order + (w4&240) + (c2>>4), 256*7);
+			c=(w4&255)+256*bpos;
+			m.set(c, 256*8);
+			if (bpos)
+			{
+				c=c0<<(8-bpos); if (bpos==1)c+=c3/2;
+				c=(min(bpos,5))*256+c1/32+8*(c2/32)+(c&192);
+			}
+			else c=c3/128+(c4>>31)*2+4*(c2/64)+(c1&240); 
+			//c=(min(bpos,5))*256+(tt&63)+(c&192);
+	        //}
+		    //else c=(words&12)*16+(tt&63);
+			m.set(c, 1536);
+			c=bpos*256+((c0<<(8-bpos))&255);
+			c1 = (words<<bpos) & 255;
+			m.set(c+(c1>>bpos), 2048);
+			int pr=m.p();
+			return pr;
+			break;
 		}
 	default: { 
-        sparseModel(m,ismatch,order);
-		distanceModel(m);
-		recordModel(m);
-		indirectModel(m);
-        wordModel(m);
-		nestModel(m);
-		dmcModel(m);
-		if (filetype==EXE) exeModel(m);
-		break;
+			sparseModel(m,ismatch,order);
+			distanceModel(m);
+			recordModel(m);
+			indirectModel(m);
+			wordModel(m);
+			nestModel(m);
+			dmcModel(m);
+			if (filetype==EXE) exeModel(m);
+			break;
 		} 
-    }
- }
+	}
+}
  
   order = order-2;
   if (order<0) order=0;
 
   U32 c1=buf(1), c2=buf(2), c3=buf(3), c;
-
-  m.set(c1+8, 264);
   m.set(c0, 256);
-  m.set(order+8*(c4>>6&3)+32*(bpos==0)+64*(c1==c2)+128*(filetype==EXE), 256);
   m.set(c2, 256);
   m.set(c3, 256);
+  m.set(c1+8, 264); 
+  m.set(order+8*(c4>>6&3)+32*(bpos==0)+64*(c1==c2)+128*(filetype==EXE), 256);
   m.set(ismatch, 256);
-
   if (bpos)
   {
     c=c0<<(8-bpos); if (bpos==1)c+=c3/2;
-    c=(min(bpos,5))*256+c1/32+8*(c2/32)+(c&192);
+  c=(min(bpos,5))*256+c1/32+8*(c2/32)+(c&192);
   }
-  else c=c3/128+(c4>>31)*2+4*(c2/64)+(c1&240);
+  else c=c3/128+(c4>>31)*2+4*(c2/64)+(c1&240); 
   m.set(c, 1536);
   int pr=m.p();
   return pr;
@@ -3359,13 +3464,33 @@ void Predictor::update() {
                       a4(0x10000), a5(0x10000), a6(0x10000);
 
   // Update global context: pos, bpos, c0, c4, buf
-  c0+=c0+y;
-  if (c0>=256) {
-    buf[pos++]=c0;
-    c4=(c4<<8)+c0-256;
-    c0=1;
-  }
-  bpos=(bpos+1)&7;
+c0+=c0+y;
+if (c0>=256) {
+	buf[pos++]=c0;
+	c4=(c4<<8)+c0-256;
+	if (  filetype==DICTTXT){
+		int i=WRT_mpw[c0>>4];
+		w4=w4*4+i;
+		if (b2==3) i=2;
+		w5=w5*4+i;
+		b3=b2;
+        b2=c0;
+		
+		if(c0=='.' || c0=='!' || c0=='?') {
+			w5=(w5<<8)|0x3ff,f4=(f4&0xfffffff0)+2;
+			if(c0!='!') w4|=12;
+				if(c0!='!') tt=(tt&0xfffffff8)+1;
+		}
+		//tt=tt*8+(WRT_mtt[c0]>>5);   
+		tt=tt*8+WRT_mtt[c0>>4];
+		if (c0==32) --c0;
+		f4=f4*16+(c0>>4);
+	}
+	else f4=w5=w4=b2=0;
+
+	c0=1;
+}
+bpos=(bpos+1)&7;
 
   // Filter the context model with APMs
   int pr0=contextModel2();
@@ -3375,6 +3500,7 @@ void Predictor::update() {
   int pr1=a1.p(pr0, c0+256*buf(1));
   int pr2=a2.p(pr0, (c0^hash(buf(1), buf(2)))&0xffff);
   int pr3=a3.p(pr0, (c0^hash(buf(1), buf(2), buf(3)))&0xffff);
+
   pr0=(pr0+pr1+pr2+pr3+2)>>2;
 
   pr1=a4.p(pr, c0+256*buf(1));
@@ -3670,7 +3796,7 @@ Filetype detect(FILE* in, int n, Filetype type, int &info) {
  // For TEXT
   int txtStart=0,txtLen=0,txtOff=0;
   int utfc=0,utfb=0,txtIsUTF8=0; //utf count 2-6, current byte
-  const int txtMinLen=1024*128;
+  const int txtMinLen=1024*768;
 
 int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
   const int txtMinLen1=1024*4;
@@ -3855,7 +3981,7 @@ int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
       if (pgmcomment && c==0x0a) pgmcomment=0;
       if (pgmw && pgmh && !pgmc && pgmn==4) IMG_DET(IMAGE1,pgm-2,i-pgm+3,(pgmw+7)/8,pgmh);
       if (pgmw && pgmh && pgmc && pgmn==5) IMG_DET(IMAGE8,pgm-2,i-pgm+3,pgmw,pgmh);
-     // if (pgmw && pgmh && pgmc && pgmn==6) IMG_DET(IMAGE24,pgm-2,i-pgm+3,pgmw*3,pgmh);
+      if (pgmw && pgmh && pgmc && pgmn==6) IMG_DET(IMAGE24,pgm-2,i-pgm+3,pgmw*3,pgmh);
     }
 
     // Detect .rgb image
@@ -4005,31 +4131,30 @@ int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
        }
        else if (utfc>=2 && utfb>=1){ // wrong utf
             if (txtLen<txtMinLen) {
-            txtStart=txtLen=txtOff=utfc=utfb=0;
+               txtStart=txtLen=txtOff=utfc=utfb=0;
             }
             else{
-            if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
-            if (txtIsUTF8==1)
-            return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
-           else
-            return fseek(in, start+txtOff, SEEK_SET),TEXT;
+                 if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
+                 if (txtIsUTF8==1)
+                    return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
+                 else
+                     return fseek(in, start+txtOff, SEEK_SET),TEXT;
             }
        }
        else if (txtLen<txtMinLen) {
             txtStart=txtLen=txtOff=utfc=utfb=0;
        }
        else if (txtLen>=txtMinLen) {
-         
 		   if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
-
           if (txtIsUTF8==1)
            return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
           else
      
             return fseek(in, start+txtOff, SEEK_SET),TEXT;
+            }
        }
-    } 
-    //
+
+    //detect text stream of 0xX0X0X0X0X...
       if (txtStart1==0 && !soi && !pgm && !rgbi && !bmp && !wavi && !tga &&
         ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart1=1,txtOff1=i;
     if (txtStart1   ) {
@@ -4070,7 +4195,7 @@ typedef enum {FDECOMPRESS, FCOMPARE, FDISCARD} FMode;
 
 // Print progress: n is the number of bytes compressed or decompressed
 void printStatus(int n, int size) {
-  printf("%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+  printf("%6.2f%% %6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1),float(100)*perror1/(ptotal1+1)), fflush(stdout);
 }
 
 void encode_cd(FILE* in, FILE* out, int len, int info) {
@@ -4905,6 +5030,7 @@ int main(int argc, char** argv) {
     }
     fclose(archive);
     if (!doList) programChecker.print();
+    printf("Final error: %6.2f%%\n", float(100)*perror1/(ptotal1+1));
   }
   catch(const char* s) {
     if (s) printf("%s\n", s);

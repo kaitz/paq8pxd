@@ -299,6 +299,7 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
 {
 	if (detect)
 	{
+	toLower(s,s_size);
 		checkWord(s,s_size,c);
 		return;
 	}
@@ -340,7 +341,7 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
 			}
 			
 			
-			if (i<0 && IF_OPTION(OPTION_TRY_SHORTER_WORD))
+			if (i<0 ) //&& IF_OPTION(OPTION_TRY_SHORTER_WORD))
 			{
 				// try to find shorter version of word in dictionary
 				i=findShorterWord(s,s_size);
@@ -410,7 +411,6 @@ void XWRT_Encoder::WRT_encode(int filelen)
 		
 		if (detect)
 		{
-			value[c]++;
 			letterType=letterSet[c];
 		}
 		else
@@ -559,8 +559,8 @@ void XWRT_Encoder::write_dict()
 	for (i=0; i<count; i++)
 	{
 		cmn=0;
-		if (i>0)
-			cmn=common(sortedDict[i-1].c_str(),sortedDict[i].c_str(),min(sortedDict[i].size(),sortedDict[i-1].size()));
+		//if (i>0)
+		//	cmn=common(sortedDict[i-1].c_str(),sortedDict[i].c_str(),min(sortedDict[i].size(),sortedDict[i-1].size()));
 		if ((cmn>0 || (unsigned char)(sortedDict[i][0])>=128))
 			bufferData+=sprintf((char*)bufferData,"%c%s\n",128+cmn,sortedDict[i].c_str()+cmn);
 		else
@@ -595,12 +595,13 @@ XWRT_fileout=out;
 	
 	cont.prepareMemBuffers();
 	cont.memout->memsize=0;
-	
+/*	if (fileLenMB>64) minWordFreq-=16;
 	if (fileLenMB<32)
 		minWordFreq+=3;
 	if (fileLenMB<6)
 		minWordFreq=minWordFreq+15;
-
+if (fileLenMB<1)
+		minWordFreq=minWordFreq*2;*/
 		int pos=ftell(XWRT_file);
 	if (!type_detected)
 		WRT_detectFileType(fileLen);
@@ -615,16 +616,10 @@ XWRT_fileout=out;
 
 	PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
 	write_dict(); // przed initialize()
-	memset(detectedSymbols,0,sizeof(detectedSymbols));
 	decoding=false;
 	WRT_deinitialize();
 	if (!initialize(true))
 		return;
-	memset(value,0,sizeof(value));
-		PUTC(1*detectedSymbols[0]+2*detectedSymbols[1]+4*detectedSymbols[2]+8*detectedSymbols[3]+16*detectedSymbols[4]+32*detectedSymbols[5]+64*detectedSymbols[6]+128*detectedSymbols[7]);
-		PUTC(1*detectedSymbols[8]+2*detectedSymbols[9]+4*detectedSymbols[10]+8*detectedSymbols[11]+16*detectedSymbols[12]+32*detectedSymbols[13]+64*detectedSymbols[14]+128*detectedSymbols[15]);
-		PUTC(1*detectedSymbols[16]+2*detectedSymbols[17]+4*detectedSymbols[18]+8*detectedSymbols[19]+16*detectedSymbols[20]+32*detectedSymbols[21]+64*detectedSymbols[22]+128*detectedSymbols[23]);
-	
 	WRT_encode(fileLen);
 	cont.writeMemBuffers(preprocFlag);
 	cont.freeMemBuffers(true);
@@ -674,7 +669,7 @@ inline void XWRT_Encoder::checkWord(unsigned char* &s,int &s_size,int& c)
 int XWRT_Encoder::WRT_detectFileType(int filelen)
 {
 	detect=true;
-	memset(value,0,sizeof(value));
+	//memset(value,0,sizeof(value));
 	memset(addSymbols,0,sizeof(addSymbols));
 	memset(reservedSet,0,sizeof(reservedSet));
 	memset(spacesCont,0,sizeof(spacesCont));
@@ -745,7 +740,7 @@ void XWRT_Encoder::sortDict(int size)
 		inttable[i]=i+1;
 	qsort(&inttable[0],size,sizeof(inttable[0]),compare_freq);
 	
-	{
+	
 		qsort(&inttable[0],min(size,dict1size),sizeof(inttable[0]),compare_str);
 		
 		if (size>dict1size)
@@ -756,7 +751,7 @@ void XWRT_Encoder::sortDict(int size)
 		
 		if (size>bound4)
 			qsort(&inttable[bound4],size-bound4,sizeof(inttable[0]),compare_str);
-	}
+	
 	for (i=0; i<size; i++)
 	{
 		std::string str=(char*)dict[inttable[i]];

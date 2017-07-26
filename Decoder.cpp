@@ -268,7 +268,6 @@ void XWRT_Decoder::read_dict()
 		fread_fast(bufferData,count,XWRT_file);
 	}
 
-
 	count=bufferData[0]; bufferData++;
 	count+=256*bufferData[0]; bufferData++;
 	count+=65536*bufferData[0]; bufferData++;
@@ -340,31 +339,6 @@ XWRT_file=in;
 
 	PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
 	read_dict();
-	memset(detectedSymbols,0,sizeof(detectedSymbols));
-
-	GETC(i)
-	k=1;
-	for (j=0; j<8; j++)
-	{
-		if (i & k) detectedSymbols[j]=1;
-		k*=2;
-	}
-
-	GETC(i)
-	k=1;
-	for (j=8; j<16; j++)
-	{
-		if (i & k) detectedSymbols[j]=1;
-		k*=2;
-	}
-
-	GETC(i)
-	k=1;
-	for (j=16; j<24; j++)
-	{
-		if (i & k) detectedSymbols[j]=1;
-		k*=2;
-	}
 
 	cont.readMemBuffers(preprocFlag,maxMemSize);
 	cont.memout->memsize=0;

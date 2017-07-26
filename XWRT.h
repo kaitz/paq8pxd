@@ -7,7 +7,7 @@
 #define PRINT_CHARS(data) ;//printf data
 #define PRINT_CODEWORDS(data) ;//printf data
 #define PRINT_STACK(data) ;//printf data;
-#define PRINT_DICT(data);// printf data;
+#define PRINT_DICT(data) ;//printf data;
 #define PRINT_CONTAINERS(data) ;//printf data
 //#define PRINT_STATUS(data) printf data;
 
@@ -56,7 +56,7 @@ inline int max(int a, int b) {return a<b?b:a;}
 #define MAX_DYNAMIC_DICT_COUNT	(65536*256)
 #define HASH_TABLE_SIZE			(1<<20) //1MB*4
 
-#define BYTES_TO_DETECT			(50*1024)
+//#define BYTES_TO_DETECT			(50*1024)
 
 //#define NUM_BASE			256
 #define HASH_DOUBLE_MULT	37
