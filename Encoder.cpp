@@ -109,7 +109,7 @@ inline void XWRT_Encoder::encodeCodeWord(int &i)
 			ENCODE_PUTC(sym2codeword[first]);
 			PRINT_CODEWORDS(("1st=%d ",sym2codeword[first]));
 		}
-		PRINT_CODEWORDS((" no=%d %s\n", no-1,dict[no]));
+
 }
 
 inline void XWRT_Encoder::encodeSpaces()

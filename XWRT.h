@@ -5,7 +5,7 @@
 //
 
 #define PRINT_CHARS(data) ;//printf data
-#define PRINT_CODEWORDS(data) ;//printf data
+#define PRINT_CODEWORDS(data); // printf data
 #define PRINT_STACK(data) ;//printf data;
 #define PRINT_DICT(data) ;//printf data;
 #define PRINT_CONTAINERS(data) ;//printf data
