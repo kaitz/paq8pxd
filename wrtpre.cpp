@@ -81,12 +81,15 @@ enum ELetterType { LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR }
 		printf("Not enough memory!\n");\
 		exit(0); \
 	}
+	
+//this totaly breaks multithreading
 FILE* XWRT_file;
 FILE* XWRT_fileout;
 unsigned char** dict=NULL;
 int* dictfreq=NULL;
 unsigned char* dictlen=NULL;
 int wrtnum=0;
+//-------
 #define PUTC(c) { putc(c,XWRT_fileout); }
 #define GETC(c) { c=getc(XWRT_file); }
 size_t fread_fast(unsigned char* dst, int len, FILE* file);
@@ -1473,7 +1476,9 @@ void XWRT_Encoder::WRT_encode(int filelen){
 	ENCODE_GETC(c);
 	while (true) 
 	{
-		if (filelento==filelen)
+		if (c==EOF)
+	    break;
+		if (filelento>=filelen)
 		break;
 		PRINT_CHARS(("c=%c (%d) last=%c \n",c,c,last_c));
 		
