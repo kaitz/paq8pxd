@@ -18,8 +18,8 @@
 #endif
 #endif
 
-#define VMJIT  // Comment to compile without x86 JIT
-#define VMMSG  // prints error messages and x86 asm to console
+//#define VMJIT  // Comment to compile without x86 JIT
+//#define VMMSG  // prints error messages and x86 asm to console
 
 #ifdef WINDOWS
 #define PROT_NONE       0
@@ -46,7 +46,14 @@ void* vmmalloc(size_t i){
   memset(ptr,  0, i);
   return ptr;//malloc(i);
 }
- 
+ int absolute(int value) {
+  if (value < 0) {
+    return -value;
+  }
+  else {
+    return value;  
+  }
+}
 // tokens and classes (operators last and in precedence order)
 enum {  Num = 128, Fun, Sys, Glo, Loc, Id,
   Char, Else, Enum, If, Int, Short, Return, For, Sizeof, While,
@@ -55,7 +62,7 @@ enum {  Num = 128, Fun, Sys, Glo, Loc, Id,
 // opcodes
 enum { LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI ,LS ,LC  ,SI ,SS ,SC  ,PSH ,
        OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,VTHIS,
-        PRTF,SMP,SMN,APM,VMS,VMI,VMX,MXP,MXC,MXA,MXS,GCR,BUF,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,H1,H2,H3,EXIT };
+        PRTF,ABS,SMP,SMN,APM,VMS,VMI,VMX,MXP,MXC,MXA,MXS,GCR,BUF,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,H2,H3,H4,H5,EXIT };
 // types (unsigned)
 enum { rCHAR, sSHORT, iINT, PTR };
 // identifier offsets (since we can't create an ident struct)
@@ -90,8 +97,8 @@ int *e, *le, *text,  // current position in emitted code
     int *pc, *sp,*sp0, *bp, cycle; // vm registers
     int i, *t,*pc0,tmp; // temps
     unsigned int a;
-    int  initvm(const char *file ) ; 
-
+    int  initvm( ) ; 
+char *mod;
 public:
 	BlockData& x;
 	int smc, apm1,  apm2,  rcm,  scm,  mcm,  cm,mc,  mx;
@@ -108,7 +115,7 @@ public:
     int currentc; //current component, used in vmi
     int *mcomp;  //component list set in vmi
 	int initdone; //set to 1 after main exits
-VM(const char *file,BlockData& bd);
+VM(char* m,BlockData& bd);
 ~VM() ;
 void next();
 void  expr(int lev);
@@ -119,7 +126,20 @@ int  dojit();
  #endif
 int block(int info1,int info2);
 int doupdate(int y, int c0, int bpos,U32 c4,int pos);
+void  killvm( );
 };
+void VM::killvm( ){
+if ( smc>0 ) delete[]  smC;
+  if ( apm1>0 ) delete[]  apm1C;
+  if (  apm2>0 ) delete[]  apm2C;
+  if ( rcm>0 ) delete[]  rcmC;
+  if ( scm>0 ) delete[]  scmC;
+  if ( mcm>0 ) delete[]  mcmC;
+  if ( cm>0 ) delete[]  cmC;
+  if ( mx>0 ) delete[]  mxC;
+  if ( mc>0 ) delete[]  mcC;
+ if ( totalc>0 ) free(  mcomp);
+ }
 //vms - set number of components
 void components(VM* v,int a,int b,int c,int d,int e,int f,int g,int h,int i){
 	if (v->initdone==1) printf("VM vms error: vms allowed only in main\n "),quit();
@@ -216,8 +236,9 @@ void setcomponent(VM* v,int c,int i, U32 f){
         break;
     }
 }
-int smn(VM* v,int a){ // get next state
-    return nex(a,v->x.y);
+int smn(VM* v,int state){ // get next state
+    assert(state>=0) ;
+    return nex(state,v->x.y);
 }
 int smp(VM* v,int a,int cx,int limit){ // StateMap predict
     assert(limit>0 && limit<1024);
@@ -227,11 +248,14 @@ int ap(VM* v,int a,int pr,int cx,int limit){ //APM1 predict
     assert(pr>=0 && pr<4096  && limit>0 && limit<32);
     return v->apm1C[a]->p(pr,cx,limit);
 }
-int bf(VM* v,int a){ // get next state
-    return v->x.buf(a);
+int bf(VM* v,int bufa){ // get buf
+    assert(bufa>=0) ;
+    return v->x.buf(bufa);
 }
-int bfr(VM* v,int a){ // get next state
-    return v->x.buf[a];
+int bfr(VM* v,int bufra){ // get bufr
+    //assert(bufra>=0) ;
+	if (bufra<=0) bufra=0;
+    return v->x.buf[bufra];
 }
 void mxa(VM* v,int i,int a){ // mixer add
     assert(i>=0 && i < v->mx);
@@ -249,7 +273,7 @@ int mxc(VM* v,int a){
     assert(a>=0 && a < v->mx);
     for (int i=0;i< v->totalc;i++){
         int mi=v->mcomp[i] &0xff ;    // mixer  
-        if (a==mi) {
+        if (a==mi) { //if user called mixer found
             int j=v->mcomp[i]>>16;    // component index
             //printf("%d %d ",(v->mcomp[i]>>8)&0xff,v->mcomp[i]);
             switch ((v->mcomp[i]>>8)&0xff) { // select component and mix
@@ -304,20 +328,22 @@ int gcr(VM* v,int a,int b,int c){  //this,mixer,index,component type
     }
     return 0;
 }
-VM::VM(const char *file,BlockData& bd):x(bd) {
-	#ifdef VMJIT
-printf("VM using x86 JIT.\n");
-#else
-printf("VM using emulation.\n");
- #endif
-	smc=apm1=apm2=rcm=scm=mcm=cm=mx=currentc=totalc=initdone=0;
-    if (initvm(file)==-1) exit(1);  //load cfg file, if error then exit
+VM::VM(char* m,BlockData& bd):x(bd) {
+	/*#ifdef VMJIT
+		printf("VM using x86 JIT.\n");
+		#else
+		printf("VM using emulation.\n");
+	#endif*/
+mod=m;
+	smc=apm1=apm2=rcm=scm=mcm=cm=mx=mc=currentc=totalc=initdone=0;
+    if (initvm()==-1) 
+	exit(1);  //load cfg file, if error then exit
     initdone=1;
     totalc=currentc; //update total count to current count 
 }
 
 VM::~VM() {
-  if (smc>0 ) delete[] smC;
+  /*if (smc>0 ) delete[] smC;
   if (apm1>0 ) delete[] apm1C;
   if (apm2>0 ) delete[] apm2C;
   if (rcm>0 ) delete[] rcmC;
@@ -326,6 +352,7 @@ VM::~VM() {
   if (cm>0 ) delete[] cmC;
   if (mx>0 ) delete[] mxC;
   if (mc>0 ) delete[] mcC;
+ if (totalc>0 ) free( mcomp);*/
 }
  
 void VM::next(){
@@ -364,7 +391,7 @@ void VM::next(){
       tk = id[Tk] = Id;
       return;
     }
-    else if (tk == '0' && *(p)== 'x') {
+    else if (tk == '0' && *(p)== 'x') { //Hexadecimal numbers
         p++;
         for (ival = 0; '\0' != (n = *p); p++) {
                 if ( n >= 'a' && n <= 'f') {
@@ -381,13 +408,13 @@ void VM::next(){
                 ival  =ival + n;
         }
     }
-    else if (tk >= '0' && tk <= '9') {
+    else if (tk >= '0' && tk <= '9') { //numbers
       ival = tk - '0';
       while (*p >= '0' && *p <= '9') ival = ival * 10 + *p++ - '0';
       tk = Num;
       return;
     }
-    else if (tk == '/') {
+    else if (tk == '/') { //comment
       if (*p == '/') {
         ++p;
         while (*p != 0 && *p != '\n') ++p;
@@ -428,7 +455,7 @@ void VM::next(){
 }
 
 void VM::expr(int lev){
-  int t, *d;
+  int t, *d,fc;
 
   if (!tk) { kprintf("%d: unexpected eof in expression\n", line); exit(-1); }
   else if (tk == Num) { *++e = IMM; *++e = ival; next(); ty = iINT; }
@@ -448,7 +475,7 @@ void VM::expr(int lev){
   else if (tk == Id) {
     d = id; next();
     if (tk == '(') {      
-	  if (d[Val]>PRTF &&  d[Val]<MALC){//for special functions in vm
+	  if (d[Val]>ABS &&  d[Val]<MALC){//for special functions in vm
     		*++e = VTHIS;
 			next();
 			t = 1; //adjust stack
@@ -457,13 +484,39 @@ void VM::expr(int lev){
 	      next();
 	      t=0;
 	  }
+	  fc=0;
+	    if (d[Val] == ABS ) {fc=1 ;} //args count
+    else if (d[Val] == SMP  ) {fc=4 ;}
+    else if (d[Val] == SMN  ) {fc=2 ;}
+    else if (d[Val] == APM  ) {fc=5 ;}
+    else if (d[Val] == VMS ) {fc=10 ;}
+    else if (d[Val] ==VMI  ) {fc=6 ;}
+    else if (d[Val] == VMX  ) {fc=4 ;}
+    else if (d[Val] == MXP ) {fc=2 ;}
+    else if (d[Val] == MXC  ) {fc=2 ;}
+    else if (d[Val] == MXA  ) {fc=3 ;}
+    else if (d[Val] == MXS  ) {fc=4 ;}
+    else if (d[Val] == GCR  ) {fc=4 ;}
+    else if (d[Val] == BUF  ) {fc=2 ;}
+    else if (d[Val] == BUFR  ) {fc=2 ;}
+    else if (d[Val] == STRE  ) {fc=1 ;}
+    else if (d[Val] == SQUA  ) {fc=1 ;}
+    else if (d[Val] == ILOG  ) {fc=1 ;}
+    else if (d[Val] == H2  ) {fc=2 ;}
+    else if (d[Val] == H3  ) {fc=3 ;}
+    else if (d[Val] == H4  ) {fc=4 ;}
+    else if (d[Val] == H5  ) {fc=5 ;}
       while (tk != ')') { expr(Assign); *++e = PSH; ++t; if (tk == Comma) next(); }
       next();
-      if (d[Class] == Sys) *++e = d[Val];
+      if (d[Class] == Sys) {*++e = d[Val];
+      
+    if (t!=fc && fc!=0){ kprintf("%d: wrong number of arguments\n", line); exit(-1);}
+	  }
       else if (d[Class] == Fun) { *++e = JSR; *++e = d[Val]; }
       else { kprintf("%d: bad function call\n", line); exit(-1); }
       if (t) { *++e = ADJ; *++e = t; }
-      ty = d[Type];
+      ty = d[Type]; 
+      
     }
     else if (d[Class] == Num) { *++e = IMM; *++e = d[Val]; ty = iINT; }
     else {
@@ -662,9 +715,10 @@ void VM::stmt() {
 int stre(int a){ return stretch(a);}
 int squa(int a){ return squash(a);}
 int il(int a){ return ilog(a);}
-U32 h1(U32 a, U32 b){ return hash0(a,b);}
-U32 h2(U32 a, U32 b, U32 c){ return hash0(a,b,c);}
-U32 h3(U32 a, U32 b, U32 c, U32 d){ return hash0(a,b,c,d);}
+U32 h2(U32 a, U32 b){ return hash0(a,b);}
+U32 h3(U32 a, U32 b, U32 c){ return hash0(a,b,c);}
+U32 h4(U32 a, U32 b, U32 c, U32 d){ return hash0(a,b,c,d);}
+U32 h5(U32 a, U32 b, U32 c, U32 d, U32 e){ return hash0(a,b,c,d,e);}
 
 #ifndef VMJIT
 int VM::dovm(int *ttt){
@@ -675,11 +729,11 @@ int VM::dovm(int *ttt){
   cycle = 0;
   while (1) {
     i = *pc++; ++cycle;
-    /*if (debug) {
+   /* if (debug) {
       kprintf("%d>%x  %.4s", cycle,pc-pc0,
         &"LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LS  ,LC  ,SI  ,SS  ,SC  ,PSH ,"
-         "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,THIS,"
-         "PRTF,SMP ,SMN ,APM ,VMS ,VMI ,VMX ,MXP ,MXA ,MXS ,BUF ,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,EXIT,"[i * 5]);
+         "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,THIS,ABS ,"
+         "PRTF,SMP ,SMN ,APM ,VMS ,VMI ,VMX ,MXP ,MXA ,MXS ,BUF ,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,H2  ,H3  ,H4  ,H5  ,EXIT,"[i * 5]);
     if (i < JMP) kprintf(" %d\n",*pc); //? +1
      else if (i <= ADJ) kprintf(" %x\n",(int *)*pc-pc0+1); else kprintf("\n");*/
     //}
@@ -741,9 +795,11 @@ int VM::dovm(int *ttt){
     else if (i == ILOG) { a = (int)il(  *sp);  }
     else if (i == MXA) {a=0,  mxa(this, sp[1], *sp);  }
     else if (i == MXS) {a=0,  mxs(this,sp[2], sp[1],*sp);  }
-    else if (i == H1)  a = h1((U32)sp[1], (U32)*sp);  
-	else if (i == H2)  a = h2((U32)sp[2], (U32)sp[1],(U32)*sp);  
-	else if (i == H3)  a = h3((U32)sp[3],(U32)sp[2], (U32)sp[1],(U32)*sp);   
+    else if (i == H2)  a = h2((U32)sp[1], (U32)*sp);  
+	else if (i == H3)  a = h3((U32)sp[2], (U32)sp[1],(U32)*sp);  
+	else if (i == H4)  a = h4((U32)sp[3],(U32)sp[2], (U32)sp[1],(U32)*sp);   
+	else if (i == H5)  a = h5((U32)sp[4],(U32)sp[3],(U32)sp[2], (U32)sp[1],(U32)*sp);   
+	else if (i == ABS)  a = (U32)absolute((int)*sp);   
     else if (i == VTHIS)  *--sp;  //ignore
     else if (i == EXIT) { /*printf("exit(%d) cycle = %d\n", *sp, cycle);*/ return *sp; }
     else { kprintf("unknown instruction = %d! cycle = %d\n", i, cycle); return -1; }
@@ -768,13 +824,15 @@ int VM::dojit(){
         while (line < srcmap[pc - text]) {
             line++; printf("% 4d | %.*s", line, linemap[line + 1] - linemap[line], linemap[line]);
         }
+        
+        
         printf("0x%05x (%p):\t%8.4s", pc - text, je,
                         &"LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LS  ,LC  ,SI  ,SS  ,SC  ,PSH ,"
-                         "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,    "
-                         "PRTF,SMP ,SMN ,APM ,VMS ,VMI ,VMX ,MXP ,MXA ,MXS ,BUF ,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,EXIT,"[i * 5]);
+                         "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,VTHIS" 
+                         "PRTF,ABS ,SMP ,SMN ,APM ,VMS ,VMI ,VMX ,MXP ,MXC ,MXA ,MXS ,GCR ,BUF ,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,H2  ,H3  ,H4  ,H5  ,EXIT,"[i * 5]);
         if (i < JMP) printf(" 0x%x\n", *(pc + 1)); 
-        else if (i <= ADJ) printf(" 0x%x\n", (int *)*(pc + 1)-text); else printf("\n");
-    }*/
+        else if (i <= ADJ) printf(" 0x%x\n", (int *)*(pc + 1)-text); else printf("\n");*/
+    //}
     *pc++ = ((int)je << 8) | i; // for later relocation of JMP/JSR/BZ/BNZ
  
     if (i == LEA) {
@@ -843,8 +901,9 @@ int VM::dojit(){
     else if (i == BUF) { tmp = (int)bf;  }else if (i == BUFR) { tmp = (int)bfr;  }
     else if (i == ILOG) { tmp = (int)il;  }else if (i == MXC) { tmp = (int)mxc;  }
     else if (i == MXA) { tmp = (int)mxa;  }else if (i == MXS) { tmp = (int)mxs;  }
-    else if (i == GCR) { tmp = (int)gcr;  }
-    else if (i == H1) { tmp = (int)h1;  }else if (i == H2) { tmp = (int)h2;  }else if (i == H3) { tmp = (int)h3;  }
+    else if (i == GCR) { tmp = (int)gcr;  }else if (i == ABS) { tmp = (int)absolute;  }
+    else if (i == H2) { tmp = (int)h2;  }else if (i == H3) { tmp = (int)h3;  }else if (i == H4) { tmp = (int)h4;  }
+    else if (i == H5) { tmp = (int)h5;  }
     u=i;
       if (*pc++ == ADJ) { i = *pc++; } else { kprintf("no ADJ after native proc!\n"); exit(2); }
       *je++ = 0xb9; *(int*)je = i << 2; je += 4; dprintf("\tmov ecx, %x\n", i << 2 );  // movl $(4 * n), %ecx;
@@ -869,8 +928,9 @@ int VM::dojit(){
 	 else if (u == ILOG) {  dprintf("ilog\n");  }
 	 else if (u == MXA) {  dprintf("mxa\n");  } else if (u == MXS) {  dprintf("mxs\n");  }
 	 else if (u == MXC) {  dprintf("mxc\n");  } else if (u == GCR) {  dprintf("gcr\n");  }
-	  else if (u == H1) {  dprintf("h1\n");  } else if (u == H2) {  dprintf("h2\n");  }
-	   else if (u == H3) {  dprintf("h3\n");  }  
+	  else if (u == H2) {  dprintf("h1\n");  } else if (u == H3) {  dprintf("h2\n");  }
+	   else if (u == H4) {  dprintf("h3\n");  }  else if (u == ABS) {  dprintf("abs\n");  }  
+	   else if (u == H5) {  dprintf("h3\n");  }
        *(int*)je = tmp - (int)(je + 4); je = je + 4; // <*tmp offset>;
       *(int*)je = 0xf487; je += 2;     // xchg %esi, %esp  -- ADJ, back to old stack without arguments
       dprintf("\txchg esp,esi\n");
@@ -935,18 +995,18 @@ if (mx>0 && totalc>0)	for (int i=0;i< mx;i++) mxC[i]->update(); //update all mix
   *--sp = PSH; t = sp;
   *--sp = y;
   *--sp = c0;
-    *--sp = bpos;
-    *--sp = c4;
-       *--sp = pos; 
+  *--sp = bpos;
+  *--sp = c4;
+  *--sp = pos; 
   *--sp = (int)t;
   return   dovm((int *)idupdate[Val]);
 #endif
 }
 
-int VM::initvm(const char *file ) { 
+int VM::initvm() { 
   debug = 1;
-  FILE *in=fopen(file, "rb");
-  if (!in) { kprintf("could not open(%s)\n", file); return -1; }
+  //FILE *in=fopen(file, "rb");
+ // if (!in) { kprintf("could not open(%s)\n", file); return -1; }
   poolsz = 512*1024; // arbitrary size
 
   if (!(sym = (int *)malloc(poolsz))) { kprintf("could not malloc(%d) symbol area\n", poolsz); return -1; }
@@ -958,18 +1018,18 @@ int VM::initvm(const char *file ) {
   memset(e,    0, poolsz);
   memset(data, 0, poolsz);
 
-   p = "char else enum if int short return for sizeof while printf smp smn apm vms vmi vmx mxp mxc mxa mxs gcr buf bufr malloc memcmp memcpy stretch squash ilog h1 h2 h3 exit void block update main";
+   p = "char else enum if int short return for sizeof while printf abs smp smn apm vms vmi vmx mxp mxc mxa mxs gcr buf bufr malloc memcmp memcpy stretch squash ilog h2 h3 h4 h5 exit void block update main";
   i = Char; while (i <= While) { next(); id[Tk] = i++; } // add keywords to symbol table
   i = PRTF; while (i <= EXIT) { next(); id[Class] = Sys; id[Type] = iINT; id[Val] = i++; } // add library to symbol table
   next(); id[Tk] = Char; // handle void type  
   next(); idp = id;      // keep track of block
   next(); idupdate = id; // keep track of updater
   next(); idmain = id;   // keep track of main
-  if (!(lp = p = (char *)malloc(poolsz))) { kprintf("could not malloc(%d) source area\n", poolsz); return -1; }
-  if ((i = fread( p, 1,poolsz-1,in)) <= 0) { kprintf("read() returned %d\n", i); return -1; }
-  p[i] = 0;
-  fclose(in);
-
+  //if (!(lp = p = (char *)malloc(poolsz))) { kprintf("could not malloc(%d) source area\n", poolsz); return -1; }
+  //if ((i = fread( p, 1,poolsz-1,in)) <= 0) { kprintf("read() returned %d\n", i); return -1; }
+ // p[i] = 0;
+ // fclose(in);
+p=mod; //contains model
   // parse declarations
   line = 1;
   next();
