@@ -1,4 +1,4 @@
-/* paq8pxd9 file compressor/archiver.  Release by Kaido Orav, Jun. 19, 2014
+/* paq8pxd10 file compressor/archiver.  Release by Kaido Orav, Jun. 21, 2014
 
     Copyright (C) 2008 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -20,38 +20,38 @@
 
 To install and use in Windows:
 
-- To install, put paq8pxd_v9.exe or a shortcut to it on your desktop.
-- To compress a file or folder, drop it on the paq8pxd9 icon.
-- To decompress, drop a .paq8pxd9 file on the icon.
+- To install, put paq8pxd_v10.exe or a shortcut to it on your desktop.
+- To compress a file or folder, drop it on the paq8pxd10 icon.
+- To decompress, drop a .paq8pxd10 file on the icon.
 
-A .paq8pxd9 extension is added for compression, removed for decompression.
+A .paq8pxd10 extension is added for compression, removed for decompression.
 The output will go in the same folder as the input.
 
-While paq8pxd9 is working, a command window will appear and report
+While paq8pxd10 is working, a command window will appear and report
 progress.  When it is done you can close the window by pressing
 ENTER or clicking [X].
 
 
 COMMAND LINE INTERFACE
 
-- To install, put paq8pxd_v9.exe somewhere in your PATH.
-- To compress:      paq8pxd_v9 [-N] file1 [file2...]
-- To decompress:    paq8pxd_v9 [-d] file1.paq8pxd9 [dir2]
-- To view contents: paq8pxd_v9 -l file1.paq8pxd9
+- To install, put paq8pxd_v10.exe somewhere in your PATH.
+- To compress:      paq8pxd_v10 [-N] file1 [file2...]
+- To decompress:    paq8pxd_v10 [-d] file1.paq8pxd10 [dir2]
+- To view contents: paq8pxd_v10 -l file1.paq8pxd10
 
-The compressed output file is named by adding ".paq8pxd9" extension to
-the first named file (file1.paq8pxd9).  Each file that exists will be
+The compressed output file is named by adding ".paq8pxd10" extension to
+the first named file (file1.paq8pxd10).  Each file that exists will be
 added to the archive and its name will be stored without a path.
 The option -N specifies a compression level ranging from -0
 (fastest) to -8 (smallest).  The default is -5.  If there is
 no option and only one file, then the program will pause when
 finished until you press the ENTER key (to support drag and drop).
-If file1.paq8pxd9 exists then it is overwritten.
+If file1.paq8pxd10 exists then it is overwritten.
 
-If the first named file ends in ".paq8pxd9" then it is assumed to be
+If the first named file ends in ".paq8pxd10" then it is assumed to be
 an archive and the files within are extracted to the same directory
 as the archive unless a different directory (dir2) is specified.
-The -d option forces extraction even if there is not a ".paq8pxd9"
+The -d option forces extraction even if there is not a ".paq8pxd10"
 extension.  If any output file already exists, then it is compared
 with the archive content and the first byte that differs is reported.
 No files are overwritten or deleted.  If there is only one argument
@@ -64,11 +64,11 @@ structure, except that empty directories are not stored, and file
 attributes (timestamps, permissions, etc.) are not preserved.
 During extraction, directories are created as needed.  For example:
 
-  paq8pxd_v9 -4 c:\tmp\foo bar
+  paq8pxd_v10 -4 c:\tmp\foo bar
 
-compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd9 at level 4.
+compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd10 at level 4.
 
-  paq8pxd_v9 -d c:\tmp\foo.paq8pxd9 .
+  paq8pxd_v10 -d c:\tmp\foo.paq8pxd10 .
 
 extracts foo and compares bar in the current directory.  If foo and bar
 are directories then their contents are extracted/compared.
@@ -82,8 +82,8 @@ are OK).
 
 TO COMPILE
 
-There are 2 files: paq8pxd_v9.cpp (C++) and wrtpre.cpp (C++).
-paq8pxd_v9.cpp recognizes the following compiler options:
+There are 2 files: paq8pxd_v10.cpp (C++) and wrtpre.cpp (C++).
+paq8pxd_v10.cpp recognizes the following compiler options:
 
   -DWINDOWS           (to compile in Windows)
   -DUNIX              (to compile in Unix, Linux, Solairs, MacOS/Darwin, etc)
@@ -106,13 +106,13 @@ Use -DNOASM for non x86-32 machines, or older than a Pentium-MMX (about
 Recommended compiler commands and optimizations:
 
   MINGW g++:
-    g++ paq8pxd_v9.cpp -DWINDOWS -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v9.exe 
+    g++ paq8pxd_v10.cpp -DWINDOWS -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v10.exe 
 
   UNIX/Linux (PC):
-    g++ paq8pxd_v9.cpp -DUNIX -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v9
+    g++ paq8pxd_v10.cpp -DUNIX -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v10
 
   Non PC (e.g. PowerPC under MacOS X)
-    g++ paq8pxd_v9.cpp -O2 -DUNIX -DNOASM -s -o paq8pxd_v9
+    g++ paq8pxd_v10.cpp -O2 -DUNIX -DNOASM -s -o paq8pxd_v10
 
 
 
@@ -120,7 +120,7 @@ ARCHIVE FILE FORMAT
 
 An archive has the following format.  
 
-  paq8pxd9 -N 
+  paq8pxd10 -N 
   segment size 
   segment offset
   \0 file list size
@@ -154,20 +154,20 @@ directories are stored with path relative to the compressed directory
 
 Then
 
-  paq8pxd_v9 archive \dir1\file1.txt \dir2
+  paq8pxd_v10 archive \dir1\file1.txt \dir2
 
-will create archive.paq8pxd9 
+will create archive.paq8pxd10 
 
 The command:
 
-  paq8pxd_v9 archive.paq8pxd9 C:\dir3
+  paq8pxd_v10 archive.paq8pxd10 C:\dir3
 
 will create the files:
 
   C:\dir3\file1.txt
   C:\dir3\dir2\file2.txt
 
-Decompression will fail if the first 10 bytes are not "paq8pxd9 -".  Sizes
+Decompression will fail if the first 10 bytes are not "paq8pxd10 -".  Sizes
 are stored as decimal numbers.  CR, LF, TAB are ASCII codes
 13, 10, 9 respectively.
 
@@ -189,7 +189,7 @@ on the ability to predict the next bit accurately.
 
 MODEL MIXING
 
-paq8pxd_v9 uses a neural network to combine a large number of models.  The
+paq8pxd_v10 uses a neural network to combine a large number of models.  The
 i'th model independently predicts
 p1_i = p(y_j = 1 | y_0..j-1), p0_i = 1 - p1_i.
 The network computes the next bit probabilty
@@ -418,7 +418,7 @@ adjacent quantized values of stretch(p1).  There are 2 APM stages in series:
 
 PREPROCESSING
 
-paq8pxd_v9 uses preprocessing transforms on certain data types to improve
+paq8pxd_v10 uses preprocessing transforms on certain data types to improve
 compression.  To improve reliability, the decoding transform is
 tested during compression to ensure that the input file can be
 restored.  If the decoder output is not identical to the input file
@@ -510,15 +510,13 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V8
-over 2GB file support 
-fix jpeg and wav errors
-updated header doc
-in buf pos wraps to buf size
-tmpfile for windows (created in user tmp folder)
+DIFFERENCES FROM PAQ8PXD_V9
+finally fix jpeg error (from fp8)
+AVX2 is compatible with SSE and non SIMD
+
 */
 
-#define PROGNAME "paq8pxd9"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd10"  // Please change this if you change the program.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1242,13 +1240,11 @@ static int dot_product (const short* const t, const short* const w, int n) {
     __m256i tmp = _mm256_madd_epi16 (*(__m256i *) &t[n], *(__m256i *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
     tmp = _mm256_srai_epi32 (tmp, 8); //                                        (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
     sum = _mm256_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
-  }
-   
-  sum = _mm256_add_epi32 (sum, _mm256_srli_si256 (sum, 16));
-  
-  sum = _mm256_add_epi32 (sum, _mm256_srli_si256 (sum, 8)); // Add eight sums together ...
-  sum = _mm256_add_epi32 (sum, _mm256_srli_si256 (sum, 4));
-  __m128i low = _mm256_castsi256_si128(sum);
+  } 
+ // exctract high and low of sum and adds
+  __m128i low = _mm_add_epi32 (_mm256_extracti128_si256(sum,0),_mm256_extracti128_si256(sum,1)); 
+  low = _mm_add_epi32 (low, _mm_srli_si128 (low, 8)); // Add eight sums together ...
+  low = _mm_add_epi32 (low, _mm_srli_si128 (low, 4));
   return _mm_cvtsi128_si32 (low); //                     ...  and scale back to integer
 }
 
@@ -1306,7 +1302,7 @@ static void train (const short* const t, short* const w, int n, const int e) {
 #define OPTIMIZE "SSE-"
 
 static sint32 dot_product (const sint16* const t, const sint16* const w, sint32 n) {
-  assert(n == ((n + 7) & -8));
+  assert(n == ((n + 15) & -16));
   __m64 sum = _mm_setzero_si64 ();
   while ((n -= 8) >= 0) { // Each loop sums eight products
     __m64 tmp = _mm_madd_pi16 (*(__m64 *) &t[n], *(__m64 *) &w[n]); //   t[n] * w[n] + t[n+1] * w[n+1]
@@ -2618,7 +2614,7 @@ void dump(const char* msg, int p) {
 #define jassert(x) if (!(x)) { \
 /*  printf("JPEG error at %d, line %d: %s\n", pos, __LINE__, #x); */ \
   jpeg=0; \
-  return next_jpeg;}
+  return 0;}
 
 struct HUF {U32 min, max; int val;}; // Huffman decode tables
   // huf[Tc][Th][m] is the minimum, maximum+1, and pointer to codes for
@@ -2630,7 +2626,7 @@ int jpegModel(Mixer& m) {
   enum {SOF0=0xc0, SOF1, SOF2, SOF3, DHT, RST0=0xd0, SOI=0xd8, EOI, SOS, DQT,
     DNL, DRI, APP0=0xe0, COM=0xfe, FF};  // Second byte of 2 byte codes
   static int jpeg=0;  // 1 if JPEG is header detected, 2 if image data
-  static int next_jpeg=0;  // updated with jpeg on next byte boundary
+  //static int next_jpeg=0;  // updated with jpeg on next byte boundary
   static int app;  // Bytes remaining to skip in APPx or COM field
   static int sof=0, sos=0, data=0;  // pointers to buf
   static Array<int> ht(8);  // pointers to Huffman table headers
@@ -2691,13 +2687,25 @@ int jpegModel(Mixer& m) {
   const static U8 zzv[64]={
     0,0,1,2,1,0,0,1,2,3,4,3,2,1,0,0,1,2,3,4,5,6,5,4,3,2,1,0,0,1,2,3,
     4,5,6,7,7,6,5,4,3,2,1,2,3,4,5,6,7,7,6,5,4,3,4,5,6,7,7,6,5,6,7,7};
+  //reset all static variables to be sure
+  if (!blpos && bpos==1) {
+	jpeg=0;//, next_jpeg=0; 
+ 	sof=0, sos=0, data=0; 
+ 	htsize=0,huffcode=0, huffbits=0,huffsize=0; 
+ 	rs=-1, mcupos=0, mcusize=0, linesize=0; 
+ 	dc=0, width=0,row=0, column=0;
+ 	cpos=0,ssum=0, ssum1=0, ssum2=0, ssum3=0;
+ 	dqt_state = -1, dqt_end = 0, qnum = 0;
+  }
 
+
+  if (!bpos && !blpos) jpeg=0;
   // Be sure to quit on a byte boundary
-  if (!bpos) next_jpeg=jpeg>1;
-  if (bpos && !jpeg) return next_jpeg;
+  if (bpos && !jpeg) return 0;
   if (!bpos && app>=0) --app;
-  if (app>0) return next_jpeg;
+  if (app>0) return 0;
   if (!bpos) {
+
 
     // Parse.  Baseline DCT-Huffman JPEG syntax is:
     // SOI APPx... misc... SOF0 DHT... SOS data EOI
@@ -2747,9 +2755,9 @@ int jpegModel(Mixer& m) {
     // or byte stuff (00).
     if (jpeg && data && buf(2)==FF && buf(1) && (buf(1)&0xf8)!=RST0) {
       jassert(buf(1)==EOI);
-      jpeg=next_jpeg=0;
+      jpeg=0;
     }
-    if (!jpeg) return next_jpeg;
+    if (!jpeg) return 0;
 
     // Detect APPx or COM field
     if (!data && !app && buf(4)==FF && (buf(3)>>4==0xe || buf(3)==COM))
@@ -2827,7 +2835,7 @@ int jpegModel(Mixer& m) {
 
       // Build Huffman table selection table (indexed by mcupos).
       // Get image width.
-      if (!sof && sos) return next_jpeg;
+      if (!sof && sos) return 0;
       int ns=buf[sos+4];
       int nf=buf[sof+9];
       jassert(ns<=4 && nf<=4);
@@ -3024,7 +3032,7 @@ int jpegModel(Mixer& m) {
   }
 
   // Estimate next bit probability
-  if (!jpeg || !data) return next_jpeg;
+  if (!jpeg || !data) return 0;
   if (buf(1+(!bpos))==FF) {
     m.add(128);
     m.set(1, 8);
@@ -3623,12 +3631,10 @@ int normalModel(Mixer& m) {
 // This combines all the context models with a Mixer.
 int finfo=0;
 int contextModel2() {
- 
   static Mixer m(925, 3095+256*7+256*8+256*7+2048+256*7-256*4-264, 7);
  
   m.update();
   m.add(256);
-
   // Test for special file types
   int ismatch=ilog(matchModel(m));  // Length of longest matching context
   if (filetype==IMAGE1)  return im1bitModel(m, finfo), m.p();;
@@ -3697,7 +3703,7 @@ int contextModel2() {
   U32 c1=buf(1), c2=buf(2), c3=buf(3), c;
   m.set(c1+8, 264); 
   m.set(c0, 256);
-  if (filetype==TEXT) c=c2&0x1F|((c3&0x1F)<<5); else c=c2;
+  if (filetype==TEXT) c=(c2&0x1F)|((c3&0x1F)<<5); else c=c2;
   m.set(c, 1023);
   U8 d=c0<<(8-bpos);
   if (filetype==EXE) {
@@ -3705,7 +3711,7 @@ int contextModel2() {
     m.set(c3, 256);
   }else{
     m.set(order*256+(w4&240)+(b3>>4),1536);
-    m.set(bpos*256+((words<<bpos&255)>>bpos|d&255),2048);//, 256);
+    m.set(bpos*256+((words<<bpos&255)>>bpos|(d&255)),2048);//, 256);
    }
   m.set(ismatch, 256);
 
@@ -3783,7 +3789,7 @@ bpos=(bpos+1)&7;
         if (pr>=1820) ++fails, ++failcount;
         if (pr>= 848) ++failz;
       int pv, pu,pz,pt;
-        pu=a.p(pr0, c0, 3)+7*pr0+4>>3, pz=failcount+1;
+        pu=(a.p(pr0, c0, 3)+7*pr0+4)>>3, pz=failcount+1;
         pz+=tri[(fails>>5)&3];
         pz+=trj[(fails>>3)&3];
         pz+=trj[(fails>>1)&3];
@@ -3792,13 +3798,13 @@ bpos=(bpos+1)&7;
  
      int r=7;
      if (filetype==EXE )  r--;
-   pu=a4.p(pu,    (c0*2)^hash(buf(1), (x5>>8)&255, (x5>>16)&0x80ff)&0xffff,r);
-  pv=a2.p(pr0,   (c0*8)^hash(29,failz&2047)&0xffff,1+r);
+   pu=a4.p(pu,   ( (c0*2)^hash(buf(1), (x5>>8)&255, (x5>>16)&0x80ff))&0xffff,r);
+  pv=a2.p(pr0,  ( (c0*8)^hash(29,failz&2047))&0xffff,1+r);
   pv=a5.p(pv,           hash(c0,w5&0xfffff)&0xffff,r);
-  pt=a3.p(pr0,  (c0*32)^hash(19,     x5&0x80ffff)&0xffff,r);
-  pz=a6.p(pu,    (c0*4)^hash(min(9,pz),x5&0x80ff)&0xffff,r);
-  if (fails&255)  pr =pt*6+pu  +pv*11+pz*14 +16>>5;
-  else		      pr =pt*4+pu*5+pv*12+pz*11 +16>>5;
+  pt=a3.p(pr0, ( (c0*32)^hash(19,     x5&0x80ffff))&0xffff,r);
+  pz=a6.p(pu,   ( (c0*4)^hash(min(9,pz),x5&0x80ff))&0xffff,r);
+  if (fails&255)  pr =(pt*6+pu  +pv*11+pz*14 +16)>>5;
+  else		      pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
 }
 }
 
@@ -4117,7 +4123,7 @@ Filetype detect(FILE* in, uint64_t n, Filetype type, int &info, int &info2, int 
   uint64_t rgbi=0;
   //int rgbx=0,rgby=0;  // For RGB detection
   uint64_t tga=0;
-  uint64_t tgax=0;
+  //uint64_t tgax=0;
  // int tgay=0,tgaz=0,tgat=0;  // For TGA detection
   uint64_t pgm=0;
   //int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0;  // For PBM, PGM, PPM detection
@@ -5188,7 +5194,7 @@ uint64_t decompressRecursive(FILE *out, uint64_t size, Encoder& en, FMode mode, 
   Filetype type;
   uint64_t len=0L, i=0;
   uint64_t diffFound=0;
-  int info;
+  int info=-1;
   FILE *tmp;
   s2+=size;
   while (i<size) {
@@ -5383,8 +5389,8 @@ int expand(String& archive, String& s, const char* fname, int base) {
 #endif
 
 
-// To compress to file1.paq8pxd9: paq8pxd_v9 [-n] file1 [file2...]
-// To decompress: paq8pxd_v9 file1.paq8pxd9 [output_dir]
+// To compress to file1.paq8pxd10: paq8pxd_v10 [-n] file1 [file2...]
+// To decompress: paq8pxd_v10 file1.paq8pxd10 [output_dir]
 int main(int argc, char** argv) {
   bool pause=argc<=2;  // Pause when done?
   try {
@@ -5638,13 +5644,13 @@ int main(int argc, char** argv) {
      	printf("%-13s%1d |%10d |%11.0f\n\n","Total level",j, ttc,tts+0.0);
       }
   }
-    // Decompress files to dir2: paq8pxd_v9 -d dir1/archive.paq8pxd9 dir2
+    // Decompress files to dir2: paq8pxd_v10 -d dir1/archive.paq8pxd10 dir2
     // If there is no dir2, then extract to dir1
     // If there is no dir1, then extract to .
     else if (!doList) {
       assert(argc>=2);
       String dir(argc>2?argv[2]:argv[1]);
-      if (argc==2) {  // chop "/archive.paq8pxd9"
+      if (argc==2) {  // chop "/archive.paq8pxd10"
         int i;
         for (i=dir.size()-2; i>=0; --i) {
           if (dir[i]=='/' || dir[i]=='\\') {
