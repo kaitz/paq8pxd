@@ -1,4 +1,4 @@
-/* paq8pxd13 file compressor/archiver.  Release by Kaido Orav, Aug. 25, 2014
+/* paq8pxd14 file compressor/archiver.  Release by Kaido Orav, Aug. 25, 2014
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -20,39 +20,39 @@
 
 To install and use in Windows:
 
-- To install, put paq8pxd_v13.exe or a shortcut to it on your desktop.
-- To compress a file or folder, drop it on the paq8pxd13 icon.
-- To decompress, drop a .paq8pxd13 file on the icon.
+- To install, put paq8pxd_v14.exe or a shortcut to it on your desktop.
+- To compress a file or folder, drop it on the paq8pxd14 icon.
+- To decompress, drop a .paq8pxd14 file on the icon.
 
-A .paq8pxd13 extension is added for compression, removed for decompression.
+A .paq8pxd14 extension is added for compression, removed for decompression.
 The output will go in the same folder as the input.
 
-While paq8pxd13 is working, a command window will appear and report
+While paq8pxd14 is working, a command window will appear and report
 progress.  When it is done you can close the window by pressing
 ENTER or clicking [X].
 
 
 COMMAND LINE INTERFACE
 
-- To install, put paq8pxd_v13.exe somewhere in your PATH.
-- To compress:      paq8pxd_v13 [-N] file1 [file2...]
-- To decompress:    paq8pxd_v13 [-d] file1.paq8pxd13 [dir2]
-- To view contents: paq8pxd_v13 -l file1.paq8pxd13
+- To install, put paq8pxd_v14.exe somewhere in your PATH.
+- To compress:      paq8pxd_v14 [-N] file1 [file2...]
+- To decompress:    paq8pxd_v14 [-d] file1.paq8pxd14 [dir2]
+- To view contents: paq8pxd_v14 -l file1.paq8pxd14
 
-The compressed output file is named by adding ".paq8pxd13" extension to
-the first named file (file1.paq8pxd13).  Each file that exists will be
+The compressed output file is named by adding ".paq8pxd14" extension to
+the first named file (file1.paq8pxd14).  Each file that exists will be
 added to the archive and its name will be stored without a path.
 The option -N specifies a compression level ranging from -0
 (fastest) to -8 (smallest).  The default is -5.  If there is
 no option and only one file, then the program will pause when
 finished until you press the ENTER key (to support drag and drop).
-If file1.paq8pxd13 exists then it is overwritten. Level -0 only
+If file1.paq8pxd14 exists then it is overwritten. Level -0 only
 transforms or decompresses data.
 
-If the first named file ends in ".paq8pxd13" then it is assumed to be
+If the first named file ends in ".paq8pxd14" then it is assumed to be
 an archive and the files within are extracted to the same directory
 as the archive unless a different directory (dir2) is specified.
-The -d option forces extraction even if there is not a ".paq8pxd13"
+The -d option forces extraction even if there is not a ".paq8pxd14"
 extension.  If any output file already exists, then it is compared
 with the archive content and the first byte that differs is reported.
 No files are overwritten or deleted.  If there is only one argument
@@ -65,11 +65,11 @@ structure, except that empty directories are not stored, and file
 attributes (timestamps, permissions, etc.) are not preserved.
 During extraction, directories are created as needed.  For example:
 
-  paq8pxd_v13 -4 c:\tmp\foo bar
+  paq8pxd_v14 -4 c:\tmp\foo bar
 
-compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd13 at level 4.
+compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd14 at level 4.
 
-  paq8pxd_v13 -d c:\tmp\foo.paq8pxd13 .
+  paq8pxd_v14 -d c:\tmp\foo.paq8pxd14 .
 
 extracts foo and compares bar in the current directory.  If foo and bar
 are directories then their contents are extracted/compared.
@@ -83,8 +83,8 @@ are OK).
 
 TO COMPILE
 
-There are 2 files: paq8pxd_v13.cpp (C++) and wrtpre.cpp (C++).
-paq8pxd_v13.cpp recognizes the following compiler options:
+There are 2 files: paq8pxd_v14.cpp (C++) and wrtpre.cpp (C++).
+paq8pxd_v14.cpp recognizes the following compiler options:
 
   -DWINDOWS           (to compile in Windows)
   -DUNIX              (to compile in Unix, Linux, Solairs, MacOS/Darwin, etc)
@@ -107,13 +107,13 @@ Use -DNOASM for non x86-32 machines, or older than a Pentium-MMX (about
 Recommended compiler commands and optimizations:
 
   MINGW g++:
-    g++ paq8pxd_v13.cpp -DWINDOWS -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v13.exe 
+    g++ paq8pxd_v14.cpp -DWINDOWS -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v14.exe 
 
   UNIX/Linux (PC):
-    g++ paq8pxd_v13.cpp -DUNIX -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v13
+    g++ paq8pxd_v14.cpp -DUNIX -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v14
 
   Non PC (e.g. PowerPC under MacOS X)
-    g++ paq8pxd_v13.cpp -O2 -DUNIX -DNOASM -s -o paq8pxd_v13
+    g++ paq8pxd_v14.cpp -O2 -DUNIX -DNOASM -s -o paq8pxd_v14
 
 
 
@@ -121,7 +121,7 @@ ARCHIVE FILE FORMAT
 
 An archive has the following format.  
 
-  paq8pxd13 -N 
+  paq8pxd14 -N 
   segment size 
   segment offset
   \0 file list size
@@ -156,20 +156,20 @@ directories are stored with path relative to the compressed directory
 
 Then
 
-  paq8pxd_v13 archive \dir1\file1.txt \dir2
+  paq8pxd_v14 archive \dir1\file1.txt \dir2
 
-will create archive.paq8pxd13 
+will create archive.paq8pxd14 
 
 The command:
 
-  paq8pxd_v13 archive.paq8pxd13 C:\dir3
+  paq8pxd_v14 archive.paq8pxd14 C:\dir3
 
 will create the files:
 
   C:\dir3\file1.txt
   C:\dir3\dir2\file2.txt
 
-Decompression will fail if the first 10 bytes are not "paq8pxd13 -".  Sizes
+Decompression will fail if the first 10 bytes are not "paq8pxd14 -".  Sizes
 are stored as decimal numbers.  CR, LF, TAB are ASCII codes
 13, 10, 9 respectively.
 
@@ -191,7 +191,7 @@ on the ability to predict the next bit accurately.
 
 MODEL MIXING
 
-paq8pxd_v13 uses a neural network to combine a large number of models.  The
+paq8pxd_v14 uses a neural network to combine a large number of models.  The
 i'th model independently predicts
 p1_i = p(y_j = 1 | y_0..j-1), p0_i = 1 - p1_i.
 The network computes the next bit probabilty
@@ -420,7 +420,7 @@ adjacent quantized values of stretch(p1).  There are 2 APM stages in series:
 
 PREPROCESSING
 
-paq8pxd_v13 uses preprocessing transforms on certain data types to improve
+paq8pxd_v14 uses preprocessing transforms on certain data types to improve
 compression.  To improve reliability, the decoding transform is
 tested during compression to ensure that the input file can be
 restored.  If the decoder output is not identical to the input file
@@ -513,17 +513,26 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V12
--option upto 15
--small changes & fixes
--all models are classes
--data streams for diffrent types, independent Encoder and Predictor
- 
+DIFFERENCES FROM PAQ8PXD_V13
+-multithreading on compression upto 9 threads
+-small changes & fixes 
 
 */
 
-#define PROGNAME "paq8pxd13"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd14"  // Please change this if you change the program.
 //#define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
+#define MT            //uncomment for multithreading, compression only
+                        
+#ifdef MT
+//#define PTHREAD       //uncomment to force pthread to igore windows native threads
+#endif
+
+#ifdef unix
+#ifdef MT 
+#define PTHREAD 1
+#endif
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -586,6 +595,11 @@ inline int max(int a, int b) {return a<b?b:a;}
 #endif
 #endif
 
+
+#ifdef PTHREAD
+#include "pthread.h"
+#endif
+
 // Error handler: print message if any, and exit
 void quit(const char* message=0) {
   throw message;
@@ -610,6 +624,7 @@ int equals(const char* a, const char* b) {
 
 // Track time and memory used
 class ProgramChecker {
+    private:
   U64 memused;  // bytes allocated by Array<T> now
   U64 maxmem;   // most bytes allocated ever
   clock_t start_time;  // in ticks
@@ -618,8 +633,9 @@ public:
     memused+=n;
     if (memused>maxmem) maxmem=memused;
   }
-  void free(int64_t n) {  // free memory 
-    memused-=n;
+  void free(U64 n) {  // free memory 
+  if (memused<n) memused=0;
+  else  memused-=n;
   }
   ProgramChecker(): memused(0), maxmem(0) {
     start_time=clock();
@@ -628,7 +644,7 @@ public:
     assert(sizeof(U32)==4);
     assert(sizeof(U64)==8);
     assert(sizeof(short)==2);
-    assert(sizeof(int)==4);
+    assert(sizeof(int)==4);   
   }
   void print() const {  // print time and memory used
     printf("Time %1.2f sec, used %0.1f MB (%0.0f bytes) of memory\n",
@@ -691,7 +707,7 @@ template<class T, int ALIGN> void Array<T, ALIGN>::resize(U32 i) {
   if (saveptr) {
     if (savedata) {
       memcpy(data, savedata, sizeof(T)*min(i, saven));
-      programChecker.free(ALIGN+n*sizeof(T));
+      programChecker.free(U64(ALIGN+n*sizeof(T)));
     }
     free(saveptr);
   }
@@ -704,7 +720,7 @@ template<class T, int ALIGN> void Array<T, ALIGN>::create(U32 i) {
     ptr=0;
     return;
   }
-  
+
   const size_t sz=ALIGN+n*sizeof(T);
   assert(sz>0);
 //#ifndef NDEBUG 
@@ -712,13 +728,13 @@ template<class T, int ALIGN> void Array<T, ALIGN>::create(U32 i) {
 //#endif
   ptr = (char*)calloc(sz, 1);
   if (!ptr) printf("\nError: Allocating %0.0f bytes\n",sz+0.0),programChecker.print(), quit("Out of memory");
-  programChecker.alloc(sz);
+  programChecker.alloc(U64(sz));
   data = (ALIGN ? (T*)(ptr+ALIGN-(((long long)ptr)&(ALIGN-1))) : (T*)ptr);
   assert((char*)data>=ptr && (char*)data<=ptr+ALIGN);
 }
 
 template<class T, int ALIGN> Array<T, ALIGN>::~Array() {
-  programChecker.free(ALIGN+n*sizeof(T));
+  programChecker.free(U64(ALIGN+n*sizeof(T)));
   free(ptr);
 }
 
@@ -771,7 +787,7 @@ public:
   U32 operator()() {
     return ++i, table[i&63]=table[(i-24)&63]^table[(i-55)&63];
   }
-} rnd;
+} ;
 
 ////////////////////////////// Buf /////////////////////////////
 
@@ -882,7 +898,6 @@ const int datatypecount=15;
 typedef enum {DEFAULT, JPEG, HDR, IMAGE1,IMAGE4, IMAGE8, IMAGE24, AUDIO, EXE, CD, TEXT,TEXT0, TXTUTF8, BASE64, SZDD,DICTTXT} Filetype;
 const char* typenames[datatypecount]={"default", "jpeg", "hdr", "1b-image", "4b-image", "8b-image", "24b-image", "audio",
                                 "exe", "cd", "text","text0","utf-8","base64","SZDD"};
-//Filetype filetype=DEFAULT;
 
 U32 WRT_mpw[16]= { 4, 4, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0 };
 U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 7, 7, 7, 7 };
@@ -916,7 +931,6 @@ BlockData():y(0), c0(1), c4(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
         assert(level>=0 && level<=15);
         if (level>=9) buf.setsize(0x10000000); //limit 256mb
         else buf.setsize(MEM()*8);
-        //poswr=buf.size()-1;
         #ifndef NDEBUG 
         printf("\n Buf size %d bytes\n", buf.poswr);
         #endif
@@ -1257,6 +1271,17 @@ Stretch::Stretch(): t(4096) {
 
 #endif /* __GNUC__ */
 
+#if defined(__AVX2__)
+#include<immintrin.h>
+#define OPTIMIZE "AVX2-"
+#elif defined(__SSE2__) || defined(__SSSE3__)
+#include <emmintrin.h>
+#define OPTIMIZE "SSE2-"
+
+#elif defined(__SSE__)
+#include <xmmintrin.h>
+#define OPTIMIZE "SSE-"
+#endif
 /**
  * Vector product a*b of n signed words, returning signed integer scaled down by 8 bits.
  * n is rounded up to a multiple of 8.
@@ -1270,9 +1295,25 @@ Stretch::Stretch(): t(4096) {
  */
 //static void train (const short* const t, short* const w, int n, const int e);
 
+
+
+class Mixer {
+private: 
+	const int N, M, S;   // max inputs, max contexts, max context sets
+  Array<short, 32> tx; // N inputs from add()
+  Array<short, 32> wx; // N*M weights
+  Array<int> cxt;  // S contexts
+  int ncxt;        // number of contexts (0 to S)
+  int base;        // offset of next context
+  int nx;          // Number of inputs in tx, 0 to N
+  Array<int> pr;   // last result (scaled 12 bits)
+  Mixer* mp;       // points to a Mixer to combine results
+  
+public:
+BlockData& x;
+  Mixer(int n, int m,BlockData& bd, int s=1, int w=0);
+  
 #if defined(__AVX2__)
-#include<immintrin.h>
-#define OPTIMIZE "AVX2-"
  int dot_product (const short* const t, const short* const w, int n) {
   assert(n == ((n + 15) & -16));
   __m256i sum = _mm256_setzero_si256 ();
@@ -1305,9 +1346,6 @@ Stretch::Stretch(): t(4096) {
 }
 
 #elif defined(__SSE2__) || defined(__SSSE3__)
-#include <emmintrin.h>
-#define OPTIMIZE "SSE2-"
-
  int dot_product (const short* const t, const short* const w, int n) {
   assert(n == ((n + 15) & -16));
   __m128i sum = _mm_setzero_si128 ();
@@ -1338,9 +1376,6 @@ Stretch::Stretch(): t(4096) {
 }
 
 #elif defined(__SSE__)
-#include <xmmintrin.h>
-#define OPTIMIZE "SSE-"
-
  int dot_product (const short* const t, const short* const w, int n) {
   assert(n == ((n + 15) & -16));
   __m64 sum = _mm_setzero_si64 ();
@@ -1409,22 +1444,6 @@ void train(short *t, short *w, int n, int err) {
   }
 }
 #endif 
-
-
-class Mixer {
-  const int N, M, S;   // max inputs, max contexts, max context sets
-  Array<short, 32> tx; // N inputs from add()
-  Array<short, 32> wx; // N*M weights
-  Array<int> cxt;  // S contexts
-  int ncxt;        // number of contexts (0 to S)
-  int base;        // offset of next context
-  int nx;          // Number of inputs in tx, 0 to N
-  Array<int> pr;   // last result (scaled 12 bits)
-  Mixer* mp;       // points to a Mixer to combine results
-  
-public:
-BlockData& x;
-  Mixer(int n, int m,BlockData& bd, int s=1, int w=0);
   // Adjust weights to minimize coding cost of last prediction
   void update() {
     for (int i=0; i<ncxt; ++i) {
@@ -1484,8 +1503,8 @@ Mixer::~Mixer() {
 }
 
 Mixer::Mixer(int n, int m, BlockData& bd, int s, int w):
-    N((n+15)&-16), M(m), S(s), tx(N), wx(N*M),x(bd),
-    cxt(S), ncxt(0), base(0), nx(0), pr(S), mp(0) {
+    N((n+15)&-16), M(m), S(s), tx(N), wx(N*M),
+    cxt(S), ncxt(0), base(0), nx(0), pr(S), mp(0),x(bd) {
   assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
   for (i=0; i<S; ++i)
@@ -1650,6 +1669,8 @@ inline U32 hash(U32 a, U32 b, U32 c=0xffffffff, U32 d=0xffffffff,
 template <int B> class BH {
   enum {M=8};  // search limit
   Array<U8, 64> t; // elements
+  //Array<U8> tmp;
+  U8 tmp[B];
   U32 n; // size-1
 public:
   BH(int i): t(i*B), n(i-1) {
@@ -1672,16 +1693,16 @@ inline  U8* BH<B>::operator[](U32 i) {
     if (*cp==chk) break;  // found
   }
   if (j==0) return p+1;  // front
-  static U8 tmp[B];  // element to move to front
+  //static U8 tmp[B];  // element to move to front
   if (j==M) {
     --j;
-    memset(tmp, 0, B);
-    memmove(tmp, &chk, 2);
+    memset(&tmp, 0, B);
+    memmove(&tmp, &chk, 2);
     if (M>2 && t[(i+j)*B+2]>t[(i+j-1)*B+2]) --j;
   }
-  else memcpy(tmp, cp, B);
+  else memcpy(&tmp, cp, B);
   memmove(&t[(i+1)*B], &t[i*B], j*B);
-  memcpy(&t[i*B], tmp, B);
+  memcpy(&t[i*B], &tmp, B);
   return &t[i*B+1];
 }
 
@@ -1888,6 +1909,7 @@ class ContextMap {
   StateMap *sm;    // C maps of state -> p
   int cn;          // Next context to set by set()
   //void update(U32 cx, int c);  // train model that context cx predicts c
+  Random rnd;
   int mix1(Mixer& m, int cc, int bp, int c1, int y1);
     // mix() with global context passed as arguments to improve speed.
 public:
@@ -2356,6 +2378,7 @@ public:
     cm.set(hash(531,mask&0x1ff,x.f4&0x00fff0));
     }
     cm.mix(m);
+	return 0;
 }
  ~wordModel1(){ }
 };
@@ -2401,6 +2424,7 @@ int p(Mixer& m,int w=0,int val2=0)  {
   m.set(((r1&0x30)^(r3&0x0c))|(r0&3),256);
   m.set((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80), 256);
   m.set((r0&0x3e)^((r1>>8)&0x0c)^((r2>>8)&0xc8),256);
+  return 0;
 }
  ~im1bitModel1(){  delete[] sm;}
  
@@ -2538,6 +2562,7 @@ public:
   cq.mix(m);
   cp.mix(m);
   x.rm1=1;
+  return 0;
   }
   ~recordModelx(){ }
 };
@@ -2581,6 +2606,7 @@ public:
     }
   }
   cm.mix(m);
+  return 0;
 }
 ~sparseModely(){ }
 };
@@ -2606,6 +2632,7 @@ public:
     cr.set(min(buf.pos-posnl,255)|((c<<8)+234567));
   }
   cr.mix(m);
+  return 0;
 }
 ~distanceModel1(){ }
 };
@@ -2682,6 +2709,7 @@ public:
   m.set(col, 24);
   m.set((buf(1)>>4)*3+(buf.pos%3), 48);
   m.set(x.c0, 256);
+  return 0;
   }
   // Square buf(i)
 inline int sqrbuf(int i) {
@@ -2878,6 +2906,7 @@ int p(Mixer& m,int w,int val2=0){
   m.set(x.c0, 256);
   m.set(ml, 512);
   m.set(pDv|ml1, 1024);
+  return 0;
   }
   // Square buf(i)
 inline int sqrbuf(int i) {
@@ -3434,12 +3463,15 @@ public:
 // Based on 'An asymptotically Optimal Predictor for Stereo Lossless Audio Compression'
 // by Florin Ghido.
 
+
+//#define double d_emu
+
 class wavModel1: public Model {
   int pr[3][2], n[2], counter[2];
-  double F[49][49][2],L[49][49];
-  int j,k,l,i;
-  long double sum;
-  const double a,a2;
+double F[49][49][2],L[49][49];
+  
+   long  double sum;
+  //const double a,a2;
   const int SC;
   SmallStationaryContextMap scm1, scm2, scm3, scm4, scm5, scm6, scm7;
   ContextMap cm;
@@ -3453,7 +3485,7 @@ class wavModel1: public Model {
   BlockData& x;
   Buf& buf;
 public:
-  wavModel1(BlockData& bd): i(0), a(0.996 ) ,a2(1/a),SC(0x20000),scm1(SC), scm2(SC), scm3(SC),
+  wavModel1(BlockData& bd): SC(0x20000),scm1(SC), scm2(SC), scm3(SC),
    scm4(SC), scm5(SC), scm6(SC), scm7(SC),cm(CMlimit(MEM()*4), 10),rlen(0),col(0),x(bd),buf(bd.buf){
   /*  bits=((winfo%4)/2)*8+8;
     channels=winfo%2+1;
@@ -3467,12 +3499,14 @@ public:
       n[j]=counter[j]=pr[2][j]=pr[1][j]=pr[0][j]=0;
       z1=z2=z3=z4=z5=z6=z7=0;
     }*/
+   // printf("%d",sizeof(long long int));
     recModel=0;
     if (level>=4)recModel=new recordModel1(bd,CMlimit(MEM()));
 }
 
 int p(Mixer& m,int info,int val2=0){
-  // Select previous samples and predicted sample as context
+    int j,k,l,i=0;
+     const double a=0.996,a2=1/a;
   if (!x.blpos && x.bpos==1) {
     bits=((info%4)/2)*8+8;
     channels=info%2+1;
@@ -3487,8 +3521,11 @@ int p(Mixer& m,int info,int val2=0){
       z1=z2=z3=z4=z5=z6=z7=0;
     }
   }
+  
+// Select previous samples and predicted sample as context
   if (!x.bpos && x.blpos>=w) {
-    const int ch=x.blpos%w;
+      
+    const int ch=(x.blpos)%w;
     const int msb=ch%(bits>>3);
     const int chn=ch/(bits>>3);
     if (!msb) {
@@ -3594,6 +3631,7 @@ int p(Mixer& m,int info,int val2=0){
   m.set(col%bits, bits);
   m.set(col, w*8);
   m.set(x.c0, 256);
+  return 0;
   } 
 
 inline int s2(int i) { return int(short(buf(i)+256*buf(i-1))); }
@@ -3650,6 +3688,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     for (int i=0; i<N; ++i) cm.set(execxt(i+1, x.buf(1)*(i>6)));
   }
   cm.mix(m);
+  return 0;
 }
 
 inline int pref(int i) { return (buf(i)==0x0f)+2*(buf(i)==0x66)+3*(buf(i)==0x67); }
@@ -3713,6 +3752,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     cm.set(tc&0xffffff);
   }
   cm.mix(m);
+  return 0;
 }
 ~indirectModel1(){ }
 };
@@ -3811,6 +3851,7 @@ int p(Mixer& m,int val1=0,int val2=0){
   const int pr2=(n1+5)*4096/(n0+n1+10);
   m.add(stretch(pr1));
   m.add(stretch(pr2));
+  return 0;
 }
 ~dmcModel1(){ }
 };
@@ -3887,6 +3928,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     cm.set((ic&0xffff)|((x.f4&0xf)<<16));
   }
   cm.mix(m);
+  return 0;
 }
 ~nestModel1(){ }
 };
@@ -3964,6 +4006,7 @@ public:
   scm5.mix(m);
   scm6.mix(m);
   scma.mix(m);
+  return 0;
   }
   ~sparseModelx(){ }
 };
@@ -4074,7 +4117,7 @@ Predictors(){
   nestModel=0;
   normalModel=0;
   im1bitModel=0;
-   }
+}
   virtual int p() const =0;
   virtual void update()=0;
   void update0(){
@@ -4083,6 +4126,8 @@ Predictors(){
     if (x.c0>=256) {
         x.buf[x.buf.pos++]=x.c0;
         x.c0=1;
+        ++x.blpos;
+      x.buf.pos=x.buf.pos&x.buf.poswr; //wrap
     }
     x.bpos=(x.bpos+1)&7;
   }
@@ -4094,8 +4139,8 @@ class Predictor: public Predictors {
   int pr0;
   int order;
   int ismatch;
-  APM1 a, a1, a2, a3, a4, a5, a6;
   Mixer m;
+  APM1 a, a1, a2, a3, a4, a5, a6;
   void setmixer();
 public:
   Predictor();
@@ -4142,7 +4187,6 @@ void Predictor::setmixer(){
 }
 
 void Predictor::update()  {
-
   update0();
   if (x.bpos==0) {
     int b1=x.buf(1);
@@ -4270,8 +4314,8 @@ class PredictorEXE: public Predictors {
   int pr0;
   int order;
   int ismatch;
-  APM1 a, a1, a2, a3, a4, a5, a6;
   Mixer m;
+  APM1 a, a1, a2, a3, a4, a5, a6;
   void setmixer();
 public:
   PredictorEXE();
@@ -4381,13 +4425,14 @@ void PredictorEXE::update()  {
 
 }
 
+
 class PredictorIMG4: public Predictors {
   int pr;  // next prediction
   int pr0;
   int order;
   int ismatch;
-  APM1 a, a1, a2, a3, a4, a5, a6;
   Mixer m;
+  APM1 a, a1, a2, a3, a4, a5, a6;
   void setmixer();
 public:
   PredictorIMG4();
@@ -4489,8 +4534,8 @@ class PredictorIMG8: public Predictors {
   int pr0;
   int order;
   int ismatch;
-  APM1 a, a1, a2, a3, a4, a5, a6;
   Mixer m;
+  APM1 a, a1, a2, a3, a4, a5, a6;
   void setmixer();
 public:
   PredictorIMG8();
@@ -4516,7 +4561,7 @@ void PredictorIMG8::setmixer(){
   m.set(c, 1023);
   U8 d=x.c0<<(8-x.bpos);
     m.set(order*256+(x.w4&240)+(x.b3>>4),1536);
-    m.set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);//, 256);
+    m.set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
   m.set(ismatch, 256);
 
   if (x.bpos) {
@@ -4551,7 +4596,6 @@ void PredictorIMG8::update()  {
    
   m.update();
   m.add(256);
-  // Test for special file types
   ismatch=ilog(matchModel->p(m));  // Length of longest matching context
   im8bitModel->p(m,x.finfo);
   pr0=m.p();
@@ -4590,8 +4634,9 @@ class PredictorIMG24: public Predictors {
   int pr0;
   int order;
   int ismatch;
-  APM1 a, a1, a2, a3, a4, a5, a6;
   Mixer m;
+  APM1 a, a1, a2, a3, a4, a5, a6;
+  
   void setmixer();
 public:
   PredictorIMG24();
@@ -4653,7 +4698,6 @@ void PredictorIMG24::update()  {
         pz=pz/2;      
  
      int r=7;
-     if (x.filetype==EXE )  r--;
    pu=a4.p(pu,   ( (x.c0*2)^hash(x.buf(1), (x.x5>>8)&255, (x.x5>>16)&0x80ff))&0xffff,r);
   pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
   pv=a5.p(pv,           hash(x.c0,x.w5&0xfffff)&0xffff,r);
@@ -4669,8 +4713,9 @@ class PredictorTXTWRT: public Predictors {
   int pr0;
   int order;
   int ismatch;
-  APM1 a, a1, a2, a3, a4, a5, a6;
   Mixer m;
+  APM1 a, a1, a2, a3, a4, a5, a6;
+  
   void setmixer();
 public:
   PredictorTXTWRT();
@@ -4684,13 +4729,13 @@ PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),
  m(925, 3095+256*7+256*8+256*7+2048+256*3-264,x, 7),
  a(256,x), a1(0x10000,x), a2(0x10000,x), a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
   
-  if (level>=4 && recordModelw==0) recordModelw=new recordModelx(x); //glogal recordmodel
-  if (level>=4 && sparseModel1==0) sparseModel1=new sparseModelx(x); //glogal recordmodel
-  if (level>=4 && wordModel==0) wordModel=new wordModel1(x); //glogal recordmodel
-  if (level>=4 && indirectModel==0) indirectModel=new indirectModel1(x); //glogal recordmodel
-  if (level>=4 && dmcModel==0) dmcModel=new dmcModel1(x); //glogal recordmodel
-  if (level>=4 && nestModel==0) nestModel=new nestModel1(x); //glogal recordmodel
-  matchModel=new matchModel1(x); //glogal recordmodel
+  if (level>=4 && recordModelw==0) recordModelw=new recordModelx(x);
+  if (level>=4 && sparseModel1==0) sparseModel1=new sparseModelx(x);
+  if (level>=4 && wordModel==0) wordModel=new wordModel1(x);
+  if (level>=4 && indirectModel==0) indirectModel=new indirectModel1(x);
+  if (level>=4 && dmcModel==0) dmcModel=new dmcModel1(x);
+  if (level>=4 && nestModel==0) nestModel=new nestModel1(x);
+  matchModel=new matchModel1(x);
   normalModel=new normalModel1(x);
 }
 
@@ -4702,7 +4747,7 @@ void PredictorTXTWRT::setmixer(){
   m.set(c, 1023);
   U8 d=x.c0<<(8-x.bpos);
     m.set(order*256+(x.w4&240)+(x.b3>>4),1536);
-    m.set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);//, 256);
+    m.set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
   m.set(ismatch, 256);
 
   if (x.bpos) {
@@ -4838,32 +4883,13 @@ public:
   }
 };
 
-PredictorAUDIO::PredictorAUDIO(): pr(2048), m(925, 3095+256*7+256*8+256*7+2048+256*3-264,x, 7) {
- wavModel=new wavModel1(x); //glogal recordmodel
+PredictorAUDIO::PredictorAUDIO(): pr(2048), m(925, 3095+256*7+256*8+256*7+2048+256*3-264,x, 5) {
+ wavModel=new wavModel1(x); 
  matchModel=new matchModel1(x);
 }
 
 void PredictorAUDIO::update()  {
-  // Update global context: pos, bpos, c0, c4, buf
   update0();
-  if (x.bpos==0) {
-    int b1=x.buf(1);
-    x.c4=(x.c4<<8)+b1;
-       /* int i=WRT_mpw[b1>>4];
-        x.w4=x.w4*4+i;
-        if (x.b2==3) i=2;
-        x.w5=x.w5*4+i;
-        x.b3=x.b2;
-        x.b2=b1;   
-        x.x4=x.x4*256+b1,x.x5=(x.x5<<8)+b1;
-        if(b1=='.' || b1=='!' || b1=='?' || b1=='/'|| b1==')'|| b1=='}') {
-            x.w5=(x.w5<<8)|0x3ff,x.f4=(x.f4&0xfffffff0)+2,x.x5=(x.x5<<8)+b1,x.x4=x.x4*256+b1;
-            if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
-        }
-        if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
-        x.f4=x.f4*16+(b1>>4);*/
-}
   m.update();
   m.add(256);
   matchModel->p(m);  
@@ -4871,7 +4897,7 @@ void PredictorAUDIO::update()  {
   pr= m.p();
 }
 
-Predictors* predictord; //predictor
+//Predictors* predictord; //predictor
 
 //////////////////////////// Encoder ////////////////////////////
 
@@ -4952,8 +4978,8 @@ public:
     else {
       for (int i=7; i>=0; --i)
         code((c>>i)&1);
-      ++predictor.x.blpos;
-      predictor.x.buf.pos=predictor.x.buf.pos&predictor.x.buf.poswr; //wrap
+    //  ++predictor.x.blpos;
+    //  predictor.x.buf.pos=predictor.x.buf.pos&predictor.x.buf.poswr; //wrap
     }
   }
 
@@ -4972,8 +4998,7 @@ public:
       int c=0;
       for (int i=0; i<8; ++i)
         c+=c+decode();
-      ++predictor.x.blpos;
-      predictor.x.buf.pos=predictor.x.buf.pos&predictor.x.buf.poswr; //wrap
+      
       return c;
     }
   }
@@ -5003,7 +5028,7 @@ void Encoder::flush() {
     putc(x1>>24, archive),putc(x1>>16, archive),putc(x1>>8, archive),putc(x1, archive);  // Flush first unequal byte of range
 }
  
- Encoder *defaultencoder;
+ //Encoder *defaultencoder;
 /////////////////////////// Filters /////////////////////////////////
 //
 // Before compression, data is encoded in blocks with the following format:
@@ -6464,6 +6489,33 @@ uint64_t typenamess[datatypecount][5]={0}; //total type size for levels 0-5
 U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
+int getstreamid(Filetype type){
+    if (type==DEFAULT || type==HDR) return 0;
+    else if (type==JPEG ) return  1;
+    else if (type==IMAGE1) return 2;
+    else if (type==IMAGE4) return 3;
+    else if (type==IMAGE8 ) return 4;
+    else if (type==IMAGE24) return 5;
+    else if (type==AUDIO) return 6;
+    else if (type==EXE) return 7;
+    else if (type==TEXT0) return 8; //text stream with lots of 0-9
+    else if (type==TXTUTF8  || type== DICTTXT || type==TEXT) return 9;
+    return -1;
+}
+
+bool isstreamtype(Filetype type,int streamid){
+    if ((type==DEFAULT || type==HDR) && streamid==0 ) return true;
+    else if (type==JPEG && streamid==1) return  true;
+    else if (type==IMAGE1 && streamid==2) return true;
+    else if (type==IMAGE4 && streamid==3) return true;
+    else if (type==IMAGE8 && streamid==4 ) return true;
+    else if (type==IMAGE24 && streamid==5) return true;
+    else if (type==AUDIO && streamid==6) return true;
+    else if (type==EXE && streamid==7) return true;
+    else if (type==TEXT0 && streamid==8) return true; //text stream with lots of 0-9
+    else if ((type==TXTUTF8  || type== DICTTXT || type==TEXT) && streamid==9) return true;
+    return false;
+}
 
 void direct_encode_blockstream(Filetype type, FILE *in, uint64_t len, Encoder &en, uint64_t s1, uint64_t s2, int info=-1) {
   printf("\n");
@@ -6473,26 +6525,13 @@ void direct_encode_blockstream(Filetype type, FILE *in, uint64_t len, Encoder &e
     segment.put4(info);
   }
   FILE *out;
-if (type==DEFAULT || type==HDR) out=filestreams[0];
-else if (type==JPEG ) out=filestreams[1];
-else if (type==IMAGE1) out=filestreams[2];
-else if (type==IMAGE4) out=filestreams[3];
-else if (type==IMAGE8 ) out=filestreams[4];
-else if (type==IMAGE24) out=filestreams[5];
-else if (type==AUDIO) out=filestreams[6];
-else if (type==EXE) out=filestreams[7];
-else if (type==TEXT0) out=filestreams[8]; //text stream with lots of 0-9
-else if (type==TXTUTF8  || type== DICTTXT || type==TEXT) out=filestreams[9];
-else quit("Type wrong");
-   const uint64_t total=s1+len+s2;
-  for (uint64_t j=s1; j<s1+len; ++j) {
-    putc(getc(in),out);
-  }
-
+  int srid=getstreamid(type);
+  if (srid>=0) out=filestreams[srid];
+  else quit("Type wrong");
+  for (uint64_t j=s1; j<s1+len; ++j)  putc(getc(in),out);
 }
 
 void DetectRecursive(FILE *in, uint64_t n, Encoder &en, char *blstr, int it=0, uint64_t s1=0, uint64_t s2=0) {
-
   static const char* audiotypes[4]={"8b mono", "8b stereo", "16b mono",
     "16b stereo"};
   Filetype type=DEFAULT;
@@ -6609,12 +6648,13 @@ void DetectRecursive(FILE *in, uint64_t n, Encoder &en, char *blstr, int it=0, u
 void DetectStreams(const char* filename, uint64_t filesize) {
 FILE *tmp=tmpfile2();  // temporary encoded file
 Predictors *t;
+t=0;
   Encoder en(COMPRESS, tmp,*t);
   assert(en.getMode()==COMPRESS);
   assert(filename && filename[0]);
   FILE *in=fopen(filename, "rb");
   if (!in) perror(filename), quit();
-  uint64_t start=en.size();
+  //uint64_t start=en.size();
   printf("Block segmentation:\n");
   char blstr[32]="";
   DetectRecursive(in, filesize, en, blstr);
@@ -6649,17 +6689,8 @@ uint64_t decompressStreamRecursive(FILE *out, uint64_t size, Encoder& en, FMode 
     if (type==IMAGE1 || type==IMAGE8 || type==IMAGE4 || type==IMAGE24 || type==AUDIO || type==SZDD) {
           info=0; for (int i=0; i<4; ++i) { info<<=8; info+=segment(segment.pos++);}
     }
-   if (type==DEFAULT || type==HDR) en.setFile(filestreams[0]);
-else if (type==JPEG ) en.setFile(filestreams[1]);
-else if (type==IMAGE1) en.setFile(filestreams[2]);
-else if (type==IMAGE4) en.setFile(filestreams[3]);
-else if (type==IMAGE8 ) en.setFile(filestreams[4]);
-else if (type==IMAGE24) en.setFile(filestreams[5]);
-else if (type==AUDIO) en.setFile(filestreams[6]);
-else if (type==EXE) en.setFile(filestreams[7]);
-else if (type==TEXT0) en.setFile(filestreams[8]); //text stream with lots of 0-9
-else if (type==TXTUTF8  || type== DICTTXT || type==TEXT) en.setFile(filestreams[9]);
-
+    int srid=getstreamid(type);
+  if (srid>=0) en.setFile(filestreams[srid]);
 
     if (type==IMAGE24) len=decode_bmp(en, int(len), info, out, mode, diffFound);
     else if (type==EXE) len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
@@ -6714,6 +6745,7 @@ void DecodeStreams(const char* filename, uint64_t filesize) {
   assert(filename && filename[0]);
 FILE *tmp=tmpfile2();  // temporary encoded file
 Predictors *t; //dummy
+t=0;
   Encoder en(COMPRESS, tmp,*t);
   // Test if output file exists.  If so, then compare.
   FILE* f=fopen(filename, "rb");
@@ -6854,8 +6886,235 @@ int expand(String& archive, String& s, const char* fname, int base) {
 #endif
 
 
-// To compress to file1.paq8pxd13: paq8pxd_v13 [-n] file1 [file2...]
-// To decompress: paq8pxd_v13 file1.paq8pxd13 [output_dir]
+uint64_t filestreamsize[10];
+
+void compressStream(int streamid,uint64_t size, FILE* in, FILE* out) {
+    Encoder* threadencode;
+    Predictors* threadpredict;
+    uint64_t datasegmentsize;
+    uint64_t datasegmentlen;
+    int datasegmentpos;
+    int datasegmentinfo;
+    Filetype datasegmenttype;
+    int i; //stream
+            
+                i=streamid;
+                datasegmentsize=size;
+                    uint64_t total=size;
+                    datasegmentpos=0;
+                    datasegmentinfo=0;
+                    datasegmentlen=0;
+                    // datastreams
+                    // DEFAULT HDR 0
+                    // JPEG        1
+                    // IMAGE1      2
+                    // IMAGE4      3
+                    // IMAGE8      4
+                    // IMAGE24     5
+                    // AUDIO       6
+                    // EXE         7
+                    // TEXT0       8
+                    // TXTUTF8 DICTTXT TEXT 9
+                    switch(i) {
+                        case 0: {
+      	                    printf("Compressing default stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new Predictor();
+                            break;}
+                        case 1: {
+      	                    printf("Compressing jpeg stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorJPEG();
+                            break;}        
+                        case 2: {
+      	                    printf("Compressing image1 stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorIMG1();
+                            break;}
+                        case 3: {
+      	                    printf("Compressing image4 stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorIMG4();
+                            break;}    
+                        case 4: {
+      	                    printf("Compressing image8 stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorIMG8();
+                            break;}
+                        case 5: {
+      	                    printf("Compressing image24 stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorIMG24();
+                            break;}        
+                        case 6: {
+      	                    printf("Compressing audio stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorAUDIO();
+                            break;}
+                        case 7: {
+      	                    printf("Compressing exe stream.  Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorEXE();
+                            break;}
+                        case 8: {
+      	                    printf("Compressing text0 wrt stream. Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorTXTWRT();
+                            wrtn=1;
+                            break;}
+                        case 9: {
+      	                    printf("Compressing text wrt stream. Total %0.0f  \n",datasegmentsize +0.0); 
+                            threadpredict=new PredictorTXTWRT();
+                            wrtn=0;
+                            break;}       
+                    }
+                    threadencode=new Encoder (COMPRESS, out ,*threadpredict); 
+                     if (i>=0 && i<=7){
+                        while (datasegmentsize>0) {
+                            while (datasegmentlen==0){
+                                datasegmenttype=(Filetype)segment(datasegmentpos++);
+                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
+                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
+                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
+                                    datasegmentinfo=-1; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
+                                }
+                                if (!(isstreamtype(datasegmenttype,i) ))datasegmentlen=0;
+                                threadencode->predictor.x.filetype=datasegmenttype;
+                                threadencode->predictor.x.blpos=0;
+                                threadencode->predictor.x.finfo=datasegmentinfo;
+                            }
+                            for (uint64_t k=0; k<datasegmentlen; ++k) {
+                                #ifndef MT
+                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
+                                #endif
+                                threadencode->compress(getc(in));
+                                datasegmentsize--;
+                            }
+                            datasegmentlen=0;
+                        }
+                        threadencode->flush();
+                    }
+                    if (i==8 || i==9){
+                        while (datasegmentsize>0) {
+                            FILE *tm=tmpfile2();
+                            encode_txt(in,tm,datasegmentsize);
+                            datasegmentlen=ftello(tm);
+                            filestreamsize[i]=datasegmentlen;
+                            printf(" Total %0.0f wrt: %0.0f\n",datasegmentsize+0.0,datasegmentlen+0.0); 
+                            fseeko(tm, 0, SEEK_SET);
+                            threadencode->predictor.x.filetype=DICTTXT;
+                            threadencode->predictor.x.blpos=0;
+                            threadencode->predictor.x.finfo=-1;
+                            
+                            for (uint64_t k=0; k<datasegmentlen; ++k) {
+                                #ifndef MT
+                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
+                                #endif
+                                threadencode->compress(getc(tm));
+                                datasegmentsize--;
+                            }
+                            datasegmentlen=datasegmentsize=0;
+                            fclose(tm);
+                        }
+                        threadencode->flush();
+                    }
+            delete threadpredict;
+            delete threadencode;
+}
+
+#ifdef MT
+//multithreading code from pzpaq.cpp v0.05
+#ifdef PTHREAD
+pthread_cond_t cv=PTHREAD_COND_INITIALIZER;  // to signal FINISHED
+pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER; // protects cv
+#else
+HANDLE mutex;  // protects Job::state
+typedef HANDLE pthread_t;
+#endif
+
+
+FILE * filesmt[10];
+typedef enum {READY, RUNNING, FINISHED_ERR, FINISHED, ERR, OK} State;
+// Instructions to thread to compress or decompress one block.
+struct Job {
+  State state;        // job state, protected by mutex
+  int id;             
+  int streamid;
+  uint64_t datasegmentsize;
+  int command;
+  FILE *in;
+  FILE *out;
+  pthread_t tid;      // thread ID (for scheduler)
+  Job();
+  void print(int i) const;
+};
+
+// Initialize
+Job::Job(): state(READY),id(0),streamid(-1),datasegmentsize(0),command(-1) {
+  // tid is not initialized until state==RUNNING
+}
+
+// Print contents
+void Job::print(int i=0) const {
+  fprintf(stderr,
+      "Job %d: state=%d stream=%d\n", i, state,streamid);
+}
+bool append(FILE* out, FILE* in) {
+  if (!in) {
+    quit("append in error\n");
+    return false;
+  }
+  if (!out) {
+    quit("append out error\n");
+    return false;
+  }
+  const int BUFSIZE=4096;
+  char buf[BUFSIZE];
+  int n;
+  while ((n=fread(buf, 1, BUFSIZE, in))>0)
+    fwrite(buf, 1, n, out);
+  return true;
+}
+
+
+void decompress(const Job& job) {
+}        
+
+
+#define check(f) { \
+  int rc=f; \
+  if (rc) fprintf(stderr, "Line %d: %s: error %d\n", __LINE__, #f, rc); \
+}
+// Worker thread
+#ifdef PTHREAD
+void*
+#else
+DWORD
+#endif
+thread(void *arg) {
+
+  // Do the work and receive status in msg
+  Job* job=(Job*)arg;
+  const char* result=0;  // error message unless OK
+  try {
+    if (job->command==0) 
+      compressStream(job->streamid,job->datasegmentsize,job->in,job->out);
+    else if (job->command==1)
+      decompress(*job);
+  }
+  catch (const char* msg) {
+    result=msg;
+  }
+// Call f and check that the return code is 0
+
+  // Let controlling thread know we're done and the result
+#ifdef PTHREAD
+  check(pthread_mutex_lock(&mutex));
+  job->state=result?FINISHED_ERR:FINISHED;
+  check(pthread_cond_signal(&cv));
+  check(pthread_mutex_unlock(&mutex));
+#else
+  WaitForSingleObject(mutex, INFINITE);
+  job->state=result?FINISHED_ERR:FINISHED;
+  ReleaseMutex(mutex);
+#endif
+  return 0;
+}
+#endif
+
+// To compress to file1.paq8pxd14: paq8pxd_v14 [-n] file1 [file2...]
+// To decompress: paq8pxd_v14 file1.paq8pxd14 [output_dir]
 int main(int argc, char** argv) {
     bool pause=argc<=2;  // Pause when done?
     try {
@@ -6863,20 +7122,34 @@ int main(int argc, char** argv) {
         // Get option
         bool doExtract=false;  // -d option
         bool doList=false;  // -l option
-        if (argc>1 && argv[1][0]=='-' && argv[1][1] && strlen(argv[1])<=3) {
-            
-            
+        #ifdef MT 
+        int topt=1;
+        if (argc>1 && argv[1][0]=='-' && argv[1][1] && strlen(argv[1])<=5) {
+        #else
+        if (argc>1 && argv[1][0]=='-' && argv[1][1] && strlen(argv[1])<=3) {    
+        #endif
             if (argv[1][1]=='d' && !argv[1][2])
-            doExtract=true;
+                doExtract=true;
             else if (argv[1][1]=='l' && !argv[1][2])
-            doList=true;
+                doList=true;
             else if (argv[1][1]>='0' && argv[1][1]<='9' && strlen(argv[1])==2)
-            level=argv[1][1]-'0';
+                level=argv[1][1]-'0';
 
             else if (argv[1][1]=='1' && argv[1][2]>='0' && argv[1][2]<='5' && strlen(argv[1])==3)
-            level=((~atol(argv[1]))+1);
+                level=((~atol(argv[1]))+1);
+            #ifdef MT 
+            else if (argv[1][1]>='0' && argv[1][1]<='9'&& (argv[1][3]<='9' && argv[1][3]>'0') && strlen(argv[1])==4){
+                topt=argv[1][3]-'0';
+                level=argv[1][1]-'0';}
+            else if (argv[1][1]=='1' && argv[1][2]>='0' && argv[1][2]<='5' && 
+            (argv[1][4]<='9' && argv[1][4]>'0')&& strlen(argv[1])==5){
+                topt=argv[1][4]-'0';
+                argv[1][3]=0;
+                level=((~atol(argv[1]))+1); 
+            }
+             #endif
             else
-            quit("Valid options are -0 through -15, -d, -l\n");
+                quit("Valid options are -0 through -15, -d, -l\n");
             --argc;
             ++argv;
             pause=false;
@@ -6898,8 +7171,12 @@ int main(int argc, char** argv) {
             "  " PROGNAME " -level archive files...   (creates archive." PROGNAME ")\n"
             "  " PROGNAME " file                      (level -%d, pause when done)\n"
             "level: -0 = store, -1 -2 -3 = faster (uses 35, 48, 59 MB)\n"
-            "-4 -5 -6 -7 -8 = smaller (uses 133, 233, 435, 837, 1643 MB)\n"
-            "-9 ... -15 = experimental\n"
+            "  -4 -5 -6 -7 -8 = smaller (uses 133, 233, 435, 837, 1643 MB)\n"
+            "  -9...-15 = experimental (uses 3.1, 6.0, 7.8, 9.3, 12.0, 17.8, 25.3 GB)\n"
+#ifdef MT 
+            "  to use multithreading -level:threads (1-9, compression only)\n"
+            "  " PROGNAME " -4:2 file (use level 4 threads 2)\n\n"
+#endif            
 #if defined(WINDOWS) || defined (UNIX)
             "You may also compress directories.\n"
 #endif
@@ -6941,7 +7218,7 @@ int main(int argc, char** argv) {
         // Compress: write archive header, get file names and sizes
         String header_string;
         String filenames;
-        uint64_t filestreamsize[10];
+        
         if (mode==COMPRESS) {
             segment.setsize(48); //inital segment buffer size (about 277 blocks)
             // Expand filenames to read later.  Write their base names and sizes
@@ -7017,6 +7294,7 @@ int main(int argc, char** argv) {
             segment.pos=0; //reset to offset 0
         }
         Encoder* en;
+        Predictors* predictord;
         predictord=new Predictor();
         en=new Encoder(mode, archive,*predictord);
         
@@ -7070,6 +7348,7 @@ int main(int argc, char** argv) {
         if (mode==COMPRESS) {
             en->flush();
             delete en;
+            delete predictord;
             for (int i=0; i<10; ++i) {
                 filestreams[i]=tmpfile2();
             }
@@ -7089,321 +7368,137 @@ int main(int argc, char** argv) {
                 printf("-----------------------------------------\n");
                 printf("%-13s%1d |%10d |%11.0f\n\n","Total level",j, ttc,tts+0.0);
             }
-            uint64_t datasegmentsize;
-            uint64_t datasegmentlen;
-            int datasegmentpos;
-            int datasegmentinfo;
             
-            Filetype datasegmenttype;
-            if (predictord>0) delete predictord,predictord=0;
+            #ifdef MT
+            std::vector<Job> jobs;
+            #endif
             for (int i=0; i<10; ++i) {
+                uint64_t datasegmentsize;
                 datasegmentsize=ftello(filestreams[i]); //get segment data offset
                 filestreamsize[i]=datasegmentsize;
+                fseeko(filestreams[i], 0, SEEK_SET);
                 if (datasegmentsize>0){ //if segment contains data
-                    fseeko(filestreams[i], 0, SEEK_SET);
-                    uint64_t total=datasegmentsize;
-                    datasegmentpos=0;
-                    datasegmentinfo=0;
-                    datasegmentlen=0;
-                    if (predictord>0) delete predictord,predictord=0;
-                    if (defaultencoder>0) delete defaultencoder,defaultencoder=0;
-                    // datastreams
-                    // DEFAULT HDR 0
-                    // JPEG        1
-                    // IMAGE1      2
-                    // IMAGE4      3
-                    // IMAGE8      4
-                    // IMAGE24     5
-                    // AUDIO       6
-                    // EXE         7
-                    // TEXT0       8
-                    // TXTUTF8 DICTTXT TEXT 9
-                    if (i==0){
-                        printf("Compressing default stream. "); 
-                        predictord=new Predictor();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==DEFAULT || datasegmenttype==HDR)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush();
-                    }
-                    
-                    if (i==1){
-                        printf("Compressing jpeg stream. "); 
-                        predictord=new PredictorJPEG();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==JPEG)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush();  
-                    }
-                    
-                    if (i==2){
-                        printf("Compressing image1 stream. "); 
-                        predictord=new PredictorIMG1();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE1)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush();  
-                    }
-                    if (i==3){
-                        printf("Compressing image4 stream. "); 
-                        predictord=new PredictorIMG4();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE4)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush();  
-                    }
-                    if (i==4){
-                        printf("Compressing image8 stream. "); 
-                        predictord=new PredictorIMG8();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE8 )) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush();  
-
-                    }
-                    if (i==5){
-                        printf("Compressing image24 stream. "); 
-                        predictord=new PredictorIMG24();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE24)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush(); 
-
-                    }
-                    
-                    if (i==6){
-                        printf("Compressing audio stream. "); 
-                        predictord=new PredictorAUDIO();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==AUDIO)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush(); 
-                    }
-                    if (i==7){
-                        printf("Compressing exe stream. "); 
-                        predictord=new PredictorEXE();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        printf(" Total %0.0f  \n",datasegmentsize +0.0); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==EXE)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(filestreams[i]));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                        defaultencoder->flush();  
-                    }
-                    if (i==8){
-                        printf("Compressing text0 wrt stream. "); 
-                        predictord=new PredictorTXTWRT();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        
-                        while (  datasegmentsize>0) {
-                            FILE *tm=tmpfile2();
-                            wrtn=1;
-                            encode_txt(filestreams[i],tm,datasegmentsize);
-                            datasegmentlen=ftello(tm);
-                            filestreamsize[8]=datasegmentlen;
-                            printf(" Total %0.0f wrt num: %0.0f\n",datasegmentsize+0.0,datasegmentlen+0.0); 
-                            fseeko(tm, 0, SEEK_SET);
-                            defaultencoder->predictor.x.filetype=DICTTXT;
-                            defaultencoder->predictor.x.blpos=0;
-                            defaultencoder->predictor.x.finfo=-1;
-                            
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(tm));
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=datasegmentsize=0;
-                            fclose(tm);
-                        }
-                        defaultencoder->flush();
-                    }
-                    if (i==9){
-                        printf("Compressing text wrt stream. "); 
-                        predictord=new PredictorTXTWRT();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        
-                        while (  datasegmentsize>0) {
-                            FILE *tm=tmpfile2();
-                            encode_txt(filestreams[i],tm,datasegmentsize);
-                            datasegmentlen=ftello(tm);
-                            filestreamsize[9]=datasegmentlen;
-                            printf(" Total %0.0f wrt: %0.0f\n",datasegmentsize+0.0,datasegmentlen+0.0); 
-                            fseeko(tm, 0, SEEK_SET);
-                            defaultencoder->predictor.x.filetype=DICTTXT;
-                            defaultencoder->predictor.x.blpos=0;
-                            defaultencoder->predictor.x.finfo=-1;
-                            
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                defaultencoder->compress(getc(tm));
-                                datasegmentsize--;
-                            }
-                            fclose(tm);
-                            datasegmentlen=datasegmentsize=0;
-                        }
-                        defaultencoder->flush();
-                    }
+                #ifdef MT
+                    // add streams to job list
+                    filesmt[i]=tmpfile2(); //open tmp file for stream output
+                    Job job;
+                    job.out=filesmt[i];
+                    job.in=filestreams[i];
+                    job.streamid=i;
+                    job.command=0; //0 compress
+                    job.datasegmentsize=datasegmentsize;
+                    jobs.push_back(job);
+                #else
+                    compressstream(i,datasegmentsize,filestreams[i],archive);
+                #endif
                 }
             }
-            
+
+#ifdef MT
+  // Loop until all jobs return OK or ERR: start a job whenever one
+  // is eligible. If none is eligible then wait for one to finish and
+  // try again. If none are eligible and none are running then it is
+  // an error.
+  int thread_count=0;  // number RUNNING, not to exceed topt
+  int job_count=0;     // number of jobs with state OK or ERR
+
+  // Aquire lock on jobs[i].state.
+  // Threads can access only while waiting on a FINISHED signal.
+#ifdef PTHREAD
+  pthread_attr_t attr; // thread joinable attribute
+  check(pthread_attr_init(&attr));
+  check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE));
+  check(pthread_mutex_lock(&mutex));  // locked
+#else
+  mutex=CreateMutex(NULL, FALSE, NULL);  // not locked
+#endif
+
+  while(job_count<jobs.size()) {
+
+    // If there is more than 1 thread then run the biggest jobs first
+    // that satisfies the memory bound. If 1 then take the next ready job
+    // that satisfies the bound. If no threads are running, then ignore
+    // the memory bound.
+    int bi=-1;  // find a job to start
+    if (thread_count<topt) {
+      for (int i=0; i<jobs.size(); ++i) {
+        if (jobs[i].state==READY  && bi<0 ) {
+          bi=i;
+          if (topt==1) break;
+        }
+      }
+    }
+
+    // If found then run it
+    if (bi>=0) {
+      jobs[bi].state=RUNNING;
+      ++thread_count;
+#ifdef PTHREAD
+      check(pthread_create(&jobs[bi].tid, &attr, thread, &jobs[bi]));
+#else
+      jobs[bi].tid=CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)thread,
+          &jobs[bi], 0, NULL);
+#endif
+    }
+
+    // If no jobs can start then wait for one to finish
+    else {
+#ifdef PTHREAD
+      check(pthread_cond_wait(&cv, &mutex));  // wait on cv
+
+      // Join any finished threads. Usually that is the one
+      // that signaled it, but there may be others.
+      for (int i=0; i<jobs.size(); ++i) {
+        if (jobs[i].state==FINISHED || jobs[i].state==FINISHED_ERR) {
+          void* status=0;
+          check(pthread_join(jobs[i].tid, &status));
+          if (jobs[i].state==FINISHED) jobs[i].state=OK;
+          if (jobs[i].state==FINISHED_ERR) quit(); //exit program on thread error 
+          ++job_count;
+          --thread_count;
+        }
+      }
+#else
+      // Make a list of running jobs and wait on one to finish
+      HANDLE joblist[MAXIMUM_WAIT_OBJECTS];
+      int jobptr[MAXIMUM_WAIT_OBJECTS];
+      DWORD njobs=0;
+      WaitForSingleObject(mutex, INFINITE);
+      for (int i=0; i<jobs.size() && njobs<MAXIMUM_WAIT_OBJECTS; ++i) {
+        if (jobs[i].state==RUNNING || jobs[i].state==FINISHED
+            || jobs[i].state==FINISHED_ERR) {
+          jobptr[njobs]=i;
+          joblist[njobs++]=jobs[i].tid;
+        }
+      }
+      ReleaseMutex(mutex);
+      DWORD id=WaitForMultipleObjects(njobs, joblist, FALSE, INFINITE);
+      if (id>=WAIT_OBJECT_0 && id<WAIT_OBJECT_0+njobs) {
+        id-=WAIT_OBJECT_0;
+        id=jobptr[id];
+        if (jobs[id].state==FINISHED) jobs[id].state=OK;
+        if (jobs[id].state==FINISHED_ERR) quit(); //exit program on thread error 
+        ++job_count;
+        --thread_count;
+      }
+#endif
+    }
+  }
+#ifdef PTHREAD
+  check(pthread_mutex_unlock(&mutex));
+#endif
+
+  // Append temporary files to archive if OK.
+  for (int i=0; i<jobs.size(); ++i) {
+      if (jobs[i].state==OK) {
+        //printf("streamid:%d \n", jobs[i].streamid);
+        fseeko(filesmt[jobs[i].streamid], 0, SEEK_SET);
+        append(archive,filesmt[jobs[i].streamid]);
+        fclose(filesmt[jobs[i].streamid]);
+      }
+  }
+
+             #endif
             for (int i=0; i<10; ++i) {
                 fclose(filestreams[i]);
             }
@@ -7432,13 +7527,13 @@ int main(int argc, char** argv) {
             printf("Total %0.0f bytes compressed to %0.0f bytes.\n", total_size+0.0, ftello(archive)+0.0); 
             
         }
-        // Decompress files to dir2: paq8pxd_v13 -d dir1/archive.paq8pxd13 dir2
+        // Decompress files to dir2: paq8pxd_v14 -d dir1/archive.paq8pxd14 dir2
         // If there is no dir2, then extract to dir1
         // If there is no dir1, then extract to .
         else if (!doList) {
             assert(argc>=2);
             String dir(argc>2?argv[2]:argv[1]);
-            if (argc==2) {  // chop "/archive.paq8pxd13"
+            if (argc==2) {  // chop "/archive.paq8pxd14"
                 int i;
                 for (i=dir.size()-2; i>=0; --i) {
                     if (dir[i]=='/' || dir[i]=='\\') {
@@ -7455,7 +7550,9 @@ int main(int argc, char** argv) {
             dir=dir.c_str();
             if (dir[0] && (dir.size()!=3 || dir[1]!=':')) dir+="/";
             /////
+            
             delete en;
+            delete predictord;
             for (int i=0; i<10; ++i) {
                 filestreams[i]=tmpfile2();
             }
@@ -7465,7 +7562,9 @@ int main(int argc, char** argv) {
             int datasegmentpos;
             int datasegmentinfo;
             Filetype datasegmenttype;
-            if (predictord>0) delete predictord,predictord=0;
+           predictord=0;
+           Encoder *defaultencoder;
+           defaultencoder=0;
             for (int i=0; i<10; ++i) {
                 datasegmentsize=(filestreamsize[i]); //get segment data offset
                 if (datasegmentsize>0){ //if segment contains data
@@ -7476,75 +7575,59 @@ int main(int argc, char** argv) {
                     datasegmentlen=0;
                     if (predictord>0) delete predictord,predictord=0;
                     if (defaultencoder>0) delete defaultencoder,defaultencoder=0;
-                    if (i==0){
-                        printf("DeCompressing default stream. \n"); 
-                        predictord=new Predictor();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==DEFAULT || datasegmenttype==HDR)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
+                    switch(i) {
+                        case 0: {
+      	                    printf("DeCompressing default stream.\n"); 
+                            predictord=new Predictor();
+                            break;}
+                        case 1: {
+      	                    printf("DeCompressing jpeg stream.\n"); 
+                            predictord=new PredictorJPEG();
+                            break;}        
+                        case 2: {
+      	                    printf("DeCompressing image1 stream.\n"); 
+                            predictord=new PredictorIMG1();
+                            break;}
+                        case 3: {
+      	                    printf("DeCompressing image4 stream.\n"); 
+                            predictord=new PredictorIMG4();
+                            break;}    
+                        case 4: {
+      	                    printf("DeCompressing image8 stream.\n"); 
+                            predictord=new PredictorIMG8();
+                            break;}
+                        case 5: {
+      	                    printf("DeCompressing image24 stream.\n"); 
+                            predictord=new PredictorIMG24();
+                            break;}        
+                        case 6: {
+      	                    printf("DeCompressing audio stream.\n"); 
+                            predictord=new PredictorAUDIO();
+                            break;}
+                        case 7: {
+      	                    printf("DeCompressing exe stream.\n"); 
+                            predictord=new PredictorEXE();
+                            break;}    
+                        case 8: {
+      	                    printf("DeCompressing text0 wrt stream.\n"); 
+                            predictord=new PredictorTXTWRT();
+                            break;}
+                        case 9: {
+      	                    printf("DeCompressing text wrt stream.\n"); 
+                            predictord=new PredictorTXTWRT();
+                            break;}    
                     }
-                    
-                    if (i==1){
-                        printf("DeCompressing jpeg stream. \n"); 
-                        predictord=new PredictorJPEG();
+                     if (i>=0 && i<=7){
                         defaultencoder=new Encoder (mode, archive,*predictord); 
                         while (  datasegmentsize>0) {
                             while (datasegmentlen==0){
-                                
                                 datasegmenttype=(Filetype)segment(datasegmentpos++);
                                 for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
                                 if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
                                         datasegmenttype==AUDIO || datasegmenttype==SZDD) {
                                     datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
                                 }
-                                if (!(datasegmenttype==JPEG)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                    }
-                    
-                    if (i==2){
-                        printf("DeCompressing image1 stream. \n"); 
-                        predictord=new PredictorIMG1();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE1)) datasegmentlen=0;
+                                if (!(isstreamtype(datasegmenttype,i) ))datasegmentlen=0;
                                 defaultencoder->predictor.x.filetype=datasegmenttype;
                                 defaultencoder->predictor.x.blpos=0;
                                 defaultencoder->predictor.x.finfo=datasegmentinfo;
@@ -7557,146 +7640,13 @@ int main(int argc, char** argv) {
                             datasegmentlen=0;
                         }
                     }
-                    if (i==3){
-                        printf("DeCompressing image4 stream. \n"); 
-                        predictord=new PredictorIMG4();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE4)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                    }
-                    if (i==4){
-                        printf("DeCompressing image8 stream. \n"); 
-                        predictord=new PredictorIMG8();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE8 )) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                    }
-                    if (i==5){
-                        printf("DeCompressing image24 stream. \n"); 
-                        predictord=new PredictorIMG24();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==IMAGE24)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                    }
-                    
-                    if (i==6){
-                        printf("DeCompressing audio stream. \n"); 
-                        predictord=new PredictorAUDIO();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==AUDIO)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }                        
-                    }
-                    if (i==7){
-                        printf("DeCompressing exe stream. \n"); 
-                        predictord=new PredictorEXE();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                if (datasegmenttype==IMAGE1 || datasegmenttype==IMAGE8 || datasegmenttype==IMAGE4 || datasegmenttype==IMAGE24 ||
-                                        datasegmenttype==AUDIO || datasegmenttype==SZDD) {
-                                    datasegmentinfo=0; for (int ii=0; ii<4; ++ii) { datasegmentinfo<<=8; datasegmentinfo+=segment(datasegmentpos++);}
-                                }
-                                if (!(datasegmenttype==EXE)) datasegmentlen=0;
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo;
-                            }
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                    }
-                    if (i==8){
-                        printf("DeCompressing text0 wrt stream. \n"); 
-                        predictord=new PredictorTXTWRT();
+                    if (i==8 || i==9){
                         defaultencoder=new Encoder (mode, archive,*predictord); 
                         while (  datasegmentsize>0) {
                             datasegmentlen=datasegmentsize;
                             defaultencoder->predictor.x.filetype=DICTTXT;
                             defaultencoder->predictor.x.blpos=0;
                             defaultencoder->predictor.x.finfo=-1;
-                            
                             for (uint64_t k=0; k<datasegmentlen; ++k) {
                                 if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
                                 putc(defaultencoder->decompress(),filestreams[i]);
@@ -7717,40 +7667,6 @@ int main(int argc, char** argv) {
                             filestreams[i]=tm;
                             fseeko(filestreams[i], 0, SEEK_SET);
                             delete wrt;
-                            datasegmentlen=datasegmentsize=0;
-                        }
-                    }
-                    if (i==9){
-                        printf("DeCompressing text wrt stream. \n"); 
-                        predictord=new PredictorTXTWRT();
-                        defaultencoder=new Encoder (mode, archive,*predictord); 
-                        while (  datasegmentsize>0) {
-                            datasegmentlen=datasegmentsize;
-                            defaultencoder->predictor.x.filetype=DICTTXT;
-                            defaultencoder->predictor.x.blpos=0;
-                            defaultencoder->predictor.x.finfo=-1;
-                            
-                            for (uint64_t k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0xfff)) printStatus(total-datasegmentsize, total);
-                                putc(defaultencoder->decompress(),filestreams[i]);
-                                datasegmentsize--;
-                            }
-                            FILE *tm=tmpfile2();
-                            XWRT_Decoder* wrt;
-                            wrt=new XWRT_Decoder();
-                            int b=0;
-                            wrt->defaultSettings(0);
-                            fseeko(filestreams[i], 0, SEEK_SET);
-                            int bb=wrt->WRT_start_decoding(filestreams[i]);
-                            for ( int ii=0; ii<bb; ii++) {
-                                b=wrt->WRT_decode();    
-                                fputc(b, tm);
-                            }
-                            fclose(filestreams[i]);
-                            filestreams[i]=tm;
-                            fseeko(filestreams[i], 0, SEEK_SET);
-                            delete wrt;
-                            
                             datasegmentlen=datasegmentsize=0;
                         }
                     }
