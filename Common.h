@@ -20,7 +20,6 @@ public:
 
 	CContainers cont;
 	
-	EPreprocessType preprocType;
 	int preprocFlag;
 
 protected:
@@ -28,23 +27,19 @@ protected:
 	inline void stringHash(const unsigned char *ptr, int len,int& hash);
 	int addWord(unsigned char* &mem,int &i);
 	unsigned char* loadDynamicDictionary(unsigned char* mem,unsigned char* mem_end);
-	//unsigned char* loadDictionary(FILE* file,unsigned char* mem,int word_count);
-	//void loadCharset(FILE* file);
 	void tryAddSymbol(int c);
 	void initializeLetterSet();
 	void initializeCodeWords(int word_count,bool initMem=true);
 	bool initialize(bool encoding);
 	void WRT_deinitialize();
 
-	//int getSourcePath(char* buf, int buf_size);
 	void WRT_print_options();
 	int minSpacesFreq();
 
 	int* word_hash;
-	EPreprocessType codewordType;
-	EWordType subWordType;
+	//EWordType subWordType;
 	bool decoding,fileCorrupted,detect,firstWarn;
-	int maxDynDictBuf,minWordFreq,compLevel,maxDictSize,additionalParam,firstPassBlock;
+	int maxDynDictBuf,minWordFreq,maxDictSize;
 	int tryShorterBound,spaces,fileLenMB,beforeWord;
 	int spacesCodeword[256];
 	int spacesCont[256];
@@ -58,7 +53,7 @@ protected:
 	unsigned char* dictmem_end;
 	unsigned char* mem;
 	
-	std::vector<std::string> stack;
+	//std::vector<std::string> stack;
 	
 	int addSymbols[256]; // reserved symbols in output alphabet 
 	int reservedSet[256]; // reserved symbols in input alphabet
@@ -72,7 +67,7 @@ protected:
 	int codeword2sym[256]; 
 	int value[256];
 	int detectedSymbols[32];
-	unsigned char num[16];
+	//unsigned char num[16];
 	size_t mFileBufferSize;
 
 	int dictionary,dict1size,dict2size,dict3size,dict4size,dict1plus2plus3,dict1plus2;

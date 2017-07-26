@@ -15,44 +15,31 @@ public:
 
 private:
 
-	void WRT_encode(size_t bufferSize);
+	void WRT_encode( int filelen);
 	inline void encodeCodeWord(int &i);
 	inline void encodeSpaces();
 	inline void encodeWord(unsigned char* s,int s_size,EWordType wordType,int& c);
-	inline void encodeCodeWord_PPM(int &i);
 	inline void encodeAsText(unsigned char* &s,int &s_size,EWordType wordType);
 	inline int findShorterWord(unsigned char* &s,int &s_size);
 	inline void toLower(unsigned char* s,int &s_size);
 	inline void toUpper(unsigned char* s,int &s_size);
 	inline void checkWord(unsigned char* &s,int &s_size,int& c);
-	inline void setSpaces(int c);
+	 
 	inline void checkHashExactly(unsigned char* &s,int &s_size,int& i);
 	inline int checkHash(unsigned char* &s,int &s_size,int h);
 	inline void stringHash(const unsigned char *ptr, int len,int& hash);
-	inline int unicode2utf8(unsigned int cp, unsigned char* result);
+	
 	void encodeMixed(unsigned char* s,int s_size,int& c);
 	void sortDict(int size);
 
-	void write_dict(int comprLevel);
-	int WRT_detectFileType();
+	void write_dict();
+	int WRT_detectFileType(int filelen);
 	void WRT_detectFinish();
-	void WRT_get_options(int& c,int& c2);
-	inline void readGetcBuffer(FILE* &file,int &c);
 
-	unsigned char utf8buff[4];
-	int utf8cached;
-	int utf8pos;
-
-	int s_size,binCount;
-	int last_c_bak,last_c,last_last_c,quotes,lastAll;
-	//EXMLState XMLState;
-
-	unsigned char* getcBufferData;
-	size_t getcBufferSize;
-	size_t getcBufferSizeBak;
-	int	getcBufferDataParts;
-	unsigned char* getcBuffer;
-	
+	int s_size;
+	int last_c_bak,last_c,last_last_c;
+	int filelento;
+	//unsigned char* getcBuffer;
 
 	unsigned char* dynmem;
 	unsigned char *dictbound;

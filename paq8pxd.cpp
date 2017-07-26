@@ -609,11 +609,11 @@ Added compression of (8-bit, 24-bit) TGA image data
 Improved TIFF image detection
 
 DIFFERENCES FROM PAQ8PX_V69
-Dynamic record model
+Modified record model
 Text/utf detection 
 dynamic dict preprocess (modified version of XWRT)
 0xX0X0X0X0... to 0xXXXX... filter for text 
-
+commented out .pbm .pgm .ppm detection (fails on enwik9, false positive)
 */
 
 #define PROGNAME "paq8pxd"  // Please change this if you change the program.
@@ -1853,7 +1853,7 @@ void wordModel(Mixer& m) {
   static U32 word0=0, word1=0, word2=0, word3=0, word4=0, word5=0;  // hashes
   static U32 number0=0, number1=0;  // hashes
   static U32 text0=0;  // hash stream of letters
-  static ContextMap cm(MEM*16, 20+3+3+6+1+1+1+1+1+1+2+1+1+1+1+3+1);
+  static ContextMap cm(MEM*16, 20+3+3+6+1+1+1+1+1+1+2+1+1+1+1);
   static int nl1=-3, nl=-2;  // previous, current newline position
   // Update word hashes
   if (bpos==0) {
@@ -1865,12 +1865,14 @@ void wordModel(Mixer& m) {
 
     if (c>='A' && c<='Z') c+='a'-'A';
     if ((c>='a' && c<='z') || c>=128) {
+             
       ++words, ++wordcount;
       word0=word0*263*32+c;
       text0=text0*997*16+c;
       wordlen++;
       wordlen=min(wordlen,45);
     }
+  
     else if (word0) {
       word5=word4*23;
       word4=word3*19;
@@ -1897,6 +1899,7 @@ void wordModel(Mixer& m) {
     cm.set(col<<8|frstchar);
     cm.set(spaces<<8|(words&255));
 
+
     cm.set(number0+word2*31);
     cm.set(number0+word1*31);
     cm.set(number0*31+c);
@@ -1904,7 +1907,6 @@ void wordModel(Mixer& m) {
     cm.set(word0+number1*31);
 
     cm.set(frstchar<<7);
-    cm.set(spaces&0x7fff);
     cm.set(wordlen<<16|c);
     cm.set(wordlen1<<8|col);
     cm.set(c*64+spacecount/2);
@@ -1916,10 +1918,6 @@ void wordModel(Mixer& m) {
     U32 d=c4&0xffff;
     cm.set(d<<9|frstchar);
     
-cm.set(d<<9|spafdo);
-cm.set(d<<9|wordlen);
-cm.set(spafdo<<9|wordlen); 
-
     h=word0*271+buf(1);
     cm.set(h);
     cm.set(word0);
@@ -1955,62 +1953,33 @@ cm.set(spafdo<<9|wordlen);
 
 // Model 2-D data with fixed record length.  Also order 1-2 models
 // that include the distance to the last match.
-const int rlencount = 32;
-int rlenl[rlencount]; //len
-int rlenc[rlencount]; //count
-//set len table
-void recordmodelrlen() {
-     for (int i=0; i<(rlencount+1); ++i)  rlenl[i]=i+2;
-}
-void recordmodelreset() {
-#if 0
-printf("\n"); 
-    printf("Dynamic record model with len upto %d \n",rlencount ); 
-    printf("Len\tFinal count\n"); 
-        for (int j=0; j<rlencount; ++j){
-            if (rlenc[j]>0)  printf("%d\t%d\n", j+2, rlenc[j]);                 
-        }
-        printf("\n"); 
-#endif
-    for (int i=0; i<(rlencount+1); ++i)  rlenc[i]=0;
-}
 
 void recordModel(Mixer& m) {
   static int cpos1[256] , cpos2[256], cpos3[256], cpos4[256];
   static int wpos1[0x10000]; // buf(1..2) -> last position
-  static int rlen=2; // , rlen1=3, rlen2=4;  // run length and 2 candidates
-
- // static int rcount1=0, rcount2=0;  // candidate counts
+  static int rlen=2, rlen1=3, rlen2=4, rlen3=5;  // run length and 2 candidates
+  static int rcount1=0, rcount2=0,rcount3=0;  // candidate counts
   static ContextMap cm(32768, 3), cn(32768/2, 3), co(32768*2, 3), cp(MEM, 3);
 
   // Find record length
   if (!bpos) {
     int w=c4&0xffff, c=w&255, d=w>>8;
     int r=pos-cpos1[c];
-    if (r>=2 && (r==cpos1[c]-cpos2[c] ||  r==cpos2[c]-cpos3[c] ||  r==cpos3[c]-cpos4[c]) && r<(rlencount+2) ) {
-                 
-     for (int i=0; i<rlencount; ++i){
-          if (r==rlenl[i]){ 
-                            rlenc[i]=rlenc[i]+1;
-          }
-    }
-    }
-    for (int i=0; i<rlencount; ++i){
-          if ( rlenc[i]>15 && rlen!=rlenl[i]){
-               rlen=rlenl[i];
-              // printf("R: %d\n", rlen); //print dynamic rlen
-               for (int j=0; j<rlencount; ++j){
-                   if ( rlenc[j]>10) //favor larger counts
-                      rlenc[j]=rlenc[j]-1 ;
-                   else if ( rlenc[j]>5) 
-                        rlenc[j]=rlenc[j]-2 ;
-                   else 
-                        rlenc[j]=0;    //discard lower counts               
-               }
-               rlenl[i]=rlen; //preserve current best count
-               break;
-          }
-    }
+    if (r>1 ) {
+            if ((r==cpos1[c]-cpos2[c] || r==cpos2[c]-cpos3[c] || r==cpos3[c]-cpos4[c]
+        )&& (r>10 || ((c==buf(r*5+1)) && c==buf(r*6+1)))) {
+      if (r==rlen1) ++rcount1;
+      else if (r==rlen2) ++rcount2;
+      else if (r==rlen3) ++rcount3;
+      else if (rcount1>rcount2) rlen2=r, rcount2=1;
+      else if (rcount2>rcount3) rlen3=r, rcount3=1;
+      else rlen1=r, rcount1=1;
+}  
+}
+    if (rcount1>15 && rlen!=rlen1) rlen=rlen1, rcount1=rcount2=rcount3=0/*, printf("R1: %d  \n",rlen)*/;
+    if (rcount2>20 && rlen!=rlen2) rlen=rlen2, rcount1=rcount2=rcount3=0/*, printf("R2: %d  \n",rlen)*/;
+    if (rcount3>25 && rlen!=rlen3) rlen=rlen3, rcount1=rcount2=rcount3=0/*, printf("R3: %d  \n",rlen)*/;
+
 
     // Set 2 dimensional contexts
     assert(rlen>0);
@@ -2048,7 +2017,6 @@ void recordModel(Mixer& m) {
 }
 
 
-
 //////////////////////////// sparseModel ///////////////////////
 
 // Model order 1-2 contexts with gaps.
@@ -2075,6 +2043,7 @@ void sparseModel(Mixer& m, int seenbefore, int howmany) {
     cm.set(c4&0xC3CCC38C);
     cm.set(c4&0x0081CC81);
     cm.set(c4&0x00c10081);
+    
     for (int i=1; i<8; ++i) {
       cm.set(seenbefore|buf(i)<<8);
       cm.set((buf(i+2)<<8)|buf(i+1));
@@ -2171,6 +2140,7 @@ void im24bitModel(Mixer& m, int w) {
   m.set(col, 24);
   m.set((buf(1)>>4)*3+(pos%3), 48);
   m.set(c0, 256);
+   
 }
 
 //////////////////////////// im8bitModel /////////////////////////////////
@@ -3218,6 +3188,29 @@ void nestModel(Mixer& m)
   cm.mix(m);
 }
 
+void sparseModel1(Mixer& m, int seenbefore, int howmany) {
+  static ContextMap cm(MEM*2, 12+2*7);
+  if (bpos==0) {
+    cm.set(seenbefore);
+    cm.set(howmany);
+    cm.set(buf(1)|buf(5)<<8);
+    cm.set(buf(1)|buf(6)<<8);
+    cm.set(buf(3)|buf(6)<<8);
+    cm.set(c4&0x00f0f0ff);
+    cm.set(c4&0x00ff00ff);
+    cm.set(c4&0xff0000ff);
+    cm.set(c4&0x00f8f8f8);
+    cm.set(c4&0xf8f8f8f8);
+    cm.set(c4&0x00f0f0f0);
+    cm.set(c4&0xf0f0f0f0);
+    for (int i=1; i<8; ++i) {
+      cm.set(seenbefore|buf(i)<<8);
+      cm.set((buf(i+3)<<8)|buf(i+1));
+    }
+  }
+  cm.mix(m);
+}
+
 //////////////////////////// contextModel //////////////////////
 
 
@@ -3238,7 +3231,7 @@ int contextModel2() {
   if (bpos==0) {
     --size;
     ++blpos;
-    if (size==-1) ft2=(Filetype)buf(1),recordmodelreset();
+    if (size==-1) ft2=(Filetype)buf(1);
     if (size==-5 && ft2!=IMAGE1 && ft2!=IMAGE8 && ft2!=IMAGE24 && ft2!=AUDIO) {
       size=buf(4)<<24|buf(3)<<16|buf(2)<<8|buf(1);
       if (ft2==CD) size=0;
@@ -3283,7 +3276,7 @@ int contextModel2() {
   rcm9.mix(m);
   rcm10.mix(m);
 
-  if (level>=4 && filetype!=IMAGE1) {
+   /*if (level>=4 && filetype!=IMAGE1) {
     sparseModel(m,ismatch,order);
     distanceModel(m);
     recordModel(m);
@@ -3292,9 +3285,34 @@ int contextModel2() {
     dmcModel(m);
     nestModel(m);
     if (filetype==EXE) exeModel(m);
-  }
-
-
+  }*/
+ if (level>=4 && filetype!=IMAGE1) {
+	switch (filetype)
+	{
+    case DICTTXT:
+    case TXTUTF8:
+	case TEXT: { 
+        sparseModel1(m,ismatch,order);
+		nestModel(m);
+		wordModel(m);
+		indirectModel(m);
+		dmcModel(m);
+		break;
+		}
+	default: { 
+        sparseModel(m,ismatch,order);
+		distanceModel(m);
+		recordModel(m);
+		indirectModel(m);
+        wordModel(m);
+		nestModel(m);
+		dmcModel(m);
+		if (filetype==EXE) exeModel(m);
+		break;
+		} 
+    }
+ }
+ 
   order = order-2;
   if (order<0) order=0;
 
@@ -3457,7 +3475,6 @@ Encoder::Encoder(Mode m, FILE* f):
   }
   for (int i=0; i<1024; ++i)
     dt[i]=16384/(i+i+3);
-recordmodelrlen();
 }
 
 void Encoder::flush() {
@@ -3519,9 +3536,11 @@ void Encoder::flush() {
 deth=(header_len),detd=(width)*(height),info=(width),\
 fseek(in, start+(start_pos), SEEK_SET),HDR
 
+
 #define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
 deth=(header_len),detd=(data_len),info=(wmode),\
 fseek(in, start+(start_pos), SEEK_SET),HDR
+
 
 
 // Function ecc_compute(), edc_compute() and eccedc_init() taken from 
@@ -3651,7 +3670,7 @@ Filetype detect(FILE* in, int n, Filetype type, int &info) {
  // For TEXT
   int txtStart=0,txtLen=0,txtOff=0;
   int utfc=0,utfb=0,txtIsUTF8=0; //utf count 2-6, current byte
-  const int txtMinLen=1024*2;
+  const int txtMinLen=1024*128;
 
 int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
   const int txtMinLen1=1024*4;
@@ -3812,7 +3831,7 @@ int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
       }
     }
 
-    // Detect .pbm .pgm .ppm image
+    // Detect .pbm .pgm .ppm image //fails on enwik9 at offset 435132165 (24 bit header )
     if ((buf0&0xfff0ff)==0x50300a) {
       pgmn=(buf0&0xf00)>>8;
       if (pgmn>=4 && pgmn <=6) pgm=i,pgm_ptr=pgmw=pgmh=pgmc=pgmcomment=0;
@@ -3836,7 +3855,7 @@ int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
       if (pgmcomment && c==0x0a) pgmcomment=0;
       if (pgmw && pgmh && !pgmc && pgmn==4) IMG_DET(IMAGE1,pgm-2,i-pgm+3,(pgmw+7)/8,pgmh);
       if (pgmw && pgmh && pgmc && pgmn==5) IMG_DET(IMAGE8,pgm-2,i-pgm+3,pgmw,pgmh);
-      if (pgmw && pgmh && pgmc && pgmn==6) IMG_DET(IMAGE24,pgm-2,i-pgm+3,pgmw*3,pgmh);
+     // if (pgmw && pgmh && pgmc && pgmn==6) IMG_DET(IMAGE24,pgm-2,i-pgm+3,pgmw*3,pgmh);
     }
 
     // Detect .rgb image
@@ -3939,6 +3958,7 @@ int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
       e8e9count=e8e9pos=0;
     }
     
+   // if (soi||pgm||rgbi||bmp||wavi || tga) printf("%d, %d, %d, %d, %d, %d, %d \n",soi,pgm,rgbi,bmp,wavi,tga,txtStart);
      //Detect text and utf-8 
     if (txtStart==0 && !soi && !pgm && !rgbi && !bmp && !wavi && !tga &&
         ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart=1,txtOff=i;
@@ -4223,6 +4243,7 @@ int decode_exe(Encoder& en, int size, FILE *out, FMode mode, int &diffFound, lon
   }
   return size;
 }
+//Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
 #include "XWRT.h"
 #include "MemBuffer.cpp"
 #include "Common.cpp"
@@ -4232,60 +4253,44 @@ XWRT_Encoder* wrt;
 XWRT_Decoder* wrt2;
 
 void encode_txt(FILE* in, FILE* out, int len) {
-     wrt=new XWRT_Encoder();
-     FILE* dtmp;
-     int b;
-     wrt->defaultSettings();
-     dtmp=tmpfile();
- 	 for (int i=0; i<len; i++) {
-	     b=fgetc(in);
-         fputc(b, dtmp);
-      }
-   fseek(dtmp,0, SEEK_SET);
-   wrt->WRT_start_encoding(dtmp,out,len,false); //len needs fix
-   fclose(dtmp);
+   wrt=new XWRT_Encoder();
+   wrt->defaultSettings();
+   wrt->WRT_start_encoding(in,out,len,false);
    delete wrt;
 }
 
 //called only when encode_txt output was smaller then input
 int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
-	wrt2=new XWRT_Decoder();
+    wrt2=new XWRT_Decoder();
 	FILE* dtmp;
-	FILE* dtmp1;
-	FILE* dtmp4;
 	char c;
-	int b=0,bb=0;
+	int b=0;
+    int bb=0;
 	dtmp=tmpfile();
-	dtmp1=tmpfile(); //create another tmp file for wrt decoding
 	if (!dtmp) perror("ERR WRT tmpfile"), exit(1);
-	if (!dtmp1) perror("ERR WRT tmpfile"), exit(1);
 	//decompress file
 	for (int i=0; i<size; i++) {
 		c=en.decompress(); 
-		putc(c,dtmp);
+		putc(c,dtmp);	
 	}
 	fseek(dtmp,0, SEEK_SET);
 	wrt2->defaultSettings();
-	wrt2->WRT_start_decoding(dtmp,dtmp1);
-	fclose(dtmp); //close first temp file
-	fseek(dtmp1,0, SEEK_END);
-	bb=ftell(dtmp1);
-	fseek(dtmp1,0, SEEK_SET);
-    for (int i=0; i<bb; i++) {
-		b=fgetc(dtmp1); 
+	bb=wrt2->WRT_start_decoding(dtmp);
+    for ( int i=0; i<bb; i++) {
+		b=wrt2->WRT_decode();	
 		if (mode==FDECOMPRESS) {
 			fputc(b, out);
 		}
 		else if (mode==FCOMPARE) {
-			if (b!=fgetc(out) && !diffFound) diffFound=ftell(dtmp1);
+			if (b!=fgetc(out) && !diffFound) diffFound=i;
 		}
 	}
-	fclose(dtmp1);
+	fclose(dtmp);
 	delete wrt2;
 	return bb; 
 }
 
-//encode stream of 0xX0X0X0X0X... to 0xXXXXX...   
+//encode text stream of 0xX0X0X0X0X... to 0xXXXXX...   
 void encode_txt0(FILE* in, FILE* out, int len) {    
      char b,c;
      int d;

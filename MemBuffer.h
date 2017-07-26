@@ -20,12 +20,10 @@ public:
 
 	void OutTgtByte( unsigned char c );
 	int InpSrcByte( void );
-	void UndoSrcByte( void ); 
 	inline int Size();
 	inline int Allocated(); 
 	inline void AllocSrcBuf( unsigned int len );
 	inline void Clear();
-	inline void SetSrcBuf( unsigned char* SrcBuf, unsigned int len );
 
 	static unsigned int memsize;
 	unsigned char* TargetBuf;
@@ -44,12 +42,10 @@ class CContainers
 public:
 	CContainers();
 	void prepareMemBuffers();
-	void writeMemBuffers(int preprocFlag,  int comprLevel);
+	void writeMemBuffers(int preprocFlag);
 	void readMemBuffers(int preprocFlag, int maxMemSize);
 	void freeMemBuffers(bool freeMem);
-	void selectMemBuffer(unsigned char* s,int s_size);
-	void MemBufferPopBack();
-
+ 
 	CMemoryBuffer *memout;
 	unsigned char *bigBuffer;	
 
@@ -57,7 +53,5 @@ private:
 	std::vector<CMemoryBuffer*> mem_stack;
 	std::map<std::string,CMemoryBuffer*> memmap;
 };
-
-
 
 #endif

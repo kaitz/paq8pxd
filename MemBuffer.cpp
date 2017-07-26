@@ -63,17 +63,6 @@ int CMemoryBuffer::InpSrcByte( void )
 	return *(SourceBuf+(SrcPtr++)); 
 }
 
-void CMemoryBuffer::UndoSrcByte( void ) 
-{
-	memsize--;
-	SrcPtr--;
-}
-
-inline void CMemoryBuffer::SetSrcBuf( unsigned char* SrcBuf, unsigned int len )
-{
-	SrcLen = len;
-	SourceBuf = SrcBuf;
-}
 
 inline void CMemoryBuffer::AllocSrcBuf( unsigned int len )
 {
@@ -106,14 +95,6 @@ inline void CMemoryBuffer::ReallocTgtBuf(unsigned int len)
 	TargetBuf=NewTargetBuf;
 }
 
-#define CHECK_ERR(err, msg) { \
-    if (err != Z_OK) { \
-        fprintf(stdout, "%s error: %d\n", msg, err); \
-        exit(1); \
-    } \
-}
-
-
 CContainers::CContainers() : bigBuffer(NULL) {};
 
 void CContainers::prepareMemBuffers()
@@ -125,7 +106,7 @@ void CContainers::prepareMemBuffers()
 	
 }
 
-void CContainers::writeMemBuffers(int preprocFlag,  int comprLevel)
+void CContainers::writeMemBuffers(int preprocFlag)
 {
 	std::map<std::string,CMemoryBuffer*>::iterator it;
 
@@ -147,18 +128,11 @@ void CContainers::writeMemBuffers(int preprocFlag,  int comprLevel)
 			{
 				allocated+=b->Allocated();
 				len+=fileLen;
-					
-				if (!IF_OPTION(OPTION_PAQ))
-				{	
+				
 					PUTC((int)it->first.size());
 					for (int i=0; i<(int)it->first.size(); i++)
 						PUTC(it->first[i]);
-				}
-
-
-
-
-				{
+				
 					PUTC(fileLen>>24);
 					PUTC(fileLen>>16);
 					PUTC(fileLen>>8);
@@ -167,16 +141,10 @@ void CContainers::writeMemBuffers(int preprocFlag,  int comprLevel)
 					fwrite_fast(it->second->TargetBuf,it->second->TgtPtr,XWRT_fileout);
 
 					lenCompr+=fileLen;
-
-					//(0,fileLen,true);
-				}
 				
 			}
 		}
-		
-		if (!IF_OPTION(OPTION_PAQ))
-			PUTC(0)
-
+		PUTC(0)
 	}
 
 	PRINT_DICT(("dataSize=%d compr=%d allocated=%d\n",len,lenCompr,allocated));
@@ -196,21 +164,7 @@ void CContainers::readMemBuffers(int preprocFlag, int maxMemSize)
 	int i,c;
 	unsigned char s[STRING_MAX_SIZE];
 
-	if (  IF_OPTION(OPTION_PAQ))
-	{
-		bufLen=maxMemSize+10240;
-		if (bigBuffer==NULL)
-		{
-			bigBuffer=(unsigned char*)malloc(bufLen);
-			if (bigBuffer==NULL)
-				OUT_OF_MEMORY();
-		}
-		buf=bigBuffer+3;
-		bufLen-=6;
-		freeMemBuffers(false);
-	}
-	else
-		freeMemBuffers(true);
+	freeMemBuffers(true);
 
 
 	prepareMemBuffers();
@@ -218,7 +172,7 @@ void CContainers::readMemBuffers(int preprocFlag, int maxMemSize)
 
  	while (true)
 	{	
-		if (!IF_OPTION(OPTION_PAQ))
+		
 		{
 			GETC(i);
 
@@ -228,10 +182,7 @@ void CContainers::readMemBuffers(int preprocFlag, int maxMemSize)
 			for (c=0; c<i; c++)
 				GETC(s[c]);
 		}
-		else
-		{
-
-		}
+		
 
 		std::string str;
 		str.append((char*)s,i);
@@ -293,54 +244,4 @@ void CContainers::freeMemBuffers(bool freeMem)
 	}
 
 	memmap.clear();
-}
-
-
-
-void CContainers::selectMemBuffer(unsigned char* s,int s_size)
-{
-	while ((s[0]==' ' || s[0]=='<') && s_size>0)
-	{
-		s++;
-		s_size--;
-	}
-	
-	
-	if (s_size>0 && s[s_size-1]=='>')
-		s_size--;
-	
-	if (s_size==0)
-		return;
-	
-	
-	std::string str;
-	str.append((char*)s,s_size);
-	
-	static std::map<std::string,CMemoryBuffer*>::iterator it;
-	
-	it=memmap.find(str);
-	
-	mem_stack.push_back(memout);
-
-	if (it!=memmap.end())
-		memout=it->second;
-	else
-	{
-		memout=new CMemoryBuffer(str);
-		std::pair<std::string,CMemoryBuffer*> p(str,memout);
-		memmap.insert(p);
-	}
-
-	return;
-}
-
-
-void CContainers::MemBufferPopBack()
-{
-	if (mem_stack.size()>0)
-	{
-		PRINT_STACK(("\nmemout3 pop_back\n"));
-		memout=mem_stack.back();
-		mem_stack.pop_back();
-	}
 }
