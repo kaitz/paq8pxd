@@ -1730,6 +1730,10 @@ inline void XWRT_Encoder::checkWord(unsigned char* &s,int &s_size,int& c){
 }
 int XWRT_Encoder::WRT_detectFileType(int filelen){
 	detect=true;
+	//unsigned char s[STRING_MAX_SIZE];
+	//EWordType wordType;
+	//int c ;
+	s_size=0;
 	//memset(value,0,sizeof(value));
 	memset(addSymbols,0,sizeof(addSymbols));
 	memset(reservedSet,0,sizeof(reservedSet));
@@ -1793,13 +1797,15 @@ void XWRT_Encoder::sortDict(int size){
 	OUT_OF_MEMORY();
 	for (i=0; i<size; i++)
 	inttable[i]=i+1;
-	qsort(&inttable[0],size,sizeof(inttable[0]),compare_freq);
+	/**/qsort(&inttable[0],size,sizeof(inttable[0]),compare_freq);
 	qsort(&inttable[0],min(size,dict1size),sizeof(inttable[0]),compare_str); //compare_str
 	
 	if (size>dict1size)
 	qsort(&inttable[dict1size],min(size,bound3)-dict1size,sizeof(inttable[0]),compare_str);//compare_str
+	
 	if (size>bound3)
 	qsort(&inttable[bound3],min(size,bound4)-bound3,sizeof(inttable[0]),compare_str);//compare_str
+	
 	if (size>bound4)
 	qsort(&inttable[bound4],size-bound4,sizeof(inttable[0]),compare_str);//compare_str
 	
