@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jun. 15, 2014
+/* paq8pxd9 file compressor/archiver.  Release by Kaido Orav, Jun. 19, 2014
 
     Copyright (C) 2008 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -20,38 +20,38 @@
 
 To install and use in Windows:
 
-- To install, put paq8pxd.exe or a shortcut to it on your desktop.
-- To compress a file or folder, drop it on the paq8pxd icon.
-- To decompress, drop a .paq8pxd file on the icon.
+- To install, put paq8pxd_v9.exe or a shortcut to it on your desktop.
+- To compress a file or folder, drop it on the paq8pxd9 icon.
+- To decompress, drop a .paq8pxd9 file on the icon.
 
-A .paq8pxd extension is added for compression, removed for decompression.
+A .paq8pxd9 extension is added for compression, removed for decompression.
 The output will go in the same folder as the input.
 
-While paq8pxd is working, a command window will appear and report
+While paq8pxd9 is working, a command window will appear and report
 progress.  When it is done you can close the window by pressing
 ENTER or clicking [X].
 
 
 COMMAND LINE INTERFACE
 
-- To install, put paq8pxd.exe somewhere in your PATH.
-- To compress:      paq8pxd [-N] file1 [file2...]
-- To decompress:    paq8pxd [-d] file1.paq8pxd [dir2]
-- To view contents: more < file1.paq8pxd
+- To install, put paq8pxd_v9.exe somewhere in your PATH.
+- To compress:      paq8pxd_v9 [-N] file1 [file2...]
+- To decompress:    paq8pxd_v9 [-d] file1.paq8pxd9 [dir2]
+- To view contents: paq8pxd_v9 -l file1.paq8pxd9
 
-The compressed output file is named by adding ".paq8pxd" extension to
-the first named file (file1.paq8pxd).  Each file that exists will be
+The compressed output file is named by adding ".paq8pxd9" extension to
+the first named file (file1.paq8pxd9).  Each file that exists will be
 added to the archive and its name will be stored without a path.
 The option -N specifies a compression level ranging from -0
 (fastest) to -8 (smallest).  The default is -5.  If there is
 no option and only one file, then the program will pause when
 finished until you press the ENTER key (to support drag and drop).
-If file1.paq8pxd exists then it is overwritten.
+If file1.paq8pxd9 exists then it is overwritten.
 
-If the first named file ends in ".paq8pxd" then it is assumed to be
+If the first named file ends in ".paq8pxd9" then it is assumed to be
 an archive and the files within are extracted to the same directory
 as the archive unless a different directory (dir2) is specified.
-The -d option forces extraction even if there is not a ".paq8pxd"
+The -d option forces extraction even if there is not a ".paq8pxd9"
 extension.  If any output file already exists, then it is compared
 with the archive content and the first byte that differs is reported.
 No files are overwritten or deleted.  If there is only one argument
@@ -64,11 +64,11 @@ structure, except that empty directories are not stored, and file
 attributes (timestamps, permissions, etc.) are not preserved.
 During extraction, directories are created as needed.  For example:
 
-  paq8pxd -4 c:\tmp\foo bar
+  paq8pxd_v9 -4 c:\tmp\foo bar
 
-compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd at level 4.
+compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd9 at level 4.
 
-  paq8pxd -d c:\tmp\foo.paq8pxd .
+  paq8pxd_v9 -d c:\tmp\foo.paq8pxd9 .
 
 extracts foo and compares bar in the current directory.  If foo and bar
 are directories then their contents are extracted/compared.
@@ -82,9 +82,8 @@ are OK).
 
 TO COMPILE
 
-There are 2 files: paq8pxd.cpp (C++) and paq7asm.asm (NASM/YASM).
-paq7asm.asm is the same as in paq7 and paq8x.  paq8pxd.cpp recognizes the
-following compiler options:
+There are 2 files: paq8pxd_v9.cpp (C++) and wrtpre.cpp (C++).
+paq8pxd_v9.cpp recognizes the following compiler options:
 
   -DWINDOWS           (to compile in Windows)
   -DUNIX              (to compile in Unix, Linux, Solairs, MacOS/Darwin, etc)
@@ -101,50 +100,51 @@ drag and drop on machines with less than 256 MB of memory.  Use
 -DDEFAULT_OPTION=4 for 128 MB, 3 for 64 MB, 2 for 32 MB, etc.
 
 Use -DNOASM for non x86-32 machines, or older than a Pentium-MMX (about
-1997), or if you don't have NASM or YASM to assemble paq7asm.asm.  The
-program will still work but it will be slower.  For NASM in Windows,
-use the options "--prefix _" and either "-f win32" or "-f obj" depending
-on your C++ compiler.  In Linux, use "-f elf".
+1997) The program will still work but it will be slower. 
+
 
 Recommended compiler commands and optimizations:
 
   MINGW g++:
-    nasm paq7asm.asm -f win32 --prefix _
-    g++ paq8pxd.cpp -DWINDOWS -O2 -Os -s -march=pentiumpro -fomit-frame-pointer -o paq8pxd.exe paq7asm.obj
-
-  Borland:
-    nasm paq7asm.asm -f obj --prefix _
-    bcc32 -DWINDOWS -O -w-8027 paq8pxd.cpp paq7asm.obj
-
-  Mars:
-    nasm paq7asm.asm -f obj --prefix _
-    dmc -DWINDOWS -Ae -O paq8pxd.cpp paq7asm.obj
+    g++ paq8pxd_v9.cpp -DWINDOWS -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v9.exe 
 
   UNIX/Linux (PC):
-    nasm -f elf paq7asm.asm
-    g++ paq8pxd.cpp -DUNIX -O2 -Os -s -march=pentiumpro -fomit-frame-pointer -o paq8pxd paq7asm.o
+    g++ paq8pxd_v9.cpp -DUNIX -Ofast -msse2 -s -march=pentium4 -o paq8pxd_v9
 
   Non PC (e.g. PowerPC under MacOS X)
-    g++ paq8pxd.cpp -O2 -DUNIX -DNOASM -s -o paq8pxd
+    g++ paq8pxd_v9.cpp -O2 -DUNIX -DNOASM -s -o paq8pxd_v9
 
-MinGW produces faster executables than Borland or Mars, but Intel 9
-is about 4% faster than MinGW).
 
 
 ARCHIVE FILE FORMAT
 
-An archive has the following format.  It is intended to be both
-human and machine readable.  The header ends with CTRL-Z (Windows EOF)
-so that the binary compressed data is not displayed on the screen.
+An archive has the following format.  
 
-  paq8pxd -N CR LF
-  size TAB filename CR LF
-  size TAB filename CR LF
-  ...
-  CTRL-Z
+  paq8pxd9 -N 
+  segment size 
+  segment offset
+  \0 file list size
+  compressed file list(
+    size TAB filename CR LF
+    size TAB filename CR LF
+    ...)
   compressed binary data
+  file segmentation data
 
 -N is the option (-0 to -9), even if a default was used.
+
+segment size is total size of file segmentation data in bytes
+at segmnet offset after compressed binary data.
+
+file segmentation data is full list of detected blocks:
+type size info
+type size info
+type size 
+type size info
+.....
+
+info is present if block type is image or audio.
+
 Plain file names are stored without a path.  Files in compressed
 directories are stored with path relative to the compressed directory
 (using UNIX style forward slashes "/").  For example, given these files:
@@ -154,26 +154,22 @@ directories are stored with path relative to the compressed directory
 
 Then
 
-  paq8pxd archive \dir1\file1.txt \dir2
+  paq8pxd_v9 archive \dir1\file1.txt \dir2
 
-will create archive.paq8pxd with the header:
-
-  paq8pxd -5
-  123     file1.txt
-  456     dir2/file2.txt
+will create archive.paq8pxd9 
 
 The command:
 
-  paq8pxd archive.paq8pxd C:\dir3
+  paq8pxd_v9 archive.paq8pxd9 C:\dir3
 
 will create the files:
 
   C:\dir3\file1.txt
   C:\dir3\dir2\file2.txt
 
-Decompression will fail if the first 7 bytes are not "paq8pxd -".  Sizes
-are stored as decimal numbers.  CR, LF, TAB, CTRL-Z are ASCII codes
-13, 10, 9, 26 respectively.
+Decompression will fail if the first 10 bytes are not "paq8pxd9 -".  Sizes
+are stored as decimal numbers.  CR, LF, TAB are ASCII codes
+13, 10, 9 respectively.
 
 
 ARITHMETIC CODING
@@ -193,7 +189,7 @@ on the ability to predict the next bit accurately.
 
 MODEL MIXING
 
-paq8pxd uses a neural network to combine a large number of models.  The
+paq8pxd_v9 uses a neural network to combine a large number of models.  The
 i'th model independently predicts
 p1_i = p(y_j = 1 | y_0..j-1), p0_i = 1 - p1_i.
 The network computes the next bit probabilty
@@ -351,8 +347,8 @@ modeled with both a run map and a nonstationary map unless indicated.
   pixels already seen.  Image width is assumed to be 1728 bits (as
   in calgary/pic).
 
-- Image.  For uncompressed 24-bit color BMP, TIFF and TGA images.  Contexts
-  are the high order bits of the surrounding pixels and linear
+- Image.  For uncompressed 8,24-bit color BMP, TIFF and TGA images.
+  Contexts are the high order bits of the surrounding pixels and linear
   combinations of those pixels, including other color planes.  The
   image width is detected from the file header.  When an image is
   detected, other models are turned off to improve speed.
@@ -422,7 +418,7 @@ adjacent quantized values of stretch(p1).  There are 2 APM stages in series:
 
 PREPROCESSING
 
-paq8pxd uses preprocessing transforms on certain data types to improve
+paq8pxd_v9 uses preprocessing transforms on certain data types to improve
 compression.  To improve reliability, the decoding transform is
 tested during compression to ensure that the input file can be
 restored.  If the decoder output is not identical to the input file
@@ -464,6 +460,19 @@ The following transforms are used:
   data.  No transform is applied.  The purpose is to separate images
   embedded in execuables to block the EXE transform, and for a future
   place to insert a transform.
+  
+- BASE64: Decodes BASE64 encoded data and recursively transformed
+  up to level 5. Input can be full stream or end-of-line coded.
+
+- 24-bit images: 24-bit image data uses simple color transform
+  (b, g, r) -> (g, g-r, g-b)
+  
+- CD: mode 1 and mode 2 form 1+2 - 2352 bytes
+
+- TEXT: All detected text blocks are transformed using dynamic dictionary
+  preprocessing (based on XWRT). If transformed block is larger from original
+  then transform is skipped.
+  
 
 
 IMPLEMENTATION
@@ -501,18 +510,15 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V7
-base64 uses memory for encode/decode about 30% faster
-large file support (over 2GB)
-indirect model changes
-wordmodel changes
-file segmentation data is written uncompressed (at file end)
-sparseModel1 changes
-no .pbm .pgm .ppm .rgb .tga image detection
-separate encoder decode/encode
+DIFFERENCES FROM PAQ8PXD_V8
+over 2GB file support 
+fix jpeg and wav errors
+updated header doc
+in buf pos wraps to buf size
+tmpfile for windows (created in user tmp folder)
 */
 
-#define PROGNAME "paq8pxd8"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd9"  // Please change this if you change the program.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -742,8 +748,8 @@ public:
 // buf(i) returns i'th byte back from pos (i > 0)
 // buf.size() returns n.
 
-int pos;  // Number of input bytes in buf (not wrapped)
-
+int pos;  // Number of input bytes in buf (is wrapped)
+int poswr; //wrapp
 class Buf {
   Array<U8> b;
 public:
@@ -2741,7 +2747,7 @@ int jpegModel(Mixer& m) {
     // or byte stuff (00).
     if (jpeg && data && buf(2)==FF && buf(1) && (buf(1)&0xf8)!=RST0) {
       jassert(buf(1)==EOI);
-      jpeg=0;
+      jpeg=next_jpeg=0;
     }
     if (!jpeg) return next_jpeg;
 
@@ -3163,7 +3169,7 @@ void wavModel(Mixer& m, int info) {
   static int bits, channels, w,rlen=0;
   static int z1, z2, z3, z4, z5, z6, z7;
 
-  if (!bpos && !blpos) {
+  if (!blpos && bpos==1) {
     bits=((info%4)/2)*8+8;
     channels=info%2+1;
     w=channels*(bits>>3);
@@ -3328,6 +3334,7 @@ void indirectModel(Mixer& m) {
   static U16 t4[0x8000];
 
   if (!bpos) {
+  	
     U32 d=c4&0xffff, c=d&255, d2=(buf(1)&31)+32*(buf(2)&31)+1024*(buf(3)&31);
     U32 d3=(buf(1)>>3&31)+32*(buf(3)>>3&31)+1024*(buf(4)>>3&31);
     U32& r1=t1[d>>8];
@@ -3357,6 +3364,7 @@ void indirectModel(Mixer& m) {
   }
   cm.mix(m);
 }
+
 
 
 //////////////////////////// dmcModel //////////////////////////
@@ -3839,6 +3847,7 @@ private:
       putc(x2>>24, archive);
       x1<<=8;
       x2=(x2<<8)+255;
+      
      // if (mode==DECOMPRESS) x=(x<<8)+(getc(archive)&255);  // EOF is OK
     }
     //return i;
@@ -3875,10 +3884,12 @@ public:
     assert(mode==COMPRESS);
     if (level==0)
       putc(c, archive);
-    else
+    else {
       for (int i=7; i>=0; --i)
         code((c>>i)&1);
-        ++blpos;
+      pos=pos&poswr;   //wrap
+      ++blpos;
+    }
   }
 
   // Decompress and return one byte
@@ -3893,7 +3904,8 @@ public:
       int c=0;
       for (int i=0; i<8; ++i)
         c+=c+decode();
-        ++blpos;
+      ++blpos;
+      pos=pos&poswr; //wrap
       return c;
     }
   }
@@ -4103,13 +4115,13 @@ Filetype detect(FILE* in, uint64_t n, Filetype type, int &info, int &info2, int 
   uint64_t bmp=0;
   int imgbpp=0,bmpx=0,bmpy=0,bmpof=0;  // For BMP detection
   uint64_t rgbi=0;
-  int rgbx=0,rgby=0;  // For RGB detection
+  //int rgbx=0,rgby=0;  // For RGB detection
   uint64_t tga=0;
   uint64_t tgax=0;
-  int tgay=0,tgaz=0,tgat=0;  // For TGA detection
+ // int tgay=0,tgaz=0,tgat=0;  // For TGA detection
   uint64_t pgm=0;
-  int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0;  // For PBM, PGM, PPM detection
-  Array<char> pgm_buf(32);
+  //int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0;  // For PBM, PGM, PPM detection
+  //Array<char> pgm_buf(32);
   uint64_t cdi=0;
   int cda=0,cdm=0;  // For CD sectors detection
   U32 cdf=0;
@@ -4766,6 +4778,25 @@ uint64_t decode_exe(Encoder& en, int size, FILE *out, FMode mode, uint64_t &diff
   return size;
 }
 
+FILE* tmpfile2(void){
+	FILE *f;
+#if defined(WINDOWS)	
+	int i;
+	char temppath[MAX_PATH]; 
+	char filename[MAX_PATH];
+	
+	i=GetTempPath(MAX_PATH,temppath);
+	if ((i==0) || (i>MAX_PATH)) return NULL;
+	if (GetTempFileName(temppath,"tmp",0,filename)==0) return NULL;
+	f=fopen(filename,"w+bTD");
+	if (f==NULL) unlink(filename);
+	return f;
+#else
+	f=tmpfile();  // temporary file
+    if (!f) return NULL;
+    return f;
+#endif
+}
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
 #include "wrtpre.cpp"
 
@@ -4785,7 +4816,7 @@ int decode_txt(Encoder& en, int size, FILE *out, FMode mode, uint64_t &diffFound
 	char c;
 	int b=0;
     int bb=0;
-	dtmp=tmpfile();
+	dtmp=tmpfile2();
 	if (!dtmp) perror("ERR WRT tmpfile"), exit(1);
 	//decompress file
 	for (int i=0; i<size; i++) {
@@ -4995,24 +5026,24 @@ void direct_encode_block(Filetype type, FILE *in, uint64_t len, Encoder &en, uin
   filetype=type;
   blpos=0;
   finfo=0;
+  if (type==JPEG) pos=0;
   if (info!=-1) {
     put4f4(info);
     finfo=info;
   }
- if (level>0)   printf("Compressing... ");
+ if (level>0)   printf("Compressing  ... ");
   const uint64_t total=s1+len+s2;
-  uint64_t j;
-  for ( j=s1; j<s1+len; ++j) {
+  for (uint64_t j=s1; j<s1+len; ++j) {
     if (!(j&0xfff)) printStatus(j, total);
     en.compress(getc(in));
   }
-if (level>0)    printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+if (level>0)    printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
 }
 
 //for block statistics, levels 0-5
 uint64_t typenamess[14][5]={0}; //total type size for levels 0-5
 U32 typenamesc[14][5]={0}; //total type count for levels 0-5
-U32 itcount=0;			   //level count
+int itcount=0;			   //level count
 
 void compressRecursive(FILE *in, uint64_t n, Encoder &en, char *blstr, int it=0, uint64_t s1=0, uint64_t s2=0) {
   static const char* typenames[13]={"default", "jpeg", "hdr",
@@ -5056,7 +5087,7 @@ void compressRecursive(FILE *in, uint64_t n, Encoder &en, char *blstr, int it=0,
       else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
       
       if (type==EXE || type==CD || type==IMAGE24  || type==TEXT || type==TXTUTF8 || type==BASE64 ) {
-        tmp=tmpfile();  // temporary encoded file
+        tmp=tmpfile2();  // temporary encoded file
         if (!tmp) perror("tmpfile"), quit();
         if (type==IMAGE24) encode_bmp(in, tmp, int(len), info);
         else if (type==EXE) encode_exe(in, tmp, int(len), int(begin));
@@ -5166,6 +5197,7 @@ uint64_t decompressRecursive(FILE *out, uint64_t size, Encoder& en, FMode mode, 
 filetype=type;
   blpos=0;
   finfo=0;
+  if (type==JPEG) pos=0;
     if (type==IMAGE1 || type==IMAGE8 || type==IMAGE4 || type==IMAGE24 || type==AUDIO) {
       info=0; for (int i=0; i<4; ++i) { info<<=8; info+=segment(segment.pos++);}
 	  finfo=info;
@@ -5174,7 +5206,7 @@ filetype=type;
     else if (type==EXE) len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
     else if (type==DICTTXT) len=decode_txt(en, int(len), out, mode, diffFound);
     else if (type==BASE64) {
-      tmp=tmpfile();
+      tmp=tmpfile2();
       decompressRecursive(tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
       if (mode!=FDISCARD) {
         rewind(tmp);
@@ -5183,7 +5215,7 @@ filetype=type;
       fclose(tmp);
     }
     else if (type==CD) {
-      tmp=tmpfile();
+      tmp=tmpfile2();
       decompressRecursive(tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
       if (mode!=FDISCARD) {
         rewind(tmp);
@@ -5351,8 +5383,8 @@ int expand(String& archive, String& s, const char* fname, int base) {
 #endif
 
 
-// To compress to file1.paq8pxd: paq8pxd [-n] file1 [file2...]
-// To decompress: paq8pxd file1.paq8pxd [output_dir]
+// To compress to file1.paq8pxd9: paq8pxd_v9 [-n] file1 [file2...]
+// To decompress: paq8pxd_v9 file1.paq8pxd9 [output_dir]
 int main(int argc, char** argv) {
   bool pause=argc<=2;  // Pause when done?
   try {
@@ -5496,10 +5528,11 @@ int main(int argc, char** argv) {
 	  segment.pos+=getc(archive)<<16;
 	  segment.pos+=getc(archive)<<8;
 	  segment.pos+=getc(archive);
+	  if (segment.hpos==0 || segment.pos==0) printf("Segment data not found."),quit();
 	  segment.setsize(segment.pos);
       currentpos=ftello(archive);
       fseeko(archive, segment.hpos, SEEK_SET); 
-      fread( &segment[0], 1, segment.pos, archive); //read segment data
+      if (fread( &segment[0], 1, segment.pos, archive)<segment.pos) printf("Segment data corrupted."),quit();
 	  fseeko(archive, currentpos, SEEK_SET); 
 	  segment.pos=0; //reset to offset 0
     }
@@ -5507,18 +5540,22 @@ int main(int argc, char** argv) {
     // Set globals according to option
     assert(level>=0 && level<=8);
     buf.setsize(MEM*8);
+    poswr=buf.size()-1;
+    #ifdef DEBUG 
+	printf("\n Buf size %d bytes)\n", poswr);
+	#endif
     Encoder en(mode, archive);
 
     // Compress header
     if (mode==COMPRESS) {
       int len=header_string.size();
-      printf("\nFile list (%ld bytes)\n", len);
+      printf("\nFile list (%d bytes)\n", len);
       assert(en.getMode()==COMPRESS);
       uint64_t start=en.size();
       en.compress(0); // block type 0
       en.compress(len>>24); en.compress(len>>16); en.compress(len>>8); en.compress(len); // block length
       for (int i=0; i<len; i++) en.compress(header_string[i]);
-      printf("Compressed from %ld to %0.0f bytes.\n",len,en.size()-start+0.0);
+      printf("Compressed from %d to %0.0f bytes.\n",len,en.size()-start+0.0);
     }
 
     // Deompress header
@@ -5601,13 +5638,13 @@ int main(int argc, char** argv) {
      	printf("%-13s%1d |%10d |%11.0f\n\n","Total level",j, ttc,tts+0.0);
       }
   }
-    // Decompress files to dir2: paq8pxd -d dir1/archive.paq8pxd dir2
+    // Decompress files to dir2: paq8pxd_v9 -d dir1/archive.paq8pxd9 dir2
     // If there is no dir2, then extract to dir1
     // If there is no dir1, then extract to .
     else if (!doList) {
       assert(argc>=2);
       String dir(argc>2?argv[2]:argv[1]);
-      if (argc==2) {  // chop "/archive.paq8pxd"
+      if (argc==2) {  // chop "/archive.paq8pxd9"
         int i;
         for (i=dir.size()-2; i>=0; --i) {
           if (dir[i]=='/' || dir[i]=='\\') {
