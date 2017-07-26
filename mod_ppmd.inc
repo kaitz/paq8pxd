@@ -759,7 +759,7 @@ struct ppmd_Model {
                 p[0].Freq += (p[0].Freq<14);
             }
         }
-
+        pc = MaxContext;
         // try increasing the order
         if( !OrderFall && iFSuccessor ) {
             FoundState->iSuccessor = CreateSuccessors( 1, p, MinContext );

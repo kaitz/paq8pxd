@@ -1,4 +1,4 @@
-/* paq8pxd18 file compressor/archiver.  Release by Kaido Orav, Jul. 19, 2016
+/* paq8pxd19 file compressor/archiver.  Release by Kaido Orav, Jul. 14, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -20,39 +20,39 @@
 
 To install and use in Windows:
 
-- To install, put paq8pxd_v18.exe or a shortcut to it on your desktop.
-- To compress a file or folder, drop it on the paq8pxd18 icon.
-- To decompress, drop a .paq8pxd18 file on the icon.
+- To install, put paq8pxd_v19.exe or a shortcut to it on your desktop.
+- To compress a file or folder, drop it on the paq8pxd19 icon.
+- To decompress, drop a .paq8pxd19 file on the icon.
 
-A .paq8pxd18 extension is added for compression, removed for decompression.
+A .paq8pxd19 extension is added for compression, removed for decompression.
 The output will go in the same folder as the input.
 
-While paq8pxd18 is working, a command window will appear and report
+While paq8pxd19 is working, a command window will appear and report
 progress.  When it is done you can close the window by pressing
 ENTER or clicking [X].
 
 
 COMMAND LINE INTERFACE
 
-- To install, put paq8pxd_v18.exe somewhere in your PATH.
-- To compress:      paq8pxd_v18 [-N] file1 [file2...]
-- To decompress:    paq8pxd_v18 [-d] file1.paq8pxd18 [dir2]
-- To view contents: paq8pxd_v18 -l file1.paq8pxd18
+- To install, put paq8pxd_v19.exe somewhere in your PATH.
+- To compress:      paq8pxd_v19 [-N] file1 [file2...]
+- To decompress:    paq8pxd_v19 [-d] file1.paq8pxd19 [dir2]
+- To view contents: paq8pxd_v19 -l file1.paq8pxd19
 
-The compressed output file is named by adding ".paq8pxd18" extension to
-the first named file (file1.paq8pxd18).  Each file that exists will be
+The compressed output file is named by adding ".paq8pxd19" extension to
+the first named file (file1.paq8pxd19).  Each file that exists will be
 added to the archive and its name will be stored without a path.
 The option -N specifies a compression level ranging from -0
 (fastest) to -8 (smallest).  The default is -5.  If there is
 no option and only one file, then the program will pause when
 finished until you press the ENTER key (to support drag and drop).
-If file1.paq8pxd18 exists then it is overwritten. Level -0 only
+If file1.paq8pxd19 exists then it is overwritten. Level -0 only
 transforms or decompresses data.
 
-If the first named file ends in ".paq8pxd18" then it is assumed to be
+If the first named file ends in ".paq8pxd19" then it is assumed to be
 an archive and the files within are extracted to the same directory
 as the archive unless a different directory (dir2) is specified.
-The -d option forces extraction even if there is not a ".paq8pxd18"
+The -d option forces extraction even if there is not a ".paq8pxd19"
 extension.  If any output file already exists, then it is compared
 with the archive content and the first byte that differs is reported.
 No files are overwritten or deleted.  If there is only one argument
@@ -65,11 +65,11 @@ structure, except that empty directories are not stored, and file
 attributes (timestamps, permissions, etc.) are not preserved.
 During extraction, directories are created as needed.  For example:
 
-  paq8pxd_v18 -4 c:\tmp\foo bar
+  paq8pxd_v19 -4 c:\tmp\foo bar
 
-compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd18 at level 4.
+compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd19 at level 4.
 
-  paq8pxd_v18 -d c:\tmp\foo.paq8pxd18 .
+  paq8pxd_v19 -d c:\tmp\foo.paq8pxd19 .
 
 extracts foo and compares bar in the current directory.  If foo and bar
 are directories then their contents are extracted/compared.
@@ -83,8 +83,8 @@ are OK).
 
 TO COMPILE
 
-There are 2 files: paq8pxd_v18.cpp (C++) and wrtpre.cpp (C++).
-paq8pxd_v18.cpp recognizes the following compiler options:
+There are 2 files: paq8pxd_v19.cpp (C++) and wrtpre.cpp (C++).
+paq8pxd_v19.cpp recognizes the following compiler options:
 
   -DWINDOWS           (to compile in Windows)
   -DUNIX              (to compile in Unix, Linux, etc)
@@ -105,25 +105,25 @@ Recommended compiler commands and optimizations:
 
   MINGW g++ (x86,x64):
    with multithreading:
-    g++ paq8pxd_v18.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -o paq8pxd_v18.exe 
+    g++ paq8pxd_v19.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -o paq8pxd_v19.exe 
    without multithreading:
-    g++ paq8pxd_v18.cpp -DWINDOWS -msse2 -O3 -s -static -o paq8pxd_v18.exe 
+    g++ paq8pxd_v19.cpp -DWINDOWS -msse2 -O3 -s -static -o paq8pxd_v19.exe 
 
   UNIX/Linux (PC x86,x64):
    with multithreading:
-    g++ paq8pxd_v18.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -o paq8pxd_v18
+    g++ paq8pxd_v19.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -o paq8pxd_v19
    without multithreading:
-    g++ paq8pxd_v18.cpp -DUNIX -msse2 -O3 -s -static -lpthread -o paq8pxd_v18
+    g++ paq8pxd_v19.cpp -DUNIX -msse2 -O3 -s -static -lpthread -o paq8pxd_v19
 
   Non PC (e.g. PowerPC under MacOS X)
-    g++ paq8pxd_v18.cpp -O2 -DUNIX -s -o paq8pxd_v18
+    g++ paq8pxd_v19.cpp -O2 -DUNIX -s -o paq8pxd_v19
 
 
 ARCHIVE FILE FORMAT
 
 An archive has the following format.  
 
-  paq8pxd18 -N 
+  paq8pxd19 -N 
   segment size 
   segment offset
   \0 file list size
@@ -161,20 +161,20 @@ directories are stored with path relative to the compressed directory
 
 Then
 
-  paq8pxd_v18 archive \dir1\file1.txt \dir2
+  paq8pxd_v19 archive \dir1\file1.txt \dir2
 
-will create archive.paq8pxd18 
+will create archive.paq8pxd19 
 
 The command:
 
-  paq8pxd_v18 archive.paq8pxd18 C:\dir3
+  paq8pxd_v19 archive.paq8pxd19 C:\dir3
 
 will create the files:
 
   C:\dir3\file1.txt
   C:\dir3\dir2\file2.txt
 
-Decompression will fail if the first 10 bytes are not "paq8pxd18 -".  Sizes
+Decompression will fail if the first 10 bytes are not "paq8pxd19 -".  Sizes
 are stored as decimal numbers.  CR, LF, TAB are ASCII codes
 13, 10, 9 respectively.
 
@@ -196,7 +196,7 @@ on the ability to predict the next bit accurately.
 
 MODEL MIXING
 
-paq8pxd_v18 uses a neural network to combine a large number of models.  The
+paq8pxd_v19 uses a neural network to combine a large number of models.  The
 i'th model independently predicts
 p1_i = p(y_j = 1 | y_0..j-1), p0_i = 1 - p1_i.
 The network computes the next bit probabilty
@@ -425,7 +425,7 @@ adjacent quantized values of stretch(p1).  There are 2 APM stages in series:
 
 PREPROCESSING
 
-paq8pxd_v18 uses preprocessing transforms on certain data types to improve
+paq8pxd_v19 uses preprocessing transforms on certain data types to improve
 compression.  To improve reliability, the decoding transform is
 tested during compression to ensure that the input file can be
 restored.  If the decoder output is not identical to the input file
@@ -532,22 +532,18 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V16
-+zlib recompression from paq8px_v71
-+gif recompression from paq8px_v72+ 
-+ascii85 decode/encode filter
--base64 detection changes (fix freezing up on text files)
--more adaptive 8bit image model
--better 1bit image model
--contextmap SSE changes
--szdd size incrased
--wav all sample rates
-+mdf cd filter
-+mrb filter (8 bit rle image)
-+ppm model  (http://encode.ru/threads/2515-mod_ppmd)
+DIFFERENCES FROM PAQ8PXD_V18
+-dotproduct SIMD changes
+-matchmodel changes
+-merge paq8px changes (recordmodel, jpeg) https://encode.ru/threads/342-paq8px?p=53228#post53228
++Virtual ContextMap to reduce code size
++single APM calss for models (default, exe, etc)
+- mode -q faster
++ detect MSZIP,
+-ppmd fix (https://encode.ru/threads/2515-mod_ppmd?p=52053&viewfull=1#post52053)
 */
 
-#define PROGNAME "paq8pxd18"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd19"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 
@@ -928,12 +924,12 @@ U64 MEM(){
 Segment segment; //for file segments type size info(if not -1)
 const int streamc=11;
 FILE * filestreams[streamc];
-const int datatypecount=21;
+const int datatypecount=22;
 typedef enum {DEFAULT, JPEG, HDR, IMAGE1,IMAGE4, IMAGE8, IMAGE24, AUDIO, EXE,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85, GIF ,SZDD,MRBR,
-              ZLIB,MDF,DICTTXT,BIGTEXT} Filetype;
+              ZLIB,MDF,MSZIP,DICTTXT,BIGTEXT,} Filetype;
 const char* typenames[datatypecount]={"default", "jpeg", "hdr", "1b-image", "4b-image", "8b-image", "24b-image", "audio",
-                                "exe", "cd", "text","text0","utf-8","nes","base64","base85","gif","SZDD","mrb","zlib","mdf"};
+                                "exe", "cd", "text","text0","utf-8","nes","base64","base85","gif","SZDD","mrb","zlib","mdf","mszip"};
 
 U32 WRT_mpw[16]= { 4, 4, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0 };
 U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 7, 7, 7, 7 };
@@ -1228,16 +1224,15 @@ StateTable::StateTable(): ns(1024) {
 #endif
 
 ///////////////////////////// Squash //////////////////////////////
-
 // return p = 1/(1 + exp(-d)), d scaled by 8 bits, p scaled by 12 bits
 class Squash {
   Array<U16> t;
 public:
   Squash();
   int operator()(int p) const {
-    if (p>2047) return 4095;
-  if (p<-2047) return 0;
-    return t[p+2048];
+   if (p<-2047) return  0; 
+   if (p>2047) return  4095;
+   return t[p+2048];
   }
 } squash;
 
@@ -1363,9 +1358,12 @@ BlockData& x;
     sum = _mm256_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
   } 
  // exctract high and low of sum and adds
-  __m128i low = _mm_add_epi32 (_mm256_extracti128_si256(sum,0),_mm256_extracti128_si256(sum,1)); 
-  low = _mm_add_epi32 (low, _mm_srli_si128 (low, 8)); // Add 16 sums together ...
-  low = _mm_add_epi32 (low, _mm_srli_si128 (low, 4));
+  //__m128i low = _mm_add_epi32 (_mm256_extracti128_si256(sum,0),_mm256_extracti128_si256(sum,1)); 
+  //low = _mm_add_epi32 (low, _mm_srli_si128 (low, 8)); // Add 16 sums together ...
+  //low = _mm_add_epi32 (low, _mm_srli_si128 (low, 4));
+  sum =_mm_hadd_epi32(sum,_mm256_setzero_si256 ()); 
+  sum =_mm_hadd_epi32(sum,_mm256_setzero_si256 ());
+  sum =_mm_hadd_epi32(sum,_mm256_setzero_si256 ());
   return _mm_cvtsi128_si32 (low); //                     ...  and scale back to integer
 }
 
@@ -1394,8 +1392,13 @@ BlockData& x;
     tmp = _mm_srai_epi32 (tmp, 8); //                                        (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
     sum = _mm_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
   }
+  #if  defined(__SSSE3__)
+  sum =_mm_hadd_epi32(sum,_mm_setzero_si128 ()); //horizontal add 
+  sum =_mm_hadd_epi32(sum,_mm_setzero_si128 ());
+  #else
   sum = _mm_add_epi32 (sum, _mm_srli_si128 (sum, 8)); // Add eight sums together ...
   sum = _mm_add_epi32 (sum, _mm_srli_si128 (sum, 4));
+  #endif
   return _mm_cvtsi128_si32 (sum); //                     ...  and scale back to integer
 }
 
@@ -1495,8 +1498,9 @@ void train(short *t, short *w, int n, int err) {
   }
   
   void update2() {
-    if(x.filetype==DICTTXT || x.filetype==BIGTEXT) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), nx=base=ncxt=0;
-    else update();
+    //if(x.filetype==DICTTXT || x.filetype==BIGTEXT) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), nx=base=ncxt=0;
+    //else 
+    update();
   }
   // Input x (call up to N times)
   void add(int x) {
@@ -1511,7 +1515,6 @@ void train(short *t, short *w, int n, int err) {
     assert(cx>=0);
     assert(cx<range);
     assert(base+cx<M);
-
     cxt[ncxt++]=base+cx;
     base+=range;
   }
@@ -1522,18 +1525,21 @@ void train(short *t, short *w, int n, int err) {
       mp->update2();
       for (int i=0; i<ncxt; ++i) {
          int dp=((dot_product(&tx[0], &wx[cxt[i]*N], nx)));//*7)>>8);
-          if(x.filetype==DICTTXT || x.filetype==BIGTEXT) dp=(dp*9)>>9;  else dp=dp>>5;
+          //if(x.filetype==DICTTXT || x.filetype==BIGTEXT) dp=(dp*9)>>9;  else 
+          dp=dp>>5;
           pr[i]=squash(dp);
           mp->add(dp);
       }
-     if(!(x.filetype==DICTTXT || x.filetype==BIGTEXT))  mp->set(0, 1);
+     //if(!(x.filetype==DICTTXT || x.filetype==BIGTEXT))  
+     mp->set(0, 1);
       return mp->p();
     }
     else {  // S=1 context
-    if(!(x.filetype==DICTTXT || x.filetype==BIGTEXT))  return pr[0]=squash(dot_product(&tx[0], &wx[0], nx)>>8);
-      int z=dot_product(&tx[0], &wx[0], nx);
-    base=squash( (z*16) >>13);
-    return squash(z>>9);
+    //if(!(x.filetype==DICTTXT || x.filetype==BIGTEXT))  
+    return pr[0]=squash(dot_product(&tx[0], &wx[0], nx)>>8);
+    //  int z=dot_product(&tx[0], &wx[0], nx);
+   // base=squash( (z*16) >>13);
+    //return squash(z>>9);
     }
   }
   ~Mixer();
@@ -2203,6 +2209,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
 // All of the models below take a Mixer as a parameter and write
 // predictions to it.
 
+  
 class Model {
 public:
  virtual  int p(Mixer& m,int val1,int val2)=0;
@@ -2221,17 +2228,20 @@ class matchModel1: public Model {
     U32 ptr;  // points to next byte of match if any
     int len;  // length of match, or 0 if no match
     int result;
-
+int ilen;
+	int mlen;
+	int match;
     SmallStationaryContextMap scm1;
 public:
     matchModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),  MAXLEN(65534), 
-    t(CMlimit(MEM())),h(0), ptr(0),len(0),result(0), scm1(0x20000) {
+    t(CMlimit(MEM())),h(0), ptr(0),len(0),result(0), scm1(0x20000),ilen(0),mlen(0),match(0) {
     }
 
     int p(Mixer& m,int val1=0,int val2=0)  {
+        if (match!=m.x.y) len=0; 
         if (!x.bpos) {
             h=(h*997*8+buf(1)+1)&(t.size()-1);  // update context hash
-            if (len) ++len, ++ptr;
+            if (len) len+=len<MAXLEN, ++ptr;
             else {  // find match
                 ptr=t[h];
                 if (ptr && buf.pos-ptr<buf.size())
@@ -2241,32 +2251,28 @@ public:
             result=len;
             //    if (result>0 && !(result&0xfff)) printf("pos=%d len=%d ptr=%d\n", pos, len, ptr);
             scm1.set(buf.pos);
+             ilen=result<<2;
+            mlen=min(len, 32)<<6;
         }
 
         // predict
         if (len)  {
-            if (buf(1)==buf[ptr-1] && x.c0==(buf[ptr]+256)>>(8-x.bpos)) {
-                if (len>MAXLEN) len=MAXLEN;
-                if (buf[ptr]>>(7-x.bpos)&1)  {
-                    m.add(ilog(len)<<2);
-                    m.add(min(len, 32)<<6);
+        	match=(buf[ptr]>>(7-x.bpos))&1;
+				 if (match) { //1
+                    m.add(ilen);
+                    m.add(mlen);
                 }
                 else {
-                    m.add(-(ilog(len)<<2));
-                    m.add(-(min(len, 32)<<6));
+                    m.add(-(ilen));
+                    m.add(-(mlen));
                 }
             }
             else {
-                len=0;
+                //len=0;
                 m.add(0);
                 m.add(0);
             }
-        }
-        else {
-            m.add(0);
-            m.add(0);
-        }
-
+        
         scm1.mix(m);
         return result;
     }
@@ -2504,68 +2510,135 @@ if (cp[0]==0 || cp[1]!=x.y) cp[0]=1, cp[1]=x.y;
 
 // Model 2-D data with fixed record length.  Also order 1-2 models
 // that include the distance to the last match.
+unsigned ilog2(unsigned x) {
+  x = x | (x >> 1);
+  x = x | (x >> 2);
+  x = x | (x >> 4);
+  x = x | (x >> 8);
+  x = x | (x >>16);
+  return x - (x >> 1);
+}
+
+#define SPACE 0x20
 
 class recordModel1: public Model {
    BlockData& x;
    Buf& buf;
    Array<int> cpos1, cpos2, cpos3, cpos4;
    Array<int> wpos1; // buf(1..2) -> last position
-   int rlen, rlen1, rlen2, rlen3,rlenl;  // run length and 2 candidates
-   int rcount1, rcount2,rcount3;  // candidate counts
+   Array<int> rlen;//, rlen1, rlen2, rlen3,rlenl;  // run length and 2 candidates
+   Array<int>  rcount;//, rcount2,rcount3;  // candidate counts
+    U8 padding; // detected padding byte
+   int prevTransition ; // position of the last padding transition
    ContextMap cm, cn, co, cp;
 public:
   recordModel1( BlockData& bd,U32 msize=CMlimit(MEM()*2) ): x(bd),buf(bd.buf),  cpos1(256) , cpos2(256), cpos3(256), cpos4(256),wpos1(0x10000),
-   rlen(2), rlen1(3), rlen2(4), rlen3(5),rlenl(0), rcount1(0), rcount2(0),rcount3(0),
-   cm(32768, 3), cn(32768/2, 3), co(32768*2, 3), cp(CMlimit(msize), 3+1) {
+   rlen(3), rcount(2),padding(0),prevTransition(0),
+   cm(32768, 3), cn(32768/2, 3), co(32768*2, 3), cp(CMlimit(msize), 6) {
+       rlen[0] = 2; // run length and 2 candidates
+       rlen[0] = 3; // run length and 2 candidates
+       rlen[0] = 4; // run length and 2 candidates
+  rcount[0] = 0; // candidate counts
+  rcount[1] = 0; // candidate counts
+  
    }
   
 int p(Mixer& m,int rrlen=0,int val2=0) {
    // Find record length
   if (!x.bpos) {
-    int w=x.c4&0xffff, c=w&255, d=w>>8;
+   int w=x.c4&0xffff, c=w&255, d=w>>8;
     int r=buf.pos-cpos1[c];
-    if (r>1 ){
-            if( rrlen==0 ) {
-      if ((r==cpos1[c]-cpos2[c] || r==cpos2[c]-cpos3[c] || r==cpos3[c]-cpos4[c] 
-        )&& (r>10 || ((c==buf(r*5+1)) && c==buf(r*6+1)))) {
-      if (r==rlen1) ++rcount1;
-      else if (r==rlen2) ++rcount2;
-      else if (r==rlen3) ++rcount3;
-      else if (rcount1>rcount2) rlen2=r, rcount2=1;
-      else if (rcount2>rcount3) rlen3=r, rcount3=1;
-      else rlen1=r, rcount1=1;
-     }  
-     }
-     else   rlen=rrlen;
-    } 
- 
-    if (rcount1>12 && rlen!=rlen1 && rlenl*2!=rlen1) rlenl=rlen=rlen1, rcount1=rcount2=rcount3=0;//, printf("R1: %d  \n",rlen);
-    if (rcount2>18 && rlen!=rlen2 && rlenl*2!=rlen2) rlenl=rlen,rlen=rlen2, rcount1=rcount2=rcount3=0;//, printf("R2: %d  \n",rlen);
-    if (rcount3>24 && rlen!=rlen3 && rlenl*2!=rlen3) rlenl=rlen,rlen=rlen3, rcount1=rcount2=rcount3=0;//, printf("R3: %d  \n",rlen);
+    if (r>1 && r==cpos1[c]-cpos2[c]
+        && r==cpos2[c]-cpos3[c] && r==cpos3[c]-cpos4[c]
+        && (r>10 || ((c==buf(r*5+1)) && c==buf(r*6+1)))) {
+      if (r==rlen[1]) ++rcount[0];
+      else if (r==rlen[2]) ++rcount[1];
+      else if (rcount[0]>rcount[1]) rlen[2]=r, rcount[1]=1;
+      else rlen[1]=r, rcount[0]=1;
+    }
+
+    // check candidate lengths
+    for (int i=0; i < 2; i++) {
+      if (rcount[i] > max(0,15-(int)ilog2(rlen[i+1]))){
+        if (rlen[0] != rlen[i+1]){
+          if ( (rlen[i+1] > rlen[0]) && (rlen[i+1] % rlen[0] == 0) ){
+            // maybe we found a multiple of the real record size..?
+            // in that case, it is probably an immediate multiple (2x).
+            // that is probably more likely the bigger the length, so
+            // check for small lengths too
+            if ((rlen[0] > 32) && (rlen[i+1] == rlen[0]*2)){
+              rcount[0]>>=1;
+              rcount[1]>>=1;
+              continue;
+            }
+          }
+          rlen[0] = rlen[i+1];
+          rcount[i] = 0;
+        }
+        else
+          // we found the same length again, that's positive reinforcement that
+          // this really is the correct record size, so give it a little boost
+          rcount[i]>>=2;
+
+        // if the other candidate record length is orders of
+        // magnitude larger, it will probably never have enough time
+        // to increase its counter before it's reset again. and if
+        // this length is not a multiple of the other, than it might
+        // really be worthwhile to investigate it, so we won't set its
+        // counter to 0
+        if (rlen[i+1]<<4 > rlen[1+(i^1)])
+          rcount[i^1] = 0;
+      }
+    }
 
     // Set 2 dimensional contexts
-    assert(rlen>0);
+    assert(rlen[0]>0);
     cm.set(c<<8| (min(255, buf.pos-cpos1[c])/4));
     cm.set(w<<9| llog(buf.pos-wpos1[w])>>2);
-    //cm.set((buf(rlen)>>4)<<12|(buf(rlen2)>>4)<<8|(buf(rlen3)>>4));
+    cm.set(rlen[0]|buf(rlen[0])<<10|buf(rlen[0]*2)<<18);
 
-    cm.set(rlen|buf(rlen)<<10|buf(rlen*2)<<18);
-    cn.set(w|rlen<<8);
-    cn.set(d|rlen<<16);
-    cn.set(c|rlen<<8);
+    cn.set(w|rlen[0]<<8);
+    cn.set(d|rlen[0]<<16);
+    cn.set(c|rlen[0]<<8);
 
     co.set(buf(1)<<8|min(255, buf.pos-cpos1[buf(1)]));
     co.set(buf(1)<<17|buf(2)<<9|llog(buf.pos-wpos1[w])>>2);
-    int col=buf.pos%rlen;
-    co.set(buf(1)<<8|buf(rlen));
+    co.set(buf(1)<<8|buf(rlen[0]));
 
-    //cp.set(w*16);
-    //cp.set(d*32);
-    //cp.set(c*64);
-    cp.set(rlen|buf(rlen)<<10|col<<18);
-    cp.set(rlen|buf(1)<<10|col<<18);
-    cp.set(col|rlen<<12);
-    cp.set(col|(buf(rlen)-buf(1))<<12);
+    int col=buf.pos%rlen[0];
+    cp.set(rlen[0]|buf(rlen[0])<<10|col<<18);
+    cp.set(rlen[0]|buf(1)<<10|col<<18);
+    cp.set(col|rlen[0]<<12);
+
+    /*
+    Consider record structures that include fixed-length strings.
+    These usually contain the text followed by either spaces or 0's,
+    depending on whether they're to be trimmed or they're null-terminated.
+    That means we can guess the length of the string field by looking
+    for small repetitions of one of these padding bytes followed by a
+    different byte. By storing the last position where this transition
+    ocurred, and what was the padding byte, we are able to model these
+    runs of padding bytes.
+    Special care is taken to skip record structures of less than 9 bytes,
+    since those may be little-endian 64 bit integers. If they contain
+    relatively low values (<2^40), we may consistently get runs of 3 or
+    even more 0's at the end of each record, and so we could assume that
+    to be the general case. But with integers, we can't be reasonably sure
+    that a number won't have 3 or more 0's just before a final non-zero MSB.
+    And with such simple structures, there's probably no need to be fancy
+    anyway
+    */
+
+    if ((((U16)(x.c4>>8) == ((SPACE<<8)+SPACE)) && (c != SPACE)) || (!(x.c4>>8) && c && ((padding != SPACE) || (buf.pos-prevTransition > rlen[0])))){
+      prevTransition = buf.pos;
+      padding = (U8)d;
+    }
+    cp.set( (rlen[0]>8)*hash( min(min(0xFF,rlen[0]),buf.pos-prevTransition), min(0x3FF,col), (w&0xF0F0)|(w==((padding<<8)|padding)) ) );
+
+    int last4 = (buf(rlen[0]*4)<<24)|(buf(rlen[0]*3)<<16)|(buf(rlen[0]*2)<<8)|buf(rlen[0]);
+    cp.set( (last4&0xFF)|((last4&0xF000)>>4)|((last4&0xE00000)>>9)|((last4&0xE0000000)>>14)|((col/max(1,rlen[0]/16))<<18) );
+    cp.set( (last4&0xF8F8)|(col<<16) );
+
     // update last context positions
     cpos4[c]=cpos3[c];
     cpos3[c]=cpos2[c];
@@ -2573,13 +2646,11 @@ int p(Mixer& m,int rrlen=0,int val2=0) {
     cpos1[c]=buf.pos;
     wpos1[w]=buf.pos;
   }
-  x.rm1=0;
   cm.mix(m);
-  x.rm1=1;
   cn.mix(m);
   co.mix(m);
   cp.mix(m);
-  return rlen;
+  return rlen[0];
   }
   ~recordModel1(){ }
 };
@@ -2707,20 +2778,57 @@ public:
 ~distanceModel1(){ }
 };
 
+// Virtual ContextMap
+class vCMap {
+  public:
+    vCMap ()   {}
+    virtual int vmix (Mixer& m) =0;
+    virtual void vset (U32 cx) =0;
+    int mix(Mixer& m)
+      {  return this->vmix(m); }
+       void set(U32 cx)
+      {   this->vset(cx);  }
+};
+
+class vContextMap: public vCMap {
+    ContextMap cm;
+  public:
+    vContextMap(U32 u,U32 c) : cm(u, c) {}
+    int vmix(Mixer& m)
+      { return cm.mix(m); }
+      void vset(U32 cx)
+      {  cm.set(cx); }
+};
+
+class vMContextMap: public vCMap {
+    MContextMap cm;
+  public:
+    vMContextMap(U32 u,U32 c) : cm(u, c)  {}
+    int  vmix(Mixer& m)
+      {return cm.mix(m); }
+      void vset(U32 cx)
+      {   cm.set(cx); }
+};
+
 //////////////////////////// im24bitModel /////////////////////////////////
 // Model for 24-bit image data
 class im24bitModel1: public Model {
  const int SC;
  SmallStationaryContextMap scm1, scm2, scm3, scm4, scm5, scm6, scm7, scm8, scm9, scm10;
- ContextMap cm;
+ vCMap *cm; // Virtual ContextMap
  int col;
  BlockData& x;
  Buf& buf;
 public:
   im24bitModel1(BlockData& bd): SC(0x20000),scm1(SC), scm2(SC),
     scm3(SC), scm4(SC), scm5(SC), scm6(SC), scm7(SC), scm8(SC), scm9(SC*2), scm10(512),
-    cm(CMlimit(MEM()*8), 15),col(0) ,x(bd),buf(bd.buf) {
+    /*cm(CMlimit(MEM()*8), 15),*/col(0) ,x(bd),buf(bd.buf) {
+    if (modeQuick) 
+        cm = new vMContextMap (CMlimit(MEM()*8), 15);
+    else 
+        cm =new vContextMap(CMlimit(MEM()*8), 15);
     }
+ 
   int p(Mixer& m,int w,int val2=0){
   assert(w>3); 
   if (!x.bpos) {
@@ -2730,22 +2838,22 @@ public:
     mean>>=2;
     const int logvar=ilog(var);
     int i=color<<4;
-    cm.set(hash(++i, buf(3)));
-    cm.set(hash(++i, buf(3), buf(1)));
-    cm.set(hash(++i, buf(3), buf(1), buf(2)));
-    cm.set(hash(++i, buf(w)));
-    cm.set(hash(++i, buf(w), buf(1)));
-    cm.set(hash(++i, buf(w), buf(1), buf(2)));
-    cm.set(hash(++i, (buf(3)+buf(w))>>3, buf(1)>>4, buf(2)>>4));
-    cm.set(hash(++i, buf(1), buf(2)));
-    cm.set(hash(++i, buf(3), buf(1)-buf(4)));
-    cm.set(hash(++i, buf(3)+buf(1)-buf(4)));
-    cm.set(hash(++i, buf(w), buf(1)-buf(w+1)));
-    cm.set(hash(++i, buf(w)+buf(1)-buf(w+1)));
-    cm.set(hash(++i, buf(w*3-3), buf(w*3-6)));
-    cm.set(hash(++i, buf(w*3+3), buf(w*3+6)));
+    cm->set(hash(++i, buf(3)));
+    cm->set(hash(++i, buf(3), buf(1)));
+    cm->set(hash(++i, buf(3), buf(1), buf(2)));
+    cm->set(hash(++i, buf(w)));
+    cm->set(hash(++i, buf(w), buf(1)));
+    cm->set(hash(++i, buf(w), buf(1), buf(2)));
+    cm->set(hash(++i, (buf(3)+buf(w))>>3, buf(1)>>4, buf(2)>>4));
+    cm->set(hash(++i, buf(1), buf(2)));
+    cm->set(hash(++i, buf(3), buf(1)-buf(4)));
+    cm->set(hash(++i, buf(3)+buf(1)-buf(4)));
+    cm->set(hash(++i, buf(w), buf(1)-buf(w+1)));
+    cm->set(hash(++i, buf(w)+buf(1)-buf(w+1)));
+    cm->set(hash(++i, buf(w*3-3), buf(w*3-6)));
+    cm->set(hash(++i, buf(w*3+3), buf(w*3+6)));
     
-    cm.set(hash(++i, mean, logvar>>4));
+    cm->set(hash(++i, mean, logvar>>4));
     scm1.set(buf(3)+buf(w)-buf(w+3));
     scm2.set(buf(3)+buf(w-3)-buf(w));
     scm3.set(buf(3)*2-buf(6));
@@ -2768,7 +2876,7 @@ public:
   scm8.mix(m);
   scm9.mix(m);
   scm10.mix(m);
-  cm.mix(m);
+  cm->mix(m);
   if (++col>=24) col=0;
   m.set((buf(3)+buf(6))>>6, 8);
   m.set(col, 24);
@@ -2816,7 +2924,7 @@ class im8bitModel1: public Model {
  const int SC;
  SmallStationaryContextMap scm1, scm2,
  scm3, scm4, scm5, scm6 ;
- ContextMap cm;
+ vCMap *cm;//ContextMap cm;
  int ml,ml1;
  int col;
  BlockData& x;
@@ -2826,8 +2934,12 @@ class im8bitModel1: public Model {
  int id9;
 public:
   im8bitModel1( BlockData& bd): SC(0x20000),scm1(SC), scm2(SC),
-   scm3(SC), scm4(SC), scm5(SC), scm6(SC*2),cm(CMlimit(MEM()*16), 45+12+8),
+   scm3(SC), scm4(SC), scm5(SC), scm6(SC*2),/*cm(CMlimit(MEM()*16), 45+12+8),*/
    ml(0),ml1(0),col(0),x(bd),buf(bd.buf),itype(0),id8(1),id9(1) {
+    if (modeQuick) 
+        cm = new vMContextMap (CMlimit(MEM()*16), 45+12+8);
+    else 
+        cm =new vContextMap(CMlimit(MEM()*16), 45+12+8);
   }
 int p(Mixer& m,int w,int val2=0){
   assert(w>3); 
@@ -2846,141 +2958,141 @@ int p(Mixer& m,int w,int val2=0){
     
     if (itype==0){ //faster, for smooth images
     
-    cm.set(hash(++i, pW,0));
-    cm.set(hash(++i, pN,0));
-    cm.set(hash(++i, pNE,0));
-    cm.set(hash(++i, pWW,0));
-    cm.set(hash(++i, pNN,0));
-    cm.set(hash(++i, pNWNW,pW));
-    cm.set(hash(++i, pNWW,0));
-    cm.set(hash(++i, pNNE,0));
-    cm.set(hash(++i, HBB1,0));
-    cm.set(hash(++i, HBB2,0));
-    cm.set(hash(++i, pGw,pW));
+    cm->set(hash(++i, pW,0));
+    cm->set(hash(++i, pN,0));
+    cm->set(hash(++i, pNE,0));
+    cm->set(hash(++i, pWW,0));
+    cm->set(hash(++i, pNN,0));
+    cm->set(hash(++i, pNWNW,pW));
+    cm->set(hash(++i, pNWW,0));
+    cm->set(hash(++i, pNNE,0));
+    cm->set(hash(++i, HBB1,0));
+    cm->set(hash(++i, HBB2,0));
+    cm->set(hash(++i, pGw,pW));
     
-    cm.set(hash(++i, pGn,pW));
-    cm.set(hash(++i, pDh,pW));
-    cm.set(hash(++i, pDv,pW));
-    cm.set(hash(++i, pGv,pW));
-    cm.set(hash(++i, pGh,pW));
-    cm.set(hash(++i, pGv,pN));
-    cm.set(hash(++i, pGh,pN));
-    cm.set(hash(++i, abs(errr-pNWNW),pW));
+    cm->set(hash(++i, pGn,pW));
+    cm->set(hash(++i, pDh,pW));
+    cm->set(hash(++i, pDv,pW));
+    cm->set(hash(++i, pGv,pW));
+    cm->set(hash(++i, pGh,pW));
+    cm->set(hash(++i, pGv,pN));
+    cm->set(hash(++i, pGh,pN));
+    cm->set(hash(++i, abs(errr-pNWNW),pW));
    
-    cm.set(hash(++i,mean,logvar));
-     cm.set(hash(++i,pGn,pGw));
-     cm.set(hash(++i,pDh, pDv));
-      cm.set(hash(++i,pGv, pGh));
+    cm->set(hash(++i,mean,logvar));
+     cm->set(hash(++i,pGn,pGw));
+     cm->set(hash(++i,pDh, pDv));
+      cm->set(hash(++i,pGv, pGh));
       
-     cm.set(hash(++i,abs(min(pW,min( pN, pNW)) + max(pW,max(pN,pNW)) -pNW)));
-    cm.set(hash(++i, buf(1)>>2, buf(w)>>2));
-    cm.set(hash(++i, buf(1)>>2, buf(2)>>2));
-    cm.set(hash(++i, buf(w)>>2, buf(w*2)>>2));
-    cm.set(hash(++i, buf(1)>>2, buf(w-1)>>2));
-    cm.set(hash(++i, buf(w)>>2, buf(w+1)>>2));
-    cm.set(hash(++i, buf(w+1)>>2, buf(w+2)>>2));
-    cm.set(hash(++i, (buf(w+1)+buf(w*2+2))>>1));
-    cm.set(hash(++i, (buf(w-1)+buf(w*2-2))>>1));
+     cm->set(hash(++i,abs(min(pW,min( pN, pNW)) + max(pW,max(pN,pNW)) -pNW)));
+    cm->set(hash(++i, buf(1)>>2, buf(w)>>2));
+    cm->set(hash(++i, buf(1)>>2, buf(2)>>2));
+    cm->set(hash(++i, buf(w)>>2, buf(w*2)>>2));
+    cm->set(hash(++i, buf(1)>>2, buf(w-1)>>2));
+    cm->set(hash(++i, buf(w)>>2, buf(w+1)>>2));
+    cm->set(hash(++i, buf(w+1)>>2, buf(w+2)>>2));
+    cm->set(hash(++i, (buf(w+1)+buf(w*2+2))>>1));
+    cm->set(hash(++i, (buf(w-1)+buf(w*2-2))>>1));
     
-    cm.set(hash(++i, pGw,pN));
+    cm->set(hash(++i, pGw,pN));
     
-    cm.set(hash(++i, pGn,pN));
-    cm.set(hash(++i, pNN,pNE,pW));
-    cm.set(hash(++i, (buf(1)+buf(w))>>1));
-    cm.set(hash(++i, (buf(1)+buf(2))>>1));
-    cm.set(hash(++i, (buf(w)+buf(w*2))>>1));
-    cm.set(hash(++i, (buf(1)+buf(w-1))>>1));
-    cm.set(hash(++i, (buf(w)+buf(w+1))>>1));
-    cm.set(hash(++i, (buf(w+1)+buf(w+2))>>1));
-    cm.set(hash(++i, (buf(w+1)+buf(w*2+2))>>1));
-    cm.set(hash(++i, (buf(w-1)+buf(w*2-2))>>1));
-    cm.set(hash(++i, pNNE,pN,pW));
-     cm.set(hash(++i, pNWW,pN,pNE,pW));
-     cm.set(hash(++i, pGn,pNE,pNNE));
-     cm.set(hash(++i, pWW,pNWW,pNW,pN));
-     cm.set(hash(++i,pNNW, pNW,pW));
-     cm.set(hash(++i, buf(w)>>2, buf(3)>>2, buf(w-1)>>2));
-    cm.set(hash(++i, buf(3)>>2, buf(w-2)>>2, buf(w*2-2)>>2));
+    cm->set(hash(++i, pGn,pN));
+    cm->set(hash(++i, pNN,pNE,pW));
+    cm->set(hash(++i, (buf(1)+buf(w))>>1));
+    cm->set(hash(++i, (buf(1)+buf(2))>>1));
+    cm->set(hash(++i, (buf(w)+buf(w*2))>>1));
+    cm->set(hash(++i, (buf(1)+buf(w-1))>>1));
+    cm->set(hash(++i, (buf(w)+buf(w+1))>>1));
+    cm->set(hash(++i, (buf(w+1)+buf(w+2))>>1));
+    cm->set(hash(++i, (buf(w+1)+buf(w*2+2))>>1));
+    cm->set(hash(++i, (buf(w-1)+buf(w*2-2))>>1));
+    cm->set(hash(++i, pNNE,pN,pW));
+     cm->set(hash(++i, pNWW,pN,pNE,pW));
+     cm->set(hash(++i, pGn,pNE,pNNE));
+     cm->set(hash(++i, pWW,pNWW,pNW,pN));
+     cm->set(hash(++i,pNNW, pNW,pW));
+     cm->set(hash(++i, buf(w)>>2, buf(3)>>2, buf(w-1)>>2));
+    cm->set(hash(++i, buf(3)>>2, buf(w-2)>>2, buf(w*2-2)>>2));
   
-    cm.set(hash(++i, buf(w)>>2, buf(1)>>2, buf(w-1)>>2));
-    cm.set(hash(++i, buf(w-1)>>2, buf(w)>>2, buf(w+1)>>2));
-    cm.set(hash(++i, buf(1)>>2, buf(w-1)>>2, buf(w*2-1)>>2));
+    cm->set(hash(++i, buf(w)>>2, buf(1)>>2, buf(w-1)>>2));
+    cm->set(hash(++i, buf(w-1)>>2, buf(w)>>2, buf(w+1)>>2));
+    cm->set(hash(++i, buf(1)>>2, buf(w-1)>>2, buf(w*2-1)>>2));
     
     }
     // 2 x
    else
    {
     i=512;
-    cm.set(hash(++i, buf(1),0));
-    cm.set(hash(++i, buf(2), 0));
-    cm.set(hash(++i, buf(w), 0));
-    cm.set(hash(++i, buf(w+1), 0));
-    cm.set(hash(++i, buf(w-1), 0));
-    cm.set(hash(++i, HBB1,0));
-    cm.set(hash(++i, HBB2,0));
-    cm.set(hash(++i, pGv,pW));
-    cm.set(hash(++i, pGh,pW));
-     cm.set(hash(++i,pGv, pGh));
-     cm.set(hash(++i, pGv,pN));
-    cm.set(hash(++i, pGh,pN));
-     cm.set(hash(++i,abs(min(pW,min( pN, pNW)) + max(pW,max(pN,pNW)) -pNW)));
-    cm.set(hash(++i, (buf(2)+buf(w)-buf(w+1)), 0));
-    cm.set(hash(++i,(buf(w)+(buf(2)-buf(w+1))>>1), 0));
-    cm.set(hash(++i, (buf(2)+buf(w+1))>>1, 0));
-    cm.set(hash(++i, (buf(w-1)-buf(w)), buf(1)>>1));
-    cm.set(hash(++i,(buf(w)-buf(w+1)), buf(1)>>1));
-    cm.set(hash(++i, (buf(w+1)+buf(2)), buf(1)>>1));
+    cm->set(hash(++i, buf(1),0));
+    cm->set(hash(++i, buf(2), 0));
+    cm->set(hash(++i, buf(w), 0));
+    cm->set(hash(++i, buf(w+1), 0));
+    cm->set(hash(++i, buf(w-1), 0));
+    cm->set(hash(++i, HBB1,0));
+    cm->set(hash(++i, HBB2,0));
+    cm->set(hash(++i, pGv,pW));
+    cm->set(hash(++i, pGh,pW));
+     cm->set(hash(++i,pGv, pGh));
+     cm->set(hash(++i, pGv,pN));
+    cm->set(hash(++i, pGh,pN));
+     cm->set(hash(++i,abs(min(pW,min( pN, pNW)) + max(pW,max(pN,pNW)) -pNW)));
+    cm->set(hash(++i, (buf(2)+buf(w)-buf(w+1)), 0));
+    cm->set(hash(++i,(buf(w)+(buf(2)-buf(w+1))>>1), 0));
+    cm->set(hash(++i, (buf(2)+buf(w+1))>>1, 0));
+    cm->set(hash(++i, (buf(w-1)-buf(w)), buf(1)>>1));
+    cm->set(hash(++i,(buf(w)-buf(w+1)), buf(1)>>1));
+    cm->set(hash(++i, (buf(w+1)+buf(2)), buf(1)>>1));
 
-    cm.set(hash(++i, buf(1)>>2, buf(w)>>2));
-    cm.set(hash(++i, buf(1)>>2, buf(2)>>2));
-    cm.set(hash(++i, buf(w)>>2, buf(w*2)>>2));
-    cm.set(hash(++i, buf(1)>>2, buf(w-1)>>2));
-    cm.set(hash(++i, buf(w)>>2, buf(w+1)>>2));
-    cm.set(hash(++i, buf(w+1)>>2, buf(w+2)>>2));
-    cm.set(hash(++i, buf(w+1)>>2, buf(w*2+2)>>2));
-    cm.set(hash(++i, buf(w-1)>>2, buf(w*2-2)>>2));
-      cm.set(hash(++i,(buf(1)+buf(w))>>1));
-      cm.set(hash(++i,(buf(1)+buf(2))>>1));
-      cm.set(hash(++i,(buf(w)+buf(w*2))>>1));
-      cm.set(hash(++i,(buf(1)+buf(w-1))>>1));
-      cm.set(hash(++i,(buf(w)+buf(w+1))>>1));
-      cm.set(hash(++i,(buf(w+1)+buf(w+2))>>1));
-      cm.set(hash(++i,(buf(w+1)+buf(w*2+2))>>1));
-      cm.set(hash(++i,(buf(w-1)+buf(w*2-2))>>1));
+    cm->set(hash(++i, buf(1)>>2, buf(w)>>2));
+    cm->set(hash(++i, buf(1)>>2, buf(2)>>2));
+    cm->set(hash(++i, buf(w)>>2, buf(w*2)>>2));
+    cm->set(hash(++i, buf(1)>>2, buf(w-1)>>2));
+    cm->set(hash(++i, buf(w)>>2, buf(w+1)>>2));
+    cm->set(hash(++i, buf(w+1)>>2, buf(w+2)>>2));
+    cm->set(hash(++i, buf(w+1)>>2, buf(w*2+2)>>2));
+    cm->set(hash(++i, buf(w-1)>>2, buf(w*2-2)>>2));
+      cm->set(hash(++i,(buf(1)+buf(w))>>1));
+      cm->set(hash(++i,(buf(1)+buf(2))>>1));
+      cm->set(hash(++i,(buf(w)+buf(w*2))>>1));
+      cm->set(hash(++i,(buf(1)+buf(w-1))>>1));
+      cm->set(hash(++i,(buf(w)+buf(w+1))>>1));
+      cm->set(hash(++i,(buf(w+1)+buf(w+2))>>1));
+      cm->set(hash(++i,(buf(w+1)+buf(w*2+2))>>1));
+      cm->set(hash(++i,(buf(w-1)+buf(w*2-2))>>1));
     // 3 x
-    cm.set(hash(++i, buf(w)>>2, buf(1)>>2, buf(w-1)>>2));
-    cm.set(hash(++i, buf(w-1)>>2, buf(w)>>2, buf(w+1)>>2));
-    cm.set(hash(++i, buf(1)>>2, buf(w-1)>>2, buf(w*2-1)>>2));
+    cm->set(hash(++i, buf(w)>>2, buf(1)>>2, buf(w-1)>>2));
+    cm->set(hash(++i, buf(w-1)>>2, buf(w)>>2, buf(w+1)>>2));
+    cm->set(hash(++i, buf(1)>>2, buf(w-1)>>2, buf(w*2-1)>>2));
     // mixed
-      cm.set(hash(++i,(buf(3)+buf(w))>>1, buf(1)>>2, buf(2)>>2));
-      cm.set(hash(++i,(buf(2)+buf(1))>>1,(buf(w)+buf(w*2))>>1,buf(w-1)>>2));
-      cm.set(hash(++i,(buf(2)+buf(1))>>2,(buf(w-1)+buf(w))>>2));
-      cm.set(hash(++i,(buf(2)+buf(1))>>1,(buf(w)+buf(w*2))>>1));
-      cm.set(hash(++i,(buf(2)+buf(1))>>1,(buf(w-1)+buf(w*2-2))>>1));
-      cm.set(hash(++i,(buf(2)+buf(1))>>1,(buf(w+1)+buf(w*2+2))>>1));
-      cm.set(hash(++i,(buf(w)+buf(w*2))>>1,(buf(w-1)+buf(w*2+2))>>1));
-      cm.set(hash(++i,(buf(w-1)+buf(w))>>1,(buf(w)+buf(w+1))>>1));
-      cm.set(hash(++i,(buf(1)+buf(w-1))>>1,(buf(w)+buf(w*2))>>1));
-      cm.set(hash(++i,(buf(1)+buf(w-1))>>2,(buf(w)+buf(w+1))>>2));
-      cm.set(hash(++i,(((buf(1)-buf(w-1))>>1)+buf(w))>>2));
-      cm.set(hash(++i,(((buf(w-1)-buf(w))>>1)+buf(1))>>2));
-      cm.set(hash(++i,(-buf(1)+buf(w-1)+buf(w))>>2));
+      cm->set(hash(++i,(buf(3)+buf(w))>>1, buf(1)>>2, buf(2)>>2));
+      cm->set(hash(++i,(buf(2)+buf(1))>>1,(buf(w)+buf(w*2))>>1,buf(w-1)>>2));
+      cm->set(hash(++i,(buf(2)+buf(1))>>2,(buf(w-1)+buf(w))>>2));
+      cm->set(hash(++i,(buf(2)+buf(1))>>1,(buf(w)+buf(w*2))>>1));
+      cm->set(hash(++i,(buf(2)+buf(1))>>1,(buf(w-1)+buf(w*2-2))>>1));
+      cm->set(hash(++i,(buf(2)+buf(1))>>1,(buf(w+1)+buf(w*2+2))>>1));
+      cm->set(hash(++i,(buf(w)+buf(w*2))>>1,(buf(w-1)+buf(w*2+2))>>1));
+      cm->set(hash(++i,(buf(w-1)+buf(w))>>1,(buf(w)+buf(w+1))>>1));
+      cm->set(hash(++i,(buf(1)+buf(w-1))>>1,(buf(w)+buf(w*2))>>1));
+      cm->set(hash(++i,(buf(1)+buf(w-1))>>2,(buf(w)+buf(w+1))>>2));
+      cm->set(hash(++i,(((buf(1)-buf(w-1))>>1)+buf(w))>>2));
+      cm->set(hash(++i,(((buf(w-1)-buf(w))>>1)+buf(1))>>2));
+      cm->set(hash(++i,(-buf(1)+buf(w-1)+buf(w))>>2));
     
-    cm.set(hash(++i,(buf(1)*2-buf(2))>>1));
-    cm.set(hash(++i,mean,logvar));
-    cm.set(hash(++i,(buf(w)*2-buf(w*2))>>1));
-    cm.set(hash(++i,(buf(1)+buf(w)-buf(w+1))>>1));
+    cm->set(hash(++i,(buf(1)*2-buf(2))>>1));
+    cm->set(hash(++i,mean,logvar));
+    cm->set(hash(++i,(buf(w)*2-buf(w*2))>>1));
+    cm->set(hash(++i,(buf(1)+buf(w)-buf(w+1))>>1));
     
-    cm.set(hash(++i, (buf(4)+buf(3))>>2,(buf(w-1)+buf(w))>>2));
-    cm.set(hash(++i, (buf(4)+buf(3))>>1,(buf(w)+buf(w*2))>>1));
-    cm.set(hash(++i, (buf(4)+buf(3))>>1,(buf(w-1)+buf(w*2-2))>>1));
-    cm.set(hash(++i, (buf(4)+buf(3))>>1,(buf(w+1)+buf(w*2+2))>>1));
-    cm.set(hash(++i, (buf(4)+buf(1))>>2,(buf(w-3)+buf(w))>>2));
-    cm.set(hash(++i, (buf(4)+buf(1))>>1,(buf(w)+buf(w*2))>>1));
-    cm.set(hash(++i, (buf(4)+buf(1))>>1,(buf(w-3)+buf(w*2-3))>>1));
-    cm.set(hash(++i, (buf(4)+buf(1))>>1,(buf(w+3)+buf(w*2+3))>>1));
-    cm.set(hash(++i, buf(w)>>2, buf(3)>>2, buf(w-1)>>2));
-    cm.set(hash(++i, buf(3)>>2, buf(w-2)>>2, buf(w*2-2)>>2));
+    cm->set(hash(++i, (buf(4)+buf(3))>>2,(buf(w-1)+buf(w))>>2));
+    cm->set(hash(++i, (buf(4)+buf(3))>>1,(buf(w)+buf(w*2))>>1));
+    cm->set(hash(++i, (buf(4)+buf(3))>>1,(buf(w-1)+buf(w*2-2))>>1));
+    cm->set(hash(++i, (buf(4)+buf(3))>>1,(buf(w+1)+buf(w*2+2))>>1));
+    cm->set(hash(++i, (buf(4)+buf(1))>>2,(buf(w-3)+buf(w))>>2));
+    cm->set(hash(++i, (buf(4)+buf(1))>>1,(buf(w)+buf(w*2))>>1));
+    cm->set(hash(++i, (buf(4)+buf(1))>>1,(buf(w-3)+buf(w*2-3))>>1));
+    cm->set(hash(++i, (buf(4)+buf(1))>>1,(buf(w+3)+buf(w*2+3))>>1));
+    cm->set(hash(++i, buf(w)>>2, buf(3)>>2, buf(w-1)>>2));
+    cm->set(hash(++i, buf(3)>>2, buf(w-2)>>2, buf(w*2-2)>>2));
     }
         
     scm1.set((buf(1)+buf(w))>>1);
@@ -3000,7 +3112,7 @@ int p(Mixer& m,int w,int val2=0){
   scm4.mix(m);
   scm5.mix(m);
   scm6.mix(m);
-  cm.mix(m);
+  cm->mix(m);
   if (++col>=8) col=0; // reset after every 24 columns?
   m.set(2, 8);
   m.set(col, 8);
@@ -3104,7 +3216,7 @@ class jpegModelx: public Model {
    Array<int> adv_pred, sumu, sumv;
    Array<int> ls;  // block -> distance to previous block
    Array<int> lcp, zpos;
-
+Array<int> blockW, blockN, nBlocks, SamplingFactors;
     //for parsing Quantization tables
    int dqt_state , dqt_end , qnum;
    Array<U8> qtab; // table
@@ -3124,12 +3236,13 @@ class jpegModelx: public Model {
    BlockData& x;
    Buf& buf;
     int hbcount;
+    
 public:
   jpegModelx(BlockData& bd): jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(7),
-  sumu(8), sumv(8), ls(10),lcp(4), zpos(64), dqt_state(-1),dqt_end(0),qnum(0),
+  sumu(8), sumv(8), ls(10),lcp(4), zpos(64), blockW(10), blockN(10), nBlocks(4), SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
   qtab(256),qmap(10),N(28),t(level>11?0x8000000:CMlimit(MEM())),cxt(N),cp(N),m1(32, 770,bd, 3),
   a1(0x8000),a2(0x10000),x(bd),buf(bd.buf),hbcount(2) {
   sm=new StateMap[N];
@@ -3186,9 +3299,9 @@ public:
     // FF 00 is interpreted as FF (to distinguish from RSTx, DNL, EOI).
 
     // Detect JPEG (SOI, APPx)
-    if (!jpeg && buf(4)==FF && buf(3)==SOI && buf(2)==FF && (buf(1)>>4==0xe || buf(1)==0xdb)) {
+    if (!jpeg && buf(4)==FF && buf(3)==SOI && buf(2)==FF && ((buf(1)==0xC0 || buf(1)==0xC4 || (buf(1)>=0xDB && buf(1)<=0xFE))||(buf(1)>>4==0xe || buf(1)==0xdb)) ){
       jpeg=1;
-      sos=sof=htsize=data=mcusize=linesize=0, app=2;
+      sos=sof=htsize=data=mcusize=linesize=0, app=(buf(1)>>4==0xE)*2;
       huffcode=huffbits=huffsize=mcupos=cpos=0, rs=-1;
       memset(&huf[0], 0, huf.size()*sizeof(HUF));
       memset(&pred[0], 0, pred.size()*sizeof(int));
@@ -3288,8 +3401,10 @@ public:
         for (int j=0; j<nf; ++j) {
           if (buf[sos+2*i+5]==buf[sof+3*j+10]) { // Cs == C ?
             int hv=buf[sof+3*j+11];  // packed dimensions H x V
+            SamplingFactors[j] = hv;
             if (hv>>4>hmax) hmax=hv>>4;
             hv=(hv&15)*(hv>>4);  // number of blocks in component C
+            nBlocks[j] = hv;
             jassert(hv>=1 && hv+mcusize<=10);
             while (hv) {
               jassert(mcusize<10);
@@ -3312,6 +3427,7 @@ public:
         ls[j]=0;
         for (int i=1; i<mcusize; ++i) if (color[(j+i)%mcusize]==color[j]) ls[j]=i;
         ls[j]=(mcusize-ls[j])<<6;
+        blockW[j] = ls[j];
       }
       for (j=0; j<64; ++j) zpos[zzu[j]+8*zzv[j]]=j;
       width=buf[sof+7]*256+buf[sof+8];  // in pixels
@@ -3319,6 +3435,37 @@ public:
       jassert(width>0);
       mcusize*=64;  // coefficients per MCU
       row=column=0;
+       for (i = 0; i < 10; i++)
+        blockN[i] = mcusize * width;
+
+      // more blocks than components, we have subsampling
+      if (nf < mcusize>>6) {
+        int x = 0;
+        int s = 0;
+        for (i = 0; i < nf; i++) {
+          // nBlocks tells us the number of blocks of each component
+          if (nBlocks[i]!=1) {
+            int h = SamplingFactors[i]>>4;
+            int v = SamplingFactors[i]&0xf;
+
+            if (h) {
+              blockW[x] += h*(v-1)*64;
+              s = h;
+              while (s < nBlocks[i]){
+                blockW[x+s] = blockW[x];
+                s+=h;
+              }
+            }
+
+            for (s = 0; s < h; s++)
+              blockN[x+s] -= h*(v-1)*64;
+            for (s = h; s < nBlocks[i]; s++)
+              blockN[x+s] = h*64;
+          }
+
+          x+=nBlocks[i];
+        }
+      }	
     }
   }
 
@@ -3420,11 +3567,17 @@ public:
             const int zz=mcupos&63, cpos_dc=cpos-zz;
             if (zz==0) {
               for (int i=0; i<8; ++i) sumu[i]=sumv[i]=0;
-              int cpos_dc_ls_acomp = cpos_dc-ls[acomp];
-              int cpos_dc_mcusize_width = cpos_dc-mcusize*width;
+              // position in the buffer of first (DC) coefficient of the block
+              // of this same component that is to the west of this one, not
+              // necessarily in this MCU
+              int offset_DC_W = cpos_dc - blockW[acomp];
+              // position in the buffer of first (DC) coefficient of the block
+              // of this same component that is to the north of this one, not
+              // necessarily in this MCU
+              int offset_DC_N = cpos_dc - blockN[acomp];
               for (int i=0; i<64; ++i) {
-                sumu[zzu[i]]+=(zzv[i]&1?-1:1)*(zzv[i]?16*(16+zzv[i]):181)*(qtab[q+i]+1)*cbuf2[cpos_dc_mcusize_width+i];
-                sumv[zzv[i]]+=(zzu[i]&1?-1:1)*(zzu[i]?16*(16+zzu[i]):181)*(qtab[q+i]+1)*cbuf2[cpos_dc_ls_acomp+i];
+                sumu[zzu[i]]+=(zzv[i]&1?-1:1)*(zzv[i]?16*(16+zzv[i]):181)*(qtab[q+i]+1)*cbuf2[offset_DC_N+i];
+                sumv[zzv[i]]+=(zzu[i]&1?-1:1)*(zzu[i]?16*(16+zzu[i]):181)*(qtab[q+i]+1)*cbuf2[offset_DC_W+i];
               }
             }
             else {
@@ -3906,12 +4059,16 @@ public:
 class normalModel1: public Model {
   BlockData& x;
   Buf& buf;
-  ContextMap cm;
+  vCMap *cm;
   RunContextMap rcm7, rcm9, rcm10;
   Array<U32> cxt; // order 0-11 contexts
 public:
-  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 9),rcm7(CMlimit(MEM()/4),bd),
+  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), rcm7(CMlimit(MEM()/4),bd),
   rcm9(CMlimit(MEM()/4),bd), rcm10(CMlimit(MEM()/2),bd), cxt(14){
+    if (modeFast) 
+        cm = new vMContextMap (CMlimit(MEM()*32), 9);
+    else 
+        cm =new vContextMap(CMlimit(MEM()*32), 9);
  }
 int p(Mixer& m,int val1=0,int val2=0){
   
@@ -3926,18 +4083,18 @@ int p(Mixer& m,int val1=0,int val2=0){
     for (i=13; i>0; --i)  // update order 0-11 context hashes
       cxt[i]=cxt[i-1]*primes[i]+(x.c4&255);
     for (i=0; i<7; ++i)
-      cm.set(cxt[i]);
+      cm->set(cxt[i]);
     rcm7.set(cxt[7]);
-    cm.set(cxt[8]);
+    cm->set(cxt[8]);
     rcm9.set(cxt[10]);
     
     rcm10.set(cxt[12]);
-    cm.set(cxt[13]);
+    cm->set(cxt[13]);
   }
   rcm7.mix(m);
   rcm9.mix(m);
   rcm10.mix(m);
-  return cm.mix(m);
+  return cm->mix(m);
 }
   ~normalModel1(){ }
 };
@@ -3947,7 +4104,7 @@ int p(Mixer& m,int val1=0,int val2=0){
 class ppmdModel1: public Model {
   BlockData& x;
   Buf& buf;
-   ppmd_Model ppmd_12_256_1;
+  ppmd_Model ppmd_12_256_1;
   ppmd_Model ppmd_6_32_1;
 public:
   ppmdModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){
@@ -3956,10 +4113,8 @@ public:
     ppmd_6_32_1.Init(3<<(x.clevel>8),16<<(x.clevel>8),1,0);
  }
 int p(Mixer& m,int val1=0,int val2=0){
-  
-m.add( stretch(4096-ppmd_12_256_1.ppmd_Predict(4096,x.y)) );
-  m.add( stretch(4096-ppmd_6_32_1.ppmd_Predict(4096,x.y)) );
-
+  m.add(stretch(4096-ppmd_12_256_1.ppmd_Predict(4096,x.y)));
+  m.add(stretch(4096-ppmd_6_32_1.ppmd_Predict(4096,x.y)));
 }
   ~ppmdModel1(){ }
 };
@@ -4071,6 +4226,66 @@ Predictors(){
   }
 };
 
+
+// Filter the context model with APMs
+class EAPM {
+  BlockData& x;
+  APM1 a, a1, a2, a3, a4, a5, a6;
+public:
+  EAPM(BlockData& bd);
+  int p1(int pr0,int pr, int r) ;
+  int p2(int pr0,int pr, int r) ;
+   ~EAPM(){
+  }
+};
+
+EAPM::EAPM(BlockData& bd):x(bd),a(256,x), a1(0x10000,x), a2(0x10000,x),
+ a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
+}
+
+int EAPM::p1(int pr0,int pr, int r){
+    if (x.fails&0x00000080) --x.failcount;
+    x.fails=x.fails*2;
+    x.failz=x.failz*2;
+    if (x.y) pr^=4095;
+    if (pr>=1820) ++x.fails, ++x.failcount;
+    if (pr>= 848) ++x.failz;
+    //if (pr>= 2668) return p2( pr0, pr,  r);
+    int pv, pu,pz,pt;
+    pu=(a.p(pr0, x.c0, 3)+7*pr0+4)>>3, pz=x.failcount+1;
+    pz+=tri[(x.fails>>5)&3];
+    pz+=trj[(x.fails>>3)&3];
+    pz+=trj[(x.fails>>1)&3];
+    if (x.fails&1) pz+=8;
+    pz=pz/2;      
+
+    pu=a4.p(pu,   ( (x.c0*2)^hash(x.buf(1), (x.x5>>8)&255, (x.x5>>16)&0x80ff))&0xffff,r);
+    pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
+    pv=a5.p(pv,           hash(x.c0,x.w5&0xfffff)&0xffff,r);
+    pt=a3.p(pr0, ( (x.c0*32)^hash(19,     x.x5&0x80ffff))&0xffff,r);
+    pz=a6.p(pu,   ( (x.c0*4)^hash(min(9,pz),x.x5&0x80ff))&0xffff,r);
+    if (x.fails&255)  pr =(pt*6+pu  +pv*11+pz*14 +16)>>5;
+    else              pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
+    return pr;
+}
+int EAPM::p2(int pr0,int pr, int r){
+
+  pr=a.p(pr0, x.c0);
+
+  int pr1=a1.p(pr0, x.c0+256*x.buf(1));
+  int pr2=a2.p(pr0, (x.c0^hash(x.buf(1), x.buf(2)))&0xffff);
+  int pr3=a3.p(pr0, (x.c0^hash(x.buf(1), x.buf(2), x.buf(3)))&0xffff);
+  pr0=(pr0+pr1+pr2+pr3+2)>>2;
+
+  pr1=a4.p(pr, x.c0+256*x.buf(1));
+  pr2=a5.p(pr, (x.c0^hash(x.buf(1), x.buf(2)>>1))&0xffff);
+  pr3=a6.p(pr, (x.c0^hash(x.buf(1), x.buf(2)>>1, x.buf(3)>>2))&0xffff);
+  pr=(pr+pr1+pr2+pr3+2)>>2;
+
+  pr=(pr+pr0+1)>>1;
+  return pr;
+}
+
 //general predicor class
 class Predictor: public Predictors {
   int pr;  // next prediction
@@ -4078,7 +4293,7 @@ class Predictor: public Predictors {
   int order;
   int ismatch;
   Mixer m;
-  APM1 a, a1, a2, a3, a4, a5, a6;
+  EAPM a;
   void setmixer();
 public:
   Predictor();
@@ -4088,8 +4303,7 @@ public:
   }
 };
 
-Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), m(809+6+1+2+6+2, 7432,x, 7),
- a(256,x), a1(0x10000,x), a2(0x10000,x), a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
+Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), m(809+6+1+2+6+2+10, 7432,x, 7), a(x) {
   //=1+72+18+252+264+72+2+60+3+57+8=809 
   if (x.clevel>=4 && recordModel==0) recordModel=new recordModel1(x); 
   if (x.clevel>=4 && distanceModel==0) distanceModel=new distanceModel1(x); 
@@ -4168,32 +4382,7 @@ void Predictor::update()  {
        // }
     } 
     setmixer(); 
-    ///////////////////////////////
-    // Filter the context model with APMs
-
-    if (x.fails&0x00000080) --x.failcount;
-    x.fails=x.fails*2;
-    x.failz=x.failz*2;
-    if (x.y) pr^=4095;
-    if (pr>=1820) ++x.fails, ++x.failcount;
-    if (pr>= 848) ++x.failz;
-    int pv, pu,pz,pt;
-    pu=(a.p(pr0, x.c0, 3)+7*pr0+4)>>3, pz=x.failcount+1;
-    pz+=tri[(x.fails>>5)&3];
-    pz+=trj[(x.fails>>3)&3];
-    pz+=trj[(x.fails>>1)&3];
-    if (x.fails&1) pz+=8;
-    pz=pz/2;      
-
-    int r=7;
-    pu=a4.p(pu,   ( (x.c0*2)^hash(x.buf(1), (x.x5>>8)&255, (x.x5>>16)&0x80ff))&0xffff,r);
-    pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
-    pv=a5.p(pv,           hash(x.c0,x.w5&0xfffff)&0xffff,r);
-    pt=a3.p(pr0, ( (x.c0*32)^hash(19,     x.x5&0x80ffff))&0xffff,r);
-    pz=a6.p(pu,   ( (x.c0*4)^hash(min(9,pz),x.x5&0x80ff))&0xffff,r);
-    if (x.fails&255)  pr =(pt*6+pu  +pv*11+pz*14 +16)>>5;
-    else              pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
-
+    pr=a.p1(pr0,pr,7);
 }
 
 //JPEG predicor class
@@ -4245,7 +4434,7 @@ void PredictorJPEG::update()  {
 class PredictorEXE: public Predictors {
   int pr;  // next prediction
   Mixer m;
-  APM1 a, a1, a2, a3, a4, a5, a6;
+  EAPM a;
   void setmixer();
 public:
   PredictorEXE();
@@ -4254,8 +4443,7 @@ public:
     ~PredictorEXE(){ }
 };
 
-PredictorEXE::PredictorEXE(): pr(2048), m(825+6+6, 3080,x, 7),
- a(256,x), a1(0x10000,x), a2(0x10000,x), a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
+PredictorEXE::PredictorEXE(): pr(2048), m(825+6+6+10, 3080,x, 7), a(x) {
   //   1+ 72+ 18+ 252+ 264+6+ 84 +72 + 2+ 3+ 57=825+6
   if (x.clevel>=4){
     if (recordModel==0) recordModel=new recordModel1(x); 
@@ -4319,38 +4507,14 @@ void PredictorEXE::update()  {
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     m.set(c, 1536);
     int pr0=m.p();
-    ///////////////////////////////
-    // Filter the context model with APMs
-
-    if (x.fails&0x00000080) --x.failcount;
-    x.fails=x.fails*2;
-    x.failz=x.failz*2;
-    if (x.y) pr^=4095;
-    if (pr>=1820) ++x.fails, ++x.failcount;
-    if (pr>= 848) ++x.failz;
-    int pv, pu,pz,pt;
-    pu=(a.p(pr0, x.c0, 3)+7*pr0+4)>>3, pz=x.failcount+1;
-    pz+=tri[(x.fails>>5)&3];
-    pz+=trj[(x.fails>>3)&3];
-    pz+=trj[(x.fails>>1)&3];
-    if (x.fails&1) pz+=8;
-    pz=pz/2;      
-
-    int r=6;
-    pu=a4.p(pu,   ( (x.c0*2)^hash(x.buf(1), (x.x5>>8)&255, (x.x5>>16)&0x80ff))&0xffff,r);
-    pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
-    pv=a5.p(pv,           hash(x.c0,x.w5&0xfffff)&0xffff,r);
-    pt=a3.p(pr0, ( (x.c0*32)^hash(19,     x.x5&0x80ffff))&0xffff,r);
-    pz=a6.p(pu,   ( (x.c0*4)^hash(min(9,pz),x.x5&0x80ff))&0xffff,r);
-    if (x.fails&255)  pr =(pt*6+pu  +pv*11+pz*14 +16)>>5;
-    else              pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
+    pr=a.p1(pr0,pr,6);
 }
 
 //IMG4 predicor class
 class PredictorIMG4: public Predictors {
   int pr;  // next prediction
   Mixer m;
-  APM1 a, a1, a2, a3, a4, a5, a6;
+  EAPM a;
 public:
   PredictorIMG4();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -4359,8 +4523,7 @@ public:
   }
 };
 
-PredictorIMG4::PredictorIMG4(): pr(2048), m(78+6, 2568,x, 5),
- a(256,x), a1(0x10000,x), a2(0x10000,x), a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
+PredictorIMG4::PredictorIMG4(): pr(2048), m(78+6+10, 2568,x, 5), a(x){
    //1 +3 +72+ 2=  78               
   matchModel=new matchModel1(x);   
   recordModel=new recordModel1(x);
@@ -4391,39 +4554,14 @@ void PredictorIMG4::update()  {
   else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
   m.set(c, 1536);
   int pr0=m.p();
-  
-  ///////////////////////////////
-  // Filter the context model with APMs
-      if (x.fails&0x00000080) --x.failcount;
-        x.fails=x.fails*2;
-        x.failz=x.failz*2;
-        if (x.y) pr^=4095;
-        if (pr>=1820) ++x.fails, ++x.failcount;
-        if (pr>= 848) ++x.failz;
-      int pv, pu,pz,pt;
-        pu=(a.p(pr0, x.c0, 3)+7*pr0+4)>>3, pz=x.failcount+1;
-        pz+=tri[(x.fails>>5)&3];
-        pz+=trj[(x.fails>>3)&3];
-        pz+=trj[(x.fails>>1)&3];
-        if (x.fails&1) pz+=8;
-        pz=pz/2;      
- 
-     int r=7;
-   pu=a4.p(pu,  ( (x.c0*2)^hash(x.buf(1), 0, 0))&0xffff,r);
-  pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
-  pv=a5.p(pv,           hash(x.c0,0)&0xffff,r);
-  pt=a3.p(pr0,  ( (x.c0*32)^hash(19,    0))&0xffff,r);
-  pz=a6.p(pu,   ( (x.c0*4)^hash(min(9,pz),0))&0xffff,r);
-  if (x.fails&255)  pr =(pt*6+pu  +pv*11+pz*14 +16)>>5;
-  else              pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
-
+  pr=a.p1(pr0,pr,7);
 }
 
 //IMG8 predicor class
 class PredictorIMG8: public Predictors {
   int pr;  // next prediction
   Mixer m;
-  APM1 a, a1, a2, a3, a4, a5, a6;
+  EAPM a;
 public:
   PredictorIMG8();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -4432,8 +4570,7 @@ public:
   }
 };
 
-PredictorIMG8::PredictorIMG8(): pr(2048), m((100 +24+8*6)*3 , 2864,x, 7),
- a(256,x), a1(0x10000,x), a2(0x10000,x), a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
+PredictorIMG8::PredictorIMG8(): pr(2048), m((100 +24+8*6)*3 , 2864,x, 7), a(x) {
   //1 +3 +96=  100                
   matchModel=new matchModel1(x);   
   im8bitModel=new im8bitModel1(x); 
@@ -4456,23 +4593,8 @@ void PredictorIMG8::update()  {
   im8bitModel->p(m,x.finfo);
   //recordModel->p(m, x.finfo);
   int pr0=m.p();
-  
-  ///////////////////////////////
-  // Filter the context model with APMs
- 
-  pr=a.p(pr0, x.c0);
+  pr=a.p2(pr0,pr,7);
 
-  int pr1=a1.p(pr0, x.c0+256*x.buf(1));
-  int pr2=a2.p(pr0, (x.c0^hash(x.buf(1), x.buf(2)))&0xffff);
-  int pr3=a3.p(pr0, (x.c0^hash(x.buf(1), x.buf(2), x.buf(3)))&0xffff);
-  pr0=(pr0+pr1+pr2+pr3+2)>>2;
-
-  pr1=a4.p(pr, x.c0+256*x.buf(1));
-  pr2=a5.p(pr, (x.c0^hash(x.buf(1), x.buf(2)>>1))&0xffff);
-  pr3=a6.p(pr, (x.c0^hash(x.buf(1), x.buf(2)>>1, x.buf(3)>>2))&0xffff);
-  pr=(pr+pr1+pr2+pr3+2)>>2;
-
-  pr=(pr+pr0+1)>>1;
 
 }
 
@@ -4480,7 +4602,7 @@ void PredictorIMG8::update()  {
 class PredictorIMG24: public Predictors {
   int pr;  // next prediction
   Mixer m;
-  APM1 a, a1, a2, a3, a4, a5, a6;
+  EAPM a;
 public:
   PredictorIMG24();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -4489,8 +4611,7 @@ public:
   }
 };
 
-PredictorIMG24::PredictorIMG24(): pr(2048), m(104, 336+256,x, 4+1),
- a(256,x), a1(0x10000,x), a2(0x10000,x), a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
+PredictorIMG24::PredictorIMG24(): pr(2048), m(104, 336+256,x, 4+1), a(x) {
   //   1+ 3 +100=104
   matchModel=new matchModel1(x); 
   im24bitModel=new im24bitModel1(x);
@@ -4512,33 +4633,7 @@ void PredictorIMG24::update()  {
   m.set(ismatch,256);
   im24bitModel->p(m,x.finfo);
   int pr0=m.p();
-  
-  ///////////////////////////////
-  // Filter the context model with APMs
- {
-     if (x.fails&0x00000080) --x.failcount;
-        x.fails=x.fails*2;
-        x.failz=x.failz*2;
-        if (x.y) pr^=4095;
-        if (pr>=1820) ++x.fails, ++x.failcount;
-        if (pr>= 848) ++x.failz;
-      int pv, pu,pz,pt;
-        pu=(a.p(pr0, x.c0, 3)+7*pr0+4)>>3, pz=x.failcount+1;
-        pz+=tri[(x.fails>>5)&3];
-        pz+=trj[(x.fails>>3)&3];
-        pz+=trj[(x.fails>>1)&3];
-        if (x.fails&1) pz+=8;
-        pz=pz/2;      
- 
-     int r=7;
-   pu=a4.p(pu,   ( (x.c0*2)^hash(x.buf(1), (x.x5>>8)&255, (x.x5>>16)&0x80ff))&0xffff,r);
-  pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
-  pv=a5.p(pv,           hash(x.c0,x.w5&0xfffff)&0xffff,r);
-  pt=a3.p(pr0, ( (x.c0*32)^hash(19,     x.x5&0x80ffff))&0xffff,r);
-  pz=a6.p(pu,   ( (x.c0*4)^hash(min(9,pz),x.x5&0x80ff))&0xffff,r);
-  if (x.fails&255)  pr =(pt*6+pu  +pv*11+pz*14 +16)>>5;
-  else              pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
-}
+  pr=a.p1(pr0,pr,7);
 }
 //TEXT predicor class
 class PredictorTXTWRT: public Predictors {
@@ -4547,7 +4642,7 @@ class PredictorTXTWRT: public Predictors {
   int order;
   int ismatch;
   Mixer m;
-  APM1 a, a1, a2, a3, a4, a5, a6;
+  EAPM a;
   void setmixer();
 public:
   PredictorTXTWRT();
@@ -4558,8 +4653,7 @@ public:
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),
- m(925+6+2, 10240-256*2,x, 7),a(256,x),a1(0x10000,x),a2(0x10000,x),a3(0x10000,x),
- a4(0x10000,x),a5(0x10000,x),a6(0x10000,x) {
+ m(925+6+2, 9728 /*10240-256*2*/,x, 7),a(x) {
   if (x.clevel>=4){
     if (recordModelw==0) recordModelw=new recordModelx(x);
     if (sparseModel1==0) sparseModel1=new sparseModelx(x);
@@ -4630,9 +4724,9 @@ void PredictorTXTWRT::update()  {
         //256*8 +256 +256 +256*8+ 256*8 +1536 +2048=10240
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
-        m.set((x.w4&3)*64+c+order*256, 256*7); 
         m.set(x.c0, 256);
         m.set(ismatch, 256);
+        m.set((x.w4&3)*64+c+order*256, 256*7);         
         m.set(256*order + (x.w4&240) + (x.b3>>4), 256*7);
         c=(x.w4&255)+256*x.bpos;
         m.set(c, 256*8);
@@ -4651,29 +4745,7 @@ void PredictorTXTWRT::update()  {
     }
     ///////////////////////////////
     // Filter the context model with APMs
-
-    if (x.fails&0x00000080) --x.failcount;
-    x.fails=x.fails*2;
-    x.failz=x.failz*2;
-    if (x.y) pr^=4095;
-    if (pr>=1820) ++x.fails, ++x.failcount;
-    if (pr>= 848) ++x.failz;
-    int pv, pu,pz,pt;
-    pu=(a.p(pr0, x.c0, 3)+7*pr0+4)>>3, pz=x.failcount+1;
-    pz+=tri[(x.fails>>5)&3];
-    pz+=trj[(x.fails>>3)&3];
-    pz+=trj[(x.fails>>1)&3];
-    if (x.fails&1) pz+=8;
-    pz=pz/2;      
-
-    int r=7;
-    pu=a4.p(pu,   ( (x.c0*2)^hash(x.buf(1), (x.x5>>8)&255, (x.x5>>16)&0x80ff))&0xffff,r);
-    pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
-    pv=a5.p(pv,           hash(x.c0,x.w5&0xfffff)&0xffff,r);
-    pt=a3.p(pr0, ( (x.c0*32)^hash(19,     x.x5&0x80ffff))&0xffff,r);
-    pz=a6.p(pu,   ( (x.c0*4)^hash(min(9,pz),x.x5&0x80ff))&0xffff,r);
-    if (x.fails&255)  pr =(pt*6+pu  +pv*11+pz*14 +16)>>5;
-    else              pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
+  pr=a.p1(pr0,pr,7);
 }
 
 //IMG1 predicor class
@@ -4766,10 +4838,12 @@ class PredictorFast: public Predictors {
     int h;  // hash of last 7 bytes
     U32 ptr;  // points to next byte of match if any
     int len;  // length of match, or 0 if no match
-    int mm1,mm2;
+    int mm1,mm3;
+    int result;
+    int match;
 public:
   PredictorFast(): cxt1(0),cxt2(0),cxt3(0),cxt4(0),pr0(2048),t(0x80000),a(256,x),MAXLEN(65534), 
-    tm(CMlimit(MEM()/4)),h(0), ptr(0),len(0),mm1(2048),mm2(2048){
+    tm(CMlimit(MEM()/4)),h(0), ptr(0),len(0),mm1(2048),mm3(2048),result(0),match(0){
       sm=new StateMap[4];
       cxt[0]=cxt[1]=cxt[2]=cxt[3]=0;     
   }
@@ -4780,6 +4854,7 @@ public:
 
   void update() {
     update0();
+    if (match!=x.y) len=0;  //bit mismatch
     if (x.bpos==0){
         cxt4=cxt3;
         cxt3=cxt2;
@@ -4788,14 +4863,19 @@ public:
         //update match
 
         h=(h*997*8+cxt1+1)&(tm.size()-1);  // update context hash
-            if (len) ++len, ++ptr;
+            if (len) len+=len<MAXLEN, ++ptr;
             else {  // find match
                 ptr=tm[h];
                 if (ptr && x.buf.pos-ptr<x.buf.size())
                 while (x.buf(len+1)==x.buf[ptr-len-1] && len<MAXLEN) ++len;
             }
             tm[h]=x.buf.pos;  // update hash table
+            result=ilog(len);
             //    if (result>0 && !(result&0xfff)) printf("pos=%d len=%d ptr=%d\n", pos, len, ptr);
+            int ilen=result<<2;
+            int mlen=min(len, 32)<<6;
+            mm1=((squash(ilen)+squash(mlen))>>1);
+            mm3=(squash(-(ilen))+squash(-(mlen)))>>1;
     }
     for (int i=0; i<4; ++i){
         t[cxt[i]]=nex(t[cxt[i]],x.y);
@@ -4806,24 +4886,20 @@ public:
     cxt[3]=cxt4+x.c0+0x40000;
 
     pr0=(sm[0].p(t[cxt[0]],x.y)+sm[1].p(t[cxt[1]],x.y)+sm[2].p(t[cxt[2]],x.y)+sm[3].p(t[cxt[3]],x.y))>>2;
-        
         // predict match
-            if (len>0 && x.buf(1)==x.buf[ptr-1] && x.c0==(x.buf[ptr]+256)>>(8-x.bpos)) {
-                if (len>MAXLEN) len=MAXLEN;
-                if(x.buf[ptr]>>(7-x.bpos)&1)  {
-                    mm1=squash(ilog(len)<<2);
-                    mm2=squash(min(len, 64)<<5);
+            if (len)  {
+        	match=(x.buf[ptr]>>(7-x.bpos))&1;
+        	if (match) { //1
+                    pr0=mm1+(pr0);
                 }
                 else {
-                    mm1=squash(-(ilog(len)<<2));
-                    mm2=squash(-(min(len, 64)<<5));
+                    pr0=mm3+(pr0);
                 }
             }
             else {
-                len=0;
-                mm1=mm2=2047;
+                pr0=(((2047+2047)>>1)+(pr0));
             }
-    pr0=(((mm1+mm2)>>1)+pr0)>>1;
+    pr0=(pr0)>>1;
     pr0=a.p(pr0, x.c0);
   }
 };
@@ -5022,6 +5098,10 @@ FILE* tmpfile2(void){
 #define IMG_DET(type,start_pos,header_len,width,height) return dett=(type),\
 deth=int(header_len),detd=int((width)*(height)),info=int(width),\
 fseeko(in, start+(start_pos), SEEK_SET),HDR
+
+#define IMG_DETX(type,start_pos,header_len,width,height) return dett=(type),\
+deth=-1,detd=int((width)*(height)),info=int(width),\
+fseeko(in, start+(start_pos), SEEK_SET),DEFAULT
 
 #define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
 deth=int(header_len),detd=(data_len),info=(wmode),\
@@ -5479,34 +5559,37 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
  // For TEXT
   U64 txtStart=0,txtLen=0,txtOff=0,txtbinc=0,txtbinp=0,txta=0,txt0=0;
   int utfc=0,utfb=0,txtIsUTF8=0; //utf count 2-6, current byte
-  const int txtMinLen=1024*64;//2;
-  //int teolu=0,teolw=0,teoll=0;
-  //wrtn=0;
+  const int txtMinLen=1024*64;
 
   //base64
   U64 b64s=0,b64s1=0,b64p=0,b64slen=0,b64h=0,b64i=0;
   U64 base64start=0,base64end=0,b64line=0,b64nl=0,b64lcount=0;
-  
-   U64 b85s=0,b85s1=0,b85p=0,b85slen=0,b85h=0;
+  //base85
+  U64 b85s=0,b85s1=0,b85p=0,b85slen=0,b85h=0;
   U64 base85start=0,base85end=0,b85line=0,b85nl=0,b85lcount=0;
   //int b64f=0,b64fstart=0,b64flen=0,b64send=0,b64fline=0; //force base64 detection
   int gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0; // For GIF detection
-
-  U64 fSZDD=0;
-  U64 fKWAJ=0;
+  //MSZip
+  U64 MSZip=0, MSZ=0, MSZipz=0;
+  int yu=0;
+  int zlen=0;
+  U64 fSZDD=0; //
+  U64 fKWAJ=0; //
   LZSS* lz77;
   unsigned char zbuf[32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
   int zbufpos=0,zzippos=-1;
   int pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfimp=0;
-U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0; // For MRB detection
+  U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0; // For MRB detection
   //
   U64 nesh=0,nesp=0;
   // For image detection
+  Array<U32> tfidf(0);
   static int deth=0,detd=0;  // detected header/data size in bytes
   static Filetype dett;  // detected block type
   if (deth >1) return fseeko(in, start+deth, SEEK_SET),deth=0,dett;
   else if (deth ==-1) return fseeko(in, start, SEEK_SET),deth=0,dett;
   else if (detd) return fseeko(in, start+detd, SEEK_SET),detd=0,DEFAULT;
+
 
   for (U64 i=0; i<n; ++i) {
     int c=getc(in);
@@ -5516,11 +5599,38 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
     buf1=buf1<<8|buf0>>24;
     buf0=buf0<<8|c;
     
+    if ((buf0)==0x0080434b && MSZip==0  && !cdi  && type!=MDF) {
+       MSZ=i;
+       MSZip=i-4,MSZipz=(buf1&0xffff);
+       MSZipz=((MSZipz&0xff)<<8) +(MSZipz >>8);
+       zlen=MSZipz;
+       yu=1;
+    }
+    if ( MSZip) {
+        const int p=int(i-MSZip-12);        
+        if (p==zlen) {
+            MSZip=i-4;
+            zlen=(buf1&0xffff);
+            zlen=((zlen&0xff)<<8) +(zlen >>8);
+            if( buf0==0x0080434b ) {    //32768 CK
+                MSZipz+=zlen;           //12?
+                yu++;
+            }else if( (buf0&0xffff)==0x434b && zlen<32768) {                      //if final part <32768 CK
+                yu++;
+                MSZipz+=zlen+yu*8; //4 2 2
+                if (type==MSZIP ) return fseeko(in, start+MSZipz, SEEK_SET),DEFAULT;
+                return fseeko(in, start+MSZ-3, SEEK_SET),MSZIP;
+            }else  {   
+                MSZip=MSZipz=zlen=0;
+            }
+       }
+       continue;
+    }
+    
     // ZLIB stream detection
     zbuf[zbufpos]=c;
     zbufpos=(zbufpos+1)%32;
-    if(!cdi && !gif && !soi && !pgm && !rgbi && !bmp && !wavi && !tga && !b64s1 && !b64s && !b85s1 && !b85s && !mdfa && !nesh && !mrb)  {
-
+    if(!cdi && !gif && !soi && !pgm && !rgbi && !bmp && !wavi && !tga && !b64s1 && !b64s && !b85s1 && !b85s && !mdfa && !nesh && !mrb && type!=MDF)  {
     int zh=parse_zlib_header(((int)zbuf[zbufpos])*256+(int)zbuf[(zbufpos+1)%32]);
     if ((i>=31 && zh!=-1) || zzippos==i) {
       int streamLength=0, ret=0;
@@ -5587,7 +5697,7 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
        && buf0==0x6e656e74 && zbuf[(zbufpos+15)%32]=='/') pdfim=4,pdfimb=0; // /BitsPerComponent
 }
     // NES rom 
-    if (buf0==0x4E45531A) nesh=i,nesp=0;
+    if (buf0==0x4E45531A && type!=MDF &&  !cdi) nesh=i,nesp=0;
     if (nesh) {
       const int p=int(i-nesh);
       if (p==1) nesp=buf0&0xff; //count of pages*0x3FFF
@@ -5599,40 +5709,9 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
       }
     }
     
-      //detect LZSS compressed data in compress.exe generated archives
-   /* if ((buf0==0x88F027D1 && buf1==0x4B57414A && !cdi ) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fKWAJ=i;
-    if (fKWAJ && (i-fKWAJ ==6) && (buf1&0xffff)==0x0200 && (buf0==0x0e000000 )){
-        U32 fsizez=bswap(buf0); //uncompressed file size FIX ME
-        if (fsizez<0x1ffffff){
-            FILE* outf=tmpfile2();          // try to decompress file
-            lz77=new LZSS(in,outf,fsizez);
-            int64_t savedpos=ftello(in);
-            int u=lz77->decompress(); //compressed size
-            int uf= lz77->usize; //uncompressed size
-            delete lz77;
-            int csize=ftello(in)-savedpos-(!feof(in)?1:0);
-            if (u!=csize || u>fsizez) fKWAJ=0;          // reset if not same size or compressed size > uncompressed size
-            else{
-                fseeko(outf, 0, SEEK_SET);  // try to compress decompressed file
-                FILE* out2=tmpfile2();
-                lz77=new LZSS(outf,out2,u);
-                int r=lz77->compress();
-                delete lz77;
-                fclose(out2);
-                fclose(outf);
-                if (r!=(csize)) fKWAJ=0;    // reset if not same size
-                else{
-                    fseeko(in, savedpos, SEEK_SET); //all good
-                    SZ_DET(SZDD,fSZDD+7,14,r,uf);
-                }
-            }
-            fclose(outf);
-        }
-        else fKWAJ=0;
-    }*/
     //detect LZSS compressed data in compress.exe generated archives
-    if ((buf0==0x88F02733 && buf1==0x535A4444 && !cdi ) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
-    if (fSZDD && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733 && !cdi  && (i-fSZDD)==4))){
+    if ((buf0==0x88F02733 && buf1==0x535A4444 && !cdi  && type!=MDF) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
+    if (fSZDD  && type!=MDF && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733 && !cdi  && (i-fSZDD)==4))){
 	   int lz2=0;
 		if (buf1!=0x88F02733 && (i-fSZDD)==4) lz2=2;  //+2 treshold
         U32 fsizez=bswap(buf0); //uncompressed file size
@@ -5665,63 +5744,14 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
         else fSZDD=0;
     } 
     
-    //detect rle encoded mrb files inside windows hlp files
-    if (((buf0&0xFFFF)==0x6c70 || (buf0&0xFFFF)==0x6C50) && !b64s1 && !b64s && !b85s1 && !b85s )
-		mrb=i; 
-	if (mrb){
-	    const int p=int(i-mrb);
-        if (p==1 && !c==1)	mrb=0;    // if not 1 image per/file            
-	    if (p==7 && (c==5 || c==6 ))  // 5=DDB   6=DIB   8=metafile
-		    mrbPictureType=c;
-	    if (p==8 && (c==1 ))          // 0=uncomp 1=RunLen 2=LZ77 3=both
-		  mrbPackingMethod=c;	
-	    if (p==10){
-		  if (mrbPictureType==6 && (mrbPackingMethod==1 || mrbPackingMethod==2)){
-		//save ftell
-		mrbTell=ftell(in)-2;
-		fseek(in,mrbTell,SEEK_SET);
-		U32 Xdpi=GetCDWord(in);
-		U32 Ydpi=GetCDWord(in);
-        U32 Planes=GetCWord(in);
-		U32 BitCount=GetCWord(in);
-        mrbw=GetCDWord(in);
-		mrbh=GetCDWord(in);
-        U32 ColorsUsed=GetCDWord(in);
-		U32 ColorsImportant=GetCDWord(in);
-        mrbcsize=GetCDWord(in);
-		U32 HotspotSize=GetCDWord(in);
-		int CompressedOffset=getc(in)<<24;
-            CompressedOffset|=getc(in)<<16;
-            CompressedOffset|=getc(in)<<8;
-            CompressedOffset|=getc(in);
-	    int HotspotOffset=getc(in)<<24;
-            HotspotOffset|=getc(in)<<16;
-            HotspotOffset|=getc(in)<<8;
-            HotspotOffset|=getc(in);
-	    CompressedOffset=bswap(CompressedOffset);
-		HotspotOffset=bswap(HotspotOffset);
-		mrbsize=mrbcsize+ftell(in)-mrbTell+10+(1<<BitCount)*4; // ignore HotspotSize
-		if (BitCount!=8 || mrbw<4 || mrbw>1024) {
-			mrbPictureType=mrb=mrbsize=0;
-		    mrbTell=mrbTell+2;
-		    fseek(in,mrbTell,SEEK_SET);
-		}
-	   }
-	   }
-	   if (type==MRBR &&   (mrbPictureType==6 || mrbPictureType==8) && mrbsize){
-		return fseek(in, start+mrbsize, SEEK_SET),DEFAULT;
-	   }
-	   if ( (mrbPictureType==6) && mrbsize){
-		MRBRLE_DET(mrb-1, mrbsize-mrbcsize, mrbcsize, mrbw, mrbh);
-	   }
-    }
-    
      // MDF (Alcohol 120%) CD (mode 1 and mode 2 form 1+2 - 2352 bytes+96 channel data)
     if ( !cdi && mdfa && type!=MDF)  return  fseeko(in, start+mdfa-7, SEEK_SET), MDF;
     if (buf1==0x00ffffff && buf0==0xffffffff   && !mdfa  && type==MDF) mdfa=i;
     if (mdfa && i>mdfa) {
       	const int p=(i-mdfa)%2448;
-      	if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) mdfa=0;
+      	if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) {
+          mdfa=0;
+          }
         if (!mdfa && type==MDF)  return fseeko(in, start+i-p-7, SEEK_SET), DEFAULT;
     }
     if (type==MDF) continue;
@@ -5762,7 +5792,12 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
     // Detect end by any code other than RST0-RST7 (FF D9-D7) or
     // a byte stuff (FF 00).
 
-    if (!soi && i>=3 && ((buf0&0xfffffff0)==0xffd8ffe0 /*|| buf0==0xffd8ffdb*/)) soi=i, app=i+2, sos=sof=0;
+    //if (!soi && i>=3 && ((buf0&0xfffffff0)==0xffd8ffe0 /*|| buf0==0xffd8ffdb*/)) soi=i, app=i+2, sos=sof=0;
+    if (!soi && i>=3 && ((
+    ((buf0&0xffffff00)==0xffd8ff00 && ((U8)buf0==0xC0 || (U8)buf0==0xC4 || ((U8)buf0>=0xDB && (U8)buf0<=0xFE)))
+    ||(buf0&0xfffffff0)==0xffd8ffe0 ) )
+    
+    ) soi=i, app=i+2, sos=sof=0;
     if (soi) {
       if (app==i && (buf0>>24)==0xff &&
          ((buf0>>16)&0xff)>0xc0 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2;
@@ -5864,6 +5899,56 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
       }
     }
     
+    //detect rle encoded mrb files inside windows hlp files
+    if (((buf0&0xFFFF)==0x6c70 || (buf0&0xFFFF)==0x6C50) && !b64s1 && !b64s && !b85s1 && !b85s && type!=MDF &&  !cdi)
+		mrb=i,mrbsize=0,mrbPictureType=0; 
+	if (mrb){
+	    const int p=int(i-mrb);
+        if (p==1 && !c==1)	mrb=0;    // if not 1 image per/file            
+	    if (p==7 && (c==5 || c==6 ))  // 5=DDB   6=DIB   8=metafile
+		    mrbPictureType=c;
+	    if (p==8 && (c==1 ))          // 0=uncomp 1=RunLen 2=LZ77 3=both
+		  mrbPackingMethod=c;	
+	    if (p==10){
+		  if (mrbPictureType==6 && (mrbPackingMethod==1 || mrbPackingMethod==2)){
+		//save ftell
+		mrbTell=ftell(in)-2;
+		fseek(in,mrbTell,SEEK_SET);
+		U32 Xdpi=GetCDWord(in);
+		U32 Ydpi=GetCDWord(in);
+        U32 Planes=GetCWord(in);
+		U32 BitCount=GetCWord(in);
+        mrbw=GetCDWord(in);
+		mrbh=GetCDWord(in);
+        U32 ColorsUsed=GetCDWord(in);
+		U32 ColorsImportant=GetCDWord(in);
+        mrbcsize=GetCDWord(in);
+		U32 HotspotSize=GetCDWord(in);
+		int CompressedOffset=getc(in)<<24;
+            CompressedOffset|=getc(in)<<16;
+            CompressedOffset|=getc(in)<<8;
+            CompressedOffset|=getc(in);
+	    int HotspotOffset=getc(in)<<24;
+            HotspotOffset|=getc(in)<<16;
+            HotspotOffset|=getc(in)<<8;
+            HotspotOffset|=getc(in);
+	    CompressedOffset=bswap(CompressedOffset);
+		HotspotOffset=bswap(HotspotOffset);
+		mrbsize=mrbcsize+ftell(in)-mrbTell+10+(1<<BitCount)*4; // ignore HotspotSize
+		if (BitCount!=8 || mrbw<4 || mrbw>1024) {
+			mrbPictureType=mrb=mrbsize=0;
+		    mrbTell=mrbTell+2;
+		    fseek(in,mrbTell,SEEK_SET);
+		}
+	   }
+	   }
+	   if (type==MRBR &&   (mrbPictureType==6 || mrbPictureType==8) && mrbsize){
+		return fseek(in, start+mrbsize, SEEK_SET),DEFAULT;
+	   }
+	   if ( (mrbPictureType==6) && mrbsize && mrbw>4 && mrbh>4){
+		MRBRLE_DET(mrb-1, mrbsize-mrbcsize, mrbcsize, mrbw, mrbh);
+	   }
+    }
     // Detect .bmp image
     if ((buf0&0xffff)==16973) imgbpp=bmpx=bmpy=bmpof=0,bmp=i;  //possible 'BM'
     if (bmp) {
@@ -5929,9 +6014,9 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
         rgbi=0;
       }
     }
-    
+      
     // Detect .tiff file header (2/8/24 bit color, not compressed).
-    if (buf1==0x49492a00 && n>i+(int)bswap(buf0)) {
+   if (buf1==0x49492a00 && n>i+(int)bswap(buf0)) {
       U64 savedpos=ftello(in);
       fseeko(in, start+i+(int)bswap(buf0)-7, SEEK_SET);
 
@@ -5958,6 +6043,8 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
           }
         }
       }
+
+               //
       if (tifx>1 && tify && tifzb && (tifz==1 || tifz==3) && (tifc==1) && (tifofs && tifofs+i<n)) {
         if (!tifofval) {
           fseeko(in, start+i+tifofs-7, SEEK_SET);
@@ -5970,9 +6057,10 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
           else if (tifz==3 && tifzb==8 && tifx<30000) IMG_DET(IMAGE24,i-7,tifofs,tifx*3,tify);
         }
       }
-      else if  (tifx>1 && tify && tifzb &&  (tifc==6) && (tifofs && tifofs+i<n)) {
+      else if  (tifx>1 && tify && tifzb &&  (tifc==6 ) && (tifofs && tifofs+i<n)) {
           TIFFJPEG_DET(i-7,tifofs,tifsiz);
       }
+      
       fseeko(in, savedpos, SEEK_SET);
     }
     
@@ -6095,43 +6183,22 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
     }
     else if (b64s==2 && (is_base64(c) || c=='='))   continue;
     else if (b64s==2)   b64s=0;
-   /* // this version probably breaks on vm.dll
-     // Detect base64 encoded data
-    if (b64s==0 && buf0==0x73653634 && ((buf1&0xffffff)==0x206261 || (buf1&0xffffff)==0x204261)) b64s=1,b64i=i-6; //' base64' ' Base64'
-    if (b64s==0 && ((buf1==0x3b626173 && buf0==0x6536342c) || (buf1==0x215b4344 && buf0==0x4154415b))) b64s=3,b64i=i+1; // ';base64,' '![CDATA['
-    if (b64s>0) {
-      if (b64s==1 && buf0==0x0d0a0d0a) b64s=((i-b64i>=128)?0:2),b64i=i+1,b64line=0;
-      else if (b64s==2 && (buf0&0xffff)==0x0d0a && b64line==0) b64line=i+1-b64i,b64nl=i;
-      else if (b64s==2 && (buf0&0xffff)==0x0d0a && b64line>0 && (buf0&0xffffff)!=0x3d0d0a) {
-         if (i-b64nl<b64line && buf0!=0x0d0a0d0a) i-=1,b64s=5;
-         else if (buf0==0x0d0a0d0a) i-=3,b64s=5;
-         else if (i-b64nl==b64line) b64nl=i;
-         else b64s=0;
-      }
-      else if (b64s==2 && (buf0&0xffffff)==0x3d0d0a) i-=1,b64s=5; // '=' or '=='
-      else if (b64s==2 && !(isalnum(c) || c=='+' || c=='/' || c==10 || c==13 || c=='=')) b64s=0;
-      if (b64line>0 && (b64line<=4 || b64line>255)) b64s=0;
-      if (b64s==3 && i>=b64i && !(isalnum(c) || c=='+' || c=='/' || c=='=')) b64s=4;
-      if ((b64s==4 && i-b64i>128) || (b64s==5 && i-b64i>512 && i-b64i<(1<<27))) return fseek(in, start+b64i, SEEK_SET),detd=i-b64i,BASE64;
-      if (b64s>3) b64s=0;
-    }*/
     
     //detect ascii85 encoded data
     //headers: stream\n stream\r\n oNimage\n utimage\n \nimage\n
     if (b85s==0 && ((buf0==0x65616D0A && (buf1&0xffffff)==0x737472)|| (buf0==0x616D0D0A && buf1==0x73747265)|| (buf0==0x6167650A && buf1==0x6F4E696D) || (buf0==0x6167650A && buf1==0x7574696D) || (buf0==0x6167650A && (buf1&0xffffff)==0x0A696D))){
 	    b85s=1,b85p=i-6,b85h=0,b85slen=0,b85lcount=0; // 
-         //else if (b85s==1 && buf0==0x0D0A0D0A ) 
         b85s=2,b85h=i+1,b85slen=b85h-b85p;
         base85start=i+1;
         if (b85slen>128) b85s=0; //drop if header is larger 
         }
     else if (b85s==2){
-        if  ((buf0&0xff)==0x0A && b85line==0) {
+        if  ((buf0&0xff)==0x0d && b85line==0) {
             b85line=i-base85start,b85nl=i+2;//capture line lenght
             if (b85line<=4 || b85line>255) b85s=0;
             else continue;
         }
-        else if ( ((buf0&0xff)==0x7E|| (buf0&0xffff)==0x0a7E)) { //if padding '=' or '=='
+        else if ( ((buf0&0xff)==0x7E|| (buf0&0xffff)==0x0a7E)) { //if padding '~' or '=='
             base85end=i-((buf0&0xff00)==0x0a00);
             b85s=0;
             if (((base85end-base85start)>60) && ((base85end-base85start)<base85max))
@@ -6140,25 +6207,18 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
         else if ( (is_base85(c)))  	    continue;
         else     b85s=0;   
     }
-
  
      //Detect text and utf-8   teolc=0,teoll=0;
     if (txtStart==0 && !gif && !soi && !pgm && !rgbi && !bmp && !wavi && !tga && !b64s1 && !b64s && !b85s1 && !b85s &&
         ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart=1,txtOff=i,txt0=0,txta=0;
     if (txtStart   ) {
-       //if ((buf0&0xffff)==0x0D0A ){
-       //    if (i-teoll<90) teolw++;
-       ///    teoll=i;
-       //} 
-       //if ((buf0&0xff)==0x0A && ((buf0&0xff00)!=0x0d00) ){
-       //    if (i-teoll<90) teolu++;
-       //    teoll=i;
-      // }  
+       
         if ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9) {
             ++txtLen;
-        if ((c>='a' && c<='z') ||  (c>='A' && c<='Z')) txta++;
-        if (c>='0' && c<='9') txt0++;
+            if ((c>='a' && c<='z') ||  (c>='A' && c<='Z')) txta++;
+            if (c>='0' && c<='9') txt0++;
             if (i-txtbinp>512) txtbinc=txtbinc>>2;
+            
        }
        else if ((c&0xE0)==0xc0 && utfc==0){ //if possible UTF8 2 byte
             utfc=2,utfb=1;
@@ -6175,7 +6235,6 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
        else if ((c&0xFE)==0xFC && utfc==0){//if possible UTF8 6 byte
             utfc=6,utfb=1;
             }
-
        else if (utfc>=2 && utfb>=1 && utfb<=6 && (c&0xC0)==0x80){
             utfb=utfb+1; //inc byte count
             //overlong UTF-8 sequence, UTF-16 surrogates as well as U+FFFE and U+FFFF test needed!!!
@@ -6210,8 +6269,7 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
             }
             else{
                 if (txta<txt0) info=1; else info=0; //use num0-9
-               // if ((teolw==0 && teolu>100) || (teolu==0 && teolw>100)) info=info+2;
-                if (type==TEXT|| type==TEXT0 ||type== TXTUTF8 ) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
+                if (type==TEXT|| type==TEXT0 ||type== TXTUTF8/*|| type==EOLTEXT*/ ) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
                 if (info==1)  return fseeko(in, start+txtOff, SEEK_SET),TEXT0;
                 if (txtIsUTF8==1)
                     return fseeko(in, start+txtOff, SEEK_SET),TXTUTF8;
@@ -6235,8 +6293,7 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
             ++txtLen;
             if (txtbinc>=128){
                 if (txta<txt0)   info=1; else info=0 ;
-                //if ((teolw==0 && teolu>100) || (teolu==0 && teolw>100)) info=info+2;
-                if (type==TEXT|| type==TEXT0 ||type== TXTUTF8 ) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
+                if (type==TEXT|| type==TEXT0 ||type== TXTUTF8) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
                 if (info==1)  return fseeko(in, start+txtOff, SEEK_SET),TEXT0;
                 if (txtIsUTF8==1)
                     return fseeko(in, start+txtOff, SEEK_SET),TXTUTF8;
@@ -6250,9 +6307,7 @@ U64 mrb=0,mrb0=0,mrb1=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0
   if (txtStart) {
         if ( txtLen>=txtMinLen || (/*it==0 &&*/ s1==0 && txtLen==n)) { //ignore minimum lenght if whole file(s1==0) is text
             if (txta<txt0)   info=1; else info=0;
-            //if ((teolw==0 && teolu>100) || (teolu==0 && teolw>100)) info=info+2;
-
-            if (type==TEXT || type==TEXT0 ||type== TXTUTF8 ) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
+            if (type==TEXT || type==TEXT0 ||type== TXTUTF8/* || type==EOLTEXT */) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
             if (info==1)  return fseeko(in, start+txtOff, SEEK_SET),TEXT0;
             if (txtIsUTF8==1)
                 return fseeko(in, start+txtOff, SEEK_SET),TXTUTF8;
@@ -6858,7 +6913,7 @@ int decode_ascii85(FILE *in, int size, FILE *out, FMode mode, U64 &diffFound){
     tlf=(getc(in));
     outlen+=((tlf&63)<<24);
     U8 *ptr,*fptr;
-    ptr = (U8*)calloc((outlen>>2)*4+10, 1);
+    ptr = (U8*)calloc((outlen>>2)*5+10, 1);
     if (!ptr) quit("Out of memory (decode_A85)");
     programChecker.alloc((outlen>>2)*4+10); //report used memory
     fptr=&ptr[0];
@@ -6930,7 +6985,7 @@ void encode_ascii85(FILE* in, FILE* out, int len) {
     int lfp=0;
     int tlf=0;
     U8 *ptr,*fptr;
-    int b64mem=(len>>2)*4+10;
+    int b64mem=(len>>2)*5+100;
     ptr = (U8*)calloc(b64mem, 1);
     if (!ptr) quit("Out of memory (encode_A85)");
     programChecker.alloc(b64mem);
@@ -6940,12 +6995,14 @@ void encode_ascii85(FILE* in, FILE* out, int len) {
     uint32_t tuple = 0;
     for (int f=0;f<len;f++) {
         c = getc(in);
+        if (olen+10>b64mem) {count = 0; break;} //!!
         if (c==13 || c==10) {
             if (lfp==0) lfp=f ,tlf=c;
             if (tlf!=c) tlf=0;
             continue;
         }
         if (c == 'z' && count == 0) {
+            if (olen+10>b64mem) {count = 0; break;} //!!
             for (int i = 1; i < 5; i++) fptr[olen++]=0;
             continue;
         }
@@ -6953,8 +7010,10 @@ void encode_ascii85(FILE* in, FILE* out, int len) {
             for (int i = 1; i < 5; i++) fptr[olen++]=0x20;
             continue;
         }*/
-        if (c == EOF) {        
+        if (c == EOF) {  
+        if (olen+10>b64mem) {count = 0; break;} //!!      
             if (count > 0) {
+                
                 tuple += powers[count-1];
                 for (int i = 1; i < count; i++) fptr[olen++]=tuple >> ((4 - i) * 8);
             }
@@ -6962,12 +7021,14 @@ void encode_ascii85(FILE* in, FILE* out, int len) {
         }
         tuple += (c - '!') * powers[count++];
         if (count == 5) {
+           if (olen>b64mem+10) {count = 0; break;} //!!
             for (int i = 1; i < count; i++) fptr[olen++]=tuple >> ((4 - i) * 8);
             tuple = 0;
             count = 0;
         }
     }
     if (count > 0) {
+        
         tuple += powers[count-1];
         for (int i = 1; i < count; i++) fptr[olen++]=tuple >> ((4 - i) * 8);
     }
@@ -7294,8 +7355,6 @@ int encodeRLE(U8 *dst, U8 *ptr, int src_end){
 int decode_mrb(FILE* in, int size, int width, FILE *out1, FMode mode, uint64_t &diffFound) {
  
 	U32 outlen=0;
-	//FILE *out;
-	//out=tmpfile2();
     U8 *ptr,*fptr,*fptre;
     ptr = (U8*)calloc(size+4, 1);
     if (!ptr) quit("Out of memory (encode_MBR)");
@@ -7304,8 +7363,6 @@ int decode_mrb(FILE* in, int size, int width, FILE *out1, FMode mode, uint64_t &
 	fread(&fptr[0], 1, size, in);
 	int aaa=encodeRLE(ptr,fptr,size);
     programChecker.alloc(size*2);
-	//fwrite(&ptr[0], 1, aaa, out);
-	//fclose(out);
 	//Write out or compare
     if (mode==FDECOMPRESS){
             fwrite(&ptr[0], 1, aaa, out1);
@@ -7322,6 +7379,8 @@ int decode_mrb(FILE* in, int size, int width, FILE *out1, FMode mode, uint64_t &
 	assert(aaa<size);
 	return aaa;
 }
+
+
 //////////////////// Compress, Decompress ////////////////////////////
 
 //for block statistics, levels 0-5
@@ -7330,7 +7389,7 @@ U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
 int getstreamid(Filetype type){
-    if (type==DEFAULT || type==HDR || type==NESROM) return 0;
+    if (type==DEFAULT || type==HDR || type==NESROM || type==MSZIP) return 0;
     else if (type==JPEG ) return  1;
     else if (type==IMAGE1) return 2;
     else if (type==IMAGE4) return 3;
@@ -7347,7 +7406,7 @@ int getstreamid(Filetype type){
 
 bool isstreamtype(Filetype type,int streamid){
     assert(streamid<streamc);
-    if ((type==DEFAULT || type==HDR || type==NESROM) && streamid==0 ) return true;
+    if ((type==DEFAULT || type==HDR || type==NESROM || type==MSZIP) && streamid==0 ) return true;
     else if (type==JPEG && streamid==1) return  true;
     else if (type==IMAGE1 && streamid==2) return true;
     else if (type==IMAGE4 && streamid==3) return true;
@@ -7378,7 +7437,7 @@ void direct_encode_blockstream(Filetype type, FILE *in, U64 len, Encoder &en, U6
 void DetectRecursive(FILE *in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U64 s2);
 
 void transform_encode_block(Filetype type, FILE *in, int len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
-    if (type==EXE || type==CD || type==MDF || type==IMAGE24 ||type==MRBR || ((type==TEXT || type==TXTUTF8) && len>0xA00000)  || type==BASE64 || type==BASE85 ||type==SZDD|| type==AUDIO||type==ZLIB|| type==GIF) {
+    if (type==EXE || type==CD|| /*type==MSZIP||*/ type==MDF || type==IMAGE24 ||type==MRBR || ((type==TEXT || type==TXTUTF8) && len>0xA00000)  || type==BASE64 || type==BASE85 ||type==SZDD|| type==AUDIO||type==ZLIB|| type==GIF) {
         U64 diffFound=0;
         FILE* tmp=tmpfile2();  // temporary encoded file
         if (!tmp) quit("compressRecursive tmpfile");
@@ -7387,10 +7446,12 @@ void transform_encode_block(Filetype type, FILE *in, int len, Encoder &en, int i
         else if (type==AUDIO) encode_audio(in, tmp, int(len), info,info2);
         else if (type==EXE) encode_exe(in, tmp, int(len), int(begin));
         else if ((type==TEXT || type==TXTUTF8) && len>0xA00000) encode_txt(in, tmp, int(len),info&1);
+        //else if (type==EOLTEXT ) encode_txtd(in, tmp, int(len),info&1);
         else if (type==BASE64) encode_base64(in, tmp, int(len));
         else if (type==BASE85) encode_ascii85(in, tmp, int(len));
         else if (type==SZDD) encode_szdd(in, tmp, info);
         else if (type==ZLIB) diffFound=encode_zlib(in, tmp, len)?0:1;//encode_zlib(in, tmp, len);
+        //else if (type==MSZIP) diffFound=encode_mszlib(in, tmp, len)?0:1;//encode_zlib(in, tmp, len);
         else if (type==CD) encode_cd(in, tmp, int(len), info);
         else if (type==MDF) encode_mdf(in, tmp, int(len));
         else if (type==GIF) diffFound=encode_gif(in, tmp, len)?0:1;
@@ -7402,20 +7463,26 @@ void transform_encode_block(Filetype type, FILE *in, int len, Encoder &en, int i
         
         rewind(tmp);
         en.setFile(tmp);
-        fseeko(in, begin, SEEK_SET);
-        if (type==IMAGE24) decode_bmp(en, int(tmpsize), info, in, FCOMPARE, diffFound);
-        else if (type==MRBR) decode_mrb(tmp, int(tmpsize), info, in, FCOMPARE, diffFound);
-        else if (type==AUDIO) decode_audio(en, int(tmpsize), in,info,int(len),info2,  FCOMPARE, diffFound);
-        else if (type==EXE) decode_exe(en, int(tmpsize), in, FCOMPARE, diffFound);
-        else if ((type==TEXT || type==TXTUTF8 ) && len>0xA00000) decode_txt(en, int(tmpsize), in, FCOMPARE, diffFound);
-        else if (type==BASE64 ) decode_base64(tmp, int(tmpsize), in, FCOMPARE, diffFound);
+        
+        //fseeko(in, 0, SEEK_END);
+        //if (type==IMAGE24) diffFound=0,fseeko(in, 0, SEEK_END);//decode_bmp(en, int(tmpsize), info, in, FCOMPARE, diffFound);
+        //else if (type==EXE) diffFound=0,fseeko(in, 0, SEEK_END);//decode_exe(en, int(tmpsize), in, FCOMPARE, diffFound);
+        //else if ((type==TEXT || type==TXTUTF8 ) && len>0xA00000) diffFound=0,fseeko(in, 0, SEEK_END);//decode_txt(en, int(tmpsize), in, FCOMPARE, diffFound);
+        //else if (type==SZDD ) diffFound=0,fseeko(in, 0, SEEK_END);//decode_szdd(tmp, int(tmpsize),info, in, FCOMPARE, diffFound);
+        //else if (type==CD) diffFound=0,fseeko(in, 0, SEEK_END);//decode_cd(tmp, int(tmpsize), in, FCOMPARE, diffFound);
+        //else if (type==MDF ) diffFound=0,fseeko(in, 0, SEEK_END);//decode_mdf(tmp, int(tmpsize), in, FCOMPARE, diffFound);
+        //else if (type==AUDIO) diffFound=0,fseeko(in, 0, SEEK_END);//decode_audio(en, int(tmpsize), in,info,int(len),info2,  FCOMPARE, diffFound);
+        
+        if (type==ZLIB || type==GIF || type==MRBR|| type==BASE85 ||type==BASE64){
+       
+         fseeko(in, begin, SEEK_SET);
+        if (type==BASE64 ) decode_base64(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==BASE85 ) decode_ascii85(tmp, int(tmpsize), in, FCOMPARE, diffFound);
-        else if (type==SZDD ) decode_szdd(tmp, int(tmpsize),info, in, FCOMPARE, diffFound);
-        else if (type==CD) decode_cd(tmp, int(tmpsize), in, FCOMPARE, diffFound);
-        else if (type==MDF ) decode_mdf(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ZLIB && !diffFound) decode_zlib(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==GIF && !diffFound) decode_gif(tmp, tmpsize, in, FCOMPARE, diffFound);
-        tfail=(diffFound || fgetc(tmp)!=EOF);
+        else if (type==MRBR) decode_mrb(tmp, int(tmpsize), info, in, FCOMPARE, diffFound);
+        tfail=(diffFound || fgetc(tmp)!=EOF); 
+        }
         //}
         // Test fails, compress without transform
         if (tfail) {
@@ -7463,6 +7530,8 @@ void transform_encode_block(Filetype type, FILE *in, int len, Encoder &en, int i
                 //  else {// encode as text
                 //      fseeko(in, begin, SEEK_SET);
                 //      direct_encode_blockstream(type, in, len, en, s1, s2);
+            //} else if ((type==EOLTEXT  )   ) {    printf("\n");
+            //       direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2);
             } else if ((type==BASE64 || type==BASE85 || type==SZDD ||  type==CD  ||  type==MDF ||  type==ZLIB) ) {
                 printf("\n");
                 segment.put1(type&0xff);
@@ -7605,6 +7674,7 @@ U64 decompressStreamRecursive(FILE *out, U64 size, Encoder& en, FMode mode, int 
         else if (type==AUDIO)   len=decode_audio(en, int(len), out,info,info2,smr,mode, diffFound);
         else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) len=decode_txt(en, int(len), out, mode, diffFound);
+        //else if (type==EOLTEXT) len=decode_txtd(en, int(len), out, mode, diffFound);
         else if (type==BASE85 ||type==BASE64 || type==SZDD || type==ZLIB || type==CD || type==MDF  || type==GIF || type==MRBR) {
             tmp=tmpfile2();
             decompressStreamRecursive(tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
@@ -7789,7 +7859,12 @@ int expand(String& archive, String& s, const char* fname, int base) {
 
 U64 filestreamsize[streamc];
 
+//
 void compressStream(int streamid,U64 size, FILE* in, FILE* out) {
+    
+    
+    int i; //stream
+                i=streamid;
     Encoder* threadencode;
     Predictors* threadpredict;
     U64 datasegmentsize;
@@ -7797,8 +7872,7 @@ void compressStream(int streamid,U64 size, FILE* in, FILE* out) {
     int datasegmentpos;
     int datasegmentinfo;
     Filetype datasegmenttype;
-    int i; //stream
-                i=streamid;
+    
                 datasegmentsize=size;
                     U64 total=size;
                     datasegmentpos=0;
@@ -7817,7 +7891,8 @@ void compressStream(int streamid,U64 size, FILE* in, FILE* out) {
                     // TXTUTF8 DICTTXT TEXT 9
                     // bigtext 10
                     switch(i) {
-                        case 0: {
+                        case 0: 
+						{
       	                    printf("Compressing default stream(0).  Total %0.0f  \n",datasegmentsize +0.0); 
                             if (modeQuick) threadpredict=new PredictorFast();
                             else threadpredict=new Predictor();
@@ -7857,14 +7932,15 @@ void compressStream(int streamid,U64 size, FILE* in, FILE* out) {
                             else threadpredict=new PredictorTXTWRT();
                             break;}
                         case 9: 
-                        case 10:{
+                        case 10:
+                        {
       	                    printf("Compressing %stext wrt stream(%d). Total %0.0f  \n",i==10?"big":"",i,datasegmentsize +0.0); 
                             if (modeQuick) threadpredict=new PredictorFast();
                             else threadpredict=new PredictorTXTWRT();
                             break;}   
                     }
                     threadencode=new Encoder (COMPRESS, out ,*threadpredict); 
-                     if ((i>=0 && i<=7) || i==10 ){
+                     if ((i>=0 && i<=7) || i==10){
                         while (datasegmentsize>0) {
                             while (datasegmentlen==0){
                                 datasegmenttype=(Filetype)segment(datasegmentpos++);
@@ -7896,7 +7972,7 @@ void compressStream(int streamid,U64 size, FILE* in, FILE* out) {
                         }
                         threadencode->flush();
                     }
-                    if (i==8 || i==9){
+                    if (i==8 || i==9 ){
                         while (datasegmentsize>0) {
                             FILE *tm=tmpfile2();
                             encode_txt(in,tm,datasegmentsize,i==8);
@@ -7922,6 +7998,7 @@ void compressStream(int streamid,U64 size, FILE* in, FILE* out) {
                     }
             delete threadpredict;
             delete threadencode;
+           
 }
 
 #ifdef MT
@@ -8023,8 +8100,8 @@ thread(void *arg) {
 }
 #endif
 
-// To compress to file1.paq8pxd18: paq8pxd_v18 [-n] file1 [file2...]
-// To decompress: paq8pxd_v18 file1.paq8pxd18 [output_dir]
+// To compress to file1.paq8pxd19: paq8pxd_v19 [-n] file1 [file2...]
+// To decompress: paq8pxd_v19 file1.paq8pxd19 [output_dir]
 int main(int argc, char** argv) {
     bool pause=argc<=2;  // Pause when done?
     try {
@@ -8126,7 +8203,7 @@ int main(int argc, char** argv) {
             DEFAULT_OPTION);
             quit();
         }
-        
+    
         FILE* archive=0;  // compressed file
         int files=0;  // number of files to compress/decompress
         Array<const char*> fname(1);  // file names (resized to files)
@@ -8467,13 +8544,13 @@ int main(int argc, char** argv) {
             printf("Total %0.0f bytes compressed to %0.0f bytes.\n", total_size+0.0, ftello(archive)+0.0); 
             
         }
-        // Decompress files to dir2: paq8pxd_v18 -d dir1/archive.paq8pxd18 dir2
+        // Decompress files to dir2: paq8pxd_v19 -d dir1/archive.paq8pxd19 dir2
         // If there is no dir2, then extract to dir1
         // If there is no dir1, then extract to .
         else if (!doList) {
             assert(argc>=2);
             String dir(argc>2?argv[2]:argv[1]);
-            if (argc==2) {  // chop "/archive.paq8pxd18"
+            if (argc==2) {  // chop "/archive.paq8pxd19"
                 int i;
                 for (i=dir.size()-2; i>=0; --i) {
                     if (dir[i]=='/' || dir[i]=='\\') {
@@ -8516,7 +8593,8 @@ int main(int argc, char** argv) {
                     if (predictord>0) delete predictord,predictord=0;
                     if (defaultencoder>0) delete defaultencoder,defaultencoder=0;
                     switch(i) {
-                        case 0: {
+                        case 0:
+						   {
       	                    printf("DeCompressing default stream.\n"); 
       	                    if (modeQuick) predictord=new PredictorFast();
                             else predictord=new Predictor();
@@ -8556,8 +8634,8 @@ int main(int argc, char** argv) {
                             else predictord=new PredictorTXTWRT();
                             break;}
                         case 9:
-                        case 10: {
-      	                   // printf("DeCompressing text wrt stream.\n"); 
+                        case 10:
+                       {
       	                    printf("DeCompressing %stext wrt stream.\n",i==10?"big":""); 
                             if (modeQuick) predictord=new PredictorFast();
                             else predictord=new PredictorTXTWRT();
@@ -8591,7 +8669,7 @@ int main(int argc, char** argv) {
                             datasegmentlen=0;
                         }
                     }
-                    if (i==8 || i==9){
+                    if (i==8 || i==9 ){
                         while (  datasegmentsize>0) {
                             datasegmentlen=datasegmentsize;
                             defaultencoder->predictor.x.filetype=DICTTXT;
@@ -8619,7 +8697,7 @@ int main(int argc, char** argv) {
                             delete wrt;
                             datasegmentlen=datasegmentsize=0;
                         }
-                    }
+                    }/**/
                 }
             } 
             // set datastream file pointers to beginning
