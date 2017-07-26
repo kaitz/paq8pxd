@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Apr. 19, 2012
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Apr. 18, 2013
 
     Copyright (C) 2008 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -501,13 +501,9 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PX_V69
-Modified record model
-Text/utf detection 
-dynamic dict preprocess (modified version of XWRT)
-Modified im8model 
-Added 4bit bmp
-base64
+DIFFERENCES FROM PAQ8PXD_V4
+small changes in wrt
+
 
 */
 
@@ -4642,7 +4638,7 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
         else if (type==BASE64) encode_base64(in, tmp, len);
         else if (type==CD) encode_cd(in, tmp, len, info);
         const long tmpsize=ftell(tmp);
-        if ((type==TEXT || type==TXTUTF8) && (tmpsize<(len-(len>>3)))) printf(" (wrt: %d)", tmpsize); // is <83%   
+        if ((type==TEXT || type==TXTUTF8) && (tmpsize<(len-256))) printf(" (wrt: %d)", tmpsize); 
         rewind(tmp);
         en.setFile(tmp);
         fseek(in, begin, SEEK_SET);

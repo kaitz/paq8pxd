@@ -76,8 +76,6 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 enum EWordType { LOWERWORD, FIRSTUPPER, UPPERWORD, VARWORD, NUMBER};
 enum ELetterType { LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR };
-
-
 #define OUT_OF_MEMORY() \
 	{ \
 		printf("Not enough memory!\n");\
@@ -524,7 +522,7 @@ void XWRT_Common::initializeLetterSet(){
 	if (reservedSet[c])
 	letterSet[c]=RESERVEDCHAR;
 	for (c=0; c<256; c++)  //                                                - _ . , :
-	if (c>127 || letterSet[c]==LOWERCHAR || letterSet[c]==UPPERCHAR || c==' ' /*|| c=='\''*/) // || c=='&') 
+	if (c>127 || letterSet[c]==LOWERCHAR || letterSet[c]==UPPERCHAR || letterSet[c]==NUMBERCHAR ||c==' ' /*|| c=='\''*/) // || c=='&') 
 	wordSet[c]=1;
 	else
 	wordSet[c]=0;
@@ -1056,6 +1054,7 @@ int XWRT_Decoder::WRT_start_decoding(FILE* in){
 }
 
 
+
 /////////////////////////////////////////////////////////////////////
 ///////////
 //////////////////////////////////////////////////////////////////////
@@ -1366,6 +1365,9 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
 			//printf("%s %d %d\n",s,s_size,wordType);
 			toLower(s,s_size);
 		}
+		if (s_size<3 && s[0]>='0' && s[0]<='9') return; //???
+		
+		
 		checkWord(s,s_size,c);
 		return;
 	}
@@ -1505,14 +1507,14 @@ void XWRT_Encoder::WRT_encode(int filelen){
 			}
 			
 			
-			if (letterType==NUMBERCHAR){	
+			/*if (letterType==NUMBERCHAR){	
 				encodeWord(s,s_size,wordType,c);
 				s_size=0;
 				ENCODE_PUTC(c);
 				ENCODE_GETC(c);
 				//	wordType=LOWERWORD;
 				continue;
-			}		
+			}		*/
 			
 		}
 		if (wordSet[c]){
