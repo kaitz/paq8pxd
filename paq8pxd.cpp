@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jan. 21, 2012
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Apr. 19, 2012
 
     Copyright (C) 2008 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -501,120 +501,14 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ7
-
-An .exe model and filter are added.  Context maps are improved using 16-bit
-checksums to reduce collisions.  The state table uses probabilistic updates
-for large counts, more states that remember the last bit, and decreased
-discounting of the opposite count.  It is implemented as a fixed table.
-There are also many minor changes.
-
-DIFFERENCES FROM PAQ8A
-
-The user interface supports directory compression and drag and drop.
-The preprocessor segments the input into blocks and uses more robust
-EXE detection.  An indirect context model was added.  There is no
-dictionary preprocesor like PAQ8B/C/D/E.
-
-DIFFERENCES FROM PAQ8F
-
-Different models, usually from paq8hp*. Also changed rate from 8 to 7. A bug
-in Array was fixed that caused the program to silently crash upon exit.
-
-DIFFERENCES FROM PAQ8J
-
-1) Slightly improved sparse model.
-2) Added new family of sparse contexts. Each byte mapped to 3-bit value, where
-different values corresponds to different byte classes. For example, input
-byte 0x00 transformed into 0, all bytes that less then 16 -- into 5, all
-punctuation marks (ispunct(c)!=0) -- into 2 etc. Then this flags from 11
-previous bytes combined into 32-bit pseudo-context.
-
-All this improvements gives only 62 byte on BOOK1, but on binaries archive size
-reduced on 1-2%.
-
-DIFFERENCES FROM PAQ8JA
-
-Introduced distance model. Distance model uses distance to last occurence
-of some anchor char (0x00, space, newline, 0xff), combined with previous
-charactes as context. This slightly improves compression of files with
-variable-width record data.
-
-DIFFERENCES FROM PAQ8JB
-
-Restored recordModel(), broken in paq8hp*. Slightly tuned indirectModel().
-
-DIFFERENCES FROM PAQ8JC
-
-Changed the APMs in the Predictor. Up to a 0.2% improvement for some files.
-
-DIFFERENCES FROM PAQ8JD
-
-Added DMCModel.  Removed some redundant models from SparseModel and other
-minor tuneups.  Changes introduced in PAQ8K were not carried over.
-
-PAQ8L v.2
-
-Changed Mixer::p() to p() to fix a compiler error in Linux
-(patched by Indrek Kruusa, Apr. 15, 2007).
-
-DIFFERENCES FROM PAQ8L, PAQ8M
-
-Modified JPEG model by Jan Ondrus (paq8fthis2).  The new model improves
-compression by using decoded pixel values of current and adjacent blocks
-as context.  PAQ8M was an earlier version of the new JPEG model
-(from paq8fthis).
-
-DIFFERENCES FROM PAQ8N
-
-Improved bmp model. Slightly faster.
-
-DIFFERENCES FROM PAQ8O
-
-Modified JPEG model by Jan Ondrus (paq8fthis4).
-Added PGM (grayscale image) model form PAQ8I.
-Added grayscale BMP model to PGM model.
-Ver. 2 can be compiled using either old or new "for" loop scoping rules.
-Added APM and StateMap from LPAQ1
-Code optimizations from Enrico Zeidler
-Detection of BMP 4,8,24 bit and PGM 8 bit images before compress
-On non BMP,PGM,JPEG data mem is lower
-Fixed bug in BMP 8-bit detection in other files like .exe
-15. oct 2007
-Updates JPEG model by Jan Ondrus
-PGM detection bug fix
-22. oct 2007
-improved JPEG model by Jan Ondrus
-16. feb 2008
-fixed bmp detection bug
-added .rgb file support (uncompressed grayscale)
-
-DIFFERENCES FROM PAQ8O9
-
-Added wav Model. Slightly improved bmp model.
-
-DIFFERENCES FROM PAQ8P
-
-Added nestModel from paq8p3
-Modified wordModel from paq8p3
-Modified .pbm, .pgm, .ppm, .bmp, .rgb detection (from paq8p3)
-Modified WAV model (from paq8p_)
-Modified JPEG model (from paq8p2)
-Added im1bitModel (1-bit) (from paq8p3)
-Added compression of PPM, PBM images (from paq8p3)
-Removed pic model
-Modified EXE transformation (e8/e9)
-Changed image and audio data handling (separated in blocks)
-Added compression of (8-bit, 24-bit) TGA image data
-Improved TIFF image detection
-
 DIFFERENCES FROM PAQ8PX_V69
 Modified record model
 Text/utf detection 
 dynamic dict preprocess (modified version of XWRT)
-0xX0X0X0X0... to 0xXXXX... filter for text 
 Modified im8model 
+Added 4bit bmp
 base64
+
 */
 
 #define PROGNAME "paq8pxd"  // Please change this if you change the program.
@@ -886,7 +780,8 @@ U32 c4=0; // Last 4 whole bytes, packed.  Last byte is bits 0-7.
 int bpos=0; // bits in c0 (0 to 7)
 Buf buf;  // Rotating input queue set by Predictor
 int blpos=0; // Relative position in block
-
+typedef enum {DEFAULT, JPEG, HDR, IMAGE1,IMAGE4, IMAGE8, IMAGE24, AUDIO, EXE, CD, TEXT, TXTUTF8, BASE64, DICTTXT} Filetype;
+Filetype filetype=DEFAULT;
 ///////////////////////////// ilog //////////////////////////////
 
 // ilog(x) = round(log2(x) * 16), 0 <= x < 64K
@@ -1244,9 +1139,7 @@ class Mixer {
   Array<int> pr;   // last result (scaled 12 bits)
   Mixer* mp;       // points to a Mixer to combine results
 public:
-
   Mixer(int n, int m, int s=1, int w=0);
-
   // Adjust weights to minimize coding cost of last prediction
   void update() {
     for (int i=0; i<ncxt; ++i) {
@@ -1256,13 +1149,16 @@ public:
     }
     nx=base=ncxt=0;
   }
-
+  
+  void update2() {
+    if(filetype==DICTTXT) train(&tx[0], &wx[0], nx, ((y<<12)-base)*3/2), nx=0;
+    else update();
+  }
   // Input x (call up to N times)
   void add(int x) {
     assert(nx<N);
     tx[nx++]=x;
   }
-  
 
   // Set a context (call S times, sum of ranges <= M)
   void set(int cx, int range) {
@@ -1273,29 +1169,30 @@ public:
     cxt[ncxt++]=base+cx;
     base+=range;
   }
-
   // predict next bit
   int p() {
     while (nx&7) tx[nx++]=0;  // pad
     if (mp) {  // combine outputs
-      mp->update();
+      mp->update2();
       for (int i=0; i<ncxt; ++i) {
-         int dp=((dot_product(&tx[0], &wx[cxt[i]*N], nx)*7)>>8);
+         int dp=((dot_product(&tx[0], &wx[cxt[i]*N], nx)));//*7)>>8);
+          if(filetype==DICTTXT) dp=(dp*9)>>9;  else dp=dp>>5;
           pr[i]=squash(dp);
           mp->add(dp);
-        //pr[i]=squash(dot_product(&tx[0], &wx[cxt[i]*N], nx)>>5);
-       // mp->add(stretch(pr[i]));
-
       }
-      mp->set(0, 1);
+     if(filetype!=DICTTXT)  mp->set(0, 1);
       return mp->p();
     }
     else {  // S=1 context
-      return pr[0]=squash(dot_product(&tx[0], &wx[0], nx)>>8);
+    if(filetype!=DICTTXT)  return pr[0]=squash(dot_product(&tx[0], &wx[0], nx)>>8);
+      int z=dot_product(&tx[0], &wx[0], nx);
+	base=squash( (z*15) >>13);
+	return squash(z>>9);
     }
   }
   ~Mixer();
 };
+
 
 Mixer::~Mixer() {
   delete mp;
@@ -1306,7 +1203,7 @@ Mixer::Mixer(int n, int m, int s, int w):
     N((n+7)&-8), M(m), S(s), tx(N), wx(N*M),
     cxt(S), ncxt(0), base(0), nx(0), pr(S), mp(0) {
   assert(n>0 && N>0 && (N&7)==0 && M>0);
-  int i;
+   int i;
   for (i=0; i<S; ++i)
     pr[i]=2048;
   for (i=0; i<N*M; ++i)
@@ -1529,6 +1426,7 @@ inline  U8* BH<B>::operator[](U32 i) {
 
 // Predict to mixer m from bit history state s, using sm to map s to
 // a probability.
+
 inline int mix2(Mixer& m, int s, StateMap& sm) {
   int p1=sm.p(s);
   int n0=-!nex(s,2);
@@ -1587,7 +1485,7 @@ public:
   void mix(Mixer& m, int rate=7) {
     *cp += ((y<<16)-(*cp)+(1<<(rate-1))) >> rate;
     cp=&t[cxt+c0];
-    m.add(stretch((*cp)>>4));
+     m.add(stretch((*cp)>>4));
   }
 };
 
@@ -1705,7 +1603,6 @@ inline void ContextMap::set(U32 cx, int next) {
 // Update the model with bit y1, and predict next bit to mixer m.
 // Context: cc=c0, bp=bpos, c1=buf(1), y1=y.
 int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
-
   // Update model with y
   int result=0;
   for (int i=0; i<cn; ++i) {
@@ -1855,113 +1752,182 @@ int matchModel(Mixer& m) {
 //////////////////////////// wordModel /////////////////////////
 U32 b2=0,b3=0,w4=0;
 U32 w5=0,f4=0,tt=0;
-U32 WRT_mpw[16]= { 3, 3, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 1, 0, 0, 0 };
-U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 6, 7, 7, 7 };
+U32 WRT_mpw[16]= { 4, 4, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0 };
+U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 7, 7, 7, 7 };
+int col=0;
 
 // Model English text (words and columns/end of line)
-static U32 frstchar=0, spafdo=0, spaces=0, spacecount=0, words=0, wordcount=0,wordlen=0,wordlen1=0;
+static U32 frstchar=0,spafdo=0,spaces=0,spacecount=0, words=0,wordcount=0,wordlen=0,wordlen1=0;
 void wordModel(Mixer& m) {
-  static U32 word0=0, word1=0, word2=0, word3=0, word4=0, word5=0;  // hashes
-  static U32 number0=0, number1=0;  // hashes
-  static U32 text0=0;  // hash stream of letters
-  static ContextMap cm(MEM*16, 20+3+3+6+1+1+1+1+1+1+2+1+1+1+1+4+1+1);
-  static int nl1=-3, nl=-2;  // previous, current newline position
-  // Update word hashes
-  if (bpos==0) {
-    int c=c4&255;
-    if (spaces&0x80000000) --spacecount;
-    if (words&0x80000000) --wordcount;
-    spaces=spaces*2;
-    words=words*2;
+	static U32 word0=0, word1=0, word2=0, word3=0, word4=0, word5=0;  // hashes
+	static U32 xword0=0,xword1=0,xword2=0,xword3=0,cword0=0,ccword=0;
+	static U32 number0=0, number1=0;  // hashes
+	static U32 text0=0;  // hash stream of letters
+	static ContextMap cm(MEM*16, 45);
+	static int nl1=-3, nl=-2;  // previous, current newline position
+	static U32 mask = 0;
+	// Update word hashes
+	if (bpos==0) {
+		int c=c4&255,f=0;
+		if (spaces&0x80000000) --spacecount;
+		if (words&0x80000000) --wordcount;
+		spaces=spaces*2;
+		words=words*2;
 
-    if (c>='A' && c<='Z') c+='a'-'A';
-    if ((c>='a' && c<='z') || (c>=128 &&(b2!=3))) {
-             
-      ++words, ++wordcount;
-      word0=word0*263*32+c;
-      text0=text0*997*16+c;
-      wordlen++;
-      wordlen=min(wordlen,45);
+		if (c>='A' && c<='Z') c+='a'-'A';
+		if ((c>='a' && c<='z') || c==1 || c==2 ||(c>=128 &&(b2!=3))) {
+			++words, ++wordcount;
+			word0=word0*263*32+c;
+			text0=text0*997*16+c;
+			wordlen++;
+			wordlen=min(wordlen,45);
+			f=0;
+		}
+		else {
+			if (word0) {
+				word5=word4*23;
+				word4=word3*19;
+				word3=word2*17;
+				word2=word1*13;
+				word1=word0*11;
+				wordlen1=wordlen;
+				if (c==':') cword0=word0;
+				if (c==']') xword0=word0;
+				ccword=0;
+				word0=wordlen=0;
+				if((c=='.'||c=='!'||c=='?') && buf(2)!=10 && filetype!=EXE) f=1; 
+				if ((c4&0xFFFF)==0x3D3D) xword1=word1,xword2=word2; // '=='
+			}
+			if (c==32 || c==10 ) { ++spaces, ++spacecount; if (c==10 ) nl1=nl, nl=pos-1;}
+			else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') spafdo=0,ccword=c*31; 
+			else { ++spafdo; spafdo=min(63,spafdo); }
+		}
+		if (c>='0' && c<='9') {
+			number0=number0*263*32+c;
+		}
+		else if (number0) {
+			number1=number0*11;
+			number0=0,ccword=0;
+		}
+		
+		col=min(255, pos-nl);
+		int above=buf[nl1+col]; // text column context
+		if (col<=2) frstchar=(col==2?min(c,96):0);
+//	cm.set(spafdo|col<<8);
+		cm.set(spafdo|spaces<<8);
+		cm.set(frstchar<<11|c);
+		cm.set(col<<8|frstchar);
+		cm.set(spaces<<8|(words&255));
+		
+		cm.set(number0+word2);
+		cm.set(number0+word1);
+		cm.set(number1+c);
+		cm.set(number0+number1);
+		cm.set(word0+number1);
+
+		cm.set(frstchar<<7);
+//	cm.set(wordlen<<16|c);
+		cm.set(wordlen1<<8|col);
+		cm.set(c*64+spacecount/2);
+		U32 h=wordcount*64+spacecount;
+		cm.set((c<<13)+h);
+//	cm.set(h); // 
+		cm.set(h+spafdo*8);
+
+		U32 d=c4&0xf0ff;
+		cm.set(d<<9|frstchar);
+
+		h=word0*271;
+		cm.set(h+ccword);
+		h=h+buf(1);
+		cm.set(h);
+		cm.set(word0);
+		cm.set(h+word1);
+		cm.set(word0+word1*31);
+		cm.set(h+word1+word2*29);
+		cm.set(text0&0xffffff);
+		cm.set(text0&0xfffff);
+        if (filetype==DICTTXT){
+		  cm.set(word0+xword0*31);
+		  cm.set(word0+xword1*31);
+		  cm.set(word0+xword2*31);
+        }
+		cm.set(word0+cword0*31);
+		cm.set(number0+cword0*31);
+		cm.set(h+word2);
+		cm.set(h+word3);
+		cm.set(h+word4);
+		cm.set(h+word5);
+	//	cm.set(buf(1)|buf(3)<<8|buf(5)<<16);
+	//	cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
+		cm.set(h+word1+word3);
+		cm.set(h+word2+word3);
+		if (f) {
+			word5=word4*29;
+			word4=word3*31;
+			word3=word2*37;
+			word2=word1*41;
+			word1='.';
+		}
+		cm.set(col<<16|buf(1)<<8|above);
+		cm.set(buf(1)<<8|above);
+		cm.set(col<<8|buf(1));
+		cm.set(col*(c==32));
+		cm.set(col);
+		cm.set(buf(1)^above);//for wordlist
+		
+   int fl = 0;
+    if ((c4&0xff) != 0) {
+      if (isalpha(c4&0xff)) fl = 1;
+      else if (ispunct(c4&0xff)) fl = 2;
+      else if (isspace(c4&0xff)) fl = 3;
+      else if ((c4&0xff) == 0xff) fl = 4;
+      else if ((c4&0xff) < 16) fl = 5;
+      else if ((c4&0xff) < 64) fl = 6;
+      else fl = 7;
     }
-  
-    else if (word0) {
-      word5=word4*23;
-      word4=word3*19;
-      word3=word2*17;
-      word2=word1*13;
-      word1=word0*11;
-      wordlen1=wordlen;
-      word0=wordlen=0;
-    }
-    if (c>='0' && c<='9') {
-      number0=number0*263*32+c;
-    }
-    else if (number0) {
-      number1=number0*11;
-      number0=0;
-    }
-    if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') spafdo=0; else { ++spafdo; spafdo=min(63,spafdo); }
-    if (c==32 || c==10) { ++spaces, ++spacecount; if (c==10) nl1=nl, nl=pos-1;}
-    int col=min(255, pos-nl), above=buf[nl1+col]; // text column context
-    if (col<=2) frstchar=(col==2?min(c,96):0);
-    cm.set(spafdo|col<<8);
-    cm.set(spafdo|spaces<<8);
-    cm.set(frstchar<<11|c);
-    cm.set(col<<8|frstchar);
-    cm.set(spaces<<8|(words&255));
-    cm.set(spafdo*8 * ((w4&3)==1) );
-    
-    cm.set(number0+word2*31);
-    cm.set(number0+word1*31);
-    cm.set(number0*31+c);
-    cm.set(number0+number1*31);
-    cm.set(word0+number1*31);
+    mask = (mask<<3)|fl;
+ 
+    cm.set(mask);
+    cm.set((mask<<8)|buf(1));
+    cm.set((mask<<17)|(buf(2)<<8)|buf(3));
+    cm.set((mask&0x1ff)|((f4&0x00fff0)<<9));
+	}
+	cm.mix(m);
+}
+// Model for 1-bit image data
 
-    cm.set(frstchar<<7);
-    cm.set(wordlen<<16|c);
-    cm.set(wordlen1<<8|col);
-    cm.set(c*64+spacecount/2);
-    U32 h=wordcount*64+spacecount;
-    cm.set((c<<13)+h);
-    cm.set(h);
-    cm.set(h+spafdo*8);
+void im1bitModel(Mixer& m, int w) {
+  static U32 r0, r1, r2, r3;  // last 4 rows, bit 8 is over current pixel
+  static Array<U8> t(0x10200);  // model: cxt -> state
+  const int N=4+1+1+1+1+1;  // number of contexts
+  static int cxt[N];  // contexts
+  static StateMap sm[N];
+  // update the model
+  int i;
+  for (i=0; i<N; ++i)
+    t[cxt[i]]=nex(t[cxt[i]],y);
 
-    U32 d=c4&0xffff;
-    cm.set(d<<9|frstchar);
-    
-    h=word0*271+buf(1);
-    cm.set(h);
-    cm.set(word0);
-    cm.set(h+word1);
-    cm.set(word0+word1*31);
-    cm.set(h+word1+word2*29);
-    cm.set(text0&0xffffff);
-    cm.set(text0&0xfffff);
+  // update the contexts (pixels surrounding the predicted one)
+  r0+=r0+y;
+  r1+=r1+((buf(w-1)>>(7-bpos))&1);
+  r2+=r2+((buf(w+w-1)>>(7-bpos))&1);
+  r3+=r3+((buf(w+w+w-1)>>(7-bpos))&1);
+  cxt[0]=(r0&0x7)|(r1>>4&0x38)|(r2>>3&0xc0);
+  cxt[1]=0x100+((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80));
+  cxt[2]=0x200+((r0&0x3f)^(r1&0x3ffe)^(r2<<2&0x7f00)^(r3<<5&0xf800));
+  cxt[3]=0x400+((r0&0x3e)^(r1&0x0c0c)^(r2&0xc800));
+  cxt[4]=0x800+(((r1&0x30)^(r3&0x0c0c))|(r0&3));
+  cxt[5]=0x1000+((!r0&0x444)|(r1&0xC0C)|(r2&0xAE3)|(r3&0x51C));
+  cxt[6]=0x2000+((r0&1)|(r1>>4&0x1d)|(r2>>1&0x60)|(r3&0xC0));
+  cxt[7]=0x4000+((r0>>4&0x2AC)|(r1&0xA4)|(r2&0x349)|(!r3&0x14D));
 
-    cm.set(h+word2);
-    cm.set(h+word3);
-    cm.set(h+word4);
-    cm.set(h+word5);
-    cm.set(buf(1)|buf(3)<<8|buf(5)<<16);
-    cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
-
-    cm.set(h+word1+word3);
-    cm.set(h+word2+word3);
-
-    // Text column models
-    cm.set(col<<16|buf(1)<<8|above);
-    cm.set(buf(1)<<8|above);
-    cm.set(col<<8|buf(1));
-    cm.set(col*(c==32));
-    cm.set(col);
-  
-     cm.set(w4&15);
-     cm.set(f4);
-     cm.set((w4&63)*128+(5<<17));
-     cm.set((f4&0xffff)<<11|frstchar);
-     cm.set((words&12)*16+(w4&12)*4+(b2>>4));
-  }
-  cm.mix(m);
+  // predict
+  for (i=0; i<N; ++i) m.add(stretch(sm[i].p(t[cxt[i]])));
+  m.set((r0&0x7)|(r1>>4&0x38)|(r2>>3&0xc0), 256);
+  m.set(((r1&0x30)^(r3&0x0c))|(r0&3),256);
+  m.set((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80), 256);
+  m.set((r0&0x3e)^((r1>>8)&0x0c)^((r2>>8)&0xc8),256);
 }
 
 //////////////////////////// recordModel ///////////////////////
@@ -1969,19 +1935,19 @@ void wordModel(Mixer& m) {
 // Model 2-D data with fixed record length.  Also order 1-2 models
 // that include the distance to the last match.
 
-void recordModel(Mixer& m) {
+int recordModel(Mixer& m, int rrlen=0) {
   static int cpos1[256] , cpos2[256], cpos3[256], cpos4[256];
   static int wpos1[0x10000]; // buf(1..2) -> last position
-  static int rlen=2, rlen1=3, rlen2=4, rlen3=5;  // run length and 2 candidates
+  static int rlen=2, rlen1=3, rlen2=4, rlen3=5,rlenl=0;  // run length and 2 candidates
   static int rcount1=0, rcount2=0,rcount3=0;  // candidate counts
   static ContextMap cm(32768, 3), cn(32768/2, 3), co(32768*2, 3), cp(MEM, 3);
-
   // Find record length
   if (!bpos) {
     int w=c4&0xffff, c=w&255, d=w>>8;
     int r=pos-cpos1[c];
-    if (r>1 ) {
-            if ((r==cpos1[c]-cpos2[c] || r==cpos2[c]-cpos3[c] || r==cpos3[c]-cpos4[c]
+    if (r>1 ){
+            if( rrlen==0 ) {
+      if ((r==cpos1[c]-cpos2[c] || r==cpos2[c]-cpos3[c] || r==cpos3[c]-cpos4[c] 
         )&& (r>10 || ((c==buf(r*5+1)) && c==buf(r*6+1)))) {
       if (r==rlen1) ++rcount1;
       else if (r==rlen2) ++rcount2;
@@ -1989,12 +1955,14 @@ void recordModel(Mixer& m) {
       else if (rcount1>rcount2) rlen2=r, rcount2=1;
       else if (rcount2>rcount3) rlen3=r, rcount3=1;
       else rlen1=r, rcount1=1;
-}  
-}
-    if (rcount1>15 && rlen!=rlen1) rlen=rlen1, rcount1=rcount2=rcount3=0/*, printf("R1: %d  \n",rlen)*/;
-    if (rcount2>20 && rlen!=rlen2) rlen=rlen2, rcount1=rcount2=rcount3=0/*, printf("R2: %d  \n",rlen)*/;
-    if (rcount3>25 && rlen!=rlen3) rlen=rlen3, rcount1=rcount2=rcount3=0/*, printf("R3: %d  \n",rlen)*/;
-
+     }  
+     }
+     else   rlen=rrlen;
+    } 
+ 
+    if (rcount1>12 && rlen!=rlen1 && rlenl*2!=rlen1) rlenl=rlen=rlen1, rcount1=rcount2=rcount3=0/*, printf("R1: %d  \n",rlen)*/;
+    if (rcount2>18 && rlen!=rlen2 && rlenl*2!=rlen2) rlenl=rlen,rlen=rlen2, rcount1=rcount2=rcount3=0/*, printf("R2: %d  \n",rlen)*/;
+    if (rcount3>24 && rlen!=rlen3 && rlenl*2!=rlen3) rlenl=rlen,rlen=rlen3, rcount1=rcount2=rcount3=0/*, printf("R3: %d  \n",rlen)*/;
 
     // Set 2 dimensional contexts
     assert(rlen>0);
@@ -2017,7 +1985,6 @@ void recordModel(Mixer& m) {
     cp.set(rlen|buf(rlen)<<10|col<<18);
     cp.set(rlen|buf(1)<<10|col<<18);
     cp.set(col|rlen<<12);
-
     // update last context positions
     cpos4[c]=cpos3[c];
     cpos3[c]=cpos2[c];
@@ -2029,12 +1996,13 @@ void recordModel(Mixer& m) {
   cn.mix(m);
   co.mix(m);
   cp.mix(m);
+  return rlen;
 }
 
 void recordModel1(Mixer& m) {
   static int cpos1[256];
   static int wpos1[0x10000]; // buf(1..2) -> last position
-  static ContextMap cm(32768, 2), cn(32768/2, 4+1), co(32768*2, 4),cp(32768*2, 3), cq(32768*4, 3);
+  static ContextMap cm(32768, 2), cn(32768/2, 4+1), co(32768*4, 4),cp(32768*2, 3), cq(32768*2, 3);
 
   // Find record length
   if (!bpos) {
@@ -2079,7 +2047,7 @@ void recordModel1(Mixer& m) {
 // Model order 1-2 contexts with gaps.
 
 void sparseModel(Mixer& m, int seenbefore, int howmany) {
-  static ContextMap cm(MEM*2, 40);
+  static ContextMap cm(MEM*2, 40+2);
   if (bpos==0) {
     cm.set(seenbefore);
     cm.set(howmany);
@@ -2087,6 +2055,8 @@ void sparseModel(Mixer& m, int seenbefore, int howmany) {
     cm.set(buf(1)|buf(6)<<8);
     cm.set(buf(3)|buf(6)<<8);
     cm.set(buf(4)|buf(8)<<8);
+    cm.set(buf(1)|buf(3)<<8|buf(5)<<16);
+		cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
     cm.set(c4&0x00f0f0ff);
     cm.set(c4&0x00ff00ff);
     cm.set(c4&0xff0000ff);
@@ -2100,8 +2070,7 @@ void sparseModel(Mixer& m, int seenbefore, int howmany) {
     cm.set(c4&0xC3CCC38C);
     cm.set(c4&0x0081CC81);
     cm.set(c4&0x00c10081);
-    
-    for (int i=1; i<8; ++i) {
+     for (int i=1; i<8; ++i) {
       cm.set(seenbefore|buf(i)<<8);
       cm.set((buf(i+2)<<8)|buf(i+1));
       cm.set((buf(i+3)<<8)|buf(i+1));
@@ -2284,37 +2253,8 @@ void im8bitModel(Mixer& m, int w) {
 
 //////////////////////////// im1bitModel /////////////////////////////////
 
-// Model for 1-bit image data
 
-void im1bitModel(Mixer& m, int w) {
-  static U32 r0, r1, r2, r3;  // last 4 rows, bit 8 is over current pixel
-  static Array<U8> t(0x10200);  // model: cxt -> state
-  const int N=4+1+1+1+1+1;  // number of contexts
-  static int cxt[N];  // contexts
-  static StateMap sm[N];
 
-  // update the model
-  int i;
-  for (i=0; i<N; ++i)
-    t[cxt[i]]=nex(t[cxt[i]],y);
-
-  // update the contexts (pixels surrounding the predicted one)
-  r0+=r0+y;
-  r1+=r1+((buf(w-1)>>(7-bpos))&1);
-  r2+=r2+((buf(w+w-1)>>(7-bpos))&1);
-  r3+=r3+((buf(w+w+w-1)>>(7-bpos))&1);
-  cxt[0]=(r0&0x7)|(r1>>4&0x38)|(r2>>3&0xc0);
-  cxt[1]=0x100+((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80));
-  cxt[2]=0x200+((r0&0x3f)^(r1&0x3ffe)^(r2<<2&0x7f00)^(r3<<5&0xf800));
-  cxt[3]=0x400+((r0&0x3e)^(r1&0x0c0c)^(r2&0xc800));
-  cxt[4]=0x800+(((r1&0x30)^(r3&0x0c0c))|(r0&3));
-  cxt[5]=0x1000+((!r0&0x444)|(r1&0xC0C)|(r2&0xAE3)|(r3&0x51C));
-  cxt[6]=0x2000+((r0&1)|(r1>>4&0x1d)|(r2>>1&0x60)|(r3&0xC0));
-  cxt[7]=0x4000+((r0>>4&0x2AC)|(r1&0xA4)|(r2&0x349)|(!r3&0x14D));
-
-  // predict
-  for (i=0; i<N; ++i) m.add(stretch(sm[i].p(t[cxt[i]])));
-}
 
 //////////////////////////// jpegModel /////////////////////////
 
@@ -2887,7 +2827,7 @@ void wavModel(Mixer& m, int info) {
   const int SC=0x20000;
   static SmallStationaryContextMap scm1(SC), scm2(SC), scm3(SC), scm4(SC), scm5(SC), scm6(SC), scm7(SC);
   static ContextMap cm(MEM*4, 10);
-  static int bits, channels, w;
+  static int bits, channels, w,rlen=0;
   static int z1, z2, z3, z4, z5, z6, z7;
 
   if (!bpos && !blpos) {
@@ -2895,6 +2835,7 @@ void wavModel(Mixer& m, int info) {
     channels=info%2+1;
     w=channels*(bits>>3);
     wmode=info;
+    rlen=(bits/8*channels);
     if (channels==1) S=48,D=0; else S=36,D=12;
     for (int j=0; j<channels; j++) {
       for (k=0; k<=S+D; k++) for (l=0; l<=S+D; l++) F[k][l][j]=0, L[k][l]=0;
@@ -3004,7 +2945,7 @@ void wavModel(Mixer& m, int info) {
   scm6.mix(m);
   scm7.mix(m);
   cm.mix(m);
-  if (level>=4) recordModel(m);
+  if (level>=4) recordModel(m,rlen);
   static int col=0;
   if (++col>=w*8) col=0;
   m.set(3, 8);
@@ -3167,8 +3108,8 @@ void dmcModel(Mixer& m) {
 void nestModel(Mixer& m)
 {
   static int ic=0, bc=0, pc=0,vc=0, qc=0, lvc=0, wc=0;
-  static ContextMap cm(MEM, 14);
-  static U32 mask = 0;
+  static ContextMap cm(MEM/2, 14-4);
+ // static U32 mask = 0;
   if (bpos==0) {
     int c=c4&255, matched=1, vv;
     const int lc = (c >= 'A' && c <= 'Z'?c+'a'-'A':c);
@@ -3219,18 +3160,6 @@ void nestModel(Mixer& m)
     if (matched) bc = 0; else bc += 1;
     if (bc > 300) bc = ic = pc = qc = 0;
 
-    int fl = 0;
-    if ((c4&0xff) != 0) {
-      if (isalpha(c4&0xff)) fl = 1;
-      else if (ispunct(c4&0xff)) fl = 2;
-      else if (isspace(c4&0xff)) fl = 3;
-      else if ((c4&0xff) == 0xff) fl = 4;
-      else if ((c4&0xff) < 16) fl = 5;
-      else if ((c4&0xff) < 64) fl = 6;
-      else fl = 7;
-    }
-    mask = (mask<<3)|fl;
-
     cm.set((3*vc+77*pc+373*ic+qc)&0xffff);
     cm.set((31*vc+27*pc+281*qc)&0xffff);
     cm.set((13*vc+271*ic+qc+bc)&0xffff);
@@ -3238,64 +3167,110 @@ void nestModel(Mixer& m)
     cm.set((13*vc+ic)&0xffff);
     cm.set((vc/3+pc)&0xffff);
     cm.set((7*wc+qc)&0xffff);
-    cm.set((vc&0xffff)|((c4&0xff)<<16));
-    cm.set(((3*pc)&0xffff)|((c4&0xff)<<16));
-    cm.set((ic&0xffff)|((c4&0xff)<<16));
-    cm.set(mask);
-    cm.set((mask<<8)|buf(1));
-    cm.set((mask<<17)|(buf(2)<<8)|buf(3));
-    cm.set((mask&0x1ff)|((c4&0xf0f0f0f0)<<9));
+    cm.set((vc&0xffff)|((f4&0xf)<<16));
+    cm.set(((3*pc)&0xffff)|((f4&0xf)<<16));
+    cm.set((ic&0xffff)|((f4&0xf)<<16));
   }
   cm.mix(m);
 }
-
+U32 x4=0,s4=0;
 void sparseModel1(Mixer& m, int seenbefore, int howmany) {
-  static ContextMap cm(MEM*2, 9+2*6);
-  static ContextMap cn(MEM, 3);
+   static ContextMap cm(MEM*4, 31);
+    static SmallStationaryContextMap scm1(0x10000), scm2(0x20000), scm3(0x2000),
+     scm4(0x8000), scm5(0x2000),scm6(0x2000);
   if (bpos==0) {
-    cm.set(seenbefore);
-    cm.set(howmany);
-    cm.set(buf(1)|buf(5)<<8);
-    cm.set(buf(1)|buf(6)<<8);
-    cm.set(buf(3)|buf(6)<<8);
-    cm.set(c4&0x00f0f0ff);
-    cm.set(c4&0x00ff00ff);
-    cm.set(c4&0xff0000ff);
-    for (int i=1; i<7; ++i) {
+    scm5.set(seenbefore);
+    scm6.set(howmany);
+    cm.set(x4&0x00ff00ff);
+    cm.set(x4&0xff0000ff);
+    cm.set(x4&0x00ffff00);
+    cm.set((x4&0xf8f8f8f8));
+    cm.set((x4&0x80f0f0ff));
+    
+    for (int i=1; i<6; ++i) { 
       cm.set(seenbefore|buf(i)<<8);
       cm.set((buf(i+3)<<8)|buf(i+1));
     }
-    cn.set(words&0x1ffff);
-    cn.set(f4&0x000fffff);
-    cn.set(tt&0x00000fff);
-     
+    cm.set(spaces&0x7fff);
+    cm.set(spaces&0xff);
+    cm.set(words&0x1ffff);
+    cm.set(f4&0x000fffff);
+    cm.set(tt&0x00000fff);
+     U32  h=w4<<6;
+    cm.set(buf(1)+(h&0xffffff00));
+    cm.set(buf(1)+(h&0x00ffff00));
+    cm.set(buf(1)+(h&0x0000ff00));
+     U32 d=c4&0xffff;
+     h<<=6;
+    cm.set(d+(h&0xffff0000));
+    cm.set(d+(h&0x00ff0000));
+     h<<=6, d=c4&0xffffff;
+    cm.set(d+(h&0xff000000));
+    cm.set(w4&0xf0f0f0ff);
+    
+    cm.set(f4);
+    cm.set((w4&63)*128+(5<<17));
+    cm.set((f4&0xffff)<<11|frstchar);
+    cm.set(spafdo*8*((w4&3)==1));
+	
+      scm1.set(words&127);
+      scm2.set((words&12)*16+(w4&12)*4+(buf(1)>>4));
+      scm3.set(w4&15);
+      scm4.set(spafdo*((w4&3)==1));
   }
   cm.mix(m);
-  cn.mix(m);
-}
+  scm1.mix(m);
+  scm2.mix(m);
+  scm3.mix(m);
+  scm4.mix(m);
+  scm5.mix(m);
+  scm6.mix(m);
 
+} 
+
+// Normal model
+
+int normalModel(Mixer& m) {
+  static ContextMap cm(MEM*32, 9);
+  static RunContextMap  rcm7(MEM/4), rcm9(MEM/4), rcm10(MEM/2);
+  static U32 cxt[14];  // order 0-11 contexts
+  int primes[]={ 0, 257,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173};   
+
+  if (bpos==0) {
+    int i;
+    for (i=14; i>0; --i)  // update order 0-11 context hashes
+      cxt[i]=cxt[i-1]*primes[i]+(c4&255);
+    for (i=0; i<7; ++i)
+      cm.set(cxt[i]);
+    rcm7.set(cxt[7]);
+    cm.set(cxt[8]);
+    rcm9.set(cxt[10]);
+    rcm10.set(cxt[12]);
+    cm.set(cxt[14]);
+  }
+  rcm7.mix(m);
+  rcm9.mix(m);
+  rcm10.mix(m);
+  return cm.mix(m);
+}
 //////////////////////////// contextModel //////////////////////
 
-
-typedef enum {DEFAULT, JPEG, HDR, IMAGE1, IMAGE8, IMAGE24, AUDIO, EXE, CD, TEXT, TXTUTF8, TXT0, BASE64, DICTTXT} Filetype;
-
 // This combines all the context models with a Mixer.
- Filetype filetype=DEFAULT;
+
 int contextModel2() {
-  static ContextMap cm(MEM*32, 9);
-  static RunContextMap rcm7(MEM), rcm9(MEM), rcm10(MEM);
+ 
   static Mixer m(845+80, 3095+256*7+256*8+256*7+2048+256*7-256*4-264, 7);
-  static U32 cxt[16];  // order 0-11 contexts
+ 
   static Filetype ft2;//,filetype=DEFAULT;
   static int size=0;  // bytes remaining in block
   static int info=0;  // image width or audio type
-
+ 
   // Parse filetype and size
   if (bpos==0) {
     --size;
     ++blpos;
     if (size==-1) ft2=(Filetype)buf(1);
-    if (size==-5 && ft2!=IMAGE1 && ft2!=IMAGE8 && ft2!=IMAGE24 && ft2!=AUDIO) {
+    if (size==-5 && ft2!=IMAGE1 && ft2!=IMAGE4  && ft2!=IMAGE8 && ft2!=IMAGE24 && ft2!=AUDIO) {
       size=buf(4)<<24|buf(3)<<16|buf(2)<<8|buf(1);
       if (ft2==CD) size=0;
       blpos=0;
@@ -3314,106 +3289,92 @@ int contextModel2() {
 
   // Test for special file types
   int ismatch=ilog(matchModel(m));  // Length of longest matching context
-  if (filetype==IMAGE1) im1bitModel(m, info);
-  if (filetype==IMAGE8) return im8bitModel(m, info), m.p();
+  if (filetype==IMAGE1)  return im1bitModel(m, info), m.p();;
+  if (filetype==IMAGE8 ) return im8bitModel(m, info), m.p();
   if (filetype==IMAGE24) return im24bitModel(m, info), m.p();
   if (filetype==AUDIO) return wavModel(m, info), m.p();
   if (filetype==JPEG) if (jpegModel(m)) return m.p();
 
-  // Normal model
-  if (bpos==0) {
-    int i;
-    for (i=15; i>0; --i)  // update order 0-11 context hashes
-      cxt[i]=cxt[i-1]*257+(c4&255)+1;
-    for (i=0; i<7; ++i)
-      cm.set(cxt[i]);
-    rcm7.set(cxt[7]);
-    cm.set(cxt[8]);
-    rcm9.set(cxt[10]);
-    rcm10.set(cxt[12]);
-    cm.set(cxt[14]);
-  }
-  int order=cm.mix(m);
-    
-  rcm7.mix(m);
-  rcm9.mix(m);
-  rcm10.mix(m);
-
-   /*if (level>=4 && filetype!=IMAGE1) {
-    sparseModel(m,ismatch,order);
-    distanceModel(m);
-    recordModel(m);
-    wordModel(m);
-    indirectModel(m);
-    dmcModel(m);
-    nestModel(m);
-    if (filetype==EXE) exeModel(m);
-  }*/
-if (level>=4 && filetype!=IMAGE1) {
-         
-	switch (filetype)
-	{
+  int order=normalModel(m);
+  order=order-2; if(order<0) order=0;
+  
+  if (level>=4 && filetype!=IMAGE1){
+  	switch (filetype){
 	case DICTTXT:
 		{ 
+            wordModel(m);
 			sparseModel1(m,ismatch,order);
 			nestModel(m);
-			wordModel(m);
 			indirectModel(m);
 			dmcModel(m);
 			recordModel1(m);
-			
-			order = order-2;
-			if (order<0) order=0;
-			U32 c1=buf(1), c2=buf(2), c3=buf(3), c;
-			
+			U32 c3=buf(3), c;
 			c=(words>>1)&63;
 			m.set((w4&3)*64+c+order*256, 256*7); 
 			m.set(c0, 256);
 			m.set(ismatch, 256);
-			m.set(256*order + (w4&240) + (c2>>4), 256*7);
+			m.set(256*order + (w4&240) + (b3>>4), 256*7);
 			c=(w4&255)+256*bpos;
 			m.set(c, 256*8);
 			if (bpos)
 			{
 			  c=c0<<(8-bpos); if (bpos==1)c+=c3/2;
-		      c=(min(bpos,5))*256+c1/32+8*(c2/32)+(c&192);
-			}
-			else c=c3/128+(c4>>31)*2+4*(c2/64)+(c1&240); 
+              c=(min(bpos,5))*256+(tt&63)+(c&192);
+		    }
+	        else c=(words&12)*16+(tt&63);
 			m.set(c, 1536);
 			c=bpos*256+((c0<<(8-bpos))&255);
-			c1 = (words<<bpos) & 255;
-			m.set(c+(c1>>bpos), 2048);
+			c3 = (words<<bpos) & 255;
+			m.set(c+(c3>>bpos), 2048);
 			int pr=m.p();
 			return pr;
 			break;
 		}
+	case IMAGE4:
+		{ 
+            recordModel(m, info);
+            break;
+        }
 	default: { 
+            int rlen=0;
+            if (filetype!=TEXT) rlen=recordModel(m);
+            if (rlen==216) return im1bitModel(m, rlen),m.p();
+            wordModel(m);
 			sparseModel(m,ismatch,order);
 			distanceModel(m);
-			recordModel(m);
 			indirectModel(m);
-			wordModel(m);
-			nestModel(m);
+			if (filetype!=EXE) nestModel(m);
 			dmcModel(m);
 			if (filetype==EXE) exeModel(m);
 			break;
 		} 
 	}
-}
- 
-  order = order-2;
-  if (order<0) order=0;
+  }
 
   U32 c1=buf(1), c2=buf(2), c3=buf(3), c;
+  m.set(c1+8, 264); 
   m.set(c0, 256);
+  if (filetype==TEXT) c=c2&0x1F|((c3&0x1F)<<5); else c=c2;
+  m.set(c, 1023);
+  U8 d=c0<<(8-bpos);
+  if (filetype==EXE) {
+    m.set(order+8*(c4>>6&3)+32*(bpos==0)+64*(c1==c2), 256);
+    m.set(c3, 256);
+  }else{
+    m.set(order*256+(w4&240)+(b3>>4),1536);
+    m.set(bpos*256+((words<<bpos&255)>>bpos|d&255),2048);//, 256);
+   }
+  m.set(ismatch, 256);
+ /* m.set(c1+8, 264);
+  m.set(c0, 256);
+  m.set(order+8*(c4>>6&3)+32*(bpos==0)+64*(c1==c2)+128*(filetype==EXE), 256);
   m.set(c2, 256);
   m.set(c3, 256);
-  m.set(c1+8, 264); 
-  m.set(order+8*(c4>>6&3)+32*(bpos==0)+64*(c1==c2)+128*(filetype==EXE), 256);
-  m.set(ismatch, 256);
+  m.set(ismatch, 256);*/
+  
   if (bpos)
   {
-    c=c0<<(8-bpos); if (bpos==1)c+=c3/2;
+    c=d; if (bpos==1)c+=c3/2;
     c=(min(bpos,5))*256+c1/32+8*(c2/32)+(c&192);
   }
   else c=c3/128+(c4>>31)*2+4*(c2/64)+(c1&240); 
@@ -3440,46 +3401,75 @@ public:
 
 Predictor::Predictor(): pr(2048) {}
 
+
 void Predictor::update() {
   static APM1 a(256), a1(0x10000), a2(0x10000), a3(0x10000),
                       a4(0x10000), a5(0x10000), a6(0x10000);
-
+  static U32 tri[4]={0,4,3,7}, trj[4]={0,6,6,12};
+  static U32 fails=0, failz=0, failcount=0,x5=0;
   // Update global context: pos, bpos, c0, c4, buf
 c0+=c0+y;
 if (c0>=256) {
 	buf[pos++]=c0;
-	c4=(c4<<8)+c0-256;
-	if (  filetype==DICTTXT){
-		int i=WRT_mpw[c0>>4];
+	c0-=256;
+	c4=(c4<<8)+c0;
+        int i=WRT_mpw[c0>>4];
 		w4=w4*4+i;
 		if (b2==3) i=2;
 		w5=w5*4+i;
 		b3=b2;
-        b2=c0;
-		if(c0=='.' || c0=='!' || c0=='?') {
-			w5=(w5<<8)|0x3ff,f4=(f4&0xfffffff0)+2;
-			if(c0!='!') w4|=12;
-				if(c0!='!') tt=(tt&0xfffffff8)+1;
+        b2=c0;   
+		int f2=buf(2);
+	    x4=x4*256+c0,x5=(x5<<8)+c0;
+	    if(c0=='.' || c0=='!' || c0=='?' || c0=='/'|| c0==')') {
+			w5=(w5<<8)|0x3ff,f4=(f4&0xfffffff0)+2,x5=(x5<<8)+c0,x4=x4*256+c0;
+            w4|=12, tt=(tt&0xfffffff8)+1,b3='.';
 		}
-		tt=tt*8+WRT_mtt[c0>>4];
 		if (c0==32) --c0;
+		tt=tt*8+WRT_mtt[c0>>4];
 		f4=f4*16+(c0>>4);
-	}
-	else f4=w5=w4=b2=tt=0;
-
 	c0=1;
 }
+	
 bpos=(bpos+1)&7;
 
   // Filter the context model with APMs
   int pr0=contextModel2();
-
+  
+ if (filetype==IMAGE1 || filetype==JPEG || filetype==AUDIO) {
+      pr=pr0;
+ }
+ else {
+     if (fails&0x00000080) --failcount;
+        fails=fails*2;
+        failz=failz*2;
+        if (y) pr^=4095;
+        if (pr>=1820) ++fails, ++failcount;
+        if (pr>= 848) ++failz;
+      int pv, pu,pz,pt;
+        pu=a.p(pr0, c0, 3)+7*pr0+4>>3, pz=failcount+1;
+        pz+=tri[(fails>>5)&3];
+        pz+=trj[(fails>>3)&3];
+        pz+=trj[(fails>>1)&3];
+        if (fails&1) pz+=8;
+        pz=pz/2;      
+ 
+     int r=7;
+     if (filetype==EXE )  r--;
+   pu=a4.p(pu,    (c0*2)^hash(buf(1), (x5>>8)&255, (x5>>16)&0x80ff)&0xffff,r);
+  pv=a2.p(pr0,   (c0*8)^hash(29,failz&2047)&0xffff,1+r);
+  pv=a5.p(pv,           hash(c0,w5&0xfffff)&0xffff,r);
+  pt=a3.p(pr0,  (c0*32)^hash(19,     x5&0x80ffff)&0xffff,r);
+  pz=a6.p(pu,    (c0*4)^hash(min(9,pz),x5&0x80ff)&0xffff,r);
+  if (fails&255)  pr =pt*6+pu  +pv*11+pz*14 +16>>5;
+  else		      pr =pt*4+pu*5+pv*12+pz*11 +16>>5;
+}
+/*
   pr=a.p(pr0, c0);
 
   int pr1=a1.p(pr0, c0+256*buf(1));
   int pr2=a2.p(pr0, (c0^hash(buf(1), buf(2)))&0xffff);
   int pr3=a3.p(pr0, (c0^hash(buf(1), buf(2), buf(3)))&0xffff);
-
   pr0=(pr0+pr1+pr2+pr3+2)>>2;
 
   pr1=a4.p(pr, c0+256*buf(1));
@@ -3488,6 +3478,7 @@ bpos=(bpos+1)&7;
   pr=(pr+pr1+pr2+pr3+2)>>2;
 
   pr=(pr+pr0+1)>>1;
+*/
 }
 
 //////////////////////////// Encoder ////////////////////////////
@@ -3641,15 +3632,18 @@ void Encoder::flush() {
 deth=(header_len),detd=(width)*(height),info=(width),\
 fseek(in, start+(start_pos), SEEK_SET),HDR
 
-
 #define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
 deth=(header_len),detd=(data_len),info=(wmode),\
 fseek(in, start+(start_pos), SEEK_SET),HDR
 
+//Return only base64 data. No HDR.
 #define B64_DET(type,start_pos,header_len,base64len) return dett=(type),\
-deth=(header_len),detd=base64len,\
-fseek(in, start+(start_pos), SEEK_SET),HDR
+deth=(-1),detd=base64len,\
+fseek(in, start+start_pos, SEEK_SET),DEFAULT
 
+inline bool is_base64(unsigned char c) {
+    return (isalnum(c) || (c == '+') || (c == '/')|| (c == 10) || (c == 13));
+}
 // Function ecc_compute(), edc_compute() and eccedc_init() taken from 
 // ** UNECM - Decoder for ECM (Error Code Modeler) format.
 // ** Version 1.0
@@ -3752,7 +3746,7 @@ int expand_cd_sector(U8 *data, int a, int test) {
 }
 
 // Detect EXE or JPEG data
-Filetype detect(FILE* in, int n, Filetype type, int &info) {
+Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0) {
   U32 buf1=0, buf0=0;  // last 8 bytes
   long start=ftell(in);
 
@@ -3775,19 +3769,18 @@ Filetype detect(FILE* in, int n, Filetype type, int &info) {
   int cdi=0,cda=0,cdm=0;  // For CD sectors detection
   U32 cdf=0;
  // For TEXT
-  int txtStart=0,txtLen=0,txtOff=0;
+  int txtStart=0,txtLen=0,txtOff=0,txtbinc=0,txtbinp=0;
   int utfc=0,utfb=0,txtIsUTF8=0; //utf count 2-6, current byte
-  const int txtMinLen=1024*768;
-// for unicode text
-  int txtStart1=0,txtLen1=0,txtOff1=0,txtTXT0=0;
-  const int txtMinLen1=1024*4;
+  const int txtMinLen=1024*512;
   //base64
-  int b64s=0,b64p=0,b64slen=0,b64h=0;
-int base64start=0,base64end=0,b64line=0,b64nl=0;
+  int b64s=0,b64s1=0,b64p=0,b64slen=0,b64h=0;
+  int base64start=0,base64end=0,b64line=0,b64nl=0,b64lcount=0;
+
   // For image detection
   static int deth=0,detd=0;  // detected header/data size in bytes
   static Filetype dett;  // detected block type
-  if (deth) return fseek(in, start+deth, SEEK_SET),deth=0,dett;
+  if (deth >1) return fseek(in, start+deth, SEEK_SET),deth=0,dett;
+  else if (deth ==-1) return fseek(in, start, SEEK_SET),deth=0,dett;
   else if (detd) return fseek(in, start+detd, SEEK_SET),detd=0,DEFAULT;
 
   for (int i=0; i<n; ++i) {
@@ -3929,10 +3922,11 @@ int base64start=0,base64end=0,b64line=0,b64nl=0;
       else if (p==16 && buf0!=0x28000000) bmp=0; //windows bmp?
       else if (p==20) bmpx=bswap(buf0),bmp=((bmpx==0||bmpx>0x30000)?0:bmp); //width
       else if (p==24) bmpy=abs((int)bswap(buf0)),bmp=((bmpy==0||bmpy>0x10000)?0:bmp); //height
-      else if (p==27) imgbpp=c,bmp=((imgbpp!=1 && imgbpp!=8 && imgbpp!=24)?0:bmp);
+      else if (p==27) imgbpp=c,bmp=((imgbpp!=1 && imgbpp!=4 && imgbpp!=8 && imgbpp!=24)?0:bmp);
       else if (p==31) {
         if (imgbpp!=0 && buf0==0) {
           if (imgbpp==1) IMG_DET(IMAGE1,bmp-1,bmpof,(((bmpx-1)>>5)+1)*4,bmpy);
+          else if (imgbpp==4) IMG_DET(IMAGE4,bmp-1,bmpof,((bmpx>>1)+3)&-4,bmpy);
           else if (imgbpp==8) IMG_DET(IMAGE8,bmp-1,bmpof,(bmpx+3)&-4,bmpy);
           else if (imgbpp==24) IMG_DET(IMAGE24,bmp-1,bmpof,((bmpx*3)+3)&-4,bmpy);
         }
@@ -4067,8 +4061,19 @@ int base64start=0,base64end=0,b64line=0,b64nl=0;
       e8e9count=e8e9pos=0;
     }
   
-    //detect base64
-    if (b64s==0 && buf0==0x73653634 && (buf1&0xffffff)==0x206261) b64s=1,b64p=i-6,b64h=0,b64slen=0; //' base64'
+    //detect base64 in html/xml container, single stream
+    // ';base64,' or '![CDATA['
+    if (b64s1==0 && ((buf1==0x3b626173 && buf0==0x6536342c)||(buf1==0x215b4344 && buf0==0x4154415b))) b64s1=1,b64h=i+1,base64start=i+1; //' base64'
+    else if (b64s1==1 && (isalnum(c) || (c == '+') || (c == '/')||(c == '=')) ) {
+        }  
+    else if (b64s1==1) {
+         base64end=i,b64s1=0;
+         if (base64end -base64start>128) B64_DET(BASE64,b64h, 8,base64end -base64start);
+    }
+   
+     
+   // detect base64 in eml, etc. multiline
+   if (b64s==0 && buf0==0x73653634 && (buf1&0xffffff)==0x206261) b64s=1,b64p=i-6,b64h=0,b64slen=0,b64lcount=0; //' base64'
     else if (b64s==1 && buf0==0x0D0A0D0A ) {
         b64s=2,b64h=i+1,b64slen=b64h-b64p;
         base64start=i+1;
@@ -4078,29 +4083,37 @@ int base64start=0,base64end=0,b64line=0,b64nl=0;
          b64line=i-base64start,b64nl=i+2;//capture line lenght
          if (b64line<=4 || b64line>255) b64s=0;
     }
-    else if (b64s==2 && (buf0&0xffff)==0x0D0A && b64line!=0 && (buf0&0xffffff)!=0x3D0D0A && buf0!=0x3D3D0D0A ){
-         if (i-b64nl+1<b64line) { // if smaller and not padding
+    else if (b64s==2 && (buf0&0xffff)==0x0D0A  && b64line!=0 && (buf0&0xffffff)!=0x3D0D0A && buf0!=0x3D3D0D0A ){
+         if (i-b64nl+1<b64line && buf0!=0x0D0A0D0A) { // if smaller and not padding
             base64end=i-1;
-            if (base64end -base64start>512) B64_DET(BASE64,b64p,b64slen,base64end -base64start);
+            if (base64end -base64start>512) {
              b64s=0;
+             B64_DET(BASE64,b64h,b64slen,base64end -base64start);
             }
+         }
+         else if (buf0==0x0D0A0D0A) { // if smaller and not padding
+           base64end=i-1-2;
+           if (base64end -base64start>512) B64_DET(BASE64,b64h,b64slen,base64end -base64start);
+           b64s=0;
+         }
          b64nl=i+2; //update 0x0D0A pos
+         b64lcount++;
          }
     else if (b64s==2 && ((buf0&0xffffff)==0x3D0D0A ||buf0==0x3D3D0D0A)) { //if padding '=' or '=='
         base64end=i-1;
         b64s=0;
-        if (base64end -base64start>512) B64_DET(BASE64,b64p,b64slen,base64end -base64start);
-            
+        if (base64end -base64start>512) B64_DET(BASE64,b64h,b64slen,base64end -base64start);
     }
-     
-   // if (soi||pgm||rgbi||bmp||wavi || tga) printf("%d, %d, %d, %d, %d, %d, %d \n",soi,pgm,rgbi,bmp,wavi,tga,txtStart);
+    else if (b64s==2 && !(is_base64(c) || c=='='))   b64s=0;
+    
      //Detect text and utf-8 
-    if (txtStart==0 && !soi && !pgm && !rgbi && !bmp && !wavi && !tga &&
+    if (txtStart==0 && !soi && !pgm && !rgbi && !bmp && !wavi && !tga && !b64s1 && !b64s &&
         ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart=1,txtOff=i;
     if (txtStart   ) {
                  
-       if ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9) {
+       if ((c<128 && c>=32) || c==0 || c==10 || c==13 || c==0x12 || c==9) {
             ++txtLen;
+            if (i-txtbinp>512) txtbinc=txtbinc>>2;
        }
        else if ((c&0xE0)==0xc0 && utfc==0){ //if possible UTF8 2 byte
             utfc=2,utfb=1;
@@ -4139,9 +4152,17 @@ int base64start=0,base64end=0,b64line=0,b64nl=0;
             }
        }
        else if (utfc>=2 && utfb>=1){ // wrong utf
+             txtbinc=txtbinc+1;
+             txtbinp=i;
+             txtLen=txtLen+utfb;
+             ++txtLen;
+            utfc=utfb=txtIsUTF8=0;
+            if (txtbinc>=128){
             if (txtLen<txtMinLen) {
-               txtStart=txtLen=txtOff=utfc=utfb=0;
+                                  
+            txtStart=txtLen=txtOff=utfc=utfb=txtbinc=txtIsUTF8=0;
             }
+
             else{
                  if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
                  if (txtIsUTF8==1)
@@ -4149,38 +4170,28 @@ int base64start=0,base64end=0,b64line=0,b64nl=0;
                  else
                      return fseek(in, start+txtOff, SEEK_SET),TEXT;
             }
+        }
        }
        else if (txtLen<txtMinLen) {
-            txtStart=txtLen=txtOff=utfc=utfb=0;
+            txtbinc=txtbinc+1;
+            txtbinp=i;
+            ++txtLen;
+            if (txtbinc>=128)
+            txtStart=txtLen=txtOff=utfc=utfb=txtbinc=0;
        }
        else if (txtLen>=txtMinLen) {
+         txtbinc=txtbinc+1;
+         txtbinp=i;
+          ++txtLen;
+            if (txtbinc>=128){
 		   if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
+
           if (txtIsUTF8==1)
            return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
           else
      
             return fseek(in, start+txtOff, SEEK_SET),TEXT;
             }
-       }
-
-    //detect text stream of 0xX0X0X0X0X...
-      if (txtStart1==0 && !soi && !pgm && !rgbi && !bmp && !wavi && !tga &&
-        ((c<126 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart1=1,txtOff1=i;
-    if (txtStart1   ) {
-                 
-       if (((c<126 && c>=32) || c==10 || c==13 || c==0x12 || c==9 ||  c>=192) && txtTXT0==0) {
-            ++txtLen1,txtTXT0=1;
-       }
-       else if (c==0 && txtTXT0==1){
-            ++txtLen1,txtTXT0=0;
-       }
-       else if (txtLen1<txtMinLen1) {
-            txtStart1=txtLen1=txtOff1=txtTXT0=0;
-       }
-       else if (txtLen1>=txtMinLen1) {
-            txtLen1=(txtLen1>>1)<<1;
-		   if (type==TXT0) return fseek(in, start+txtLen1, SEEK_SET),DEFAULT;
-            return fseek(in, start+txtOff1, SEEK_SET),TXT0;
        }
     } 
   }
@@ -4196,15 +4207,6 @@ int base64start=0,base64end=0,b64line=0,b64nl=0;
             return fseek(in, start+txtOff, SEEK_SET),TEXT;
        }
  }      
- if (txtStart1) {
-       if (txtLen1<txtMinLen1) {
-            txtStart1=txtLen1=txtOff1=0;
-       }
-       else if (txtLen1>=txtMinLen1) {
-		   if (type==TXT0) return fseek(in, start+txtLen1, SEEK_SET),DEFAULT;
-           return fseek(in, start+txtOff1, SEEK_SET),TXT0;
-       }
- }
   return type;
 
 }
@@ -4213,7 +4215,7 @@ typedef enum {FDECOMPRESS, FCOMPARE, FDISCARD} FMode;
 
 // Print progress: n is the number of bytes compressed or decompressed
 void printStatus(int n, int size) {
-  printf("%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+if (level>0)  printf("%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
 void encode_cd(FILE* in, FILE* out, int len, int info) {
@@ -4386,16 +4388,12 @@ int decode_exe(Encoder& en, int size, FILE *out, FMode mode, int &diffFound, lon
   }
   return size;
 }
+
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
-#include "XWRT.h"
-#include "MemBuffer.cpp"
-#include "Common.cpp"
-#include "Encoder.cpp"
-#include "Decoder.cpp"
-XWRT_Encoder* wrt;
-XWRT_Decoder* wrt2;
+#include "wrtpre.cpp"
 
 void encode_txt(FILE* in, FILE* out, int len) {
+   XWRT_Encoder* wrt;
    wrt=new XWRT_Encoder();
    wrt->defaultSettings();
    wrt->WRT_start_encoding(in,out,len,false);
@@ -4404,7 +4402,8 @@ void encode_txt(FILE* in, FILE* out, int len) {
 
 //called only when encode_txt output was smaller then input
 int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
-    wrt2=new XWRT_Decoder();
+    XWRT_Decoder* wrt;
+    wrt=new XWRT_Decoder();
 	FILE* dtmp;
 	char c;
 	int b=0;
@@ -4417,10 +4416,10 @@ int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
 		putc(c,dtmp);	
 	}
 	fseek(dtmp,0, SEEK_SET);
-	wrt2->defaultSettings();
-	bb=wrt2->WRT_start_decoding(dtmp);
+	wrt->defaultSettings();
+	bb=wrt->WRT_start_decoding(dtmp);
     for ( int i=0; i<bb; i++) {
-		b=wrt2->WRT_decode();	
+		b=wrt->WRT_decode();	
 		if (mode==FDECOMPRESS) {
 			fputc(b, out);
 		}
@@ -4429,85 +4428,60 @@ int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
 		}
 	}
 	fclose(dtmp);
-	delete wrt2;
+	delete wrt;
 	return bb; 
-}
-
-//encode text stream of 0xX0X0X0X0X... to 0xXXXXX...   
-void encode_txt0(FILE* in, FILE* out, int len) {    
-     char b,c;
-     int d;
-     d=len>>1;
- 	 for (int i=0; i<d; i++) {
-	     b=fgetc(in);
-	     c=fgetc(in);
-         fputc(b, out);
-      }
-}
-
-int decode_txt0(FILE *in, int size, FILE *out, FMode mode, int &diffFound) {
-	int b=0;
-    for (int i=0; i<size; i++) {
-		b=fgetc(in); 
-		if (mode==FDECOMPRESS) {
-			fputc(b, out);
-			fputc(0, out);
-		}
-		else if (mode==FCOMPARE) {
-			if (b!=fgetc(out) && !diffFound) diffFound=ftell(out);
-			if (fgetc(out)!=0 && !diffFound) diffFound=ftell(out);
-		}
-	}
-	return size<<1; 
 }
 
 //
 //decode/encode base64 
 //
 static const char  table1[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-static inline bool is_base64(unsigned char c) {
+bool isbase64(unsigned char c) {
     return (isalnum(c) || (c == '+') || (c == '/')|| (c == 10) || (c == 13));
 }
-void encodeblock( unsigned char in[3], unsigned char out[4], int len )
-{
-    out[0] = table1[ in[0] >> 2 ];
-    out[1] = table1[ ((in[0] & 0x03) << 4) | ((in[1] & 0xf0) >> 4) ];
-    out[2] = (unsigned char) (len > 1 ? table1[ ((in[1] & 0x0f) << 2) | ((in[2] & 0xc0) >> 6) ] : '=');
-    out[3] = (unsigned char) (len > 2 ? table1[ in[2] & 0x3f ] : '=');
+void encodeblock( unsigned char in[3], unsigned char out[4], int len ){
+    out[0]=table1[in[0]>>2];
+    out[1]=table1[((in[0]&0x03)<<4)|((in[1]&0xf0)>>4)];
+    out[2]=(unsigned char)(len>1?table1[((in[1]&0x0f)<<2)|((in[2]&0xc0)>>6)]:'=');
+    out[3]=(unsigned char)(len>2?table1[in[2]&0x3f]:'=');
 }
-int decode_base64(FILE *in,  int size, FILE *out, FMode mode, int &diffFound) {
+
+int decode_base64(FILE *in, int size, FILE *out, FMode mode, int &diffFound){
     FILE* dtmp1;
 	char c;
-	int b=0;
-    int bb=0;
+	int b=0,bb=0;
 	dtmp1=tmpfile();
     unsigned char inn[3], outn[4];
-    int i, len, blocksout = 0;
+    int i,len1=0, len=0, blocksout = 0;
     int fle=0;
     int linesize=0;
-    linesize=getc( in );
-
-    while( !feof( in ) ) {
-        len = 0;
-        for( i = 0; i < 3; i++ ) {
+    int outlen=0;
+    linesize=getc(in);
+    outlen=getc(in);
+    outlen+=(getc(in)<<8);
+    outlen+=(getc(in)<<16);
+    outlen+=(getc(in)<<24);
+    while(!feof(in)){
+        len=0;
+        for(i=0;i<3;i++){
             inn[i] = (unsigned char) getc( in );
-            if( !feof( in ) ) {
+            if(!feof(in)){
                 len++;
+                len1++;
             }
             else {
                 inn[i] = 0;
             }
         }
-        if( len ) {
-            encodeblock( inn, outn, len );
-            for( i = 0; i < 4; i++ ) {
-                putc( outn[i], dtmp1 );
-                fle++;
+        if(len){
+            encodeblock(inn,outn,len);
+            for(i=0;i<4;i++){
+                putc(outn[i],dtmp1),fle++;
             }
             blocksout++;
         }
-        if( blocksout >= (linesize/4)  ) {
-            if( blocksout && !feof( in )) { //no nl if eof
+        if(blocksout>=(linesize/4) && linesize!=0){
+            if( blocksout &&  !feof(in) && fle<=outlen) { //no nl if eof
                 fprintf( dtmp1, "\r\n" );
                 fle++;
                 fle++;
@@ -4516,17 +4490,17 @@ int decode_base64(FILE *in,  int size, FILE *out, FMode mode, int &diffFound) {
         }
     }
     fseek(dtmp1,0, SEEK_SET);
-    for( i = 0; i < fle; i++ ) {
+    for(i=0;i<outlen;i++){
          b=fgetc(dtmp1);
-    	if (mode==FDECOMPRESS) {
+    	if (mode==FDECOMPRESS){
 			fputc(b, out);
 		}
-		else if (mode==FCOMPARE) {
+		else if (mode==FCOMPARE){
 			if (b!=fgetc(out) && !diffFound) diffFound=ftell(out);
 		}
     }
     fclose(dtmp1);
-    return fle;
+    return outlen;
 }
    
 inline char valueb(char c){
@@ -4547,42 +4521,52 @@ void encode_base64(FILE* in, FILE* out, int len) {
   int lfp=0;
   char src[4];
   fputc(0, out); //nl lenght
-  while (b=fgetc(in),in_len++ , ( b != '=') && is_base64(b)) {
+  fputc(0, out);
+  fputc(0, out);
+  fputc(0, out);
+  fputc(0, out);
+
+  while (b=fgetc(in),in_len++ , ( b != '=') && is_base64(b) && in_len<=len) {
     if (b==13 || b==10) {
        if (lfp==0) lfp=in_len ;
        continue;
     }
-    src[i++] = b; ;
-    if (i ==4) {
-          char a = valueb(src[0]);
-          char b = valueb(src[1]);
-          char c = valueb(src[2]);
-          char d = valueb(src[3]);
-          fputc((a << 2) | (b >> 4), out);
-          fputc((b << 4) | (c >> 2), out);
-          fputc((c << 6) | d, out);
+    src[i++] = b; 
+    if (i ==4){
+          for (j = 0; j <4; j++) src[j] = valueb(src[j]);
+          src[0] = (src[0] << 2) + ((src[1] & 0x30) >> 4);
+          src[1] = ((src[1] & 0xf) << 4) + ((src[2] & 0x3c) >> 2);
+          src[2] = ((src[2] & 0x3) << 6) + src[3];
+    
+          fputc(src[0], out);
+          fputc(src[1], out);
+          fputc(src[2], out);
       i = 0;
     }
   }
 
-  if (i) {
-    for (j = i; j <4; j++)
+  if (i){
+    for (j=i;j<4;j++)
       src[j] = 0;
 
-    for (j = 0; j <4; j++)
+    for (j=0;j<4;j++)
       src[j] = valueb(src[j]);
 
     src[0] = (src[0] << 2) + ((src[1] & 0x30) >> 4);
     src[1] = ((src[1] & 0xf) << 4) + ((src[2] & 0x3c) >> 2);
     src[2] = ((src[2] & 0x3) << 6) + src[3];
 
-    for (j = 0; (j < i - 1); j++) {
+    for (j=0;(j<i-1);j++) {
         b= src[j];
         fputc(b, out);
         }
   }
   fseek(out,0, SEEK_SET);
   fputc(lfp&255, out);
+  fputc(len&255, out);
+  fputc(len>>8&255, out);
+  fputc(len>>16&255, out);
+  fputc(len>>24&255, out);
   fseek(out,0, SEEK_END);
 }
 
@@ -4602,22 +4586,23 @@ void direct_encode_block(Filetype type, FILE *in, int len, Encoder &en, int s1, 
     en.compress(info>>8);
     en.compress(info);
   }
-  printf("Compressing... ");
+ if (level>0)   printf("Compressing... ");
   const int total=s1+len+s2;
   for (int j=s1; j<s1+len; ++j) {
     if (!(j&0xfff)) printStatus(j, total);
     en.compress(getc(in));
   }
-  printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+if (level>0)    printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
 }
 
 void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int s1=0, int s2=0) {
   static const char* typenames[13]={"default", "jpeg", "hdr",
-    "1b-image", "8b-image", "24b-image", "audio", "exe", "cd", "text","utf-8","txt 0","base64"};
+    "1b-image", "4b-image", "8b-image", "24b-image", "audio",
+    "exe", "cd", "text","utf-8","base64"};
   static const char* audiotypes[4]={"8b mono", "8b stereo", "16b mono",
     "16b stereo"};
   Filetype type=DEFAULT;
-  int blnum=0, info;  // image width or audio type
+  int blnum=0, info,info2;  // image width or audio type
   long begin=ftell(in), end0=begin+n;
   FILE* tmp;
   char b2[32];
@@ -4631,7 +4616,7 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
 
   // Transform and test in blocks
   while (n>0) {
-    Filetype nextType=detect(in, n, type, info);
+    Filetype nextType=detect(in, n, type, info,info2,it);
     long end=ftell(in);
     fseek(in, begin, SEEK_SET);
     if (end>end0) {  // if some detection reports longer then actual size file is
@@ -4645,22 +4630,19 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
       
       printf(" %-11s | %-9s |%10d bytes [%ld - %ld]",blstr,typenames[type],len,begin,end-1);
       if (type==AUDIO) printf(" (%s)", audiotypes[info%4]);
-      else if (type==IMAGE1 || type==IMAGE8 || type==IMAGE24) printf(" (width: %d)", info);
+      else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24) printf(" (width: %d)", info);
       else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
       
-      if (type==EXE || type==CD || type==IMAGE24  || type==TEXT || type==TXTUTF8 || type==TXT0 || type==BASE64) {
-                    
+      if (type==EXE || type==CD || type==IMAGE24  || type==TEXT || type==TXTUTF8 || type==BASE64) {
         tmp=tmpfile();  // temporary encoded file
         if (!tmp) perror("tmpfile"), quit();
         if (type==IMAGE24) encode_bmp(in, tmp, len, info);
         else if (type==EXE) encode_exe(in, tmp, len, begin);
         else if (type==TEXT || type==TXTUTF8) encode_txt(in, tmp, len);
-        else if (type==TXT0) encode_txt0(in, tmp, len);
         else if (type==BASE64) encode_base64(in, tmp, len);
         else if (type==CD) encode_cd(in, tmp, len, info);
         const long tmpsize=ftell(tmp);
-        if ((type==TEXT || type==TXTUTF8) && (tmpsize<(len-256))) printf(" (wrt: %d)", tmpsize);
-        if (type==TXT0  && (tmpsize==(len>>1))) printf(" (size %d)", tmpsize);
+        if ((type==TEXT || type==TXTUTF8) && (tmpsize<(len-(len>>3)))) printf(" (wrt: %d)", tmpsize); // is <83%   
         rewind(tmp);
         en.setFile(tmp);
         fseek(in, begin, SEEK_SET);
@@ -4668,12 +4650,11 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
         if (type==IMAGE24) decode_bmp(en, tmpsize, info, in, FCOMPARE, diffFound);
         else if (type==EXE) decode_exe(en, tmpsize, in, FCOMPARE, diffFound);
         else if (type==TEXT || type==TXTUTF8) decode_txt(en, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==TXT0 ) decode_txt0(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==BASE64 ) decode_base64(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==CD) decode_cd(tmp, tmpsize, in, FCOMPARE, diffFound);
 
         // Test fails, compress without transform
-        if (diffFound || fgetc(tmp)!=EOF) {
+        if ((diffFound || fgetc(tmp)!=EOF)) {
           printf("Transform fails at %d, skipping...\n", diffFound-1);
           fseek(in, begin, SEEK_SET);
           direct_encode_block(DEFAULT, in, len, en, s1, s2);
@@ -4685,8 +4666,6 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
             compressRecursive(tmp, tmpsize, en, blstr, it+1, s1, s2);
           } else if (type==EXE) {
             direct_encode_block(type, tmp, tmpsize, en, s1, s2);
-          //  } else if (type==BASE64) {
-            //direct_encode_block(type, tmp, tmpsize, en, s1, s2);
           } else if (type==IMAGE24) {
             direct_encode_block(type, tmp, tmpsize, en, s1, s2, info);
           } else if ((type==TEXT || type==TXTUTF8) ) {
@@ -4695,11 +4674,6 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
                    else {// encode as text
                       fseek(in, begin, SEEK_SET);
                       direct_encode_block(type, in, len, en, s1, s2);}
-          } else if ((type==TXT0) ) {
-                      printf("\n");
-                      en.compress(type), en.compress(tmpsize>>24), en.compress(tmpsize>>16);
-            en.compress(tmpsize>>8), en.compress(tmpsize);
-            compressRecursive(tmp, tmpsize, en, blstr, it+1, s1, s2);
           } else if ((type==BASE64) ) {
                       printf("\n");
                       en.compress(type), en.compress(tmpsize>>24), en.compress(tmpsize>>16);
@@ -4709,7 +4683,7 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
         }
         fclose(tmp);  // deletes
       } else {
-        const int i1=(type==IMAGE1 || type==IMAGE8 || type==AUDIO)?info:-1;
+        const int i1=(type==IMAGE1 || type==IMAGE8 || type==IMAGE4 || type==AUDIO)?info:-1;
         direct_encode_block(type, in, len, en, s1, s2, i1);
       }
       s1+=len;
@@ -4764,28 +4738,18 @@ int decompressRecursive(FILE *out, long size, Encoder& en, FMode mode, int it=0,
     len|=en.decompress()<<8;
     len|=en.decompress();
 
-    if (type==IMAGE1 || type==IMAGE8 || type==IMAGE24 || type==AUDIO) {
+    if (type==IMAGE1 || type==IMAGE8 || type==IMAGE4 || type==IMAGE24 || type==AUDIO) {
       info=0; for (int i=0; i<4; ++i) { info<<=8; info+=en.decompress(); }
     }
     if (type==IMAGE24) len=decode_bmp(en, len, info, out, mode, diffFound);
     else if (type==EXE) len=decode_exe(en, len, out, mode, diffFound, s1, s2);
     else if (type==DICTTXT) len=decode_txt(en, len, out, mode, diffFound);
-    //else if (type==BASE64) len=decode_base64(en, len, out, mode, diffFound);
     else if (type==BASE64) {
       tmp=tmpfile();
       decompressRecursive(tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
       if (mode!=FDISCARD) {
         rewind(tmp);
         len=decode_base64(tmp, len, out, mode, diffFound);
-      }
-      fclose(tmp);
-    }
-    else if (type==TXT0) {
-      tmp=tmpfile();
-      decompressRecursive(tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
-      if (mode!=FDISCARD) {
-        rewind(tmp);
-        len=decode_txt0(tmp, len, out, mode, diffFound);
       }
       fclose(tmp);
     }
