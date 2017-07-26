@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 14, 2013
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jun. 15, 2014
 
     Copyright (C) 2008 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -501,18 +501,18 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V5
-changes in wrt, use 0-9 ind dict if count is larger then a-zA-Z
-8-bit image model changes
-base64 changes
-contextmap from Tangelo
-fixes in DMC model
-cleanup of unused varibles
-fixes in wordmodel
-etc.
+DIFFERENCES FROM PAQ8PXD_V7
+base64 uses memory for encode/decode about 30% faster
+large file support (over 2GB)
+indirect model changes
+wordmodel changes
+file segmentation data is written uncompressed (at file end)
+sparseModel1 changes
+no .pbm .pgm .ppm .rgb .tga image detection
+separate encoder decode/encode
 */
 
-#define PROGNAME "paq8pxd7"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd8"  // Please change this if you change the program.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -537,7 +537,15 @@ etc.
 #ifndef DEFAULT_OPTION
 #define DEFAULT_OPTION 5
 #endif
+#include <stdint.h>
+#ifdef _MSC_VER
 
+typedef __int32 int32_t;
+typedef unsigned __int32 uint32_t;
+typedef __int64 int64_t;
+typedef unsigned __int64 uint64_t;
+
+#endif
 // 8, 16, 32 bit unsigned types (adjust as appropriate)
 typedef unsigned char  U8;
 typedef unsigned short U16;
@@ -769,12 +777,55 @@ public:
   }
 };
 
+// Buffer for file segment info 
+// type size info(if not -1)
+class Segment {
+  Array<U8> b;
+public:
+	int pos;  //size of buffer
+	uint64_t hpos; //header pos points to segment info at archive end
+	int count; //count of segments
+  Segment(int i=0): b(i),pos(0),hpos(0),count(0) {}
+  void setsize(int i) {
+    if (!i) return;
+    assert(i>0);
+    b.resize(i);
+  }
+  U8& operator[](int i) {
+  	if (i>=b.size()) setsize(i+1);
+    return b[i];
+  }
+  int operator()(int i) const {
+    assert(i>=0);
+    return b[i];
+  }
+  /*int size() const {
+    return b.size();
+  }*/
+};
+
+#ifdef _MSC_VER  // Microsoft C++
+#define fseeko(a,b,c) _fseeki64(a,b,c)
+#define ftello(a) _ftelli64(a)
+#else
+#ifndef unix
+#ifndef fseeko
+#define fseeko(a,b,c) fseeko64(a,b,c)
+#endif
+#ifndef ftello
+#define ftello(a) ftello64(a)
+#endif
+#endif
+#endif
+// 
+// 
+
 /////////////////////// Global context /////////////////////////
 
 int level=DEFAULT_OPTION;  // Compression level 0 to 8
 #define MEM (0x10000<<level)
 int y=0;  // Last bit, 0 or 1, set by encoder
-
+Segment segment; //for file segments type size info(if not -1)
 // Global context set by Predictor and available to all models.
 int c0=1; // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
 U32 c4=0; // Last 4 whole bytes, packed.  Last byte is bits 0-7.
@@ -1175,13 +1226,48 @@ static int dot_product (const short* const t, const short* const w, int n);
  * n is rounded up to a multiple of 8.
  */
 static void train (const short* const t, short* const w, int n, const int e);
+#if defined(__AVX2__) // fast
+#include<immintrin.h>
+#define OPTIMIZE "AVX2-"
+static int dot_product (const short* const t, const short* const w, int n) {
+  assert(n == ((n + 15) & -16));
+  __m256i sum = _mm256_setzero_si256 ();
+  while ((n -= 16) >= 0) { // Each loop sums 16 products
+    __m256i tmp = _mm256_madd_epi16 (*(__m256i *) &t[n], *(__m256i *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
+    tmp = _mm256_srai_epi32 (tmp, 8); //                                        (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
+    sum = _mm256_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
+  }
+   
+  sum = _mm256_add_epi32 (sum, _mm256_srli_si256 (sum, 16));
+  
+  sum = _mm256_add_epi32 (sum, _mm256_srli_si256 (sum, 8)); // Add eight sums together ...
+  sum = _mm256_add_epi32 (sum, _mm256_srli_si256 (sum, 4));
+  __m128i low = _mm256_castsi256_si128(sum);
+  return _mm_cvtsi128_si32 (low); //                     ...  and scale back to integer
+}
 
-#if defined(__SSE2__) // faster
+static void train (const short* const t, short* const w, int n, const int e) {
+  assert(n == ((n + 15) & -16));
+  if (e) {
+    const __m256i one = _mm256_set1_epi16 (1);
+    const __m256i err = _mm256_set1_epi16 (short(e));
+    while ((n -= 16) >= 0) { // Each iteration adjusts 16 weights
+      __m256i tmp = _mm256_adds_epi16 (*(__m256i *) &t[n], *(__m256i *) &t[n]); // t[n] * 2
+      tmp = _mm256_mulhi_epi16 (tmp, err); //                                     (t[n] * 2 * err) >> 16
+      tmp = _mm256_adds_epi16 (tmp, one); //                                     ((t[n] * 2 * err) >> 16) + 1
+      tmp = _mm256_srai_epi16 (tmp, 1); //                                      (((t[n] * 2 * err) >> 16) + 1) >> 1
+      tmp = _mm256_adds_epi16 (tmp, *(__m256i *) &w[n]); //                    ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
+      *(__m256i *) &w[n] = tmp; //                                          save the new eight weights, bounded to +- 32K
+    }
+  }
+}
+
+#elif defined(__SSE2__) // faster
 #include <emmintrin.h>
 #define OPTIMIZE "SSE2-"
 
 static int dot_product (const short* const t, const short* const w, int n) {
-  assert(n == ((n + 7) & -8));
+  assert(n == ((n + 15) & -16));
   __m128i sum = _mm_setzero_si128 ();
   while ((n -= 8) >= 0) { // Each loop sums eight products
     __m128i tmp = _mm_madd_epi16 (*(__m128i *) &t[n], *(__m128i *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
@@ -1194,7 +1280,7 @@ static int dot_product (const short* const t, const short* const w, int n) {
 }
 
 static void train (const short* const t, short* const w, int n, const int e) {
-  assert(n == ((n + 7) & -8));
+  assert(n == ((n + 15) & -16));
   if (e) {
     const __m128i one = _mm_set1_epi16 (1);
     const __m128i err = _mm_set1_epi16 (short(e));
@@ -1232,7 +1318,7 @@ static sint32 dot_product (const sint16* const t, const sint16* const w, sint32 
 }
 
 static void train (const sint16* const t, sint16* const w, sint32 n, const sint32 e) {
-  assert(n == ((n + 7) & -8));
+  assert(n == ((n + 15) & -16));
   if (e) {
     const __m64 one = _mm_set1_pi16 (1);
     const __m64 err = _mm_set1_pi16 (sint16(e));
@@ -1259,7 +1345,7 @@ static void train (const sint16* const t, sint16* const w, sint32 n, const sint3
 // up to a multiple of 8.  Result is scaled down by 8 bits.
 int dot_product(short *t, short *w, int n) {
   int sum=0;
-  n=(n+7)&-8;
+  n=(n+15)&-16;
   for (int i=0; i<n; i+=2)
     sum+=(t[i]*w[i]+t[i+1]*w[i+1]) >> 8;
   return sum;
@@ -1271,7 +1357,7 @@ int dot_product(short *t, short *w, int n) {
 // and rounded.  n is rounded up to a multiple of 8.
 
 void train(short *t, short *w, int n, int err) {
-  n=(n+7)&-8;
+  n=(n+15)&-16;
   for (int i=0; i<n; ++i) {
     int wt=w[i]+(((t[i]*err*2>>16)+1)>>1);
     if (wt<-32768) wt=-32768;
@@ -1284,8 +1370,8 @@ void train(short *t, short *w, int n, int err) {
 
 class Mixer {
   const int N, M, S;   // max inputs, max contexts, max context sets
-  Array<short, 16> tx; // N inputs from add()
-  Array<short, 16> wx; // N*M weights
+  Array<short, 32> tx; // N inputs from add()
+  Array<short, 32> wx; // N*M weights
   Array<int> cxt;  // S contexts
   int ncxt;        // number of contexts (0 to S)
   int base;        // offset of next context
@@ -1305,7 +1391,7 @@ public:
   }
   
   void update2() {
-    if(filetype==DICTTXT) train(&tx[0], &wx[0], nx, ((y<<12)-base)*3/2), nx=0;
+    if(filetype==DICTTXT) train(&tx[0], &wx[0], nx, ((y<<12)-base)*3/2), nx=base=ncxt=0;
     else update();
   }
   // Input x (call up to N times)
@@ -1325,7 +1411,7 @@ public:
   }
   // predict next bit
   int p() {
-    while (nx&7) tx[nx++]=0;  // pad
+    while (nx&15) tx[nx++]=0;  // pad
     if (mp) {  // combine outputs
       mp->update2();
       for (int i=0; i<ncxt; ++i) {
@@ -1354,9 +1440,9 @@ Mixer::~Mixer() {
 
 
 Mixer::Mixer(int n, int m, int s, int w):
-    N((n+7)&-8), M(m), S(s), tx(N), wx(N*M),
+    N((n+15)&-16), M(m), S(s), tx(N), wx(N*M),
     cxt(S), ncxt(0), base(0), nx(0), pr(S), mp(0) {
-  assert(n>0 && N>0 && (N&7)==0 && M>0);
+  assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
   for (i=0; i<S; ++i)
     pr[i]=2048;
@@ -1364,6 +1450,7 @@ Mixer::Mixer(int n, int m, int s, int w):
     wx[i]=w;
   if (S>1) mp=new Mixer(S, 1, 1);
 }
+
 
 //////////////////////////// APM1 //////////////////////////////
 
@@ -2008,8 +2095,9 @@ void wordModel(Mixer& m) {
 				word1=word0*11;
 				wordlen1=wordlen;
 				if (c==':') cword0=word0;
-				if (c==']') xword0=word0;
+				if (c==']'&& (frstchar!=':' || frstchar!='*')) xword0=word0;
 			//	if (c==0x27) xword0=word0;
+			    if (c=='=') cword0=word0;
 				ccword=0;
 				word0=wordlen=0;
 				if((c=='.'||c=='!'||c=='?') && buf(2)!=10 && filetype!=EXE) f=1; 
@@ -2028,12 +2116,13 @@ void wordModel(Mixer& m) {
 			number1=number0*11;
 			number0=0,ccword=0;
 		}
-		
+	
 		col=min(255, pos-nl);
 		int above=buf[nl1+col]; // text column context
 		if (col<=2) frstchar=(col==2?min(c,96):0);
 //	cm.set(spafdo|col<<8);
 		cm.set(spafdo|spaces<<8);
+		if (frstchar=='[' && c==32)	{if(buf(3)==']' || buf(4)==']' ) frstchar=96,xword0=0;}
 		cm.set(frstchar<<11|c);
 		cm.set(col<<8|frstchar);
 		cm.set(spaces<<8|(words&255));
@@ -2061,6 +2150,7 @@ void wordModel(Mixer& m) {
 		h=h+buf(1);
 		cm.set(h);
 		cm.set(word0);
+		//cm.set(word1+(c==32));
 		cm.set(h+word1);
 		cm.set(word0+word1*31);
 		cm.set(h+word1+word2*29);
@@ -2077,8 +2167,8 @@ void wordModel(Mixer& m) {
 		cm.set(h+word3);
 		cm.set(h+word4);
 		cm.set(h+word5);
-	//	cm.set(buf(1)|buf(3)<<8|buf(5)<<16);
-	//	cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
+//		cm.set(buf(1)|buf(3)<<8|buf(5)<<16);
+//		cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
 		cm.set(h+word1+word3);
 		cm.set(h+word2+word3);
 		if (f) {
@@ -2108,6 +2198,7 @@ void wordModel(Mixer& m) {
  
     cm.set(mask);
     cm.set((mask<<8)|buf(1));
+    //cm.set((mask&0xff)|col<<8);
     cm.set((mask<<17)|(buf(2)<<8)|buf(3));
     cm.set((mask&0x1ff)|((f4&0x00fff0)<<9));
 	}
@@ -2186,6 +2277,7 @@ int recordModel(Mixer& m, int rrlen=0) {
     assert(rlen>0);
     cm.set(c<<8| (min(255, pos-cpos1[c])/4));
     cm.set(w<<9| llog(pos-wpos1[w])>>2);
+    //cm.set((buf(rlen)>>4)<<12|(buf(rlen2)>>4)<<8|(buf(rlen3)>>4));
 
     cm.set(rlen|buf(rlen)<<10|buf(rlen*2)<<18);
     cn.set(w|rlen<<8);
@@ -2274,7 +2366,7 @@ void sparseModel(Mixer& m, int seenbefore, int howmany) {
     cm.set(buf(3)|buf(6)<<8);
     cm.set(buf(4)|buf(8)<<8);
     cm.set(buf(1)|buf(3)<<8|buf(5)<<16);
-		cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
+    cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
     cm.set(c4&0x00f0f0ff);
     cm.set(c4&0x00ff00ff);
     cm.set(c4&0xff0000ff);
@@ -3229,31 +3321,39 @@ void exeModel(Mixer& m) {
 // 1 or 2 byte context.
 
 void indirectModel(Mixer& m) {
-  static ContextMap cm(MEM, 9);
+  static ContextMap cm(MEM, 9+3);
   static U32 t1[256];
   static U16 t2[0x10000];
   static U16 t3[0x8000];
+  static U16 t4[0x8000];
 
   if (!bpos) {
     U32 d=c4&0xffff, c=d&255, d2=(buf(1)&31)+32*(buf(2)&31)+1024*(buf(3)&31);
+    U32 d3=(buf(1)>>3&31)+32*(buf(3)>>3&31)+1024*(buf(4)>>3&31);
     U32& r1=t1[d>>8];
     r1=r1<<8|c;
     U16& r2=t2[c4>>8&0xffff];
     r2=r2<<8|c;
     U16& r3=t3[(buf(2)&31)+32*(buf(3)&31)+1024*(buf(4)&31)];
     r3=r3<<8|c;
+    U16& r4=t4[(buf(2)>>3&31)+32*(buf(4)>>3&31)+1024*(buf(5)>>3&31)];
+    r4=r4<<8|c;
     const U32 t=c|t1[c]<<8;
     const U32 t0=d|t2[d]<<16;
     const U32 ta=d2|t3[d2]<<16;
+    const U32 tc=d3|t4[d3]<<16;
     cm.set(t);
     cm.set(t0);
     cm.set(ta);
+    cm.set(tc);
     cm.set(t&0xff00);
     cm.set(t0&0xff0000);
     cm.set(ta&0xff0000);
+    cm.set(tc&0xff0000);
     cm.set(t&0xffff);
     cm.set(t0&0xffffff);
     cm.set(ta&0xffffff);
+    cm.set(tc&0xffffff);
   }
   cm.mix(m);
 }
@@ -3421,17 +3521,27 @@ U32 x4=0,s4=0;
 void sparseModel1(Mixer& m, int seenbefore, int howmany) {
    static ContextMap cm(MEM*4, 31);
     static SmallStationaryContextMap scm1(0x10000), scm2(0x20000), scm3(0x2000),
-     scm4(0x8000), scm5(0x2000),scm6(0x2000);
+     scm4(0x8000), scm5(0x2000),scm6(0x2000), scma(0x10000);
   if (bpos==0) {
     scm5.set(seenbefore);
     scm6.set(howmany);
-    cm.set(x4&0x00ff00ff);
+  /*  cm.set(x4&0x00ff00ff);
     cm.set(x4&0xff0000ff);
     cm.set(x4&0x00ffff00);
     cm.set((x4&0xf8f8f8f8));
-    cm.set((x4&0x80f0f0ff));
-    
-    for (int i=1; i<6; ++i) { 
+    cm.set((x4&0x80f0f0ff));*/
+  U32  h=x4<<6;
+    cm.set(buf(1)+(h&0xffffff00));
+    cm.set(buf(1)+(h&0x00ffff00));
+    cm.set(buf(1)+(h&0x0000ff00));
+      U32 d=c4&0xffff;
+     h<<=6;
+    cm.set(d+(h&0xffff0000));
+    cm.set(d+(h&0x00ff0000));
+     h<<=6, d=c4&0xffffff;
+    cm.set(d+(h&0xff000000));
+
+    for (int i=1; i<5; ++i) { 
       cm.set(seenbefore|buf(i)<<8);
       cm.set((buf(i+3)<<8)|buf(i+1));
     }
@@ -3440,11 +3550,11 @@ void sparseModel1(Mixer& m, int seenbefore, int howmany) {
     cm.set(words&0x1ffff);
     cm.set(f4&0x000fffff);
     cm.set(tt&0x00000fff);
-     U32  h=w4<<6;
+      h=w4<<6;
     cm.set(buf(1)+(h&0xffffff00));
     cm.set(buf(1)+(h&0x00ffff00));
     cm.set(buf(1)+(h&0x0000ff00));
-     U32 d=c4&0xffff;
+      d=c4&0xffff;
      h<<=6;
     cm.set(d+(h&0xffff0000));
     cm.set(d+(h&0x00ff0000));
@@ -3452,7 +3562,7 @@ void sparseModel1(Mixer& m, int seenbefore, int howmany) {
     cm.set(d+(h&0xff000000));
     cm.set(w4&0xf0f0f0ff);
     
-    cm.set(f4);
+    //cm.set(f4);
     cm.set((w4&63)*128+(5<<17));
     cm.set((f4&0xffff)<<11|frstchar);
     cm.set(spafdo*8*((w4&3)==1));
@@ -3461,6 +3571,7 @@ void sparseModel1(Mixer& m, int seenbefore, int howmany) {
       scm2.set((words&12)*16+(w4&12)*4+(buf(1)>>4));
       scm3.set(w4&15);
       scm4.set(spafdo*((w4&3)==1));
+      scma.set(frstchar);
   }
   cm.mix(m);
   scm1.mix(m);
@@ -3469,11 +3580,11 @@ void sparseModel1(Mixer& m, int seenbefore, int howmany) {
   scm4.mix(m);
   scm5.mix(m);
   scm6.mix(m);
+  scma.mix(m);
 
 } 
 
 // Normal model
-
 int normalModel(Mixer& m) {
   static ContextMap cm(MEM*32, 9);
   static RunContextMap  rcm7(MEM/4), rcm9(MEM/4), rcm10(MEM/2);
@@ -3482,15 +3593,16 @@ int normalModel(Mixer& m) {
 
   if (bpos==0) {
     int i;
-    for (i=14; i>0; --i)  // update order 0-11 context hashes
+    for (i=13; i>0; --i)  // update order 0-11 context hashes
       cxt[i]=cxt[i-1]*primes[i]+(c4&255);
     for (i=0; i<7; ++i)
       cm.set(cxt[i]);
     rcm7.set(cxt[7]);
     cm.set(cxt[8]);
     rcm9.set(cxt[10]);
+    
     rcm10.set(cxt[12]);
-    cm.set(cxt[14]);
+    cm.set(cxt[13]);
   }
   rcm7.mix(m);
   rcm9.mix(m);
@@ -3501,43 +3613,20 @@ int normalModel(Mixer& m) {
 //////////////////////////// contextModel //////////////////////
 
 // This combines all the context models with a Mixer.
-
+int finfo=0;
 int contextModel2() {
  
   static Mixer m(925, 3095+256*7+256*8+256*7+2048+256*7-256*4-264, 7);
  
-  static Filetype ft2;//,filetype=DEFAULT;
-  static int size=0;  // bytes remaining in block
-  static int info=0;  // image width or audio type
- 
-  // Parse filetype and size
-  if (bpos==0) {
-    --size;
-    ++blpos;
-    if (size==-1) ft2=(Filetype)buf(1);
-    if (size==-5 && ft2!=IMAGE1 && ft2!=IMAGE4  && ft2!=IMAGE8 && ft2!=IMAGE24 && ft2!=AUDIO) {
-      size=buf(4)<<24|buf(3)<<16|buf(2)<<8|buf(1);
-      if (ft2==CD) size=0;
-      blpos=0;
-    }
-    if (size==-9) {
-      size=buf(8)<<24|buf(7)<<16|buf(6)<<8|buf(5);
-      info=buf(4)<<24|buf(3)<<16|buf(2)<<8|buf(1);
-      blpos=0;
-    }
-    if (!blpos) filetype=ft2;
-    if (size==0) filetype=DEFAULT;
-  }
-
   m.update();
   m.add(256);
 
   // Test for special file types
   int ismatch=ilog(matchModel(m));  // Length of longest matching context
-  if (filetype==IMAGE1)  return im1bitModel(m, info), m.p();;
-  if (filetype==IMAGE8 ) return im8bitModel(m, info), m.p();
-  if (filetype==IMAGE24) return im24bitModel(m, info), m.p();
-  if (filetype==AUDIO) return wavModel(m, info), m.p();
+  if (filetype==IMAGE1)  return im1bitModel(m, finfo), m.p();;
+  if (filetype==IMAGE8 ) return im8bitModel(m, finfo), m.p();
+  if (filetype==IMAGE24) return im24bitModel(m, finfo), m.p();
+  if (filetype==AUDIO) return wavModel(m, finfo), m.p();
   if (filetype==JPEG) if (jpegModel(m)) return m.p();
 
   int order=normalModel(m);
@@ -3546,6 +3635,7 @@ int contextModel2() {
   if (level>=4 && filetype!=IMAGE1){
   	switch (filetype){
 	case DICTTXT:
+	case TXTUTF8:
 		{ 
             wordModel(m);
 			sparseModel1(m,ismatch,order);
@@ -3577,7 +3667,7 @@ int contextModel2() {
 		}
 	case IMAGE4:
 		{ 
-            recordModel(m, info);
+            recordModel(m, finfo);
             break;
         }
 	default: { 
@@ -3610,12 +3700,7 @@ int contextModel2() {
     m.set(bpos*256+((words<<bpos&255)>>bpos|d&255),2048);//, 256);
    }
   m.set(ismatch, 256);
- /* m.set(c1+8, 264);
-  m.set(c0, 256);
-  m.set(order+8*(c4>>6&3)+32*(bpos==0)+64*(c1==c2)+128*(filetype==EXE), 256);
-  m.set(c2, 256);
-  m.set(c3, 256);
-  m.set(ismatch, 256);*/
+
   if (bpos)
   {
     c=d; if (bpos==1)c+=c3/2;
@@ -3663,11 +3748,10 @@ if (c0>=256) {
 		w5=w5*4+i;
 		b3=b2;
         b2=c0;   
-		//int f2=buf(2);
 	    x4=x4*256+c0,x5=(x5<<8)+c0;
 	    if(c0=='.' || c0=='!' || c0=='?' || c0=='/'|| c0==')') {
 			w5=(w5<<8)|0x3ff,f4=(f4&0xfffffff0)+2,x5=(x5<<8)+c0,x4=x4*256+c0;
-            w4|=12, tt=(tt&0xfffffff8)+1,b3='.';
+            if(c0!='!') w4|=12, tt=(tt&0xfffffff8)+1,b3='.';
 		}
 		if (c0==32) --c0;
 		tt=tt*8+WRT_mtt[c0>>4];
@@ -3708,21 +3792,6 @@ bpos=(bpos+1)&7;
   if (fails&255)  pr =pt*6+pu  +pv*11+pz*14 +16>>5;
   else		      pr =pt*4+pu*5+pv*12+pz*11 +16>>5;
 }
-/*
-  pr=a.p(pr0, c0);
-
-  int pr1=a1.p(pr0, c0+256*buf(1));
-  int pr2=a2.p(pr0, (c0^hash(buf(1), buf(2)))&0xffff);
-  int pr3=a3.p(pr0, (c0^hash(buf(1), buf(2), buf(3)))&0xffff);
-  pr0=(pr0+pr1+pr2+pr3+2)>>2;
-
-  pr1=a4.p(pr, c0+256*buf(1));
-  pr2=a5.p(pr, (c0^hash(buf(1), buf(2)))&0xffff);
-  pr3=a6.p(pr, (c0^hash(buf(1), buf(2), buf(3)))&0xffff);
-  pr=(pr+pr1+pr2+pr3+2)>>2;
-
-  pr=(pr+pr0+1)>>1;
-*/
 }
 
 //////////////////////////// Encoder ////////////////////////////
@@ -3755,28 +3824,49 @@ private:
   FILE *alt;             // decompress() source in COMPRESS mode
 
   // Compress bit y or return decompressed bit
-  int code(int i=0) {
+  void code(int i=0) {
     int p=predictor.p();
     assert(p>=0 && p<4096);
     p+=p<2048;
     U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
     assert(xmid>=x1 && xmid<x2);
-    if (mode==DECOMPRESS) y=x<=xmid; else y=i;
-    y ? (x2=xmid) : (x1=xmid+1);
+    //if (mode==DECOMPRESS) y=x<=xmid; else y=i;
+    y=i;
+    i ? (x2=xmid) : (x1=xmid+1);
     predictor.update();
     while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
-      if (mode==COMPRESS) putc(x2>>24, archive);
+      //if (mode==COMPRESS) 
+      putc(x2>>24, archive);
       x1<<=8;
       x2=(x2<<8)+255;
-      if (mode==DECOMPRESS) x=(x<<8)+(getc(archive)&255);  // EOF is OK
+     // if (mode==DECOMPRESS) x=(x<<8)+(getc(archive)&255);  // EOF is OK
+    }
+    //return i;
+  }
+  int decode() {
+    int p=predictor.p();
+    assert(p>=0 && p<4096);
+    p+=p<2048;
+    U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
+    assert(xmid>=x1 && xmid<x2);
+    //if (mode==DECOMPRESS)
+    // y=x<=xmid;// else y=i;
+    x<=xmid ? (x2=xmid,y=1) : (x1=xmid+1,y=0);
+    predictor.update();
+    while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
+     // if (mode==COMPRESS) putc(x2>>24, archive);
+      x1<<=8;
+      x2=(x2<<8)+255;
+      //if (mode==DECOMPRESS) 
+      x=(x<<8)+(getc(archive)&255);  // EOF is OK
     }
     return y;
   }
-
+ 
 public:
   Encoder(Mode m, FILE* f);
   Mode getMode() const {return mode;}
-  long size() const {return ftell(archive);}  // length of archive so far
+  uint64_t size() const {return ftello(archive);}  // length of archive so far
   void flush();  // call this when compression is finished
   void setFile(FILE* f) {alt=f;}
 
@@ -3788,6 +3878,7 @@ public:
     else
       for (int i=7; i>=0; --i)
         code((c>>i)&1);
+        ++blpos;
   }
 
   // Decompress and return one byte
@@ -3801,7 +3892,8 @@ public:
     else {
       int c=0;
       for (int i=0; i<8; ++i)
-        c+=c+code();
+        c+=c+decode();
+        ++blpos;
       return c;
     }
   }
@@ -3819,7 +3911,7 @@ Encoder::Encoder(Mode m, FILE* f):
 
 void Encoder::flush() {
   if (mode==COMPRESS && level>0)
-    putc(x1>>24, archive);  // Flush first unequal byte of range
+    putc(x1>>24, archive),putc(x1>>16, archive),putc(x1>>8, archive),putc(x1, archive);  // Flush first unequal byte of range
 }
 
 /////////////////////////// Filters /////////////////////////////////
@@ -3873,17 +3965,17 @@ void Encoder::flush() {
 +    (((x) & 0x000000ff) << 24))
 
 #define IMG_DET(type,start_pos,header_len,width,height) return dett=(type),\
-deth=(header_len),detd=(width)*(height),info=(width),\
-fseek(in, start+(start_pos), SEEK_SET),HDR
+deth=int(header_len),detd=int((width)*(height)),info=int(width),\
+fseeko(in, start+(start_pos), SEEK_SET),HDR
 
 #define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
-deth=(header_len),detd=(data_len),info=(wmode),\
-fseek(in, start+(start_pos), SEEK_SET),HDR
+deth=int(header_len),detd=(data_len),info=(wmode),\
+fseeko(in, start+(start_pos), SEEK_SET),HDR
 
 //Return only base64 data. No HDR.
 #define B64_DET(type,start_pos,header_len,base64len) return dett=(type),\
-deth=(-1),detd=base64len,\
-fseek(in, start+start_pos, SEEK_SET),DEFAULT
+deth=(-1),detd=int(base64len),\
+fseeko(in, start+start_pos, SEEK_SET),DEFAULT
 
 inline bool is_base64(unsigned char c) {
     return (isalnum(c) || (c == '+') || (c == '/')|| (c == 10) || (c == 13));
@@ -3990,46 +4082,56 @@ int expand_cd_sector(U8 *data, int a, int test) {
 }
 int wrtn=0;
 // Detect EXE or JPEG data
-Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0) {
+Filetype detect(FILE* in, uint64_t n, Filetype type, int &info, int &info2, int it=0) {
   U32 buf1=0, buf0=0;  // last 8 bytes
-  long start=ftell(in);
+  uint64_t start=ftello(in);
 
   // For EXE detection
-  Array<int> abspos(256),  // CALL/JMP abs. addr. low byte -> last offset
+  Array<uint64_t> abspos(256),  // CALL/JMP abs. addr. low byte -> last offset
     relpos(256);    // CALL/JMP relative addr. low byte -> last offset
   int e8e9count=0;  // number of consecutive CALL/JMPs
-  int e8e9pos=0;    // offset of first CALL or JMP instruction
-  int e8e9last=0;   // offset of most recent CALL or JMP
+  uint64_t e8e9pos=0;    // offset of first CALL or JMP instruction
+  uint64_t e8e9last=0;   // offset of most recent CALL or JMP
 
-  int soi=0, sof=0, sos=0, app=0;  // For JPEG detection - position where found
-  int wavi=0,wavsize=0,wavch=0,wavbps=0,wavm=0;  // For WAVE detection
-  int aiff=0,aiffm=0,aiffs=0;  // For AIFF detection
-  int s3mi=0,s3mno=0,s3mni=0;  // For S3M detection
-  int bmp=0,imgbpp=0,bmpx=0,bmpy=0,bmpof=0;  // For BMP detection
-  int rgbi=0,rgbx=0,rgby=0;  // For RGB detection
-  int tga=0,tgax=0,tgay=0,tgaz=0,tgat=0;  // For TGA detection
-  int pgm=0,pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0;  // For PBM, PGM, PPM detection
-  char pgm_buf[32];
-  int cdi=0,cda=0,cdm=0;  // For CD sectors detection
+  uint64_t soi=0, sof=0, sos=0, app=0;  // For JPEG detection - position where found
+  uint64_t wavi=0;
+  int wavsize=0,wavch=0,wavbps=0,wavm=0;  // For WAVE detection
+  uint64_t aiff=0;
+  int aiffm=0,aiffs=0;  // For AIFF detection
+  uint64_t s3mi=0;
+  int s3mno=0,s3mni=0;  // For S3M detection
+  uint64_t bmp=0;
+  int imgbpp=0,bmpx=0,bmpy=0,bmpof=0;  // For BMP detection
+  uint64_t rgbi=0;
+  int rgbx=0,rgby=0;  // For RGB detection
+  uint64_t tga=0;
+  uint64_t tgax=0;
+  int tgay=0,tgaz=0,tgat=0;  // For TGA detection
+  uint64_t pgm=0;
+  int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0;  // For PBM, PGM, PPM detection
+  Array<char> pgm_buf(32);
+  uint64_t cdi=0;
+  int cda=0,cdm=0;  // For CD sectors detection
   U32 cdf=0;
  // For TEXT
-  int txtStart=0,txtLen=0,txtOff=0,txtbinc=0,txtbinp=0,txta=0,txt0=0;
+  uint64_t txtStart=0,txtLen=0,txtOff=0,txtbinc=0,txtbinp=0,txta=0,txt0=0;
   int utfc=0,utfb=0,txtIsUTF8=0; //utf count 2-6, current byte
   const int txtMinLen=1024*512;
+  //const int txtSMinLen=1024*4;
   //base64
-  int b64s=0,b64s1=0,b64p=0,b64slen=0,b64h=0;
-  int base64start=0,base64end=0,b64line=0,b64nl=0,b64lcount=0;
+  uint64_t b64s=0,b64s1=0,b64p=0,b64slen=0,b64h=0;
+  uint64_t base64start=0,base64end=0,b64line=0,b64nl=0,b64lcount=0;
   //int b64f=0,b64fstart=0,b64flen=0,b64send=0,b64fline=0; //force base64 detection
 
 
   // For image detection
   static int deth=0,detd=0;  // detected header/data size in bytes
   static Filetype dett;  // detected block type
-  if (deth >1) return fseek(in, start+deth, SEEK_SET),deth=0,dett;
-  else if (deth ==-1) return fseek(in, start, SEEK_SET),deth=0,dett;
-  else if (detd) return fseek(in, start+detd, SEEK_SET),detd=0,DEFAULT;
+  if (deth >1) return fseeko(in, start+deth, SEEK_SET),deth=0,dett;
+  else if (deth ==-1) return fseeko(in, start, SEEK_SET),deth=0,dett;
+  else if (detd) return fseeko(in, start+detd, SEEK_SET),detd=0,DEFAULT;
 
-  for (int i=0; i<n; ++i) {
+  for (uint64_t i=0; i<n; ++i) {
     int c=getc(in);
     if (c==EOF) return (Filetype)(-1);
     buf1=buf1<<8|buf0>>24;
@@ -4042,23 +4144,23 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
       if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) cdi=0;
       else if (p==16 && i+2336<n) {
         U8 data[2352];
-        long savedpos=ftell(in);
-        fseek(in, start+i-23, SEEK_SET);
+        int64_t savedpos=ftello(in);
+        fseeko(in, start+i-23, SEEK_SET);
         fread(data, 1, 2352, in);
-        fseek(in, savedpos, SEEK_SET);
+        fseeko(in, savedpos, SEEK_SET);
         int t=expand_cd_sector(data, cda, 1);
         if (t!=cdm) cdm=t*(i-cdi<2352);
         if (cdm && cda!=10 && (cdm==1 || buf0==buf1)) {
-          if (type!=CD) return info=cdm,fseek(in, start+cdi-7, SEEK_SET), CD;
+          if (type!=CD) return info=cdm,fseeko(in, start+cdi-7, SEEK_SET), CD;
           cda=(data[12]<<16)+(data[13]<<8)+data[14];
           if (cdm!=1 && i-cdi>2352 && buf0!=cdf) cda=10;
           if (cdm!=1) cdf=buf0;
         } else cdi=0;
       }
-      if (!cdi && type==CD) return fseek(in, start+i-p-7, SEEK_SET), DEFAULT;
+      if (!cdi && type==CD) return fseeko(in, start+i-p-7, SEEK_SET), DEFAULT;
     }
     if (type==CD) continue;
-
+	
     // Detect JPEG by code SOI APPx (FF D8 FF Ex) followed by
     // SOF0 (FF C0 xx xx 08) and SOS (FF DA) within a reasonable distance.
     // Detect end by any code other than RST0-RST7 (FF D9-D7) or
@@ -4071,17 +4173,17 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
       if (app<i && (buf1&0xff)==0xff && (buf0&0xff0000ff)==0xc0000008) sof=i;
       if (sof && sof>soi && i-sof<0x1000 && (buf0&0xffff)==0xffda) {
         sos=i;
-        if (type!=JPEG) return fseek(in, start+soi-3, SEEK_SET), JPEG;
+        if (type!=JPEG) return fseeko(in, start+soi-3, SEEK_SET), JPEG;
       }
       if (i-soi>0x40000 && !sos) soi=0;
     }
     if (type==JPEG && sos && i>sos && (buf0&0xff00)==0xff00
         && (buf0&0xff)!=0 && (buf0&0xf8)!=0xd0) return DEFAULT;
-
+	
     // Detect .wav file header
     if (buf0==0x52494646) wavi=i,wavm=0;
     if (wavi) {
-      const int p=i-wavi;
+      const int p=int(i-wavi);
       if (p==4) wavsize=bswap(buf0);
       else if (p==8 && buf0!=0x57415645) wavi=0;
       else if (p==16 && (buf1!=0x666d7420 || bswap(buf0)!=16)) wavi=0;
@@ -4099,7 +4201,7 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
     // Detect .aiff file header
     if (buf0==0x464f524d) aiff=i,aiffs=0; // FORM
     if (aiff) {
-      const int p=i-aiff;
+      const int p=int(i-aiff);
       if (p==12 && (buf1!=0x41494646 || buf0!=0x434f4d4d)) aiff=0; // AIFF COMM
       else if (p==24) {
         const int bits=buf0&0xffff, chn=buf1>>16;
@@ -4111,39 +4213,39 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
     // Detect .mod file header 
     if ((buf0==0x4d2e4b2e || buf0==0x3643484e || buf0==0x3843484e  // M.K. 6CHN 8CHN
        || buf0==0x464c5434 || buf0==0x464c5438) && (buf1&0xc0c0c0c0)==0 && i>=1083) {
-      long savedpos=ftell(in);
+      int64_t savedpos=ftello(in);
       const int chn=((buf0>>24)==0x36?6:(((buf0>>24)==0x38 || (buf0&0xff)==0x38)?8:4));
       int len=0; // total length of samples
       int numpat=1; // number of patterns
       for (int j=0; j<31; j++) {
-        fseek(in, start+i-1083+42+j*30, SEEK_SET);
+        fseeko(in, start+i-1083+42+j*30, SEEK_SET);
         const int i1=getc(in);
-        const int i2=getc(in);
+        const int i2=getc(in); 
         len+=i1*512+i2*2;
       }
-      fseek(in, start+i-131, SEEK_SET);
+      fseeko(in, start+i-131, SEEK_SET);
       for (int j=0; j<128; j++) {
         int x=getc(in);
         if (x+1>numpat) numpat=x+1;
       }
       if (numpat<65) AUD_DET(AUDIO,i-1083,1084+numpat*256*chn,len,4);
-      fseek(in, savedpos, SEEK_SET);
+      fseeko(in, savedpos, SEEK_SET);
     }
-
+	
     // Detect .s3m file header 
     if (buf0==0x1a100000) s3mi=i,s3mno=s3mni=0;
     if (s3mi) {
-      const int p=i-s3mi;
+      const int p=int(i-s3mi);
       if (p==4) s3mno=bswap(buf0)&0xffff,s3mni=(bswap(buf0)>>16);
       else if (p==16 && (((buf1>>16)&0xff)!=0x13 || buf0!=0x5343524d)) s3mi=0;
       else if (p==16) {
-        long savedpos=ftell(in);
+        int64_t savedpos=ftello(in);
         int b[31],sam_start=(1<<16),sam_end=0,ok=1;
         for (int j=0;j<s3mni;j++) {
-          fseek(in, start+s3mi-31+0x60+s3mno+j*2, SEEK_SET);
+          fseeko(in, start+s3mi-31+0x60+s3mno+j*2, SEEK_SET);
           int i1=getc(in);
           i1+=getc(in)*256;
-          fseek(in, start+s3mi-31+i1*16, SEEK_SET);
+          fseeko(in, start+s3mi-31+i1*16, SEEK_SET);
           i1=getc(in);
           if (i1==1) { // type: sample
             for (int k=0;k<31;k++) b[k]=fgetc(in);
@@ -4156,21 +4258,21 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
         }
         if (ok && sam_start<(1<<16)) AUD_DET(AUDIO,s3mi-31,sam_start,sam_end-sam_start,0);
         s3mi=0;
-        fseek(in, savedpos, SEEK_SET);
+        fseeko(in, savedpos, SEEK_SET);
       }
     }
-
+	
     // Detect .bmp image
     if ((buf0&0xffff)==16973) imgbpp=bmpx=bmpy=bmpof=0,bmp=i;  //possible 'BM'
     if (bmp) {
-      const int p=i-bmp;
+      const int p=int(i-bmp);
       if (p==12) bmpof=bswap(buf0);
       else if (p==16 && buf0!=0x28000000) bmp=0; //windows bmp?
-      else if (p==20) bmpx=bswap(buf0),bmp=((bmpx==0||bmpx>0x30000)?0:bmp); //width
-      else if (p==24) bmpy=abs((int)bswap(buf0)),bmp=((bmpy==0||bmpy>0x10000)?0:bmp); //height
+      else if (p==20) bmpx=bswap(buf0),bmp=((bmpx==0||bmpx>0x40000)?0:bmp); //width
+      else if (p==24) bmpy=abs((int)bswap(buf0)),bmp=((bmpy==0||bmpy>0x20000)?0:bmp); //height
       else if (p==27) imgbpp=c,bmp=((imgbpp!=1 && imgbpp!=4 && imgbpp!=8 && imgbpp!=24)?0:bmp);
       else if (p==31) {
-        if (imgbpp!=0 && buf0==0) {
+        if (imgbpp!=0 && buf0==0 && bmpx>1) {
           if (imgbpp==1) IMG_DET(IMAGE1,bmp-1,bmpof,(((bmpx-1)>>5)+1)*4,bmpy);
           else if (imgbpp==4) IMG_DET(IMAGE4,bmp-1,bmpof,((bmpx>>1)+3)&-4,bmpy);
           else if (imgbpp==8) IMG_DET(IMAGE8,bmp-1,bmpof,(bmpx+3)&-4,bmpy);
@@ -4179,9 +4281,9 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
         bmp=0;
       }
     }
-
+	
     // Detect .pbm .pgm .ppm image 
-    if ((buf0&0xfff0ff)==0x50300a && txtLen<txtMinLen) { //see if text
+   /* if ((buf0&0xfff0ff)==0x50300a && txtLen<txtMinLen && start==0) { //see if text, only single files
       pgmn=(buf0&0xf00)>>8;
       if (pgmn>=4 && pgmn <=6) pgm=i,pgm_ptr=pgmw=pgmh=pgmc=pgmcomment=0;
     }
@@ -4194,23 +4296,25 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
         else if (c==0x0a && !pgmc && pgmn!=4) s=3;
         if (s) {
           pgm_buf[pgm_ptr++]=0;
-          int v=atoi(pgm_buf);
+          int v=atoi(&pgm_buf[0]);
+          if (v<5 || v>20000) v=0;
           if (s==1) pgmw=v; else if (s==2) pgmh=v; else if (s==3) pgmc=v;
           if (v==0 || (s==3 && v>255)) pgm=0; else pgm_ptr=0;
         }
       }
-      if (!pgmcomment) pgm_buf[pgm_ptr++]=c;
-      if (pgm_ptr>=32) pgm=0;
+      if (!pgmcomment) pgm_buf[pgm_ptr++]=((c>='0' && c<='9') || ' ')?c:0;
+      if (pgm_ptr>=32) pgm=pgm_ptr=0;
+      if (i-pgm>255) pgm=pgm_ptr=0;
       if (pgmcomment && c==0x0a) pgmcomment=0;
       if (pgmw && pgmh && !pgmc && pgmn==4) IMG_DET(IMAGE1,pgm-2,i-pgm+3,(pgmw+7)/8,pgmh);
       if (pgmw && pgmh && pgmc && pgmn==5) IMG_DET(IMAGE8,pgm-2,i-pgm+3,pgmw,pgmh);
       if (pgmw && pgmh && pgmc && pgmn==6) IMG_DET(IMAGE24,pgm-2,i-pgm+3,pgmw*3,pgmh);
     }
-
+	*/
     // Detect .rgb image
-    if ((buf0&0xffff)==0x01da) rgbi=i,rgbx=rgby=0;
+  /*  if ((buf0&0xffff)==0x01da) rgbi=i,rgbx=rgby=0;
     if (rgbi) {
-      const int p=i-rgbi;
+      const int p=int(i-rgbi);
       if (p==1 && c!=0) rgbi=0;
       else if (p==2 && c!=1) rgbi=0;
       else if (p==4 && (buf0&0xffff)!=1 && (buf0&0xffff)!=2 && (buf0&0xffff)!=3) rgbi=0;
@@ -4222,11 +4326,11 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
         rgbi=0;
       }
     }
-
+	*/
     // Detect .tiff file header (2/8/24 bit color, not compressed).
     if (buf1==0x49492a00 && n>i+(int)bswap(buf0)) {
-      long savedpos=ftell(in);
-      fseek(in, start+i+bswap(buf0)-7, SEEK_SET);
+      uint64_t savedpos=ftello(in);
+      fseeko(in, start+i+(int)bswap(buf0)-7, SEEK_SET);
 
       // read directory
       int dirsize=getc(in);
@@ -4249,37 +4353,37 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
           }
         }
       }
-      if (tifx && tify && tifzb && (tifz==1 || tifz==3) && (tifc==1) && (tifofs && tifofs+i<n)) {
+      if (tifx>1 && tify && tifzb && (tifz==1 || tifz==3) && (tifc==1) && (tifofs && tifofs+i<n)) {
         if (!tifofval) {
-          fseek(in, start+i+tifofs-7, SEEK_SET);
+          fseeko(in, start+i+tifofs-7, SEEK_SET);
           for (int j=0; j<4; j++) b[j]=getc(in);
           tifofs=b[0]+(b[1]<<8)+(b[2]<<16)+(b[3]<<24);
         }
-        if (tifofs && tifofs<(1<<18) && tifofs+i<n) {
+        if (tifofs && tifofs<(1<<18) && tifofs+i<n && tifx>1) {
           if (tifz==1 && tifzb==1) IMG_DET(IMAGE1,i-7,tifofs,((tifx-1)>>3)+1,tify);
-          else if (tifz==1 && tifzb==8) IMG_DET(IMAGE8,i-7,tifofs,tifx,tify);
-          else if (tifz==3 && tifzb==8) IMG_DET(IMAGE24,i-7,tifofs,tifx*3,tify);
+          else if (tifz==1 && tifzb==8 && tifx<30000) IMG_DET(IMAGE8,i-7,tifofs,tifx,tify);
+          else if (tifz==3 && tifzb==8 && tifx<30000) IMG_DET(IMAGE24,i-7,tifofs,tifx*3,tify);
         }
       }
-      fseek(in, savedpos, SEEK_SET);
+      fseeko(in, savedpos, SEEK_SET);
     }
-
+	
     // Detect .tga image (8-bit 256 colors or 24-bit uncompressed)
-    if (buf1==0x00010100 && buf0==0x00000118) tga=i,tgax=tgay,tgaz=8,tgat=1;
+  /*  if (buf1==0x00010100 && buf0==0x00000118) tga=i,tgax=tgay,tgaz=8,tgat=1;
     else if (buf1==0x00000200 && buf0==0x00000000) tga=i,tgax=tgay,tgaz=24,tgat=2;
     else if (buf1==0x00000300 && buf0==0x00000000) tga=i,tgax=tgay,tgaz=8,tgat=3;
     if (tga) {
       if (i-tga==8) tga=(buf1==0?tga:0),tgax=(bswap(buf0)&0xffff),tgay=(bswap(buf0)>>16);
       else if (i-tga==10) {
-        if (tgaz==(int)((buf0&0xffff)>>8) && tgax && tgay) {
+        if (tgaz==(int)((buf0&0xffff)>>8) && tgax<30000 && tgax>1 && tgay) {
           if (tgat==1) IMG_DET(IMAGE8,tga-7,18+256*3,tgax,tgay);
           else if (tgat==2) IMG_DET(IMAGE24,tga-7,18,tgax*3,tgay);
           else if (tgat==3) IMG_DET(IMAGE8,tga-7,18,tgax,tgay);
         }
         tga=0;
       }
-    }
-
+    }*/
+	
     // Detect EXE if the low order byte (little-endian) XX is more
     // recently seen (and within 4K) if a relative to absolute address
     // conversion is done in the context CALL/JMP (E8/E9) XX xx xx 00/FF
@@ -4289,8 +4393,8 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
     if (((buf1&0xfe)==0xe8 || (buf1&0xfff0)==0x0f80) && ((buf0+1)&0xfe)==0) {
       int r=buf0>>24;  // relative address low 8 bits
       int a=((buf0>>24)+i)&0xff;  // absolute address low 8 bits
-      int rdist=i-relpos[r];
-      int adist=i-abspos[a];
+      int rdist=int(i-relpos[r]);
+      int adist=int(i-abspos[a]);
       if (adist<rdist && adist<0x800 && abspos[a]>5) {
         e8e9last=i;
         ++e8e9count;
@@ -4298,13 +4402,13 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
       }
       else e8e9count=0;
       if (type==DEFAULT && e8e9count>=4 && e8e9pos>5)
-        return fseek(in, start+e8e9pos-5, SEEK_SET), EXE;
+        return fseeko(in, start+e8e9pos-5, SEEK_SET), EXE;
       abspos[a]=i;
       relpos[r]=i;
     }
     if (i-e8e9last>0x4000) {
-      if (type==EXE) return fseek(in, start+e8e9last, SEEK_SET), DEFAULT;
-      e8e9count=e8e9pos=0;
+      if (type==EXE) return fseeko(in, start+e8e9last, SEEK_SET), DEFAULT;
+      e8e9count=0,e8e9pos=0;
     }
   
     // base64 encoded data detection
@@ -4428,17 +4532,19 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
              ++txtLen;
             utfc=utfb=txtIsUTF8=0;
             if (txtbinc>=128){
-            if (txtLen<txtMinLen) {
-               txtStart=txtLen=txtOff=utfc=utfb=txtbinc=txtIsUTF8=0;
+            if ( txtLen<txtMinLen) {
+               txtStart=txtOff=txtLen=txtbinc=0;
+				   txtIsUTF8=utfc=utfb=0;
             }
             else{
                     if (txta<txt0) wrtn=1; else wrtn=0; //use num0-9
-                 if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
-                 if (txtIsUTF8==1)
-                    return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
+                 if (type==TEXT ||type== TXTUTF8 ) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
+                if (txtIsUTF8==1)
+                    return fseeko(in, start+txtOff, SEEK_SET),TXTUTF8;
                  else
-                     return fseek(in, start+txtOff, SEEK_SET),TEXT;
-            }
+                     return fseeko(in, start+txtOff, SEEK_SET),TEXT;
+                     }
+          
         }
        }
        else if (txtLen<txtMinLen) {
@@ -4446,7 +4552,8 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
             txtbinp=i;
             ++txtLen;
             if (txtbinc>=128)
-            txtStart=txtLen=txtOff=utfc=utfb=txtbinc=0;
+            txtStart=txtLen=txtOff=txtbinc=0;
+			utfc=utfb=0;
        }
        else if (txtLen>=txtMinLen) {
             txtbinc=txtbinc+1;
@@ -4454,24 +4561,28 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
             ++txtLen;
             if (txtbinc>=128){
                                  if (txta<txt0)   wrtn=1; else wrtn=0 ;
-		       if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
-            if (txtIsUTF8==1)
-               return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
-            else
-                return fseek(in, start+txtOff, SEEK_SET),TEXT;
-            }
-       }
+		       if (type==TEXT ||type== TXTUTF8 ) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
+                           
+                 if (txtIsUTF8==1)
+                    return fseeko(in, start+txtOff, SEEK_SET),TXTUTF8;
+                 else
+                     return fseeko(in, start+txtOff, SEEK_SET),TEXT;
+                     }
+      
+   } 
     } 
   }
  if (txtStart) {
-	   if (txtLen>=txtMinLen) {
+	   if ( txtLen>=txtMinLen) {
                                 if (txta<txt0)   wrtn=1; else wrtn=0 ;
-		   if (type==TEXT ||type== TXTUTF8 ) return fseek(in, start+txtLen, SEEK_SET),DEFAULT;
-           if (txtIsUTF8==1)
-            return fseek(in, start+txtOff, SEEK_SET),TXTUTF8;
-           else
-            return fseek(in, start+txtOff, SEEK_SET),TEXT;
-       }
+		   if (type==TEXT ||type== TXTUTF8 ) return fseeko(in, start+txtLen, SEEK_SET),DEFAULT;
+         
+                 if (txtIsUTF8==1)
+                    return fseeko(in, start+txtOff, SEEK_SET),TXTUTF8;
+                 else
+                     return fseeko(in, start+txtOff, SEEK_SET),TEXT;
+                     }
+      
  }      
   return type;
 
@@ -4480,7 +4591,7 @@ Filetype detect(FILE* in, int n, Filetype type, int &info, int &info2, int it=0)
 typedef enum {FDECOMPRESS, FCOMPARE, FDISCARD} FMode;
 
 // Print progress: n is the number of bytes compressed or decompressed
-void printStatus(int n, int size) {
+void printStatus(uint64_t n, uint64_t size) {
 if (level>0)  printf("%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
@@ -4503,7 +4614,7 @@ void encode_cd(FILE* in, FILE* out, int len, int info) {
   }
 }
 
-int decode_cd(FILE *in, int size, FILE *out, FMode mode, int &diffFound) {
+int decode_cd(FILE *in, int size, FILE *out, FMode mode, uint64_t &diffFound) {
   const int BLOCK=2352;
   U8 blk[BLOCK];
   long i=0, i2=0;
@@ -4556,7 +4667,7 @@ void encode_bmp(FILE* in, FILE* out, int len, int width) {
   }
 }
 
-int decode_bmp(Encoder& en, int size, int width, FILE *out, FMode mode, int &diffFound) {
+int decode_bmp(Encoder& en, int size, int width, FILE *out, FMode mode, uint64_t &diffFound) {
   int r,g,b,p;
   for (int i=0; i<size/width; i++) {
     p=i*width;
@@ -4603,7 +4714,7 @@ void encode_exe(FILE* in, FILE* out, int len, int begin) {
 
   // Transform
   for (int offset=0; offset<len; offset+=BLOCK) {
-    int size=min(len-offset, BLOCK);
+    int size=min(int(len-offset), BLOCK);
     int bytesRead=fread(&blk[0], 1, size, in);
     if (bytesRead!=size) quit("encode_exe read error");
     for (int i=bytesRead-1; i>=5; --i) {
@@ -4622,7 +4733,7 @@ void encode_exe(FILE* in, FILE* out, int len, int begin) {
   }
 }
 
-int decode_exe(Encoder& en, int size, FILE *out, FMode mode, int &diffFound, long s1=0, long s2=0) {
+uint64_t decode_exe(Encoder& en, int size, FILE *out, FMode mode, uint64_t &diffFound, int s1=0, int s2=0) {
   const int BLOCK=0x10000;  // block size
   int begin, offset=6, a, showstatus=(s2!=0);
   U8 c[6];
@@ -4667,7 +4778,7 @@ void encode_txt(FILE* in, FILE* out, int len) {
 }
 
 //called only when encode_txt output was smaller then input
-int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
+int decode_txt(Encoder& en, int size, FILE *out, FMode mode, uint64_t &diffFound) {
     XWRT_Decoder* wrt;
     wrt=new XWRT_Decoder();
 	FILE* dtmp;
@@ -4681,7 +4792,7 @@ int decode_txt(Encoder& en, int size, FILE *out, FMode mode, int &diffFound) {
 		c=en.decompress(); 
 		putc(c,dtmp);	
 	}
-	fseek(dtmp,0, SEEK_SET);
+	fseeko(dtmp,0, SEEK_SET);
 	wrt->defaultSettings(0);
 	bb=wrt->WRT_start_decoding(dtmp);
     for ( int i=0; i<bb; i++) {
@@ -4705,21 +4816,12 @@ static const char  table1[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvw
 bool isbase64(unsigned char c) {
     return (isalnum(c) || (c == '+') || (c == '/')|| (c == 10) || (c == 13));
 }
-void encodeblock( unsigned char in[3], unsigned char out[4], int len ){
-    out[0]=table1[in[0]>>2];
-    out[1]=table1[((in[0]&0x03)<<4)|((in[1]&0xf0)>>4)];
-    out[2]=(unsigned char)(len>1?table1[((in[1]&0x0f)<<2)|((in[2]&0xc0)>>6)]:'=');
-    out[3]=(unsigned char)(len>2?table1[in[2]&0x3f]:'=');
-}
 
-int decode_base64(FILE *in, int size, FILE *out, FMode mode, int &diffFound){
-    FILE* dtmp1;
-	int b=0;
-	dtmp1=tmpfile();
-    unsigned char inn[3], outn[4];
+int decode_base64(FILE *in, int size, FILE *out, FMode mode, uint64_t &diffFound){
+    U8 inn[3];
     int i,len1=0, len=0, blocksout = 0;
     int fle=0;
-    int linesize=0;
+    int linesize=0; 
     int outlen=0;
     int tlf=0;
     linesize=getc(in);
@@ -4728,6 +4830,11 @@ int decode_base64(FILE *in, int size, FILE *out, FMode mode, int &diffFound){
     outlen+=(getc(in)<<16);
     tlf=(getc(in));
     outlen+=((tlf&63)<<24);
+    U8 *ptr,*fptr;
+    ptr = (U8*)calloc((outlen>>2)*4+10, 1);
+    if (!ptr) quit("Out of memory (d_B64)");
+    programChecker.alloc((outlen>>2)*4+10); //report used memory
+    fptr=&ptr[0];
     tlf=(tlf&192);
     if (tlf==128)
        tlf=10;        // LF: 10
@@ -4736,10 +4843,10 @@ int decode_base64(FILE *in, int size, FILE *out, FMode mode, int &diffFound){
     else 
          tlf=0;
  
-    while(!feof(in)){
+    while(fle<outlen){
         len=0;
         for(i=0;i<3;i++){
-            inn[i] = (unsigned char) getc( in );
+            inn[i] = getc( in );
             if(!feof(in)){
                 len++;
                 len1++;
@@ -4749,33 +4856,37 @@ int decode_base64(FILE *in, int size, FILE *out, FMode mode, int &diffFound){
             }
         }
         if(len){
-            encodeblock(inn,outn,len);
-            for(i=0;i<4;i++){
-                putc(outn[i],dtmp1),fle++;
-            }
+            U8 in0,in1,in2;
+			in0=inn[0],in1=inn[1],in2=inn[2];
+            fptr[fle++]=(table1[in0>>2]);
+            fptr[fle++]=(table1[((in0&0x03)<<4)|((in1&0xf0)>>4)]);
+            fptr[fle++]=((len>1?table1[((in1&0x0f)<<2)|((in2&0xc0)>>6)]:'='));
+            fptr[fle++]=((len>2?table1[in2&0x3f]:'='));
             blocksout++;
         }
-        if(blocksout>=(linesize/4) && linesize!=0){
-            if( blocksout &&  !feof(in) && fle<=outlen) { //no nl if eof
-                if (tlf) putc(tlf,dtmp1),fle--;
-                else fprintf( dtmp1, "\r\n" );
-                fle++;
-                fle++;
+        if(blocksout>=(linesize/4) && linesize!=0){ //no lf if linesize==0
+            if( blocksout &&  !feof(in) && fle<=outlen) { //no lf if eof
+                if (tlf) fptr[fle++]=(tlf);
+                else fptr[fle++]=13,fptr[fle++]=10;
             }
             blocksout = 0;
         }
     }
-    fseek(dtmp1,0, SEEK_SET);
-    for(i=0;i<outlen;i++){
-         b=fgetc(dtmp1);
-    	if (mode==FDECOMPRESS){
-			fputc(b, out);
+    //Write out or compare
+	if (mode==FDECOMPRESS){
+			fwrite(&ptr[0], 1, outlen, out);
+	
 		}
-		else if (mode==FCOMPARE){
-			if (b!=fgetc(out) && !diffFound) diffFound=ftell(out);
+	else if (mode==FCOMPARE){
+    for(i=0;i<outlen;i++){
+        U8 b=fptr[i];
+    	
+		
+			if (b!=fgetc(out) && !diffFound) diffFound=ftello(out);
 		}
     }
-    fclose(dtmp1);
+    free(ptr);
+    programChecker.alloc(-(outlen+10));
     return outlen;
 }
    
@@ -4796,11 +4907,13 @@ void encode_base64(FILE* in, FILE* out, int len) {
   int lfp=0;
   int tlf=0;
   char src[4];
-  fputc(0, out); //nl lenght
-  fputc(0, out);
-  fputc(0, out);
-  fputc(0, out);
-  fputc(0, out);
+  U8 *ptr,*fptr;
+  int b64mem=(len>>2)*3+10;
+    ptr = (U8*)calloc(b64mem, 1);
+    if (!ptr) quit("Out of memory (e_B64)");
+    programChecker.alloc(b64mem);
+    fptr=&ptr[0];
+    int olen=5;
 
   while (b=fgetc(in),in_len++ , ( b != '=') && is_base64(b) && in_len<=len) {
     if (b==13 || b==10) {
@@ -4815,9 +4928,9 @@ void encode_base64(FILE* in, FILE* out, int len) {
           src[1] = ((src[1] & 0xf) << 4) + ((src[2] & 0x3c) >> 2);
           src[2] = ((src[2] & 0x3) << 6) + src[3];
     
-          fputc(src[0], out);
-          fputc(src[1], out);
-          fputc(src[2], out);
+          fptr[olen++]=src[0];
+          fptr[olen++]=src[1];
+          fptr[olen++]=src[2];
       i = 0;
     }
   }
@@ -4834,51 +4947,74 @@ void encode_base64(FILE* in, FILE* out, int len) {
     src[2] = ((src[2] & 0x3) << 6) + src[3];
 
     for (j=0;(j<i-1);j++) {
-        b= src[j];
-        fputc(b, out);
-        }
+        fptr[olen++]=src[j];
+    }
   }
-  fseek(out,0, SEEK_SET);
-  fputc(lfp&255, out);
-  fputc(len&255, out);
-  fputc(len>>8&255, out);
-  fputc(len>>16&255, out);
+  fptr[0]=lfp&255; //nl lenght
+  fptr[1]=len&255;
+  fptr[2]=len>>8&255;
+  fptr[3]=len>>16&255;
   if (tlf!=0) {
-              if (tlf==10)
-                fputc(128, out);
-              else
-                fputc(64, out);
-                }
+	if (tlf==10) fptr[4]=128;
+    else fptr[4]=64;
+  }
   else
-  fputc(len>>24&63, out); //1100 0000
-  fseek(out,0, SEEK_END);
+  	fptr[4]=len>>24&63; //1100 0000
+  fwrite(&ptr[0], 1, olen, out);
+  free(ptr);
+  programChecker.alloc(-b64mem);
 }
 
 //////////////////// Compress, Decompress ////////////////////////////
 
-void direct_encode_block(Filetype type, FILE *in, int len, Encoder &en, int s1, int s2, int info=-1) {
+// put 4 bytes to segment buffer
+inline void put4f(uint64_t num)
+{
+  segment[segment.pos++]=(num>>56)&0xff;
+  segment[segment.pos++]=(num>>48)&0xff;
+  segment[segment.pos++]=(num>>40)&0xff;
+  segment[segment.pos++]=(num>>32)&0xff;
+  segment[segment.pos++]=(num>>24)&0xff;
+  segment[segment.pos++]=(num>>16)&0xff;
+  segment[segment.pos++]=(num>>8)&0xff;
+  segment[segment.pos++]=num&0xff;
+  
+}
+inline void put4f4(int num)
+{
+  segment[segment.pos++]=(num>>24)&0xff;
+  segment[segment.pos++]=(num>>16)&0xff;
+  segment[segment.pos++]=(num>>8)&0xff;
+  segment[segment.pos++]=num&0xff;
+  
+}
+void direct_encode_block(Filetype type, FILE *in, uint64_t len, Encoder &en, uint64_t s1, uint64_t s2, int info=-1) {
   printf("\n");
-  en.compress(type);
-  en.compress(len>>24);
-  en.compress(len>>16);
-  en.compress(len>>8);
-  en.compress(len);
+  segment[segment.pos++]=type&0xff;
+  put4f(len);
+  filetype=type;
+  blpos=0;
+  finfo=0;
   if (info!=-1) {
-    en.compress(info>>24);
-    en.compress(info>>16);
-    en.compress(info>>8);
-    en.compress(info);
+    put4f4(info);
+    finfo=info;
   }
  if (level>0)   printf("Compressing... ");
-  const int total=s1+len+s2;
-  for (int j=s1; j<s1+len; ++j) {
+  const uint64_t total=s1+len+s2;
+  uint64_t j;
+  for ( j=s1; j<s1+len; ++j) {
     if (!(j&0xfff)) printStatus(j, total);
     en.compress(getc(in));
   }
 if (level>0)    printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
 }
 
-void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int s1=0, int s2=0) {
+//for block statistics, levels 0-5
+uint64_t typenamess[14][5]={0}; //total type size for levels 0-5
+U32 typenamesc[14][5]={0}; //total type count for levels 0-5
+U32 itcount=0;			   //level count
+
+void compressRecursive(FILE *in, uint64_t n, Encoder &en, char *blstr, int it=0, uint64_t s1=0, uint64_t s2=0) {
   static const char* typenames[13]={"default", "jpeg", "hdr",
     "1b-image", "4b-image", "8b-image", "24b-image", "audio",
     "exe", "cd", "text","utf-8","base64"};
@@ -4886,7 +5022,7 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
     "16b stereo"};
   Filetype type=DEFAULT;
   int blnum=0, info,info2;  // image width or audio type
-  long begin=ftell(in), end0=begin+n;
+  uint64_t begin=ftello(in), end0=begin+n;
   FILE* tmp;
   char b2[32];
   strcpy(b2, blstr);
@@ -4900,52 +5036,58 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
   // Transform and test in blocks
   while (n>0) {
     Filetype nextType=detect(in, n, type, info,info2,it);
-    long end=ftell(in);
-    fseek(in, begin, SEEK_SET);
+    uint64_t end=ftello(in);
+    fseeko(in, begin, SEEK_SET);
     if (end>end0) {  // if some detection reports longer then actual size file is
       end=begin+1;
       type=DEFAULT;
     }
-    int len=int(end-begin);
+    uint64_t len=uint64_t(end-begin);
+    
     if (len>0) {
+    if (it>itcount)	itcount=it;
+	typenamess[type][it]+=len,  typenamesc[type][it]++;
       s2-=len;
       sprintf(blstr,"%s%d",b2,blnum++);
       
-      printf(" %-11s | %-9s |%10d bytes [%ld - %ld]",blstr,typenames[type],len,begin,end-1);
+      printf(" %-11s | %-9s |%10.0f b [%0.0f - %0.0f]",blstr,typenames[type],len+0.0,begin+0.0,end-1+0.0);
       if (type==AUDIO) printf(" (%s)", audiotypes[info%4]);
       else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24) printf(" (width: %d)", info);
       else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
       
-      if (type==EXE || type==CD || type==IMAGE24  || type==TEXT || type==TXTUTF8 || type==BASE64) {
+      if (type==EXE || type==CD || type==IMAGE24  || type==TEXT || type==TXTUTF8 || type==BASE64 ) {
         tmp=tmpfile();  // temporary encoded file
         if (!tmp) perror("tmpfile"), quit();
-        if (type==IMAGE24) encode_bmp(in, tmp, len, info);
-        else if (type==EXE) encode_exe(in, tmp, len, begin);
-        else if (type==TEXT || type==TXTUTF8) encode_txt(in, tmp, len);
-        else if (type==BASE64) encode_base64(in, tmp, len);
-        else if (type==CD) encode_cd(in, tmp, len, info);
-        const long tmpsize=ftell(tmp);
-        if ((type==TEXT || type==TXTUTF8) && (tmpsize<(len-256))) printf(" (wrt: %d)", tmpsize); 
+        if (type==IMAGE24) encode_bmp(in, tmp, int(len), info);
+        else if (type==EXE) encode_exe(in, tmp, int(len), int(begin));
+        else if (type==TEXT || type==TXTUTF8 ) encode_txt(in, tmp, int(len));
+        else if (type==BASE64) encode_base64(in, tmp, int(len));
+        else if (type==CD) encode_cd(in, tmp, int(len), info);
+        const uint64_t tmpsize=ftello(tmp);
+        if ((type==TEXT || type==TXTUTF8) && (tmpsize<(len-256))) printf("(wt: %d)", int(tmpsize)); 
         rewind(tmp);
         en.setFile(tmp);
-        fseek(in, begin, SEEK_SET);
-        int diffFound=0;
-        if (type==IMAGE24) decode_bmp(en, tmpsize, info, in, FCOMPARE, diffFound);
-        else if (type==EXE) decode_exe(en, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==TEXT || type==TXTUTF8) decode_txt(en, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==BASE64 ) decode_base64(tmp, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==CD) decode_cd(tmp, tmpsize, in, FCOMPARE, diffFound);
+        fseeko(in, begin, SEEK_SET);
+        uint64_t diffFound=0;
+        if (type==IMAGE24) decode_bmp(en, int(tmpsize), info, in, FCOMPARE, diffFound);
+        else if (type==EXE) decode_exe(en, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==TEXT || type==TXTUTF8) decode_txt(en, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==BASE64 ) decode_base64(tmp, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==CD) decode_cd(tmp, int(tmpsize), in, FCOMPARE, diffFound);
 
         // Test fails, compress without transform
         if ((diffFound || fgetc(tmp)!=EOF)) {
-          printf("Transform fails at %d, skipping...\n", diffFound-1);
-          fseek(in, begin, SEEK_SET);
+          printf("Transform fails at %0.0f, skipping...\n", diffFound-1+0.0);
+          fseeko(in, begin, SEEK_SET);
           direct_encode_block(DEFAULT, in, len, en, s1, s2);
         } else {
           rewind(tmp);
           if (type==CD) {
-            en.compress(type), en.compress(tmpsize>>24), en.compress(tmpsize>>16);
-            en.compress(tmpsize>>8), en.compress(tmpsize);
+            segment[segment.pos++]=type&0xff;
+            put4f(tmpsize);
+            filetype=type;
+  			blpos=0;
+  			finfo=0;
             compressRecursive(tmp, tmpsize, en, blstr, it+1, s1, s2);
           } else if (type==EXE) {
             direct_encode_block(type, tmp, tmpsize, en, s1, s2);
@@ -4955,12 +5097,15 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
                    if (tmpsize<(len-256)) //if WRT is smaller then original block
                       direct_encode_block(DICTTXT, tmp, tmpsize, en, s1, s2);
                    else {// encode as text
-                      fseek(in, begin, SEEK_SET);
+                      fseeko(in, begin, SEEK_SET);
                       direct_encode_block(type, in, len, en, s1, s2);}
           } else if ((type==BASE64) ) {
                       printf("\n");
-                      en.compress(type), en.compress(tmpsize>>24), en.compress(tmpsize>>16);
-            en.compress(tmpsize>>8), en.compress(tmpsize);
+                      segment[segment.pos++]=type&0xff;
+            		  put4f(tmpsize);
+            		  filetype=type;
+  					  blpos=0;
+  					  finfo=0;
             compressRecursive(tmp, tmpsize, en, blstr, it+1, s1, s2);
           }
         }
@@ -4981,17 +5126,17 @@ void compressRecursive(FILE *in, long n, Encoder &en, char *blstr, int it=0, int
 // For each block, output
 // <type> <size> and call encode_X to convert to type X.
 // Test transform and compress.
-void compress(const char* filename, long filesize, Encoder& en) {
+void compress(const char* filename, uint64_t filesize, Encoder& en) {
   assert(en.getMode()==COMPRESS);
   assert(filename && filename[0]);
   FILE *in=fopen(filename, "rb");
   if (!in) perror(filename), quit();
-  long start=en.size();
+  uint64_t start=en.size();
   printf("Block segmentation:\n");
   char blstr[32]="";
   compressRecursive(in, filesize, en, blstr);
   if (in) fclose(in);
-  printf("Compressed from %ld to %ld bytes.\n",filesize,en.size()-start);
+  printf("Compressed from %0.0f to %0.0f bytes.\n",filesize+0.0,en.size()-start+0.0);
 }
 
 // Try to make a directory, return true if successful
@@ -5008,31 +5153,32 @@ bool makedir(const char* dir) {
 }
 
 
-int decompressRecursive(FILE *out, long size, Encoder& en, FMode mode, int it=0, int s1=0, int s2=0) {
+uint64_t decompressRecursive(FILE *out, uint64_t size, Encoder& en, FMode mode, int it=0, uint64_t s1=0, uint64_t s2=0) {
   Filetype type;
-  long len, i=0;
-  int diffFound=0, info;
+  uint64_t len=0L, i=0;
+  uint64_t diffFound=0;
+  int info;
   FILE *tmp;
   s2+=size;
   while (i<size) {
-    type=(Filetype)en.decompress();
-    len=en.decompress()<<24;
-    len|=en.decompress()<<16;
-    len|=en.decompress()<<8;
-    len|=en.decompress();
-
+    type=(Filetype)segment(segment.pos++);
+	for (int ii=0; ii<8; ii++) len=len<<8,len+=segment(segment.pos++);
+filetype=type;
+  blpos=0;
+  finfo=0;
     if (type==IMAGE1 || type==IMAGE8 || type==IMAGE4 || type==IMAGE24 || type==AUDIO) {
-      info=0; for (int i=0; i<4; ++i) { info<<=8; info+=en.decompress(); }
+      info=0; for (int i=0; i<4; ++i) { info<<=8; info+=segment(segment.pos++);}
+	  finfo=info;
     }
-    if (type==IMAGE24) len=decode_bmp(en, len, info, out, mode, diffFound);
-    else if (type==EXE) len=decode_exe(en, len, out, mode, diffFound, s1, s2);
-    else if (type==DICTTXT) len=decode_txt(en, len, out, mode, diffFound);
+    if (type==IMAGE24) len=decode_bmp(en, int(len), info, out, mode, diffFound);
+    else if (type==EXE) len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
+    else if (type==DICTTXT) len=decode_txt(en, int(len), out, mode, diffFound);
     else if (type==BASE64) {
       tmp=tmpfile();
       decompressRecursive(tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
       if (mode!=FDISCARD) {
         rewind(tmp);
-        len=decode_base64(tmp, len, out, mode, diffFound);
+        len=decode_base64(tmp, int(len), out, mode, diffFound);
       }
       fclose(tmp);
     }
@@ -5041,11 +5187,11 @@ int decompressRecursive(FILE *out, long size, Encoder& en, FMode mode, int it=0,
       decompressRecursive(tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
       if (mode!=FDISCARD) {
         rewind(tmp);
-        len=decode_cd(tmp, len, out, mode, diffFound);
+        len=decode_cd(tmp, int(len), out, mode, diffFound);
       }
       fclose(tmp);
     } else {
-      for (int j=i+s1; j<i+s1+len; ++j) {
+      for (uint64_t j=i+s1; j<i+s1+len; ++j) {
         if (!(j&0xfff)) printStatus(j, s2);
         if (mode==FDECOMPRESS) putc(en.decompress(), out);
         else if (mode==FCOMPARE) {
@@ -5062,7 +5208,7 @@ int decompressRecursive(FILE *out, long size, Encoder& en, FMode mode, int it=0,
 }
 
 // Decompress a file
-void decompress(const char* filename, long filesize, Encoder& en) {
+void decompress(const char* filename, uint64_t filesize, Encoder& en) {
   FMode mode=FDECOMPRESS;
   assert(en.getMode()==DECOMPRESS);
   assert(filename && filename[0]);
@@ -5088,12 +5234,12 @@ void decompress(const char* filename, long filesize, Encoder& en) {
     }
     if (!f) mode=FDISCARD,printf("Skipping"); else printf("Extracting");
   }
-  printf(" %s %ld -> ", filename, filesize);
+  printf(" %s %0.0f -> ", filename, filesize+0.0);
 
   // Decompress/Compare
-  int r=decompressRecursive(f, filesize, en, mode);
+  uint64_t r=decompressRecursive(f, filesize, en, mode);
   if (mode==FCOMPARE && !r && getc(f)!=EOF) printf("file is longer\n");
-  else if (mode==FCOMPARE && r) printf("differ at %d\n",r-1);
+  else if (mode==FCOMPARE && r) printf("differ at %0.0f\n",r-1+0.0);
   else if (mode==FCOMPARE) printf("identical\n");
   else printf("done   \n");
   if (f) fclose(f);
@@ -5117,11 +5263,11 @@ int putsize(String& archive, String& s, const char* fname, int base) {
   int result=0;
   FILE *f=fopen(fname, "rb");
   if (f) {
-    fseek(f, 0, SEEK_END);
-    long len=ftell(f);
+    fseeko(f, 0, SEEK_END);
+    uint64_t len=ftello(f);
     if (len>=0) {
       static char blk[24];
-      sprintf(blk, "%ld\t", len);
+      sprintf(blk, "%0.0f\t", len+0.0);
       archive+=blk;
       archive+=(fname+base);
       archive+="\n";
@@ -5230,7 +5376,7 @@ int main(int argc, char** argv) {
 
     // Print help message
     if (argc<2) {
-      printf(PROGNAME " archiver (C) 2008, Matt Mahoney et al.\n"
+      printf(PROGNAME " archiver (C) 2008,2014, Matt Mahoney et al.\n"
         "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n\n"
 #ifdef WINDOWS
         "To compress or extract, drop a file or folder on the "
@@ -5259,11 +5405,11 @@ int main(int argc, char** argv) {
         DEFAULT_OPTION);
       quit();
     }
-
+	
     FILE* archive=0;  // compressed file
     int files=0;  // number of files to compress/decompress
     Array<const char*> fname(1);  // file names (resized to files)
-    Array<long> fsize(1);   // file lengths (resized to files)
+    Array<uint64_t> fsize(1);   // file lengths (resized to files)
 
     // Compress or decompress?  Get archive name
     Mode mode=COMPRESS;
@@ -5286,8 +5432,9 @@ int main(int argc, char** argv) {
     // Compress: write archive header, get file names and sizes
     String header_string;
     String filenames;
+    
     if (mode==COMPRESS) {
-
+      segment.setsize(2048); //inital segment buffer size (about 277 blocks)
       // Expand filenames to read later.  Write their base names and sizes
       // to archive.
       int i;
@@ -5314,6 +5461,10 @@ int main(int argc, char** argv) {
       archive=fopen(archiveName.c_str(), "wb+");
       if (!archive) perror(archiveName.c_str()), quit();
       fprintf(archive, PROGNAME "%c%d", 0, level);
+      segment.hpos=ftello(archive);
+      
+      for (int i=0; i<12; i++) putc(0,archive);
+      
       printf("Creating archive %s with %d file(s)...\n",
         archiveName.c_str(), files);
     }
@@ -5336,6 +5487,21 @@ int main(int argc, char** argv) {
         printf("%s: not a %s file\n", archiveName.c_str(), PROGNAME), quit();
       level=header[strlen(PROGNAME)+1]-'0';
       if (level<0||level>8) level=DEFAULT_OPTION;
+      
+	  // Read segment data from archive end
+	  uint64_t currentpos,datapos=0L;
+	  for (int i=0; i<8; i++) datapos=datapos<<8,datapos+=getc(archive);
+	  segment.hpos=datapos;
+      segment.pos=getc(archive)<<24; //read segment data size
+	  segment.pos+=getc(archive)<<16;
+	  segment.pos+=getc(archive)<<8;
+	  segment.pos+=getc(archive);
+	  segment.setsize(segment.pos);
+      currentpos=ftello(archive);
+      fseeko(archive, segment.hpos, SEEK_SET); 
+      fread( &segment[0], 1, segment.pos, archive); //read segment data
+	  fseeko(archive, currentpos, SEEK_SET); 
+	  segment.pos=0; //reset to offset 0
     }
 
     // Set globals according to option
@@ -5348,11 +5514,11 @@ int main(int argc, char** argv) {
       int len=header_string.size();
       printf("\nFile list (%ld bytes)\n", len);
       assert(en.getMode()==COMPRESS);
-      long start=en.size();
+      uint64_t start=en.size();
       en.compress(0); // block type 0
       en.compress(len>>24); en.compress(len>>16); en.compress(len>>8); en.compress(len); // block length
       for (int i=0; i<len; i++) en.compress(header_string[i]);
-      printf("Compressed from %ld to %ld bytes.\n",len,en.size()-start);
+      printf("Compressed from %ld to %0.0f bytes.\n",len,en.size()-start+0.0);
     }
 
     // Deompress header
@@ -5370,7 +5536,9 @@ int main(int argc, char** argv) {
       }
       if (doList) printf("File list of %s archive:\n%s", archiveName.c_str(), header_string.c_str());
     }
-
+	#if defined(WINDOWS) || defined(_MSC_VER)
+	#define atoll(S) _atoi64(S)
+	#endif
     // Fill fname[files], fsize[files] with input filenames and sizes
     fname.resize(files);
     fsize.resize(files);
@@ -5378,28 +5546,61 @@ int main(int argc, char** argv) {
     char* q=&filenames[0];
     for (int i=0; i<files; ++i) {
       assert(p);
-      fsize[i]=atol(p);
+      fsize[i]=atoll(p);
       assert(fsize[i]>=0);
       while (*p!='\t') ++p; *(p++)='\0';
       fname[i]=mode==COMPRESS?q:p;
       while (*p!='\n') ++p; *(p++)='\0';
       if (mode==COMPRESS) { while (*q!='\n') ++q; *(q++)='\0'; }
     }
-
     // Compress or decompress files
     assert(fname.size()==files);
     assert(fsize.size()==files);
-    long total_size=0;  // sum of file sizes
+    uint64_t total_size=0;  // sum of file sizes
     for (int i=0; i<files; ++i) total_size+=fsize[i];
     if (mode==COMPRESS) {
       for (int i=0; i<files; ++i) {
-        printf("\n%d/%d  Filename: %s (%ld bytes)\n", i+1, files, fname[i], fsize[i]);
+        printf("\n%d/%d  Filename: %s (%0.0f bytes)\n", i+1, files, fname[i], fsize[i]+0.0);
         compress(fname[i], fsize[i], en);
       }
       en.flush();
-      printf("\nTotal %ld bytes compressed to %ld bytes.\n", total_size, en.size());
-    }
 
+	  // Write out segment data
+      uint64_t segmentpos;
+      segmentpos=ftello(archive); //get segment data offset
+      fseeko(archive, segment.hpos, SEEK_SET);
+	  putc(segmentpos>>56&0xff,archive); //write segment data offset
+      putc(segmentpos>>48&0xff,archive);
+      putc(segmentpos>>40&0xff,archive);
+      putc(segmentpos>>32&0xff,archive);
+      putc(segmentpos>>24&0xff,archive); 
+      putc(segmentpos>>16&0xff,archive);
+      putc(segmentpos>>8&0xff,archive);
+      putc(segmentpos&0xff,archive);
+
+      putc(segment.pos>>24&0xff,archive); //write segment data size
+      putc(segment.pos>>16&0xff,archive);
+      putc(segment.pos>>8&0xff,archive);
+      putc(segment.pos&0xff,archive);
+      fseeko(archive, segmentpos, SEEK_SET); 
+      fwrite(&segment[0], 1, segment.pos, archive); //write out segment data
+
+	  printf("\nTotal %0.0f bytes compressed to %0.0f bytes.\n", total_size+0.0, en.size()+0.0); 
+      printf("\n Segment data size: %d bytes\n",segment.pos);
+      //Display Level statistics
+      const char* typenames[13]={"default", "jpeg", "hdr", "1b-image", "4b-image", "8b-image", "24b-image", "audio",
+    							"exe", "cd", "text","utf-8","base64"};
+      U32 ttc;
+	  uint64_t tts;
+      for (int j=0; j<=itcount; ++j) {
+      	printf("\n %-2s |%-9s |%-10s |%-10s\n","TN","Type name", "Count","Total size");
+    	printf("-----------------------------------------\n");
+    	ttc=0,tts=0;
+     	for (int i=0; i<13; ++i)   if (typenamess[i][j]) printf(" %2d |%-9s |%10d |%11.0f\n",i,typenames[i], typenamesc[i][j],typenamess[i][j]+0.0),ttc+=typenamesc[i][j],tts+=typenamess[i][j];
+     	printf("-----------------------------------------\n");
+     	printf("%-13s%1d |%10d |%11.0f\n\n","Total level",j, ttc,tts+0.0);
+      }
+  }
     // Decompress files to dir2: paq8pxd -d dir1/archive.paq8pxd dir2
     // If there is no dir2, then extract to dir1
     // If there is no dir1, then extract to .

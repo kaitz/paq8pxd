@@ -35,10 +35,10 @@
 #else
 #define getch getchar
 #endif
-#ifndef WINDOWS
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
-#endif
+//#ifndef WINDOWS
+//inline int min(int a, int b) {return a<b?a:b;}
+//inline int max(int a, int b) {return a<b?b:a;}
+//#endif
 
 #define CHAR_FIRSTUPPER		1	// for encode lower word with first capital letter
 #define CHAR_UPPERWORD		2	// for encode upper word
@@ -411,6 +411,7 @@ detect(false), dictmem_end(NULL),fileCorrupted(false)
 	fileBufferSize=10; // 1 KB
 	if (fileBufferSize>23)
 	fileBufferSize=23; // 8 MB
+	maxMemSize=8*1024*1024;
 	word_hash=new int[HASH_TABLE_SIZE];
 	if (!word_hash)
 	OUT_OF_MEMORY();
@@ -655,7 +656,7 @@ void XWRT_Common::WRT_deinitialize(){
 void XWRT_Common::defaultSettings(int n){
 	RESET_OPTIONS;
 	TURN_ON(OPTION_TRY_SHORTER_WORD);
-	maxMemSize=8*1024*1024;
+	//maxMemSize=8*1024*1024;
 	maxDynDictBuf=8*4;
 	maxDictSize=65535*32700;
 	tryShorterBound=3;//4
@@ -1020,8 +1021,8 @@ int XWRT_Decoder::WRT_start_decoding(FILE* in){
 	collision=0;
 
 	defaultSettings(0); 
-	GETC(maxMemSize); 
-	maxMemSize*=1024*1024;
+	//GETC(maxMemSize); 
+	//maxMemSize*=1024*1024;
 	int fileLen;
 
 	GETC(c);
@@ -1036,7 +1037,7 @@ int XWRT_Decoder::WRT_start_decoding(FILE* in){
 	if (fileLenMB>255*256)
 	fileLenMB=255*256;
 
-	PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
+	//PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
 	read_dict();
 
 	cont.readMemBuffers(preprocFlag,maxMemSize);
@@ -1407,7 +1408,7 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
 			if (i<0 ){
 				// try to find shorter version of word in dictionary
 				i=findShorterWord(s,s_size);
-				PRINT_CODEWORDS(("findShorterWord i=%d\n",i));
+				//PRINT_CODEWORDS(("findShorterWord i=%d\n",i));
 				//s[s_size+1]=0;
 				//if (i>0 ) printf("findShorterWord i=%d %s\n",i, s);
 				if (i>=0){
@@ -1606,12 +1607,12 @@ void XWRT_Encoder::WRT_encode(int filelen){
 	encodeWord(s,s_size,wordType,c);
 	s_size=0;
 }
-inline int common(const char* offset1,const char* offset2, int bound){
+/*inline int common(const char* offset1,const char* offset2, int bound){
 	int lp=0;
 	while (offset1[lp]==offset2[lp] && lp<bound)
 	lp++;
 	return lp;
-}
+}*/
 void XWRT_Encoder::write_dict(){
 	int i,count=0;
 	unsigned char *bound=(unsigned char*)&word_hash[0]+HASH_TABLE_SIZE*sizeof(word_hash[0])-WORD_MAX_SIZE;
@@ -1669,13 +1670,14 @@ if (fileLenMB<1)
 		minWordFreq=minWordFreq*6;
 	//if (fileLenMB<1)		minWordFreq=9,tryShorterBound=4;
 	//if (fileLen<256*1024)		minWordFreq=7,tryShorterBound=3;
-	int pos=ftell(XWRT_file);
+	uint64_t pos=ftello(XWRT_file);
 	if (!type_detected)
 	WRT_detectFileType(fileLen);
 
-	fseek(XWRT_file, pos, SEEK_SET );
+	fseeko(XWRT_file, pos, SEEK_SET );
 
-	PUTC(maxMemSize/(1024*1024));
+	//PUTC(maxMemSize/(1024*1024));
+	//not safe FIXME to i64
 	PUTC(fileLen&0xFF);
 	PUTC((fileLen>>8)&0xFF);
 	PUTC((fileLen>>16)&0xFF);
@@ -1801,6 +1803,10 @@ void XWRT_Encoder::sortDict(int size){
 	if (size>bound4)
 	qsort(&inttable[bound4],size-bound4,sizeof(inttable[0]),compare_str);//compare_str
 	
+	/*std::string str="";
+	sortedDict.push_back(str); //
+	sortedDict.push_back(str); //
+	sortedDict.push_back(str); //*/
 	for (i=0; i<size; i++){
 		std::string str=(char*)dict[inttable[i]];
 		sortedDict.push_back(str);
