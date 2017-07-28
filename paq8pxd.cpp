@@ -1,4 +1,4 @@
-/* paq8pxd20 file compressor/archiver.  Release by Kaido Orav, Jul. 25, 2017
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jul. 28, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -20,39 +20,39 @@
 
 To install and use in Windows:
 
-- To install, put paq8pxd_v20.exe or a shortcut to it on your desktop.
-- To compress a file or folder, drop it on the paq8pxd20 icon.
-- To decompress, drop a .paq8pxd20 file on the icon.
+- To install, put paq8pxd.exe or a shortcut to it on your desktop.
+- To compress a file or folder, drop it on the paq8pxd icon.
+- To decompress, drop a .paq8pxd file on the icon.
 
-A .paq8pxd20 extension is added for compression, removed for decompression.
+A .paq8pxd extension is added for compression, removed for decompression.
 The output will go in the same folder as the input.
 
-While paq8pxd20 is working, a command window will appear and report
+While paq8pxd is working, a command window will appear and report
 progress.  When it is done you can close the window by pressing
 ENTER or clicking [X].
 
 
 COMMAND LINE INTERFACE
 
-- To install, put paq8pxd_v20.exe somewhere in your PATH.
-- To compress:      paq8pxd_v20 [-N] file1 [file2...]
-- To decompress:    paq8pxd_v20 [-d] file1.paq8pxd20 [dir2]
-- To view contents: paq8pxd_v20 -l file1.paq8pxd20
+- To install, put paq8pxd.exe somewhere in your PATH.
+- To compress:      paq8pxd [-N] file1 [file2...]
+- To decompress:    paq8pxd [-d] file1.paq8pxd [dir2]
+- To view contents: paq8pxd -l file1.paq8pxd
 
-The compressed output file is named by adding ".paq8pxd20" extension to
-the first named file (file1.paq8pxd20).  Each file that exists will be
+The compressed output file is named by adding ".paq8pxd" extension to
+the first named file (file1.paq8pxd).  Each file that exists will be
 added to the archive and its name will be stored without a path.
 The option -N specifies a compression level ranging from -0
 (fastest) to -8 (smallest).  The default is -5.  If there is
 no option and only one file, then the program will pause when
 finished until you press the ENTER key (to support drag and drop).
-If file1.paq8pxd20 exists then it is overwritten. Level -0 only
+If file1.paq8pxd exists then it is overwritten. Level -0 only
 transforms or decompresses data.
 
-If the first named file ends in ".paq8pxd20" then it is assumed to be
+If the first named file ends in ".paq8pxd" then it is assumed to be
 an archive and the files within are extracted to the same directory
 as the archive unless a different directory (dir2) is specified.
-The -d option forces extraction even if there is not a ".paq8pxd20"
+The -d option forces extraction even if there is not a ".paq8pxd"
 extension.  If any output file already exists, then it is compared
 with the archive content and the first byte that differs is reported.
 No files are overwritten or deleted.  If there is only one argument
@@ -65,11 +65,11 @@ structure, except that empty directories are not stored, and file
 attributes (timestamps, permissions, etc.) are not preserved.
 During extraction, directories are created as needed.  For example:
 
-  paq8pxd_v20 -4 c:\tmp\foo bar
+  paq8pxd -4 c:\tmp\foo bar
 
-compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd20 at level 4.
+compresses foo and bar (if they exist) to c:\tmp\foo.paq8pxd at level 4.
 
-  paq8pxd_v20 -d c:\tmp\foo.paq8pxd20 .
+  paq8pxd -d c:\tmp\foo.paq8pxd .
 
 extracts foo and compares bar in the current directory.  If foo and bar
 are directories then their contents are extracted/compared.
@@ -83,8 +83,8 @@ are OK).
 
 TO COMPILE
 
-There are 2 files: paq8pxd_v20.cpp (C++) and wrtpre.cpp (C++).
-paq8pxd_v20.cpp recognizes the following compiler options:
+There are 2 files: paq8pxd.cpp (C++) and wrtpre.cpp (C++).
+paq8pxd.cpp recognizes the following compiler options:
 
   -DWINDOWS           (to compile in Windows)
   -DUNIX              (to compile in Unix, Linux, etc)
@@ -105,25 +105,25 @@ Recommended compiler commands and optimizations:
 
   MINGW g++ (x86,x64):
    with multithreading:
-    g++ paq8pxd_v20.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -o paq8pxd_v20.exe 
+    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -o paq8pxd.exe 
    without multithreading:
-    g++ paq8pxd_v20.cpp -DWINDOWS -msse2 -O3 -s -static -o paq8pxd_v20.exe 
+    g++ paq8pxd.cpp -DWINDOWS -msse2 -O3 -s -static -o paq8pxd.exe 
 
   UNIX/Linux (PC x86,x64):
    with multithreading:
-    g++ paq8pxd_v20.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -o paq8pxd_v20
+    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -o paq8pxd
    without multithreading:
-    g++ paq8pxd_v20.cpp -DUNIX -msse2 -O3 -s -static -lpthread -o paq8pxd_v20
+    g++ paq8pxd.cpp -DUNIX -msse2 -O3 -s -static -lpthread -o paq8pxd
 
   Non PC (e.g. PowerPC under MacOS X)
-    g++ paq8pxd_v20.cpp -O2 -DUNIX -s -o paq8pxd_v20
+    g++ paq8pxd.cpp -O2 -DUNIX -s -o paq8pxd
 
 
 ARCHIVE FILE FORMAT
 
 An archive has the following format.  
 
-  paq8pxd20 -N 
+  paq8pxd -N 
   segment size 
   compressed segment size
   segment offset
@@ -163,20 +163,20 @@ directories are stored with path relative to the compressed directory
 
 Then
 
-  paq8pxd_v20 archive \dir1\file1.txt \dir2
+  paq8pxd archive \dir1\file1.txt \dir2
 
-will create archive.paq8pxd20 
+will create archive.paq8pxd 
 
 The command:
 
-  paq8pxd_v20 archive.paq8pxd20 C:\dir3
+  paq8pxd archive.paq8pxd C:\dir3
 
 will create the files:
 
   C:\dir3\file1.txt
   C:\dir3\dir2\file2.txt
 
-Decompression will fail if the first 10 bytes are not "paq8pxd20 -".  Sizes
+Decompression will fail if the first 10 bytes are not "paq8pxd -".  Sizes
 are stored as decimal numbers.  CR, LF, TAB are ASCII codes
 13, 10, 9 respectively.
 
@@ -198,7 +198,7 @@ on the ability to predict the next bit accurately.
 
 MODEL MIXING
 
-paq8pxd_v20 uses a neural network to combine a large number of models.  The
+paq8pxd uses a neural network to combine a large number of models.  The
 i'th model independently predicts
 p1_i = p(y_j = 1 | y_0..j-1), p0_i = 1 - p1_i.
 The network computes the next bit probabilty
@@ -427,7 +427,7 @@ adjacent quantized values of stretch(p1).  There are 2 APM stages in series:
 
 PREPROCESSING
 
-paq8pxd_v20 uses preprocessing transforms on certain data types to improve
+paq8pxd uses preprocessing transforms on certain data types to improve
 compression.  To improve reliability, the decoding transform is
 tested during compression to ensure that the input file can be
 restored.  If the decoder output is not identical to the input file
@@ -536,14 +536,13 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V20
-+EOL transform
--24bit image model change (paq8px_V84)
--jpeg thumbnail fix (paq8px_V84)
--change memory limits
+DIFFERENCES FROM PAQ8PXD_V21
+-jpeg memory issue fix
+-jpeg model changes(paq8px_V86)
+-cmlimit changes
 */
 
-#define PROGNAME "paq8pxd21"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd22"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 
@@ -1723,7 +1722,9 @@ template <int B> class BH {
   U32 n; // size-1
 public:
   BH(int i): t(i*B), n(i-1) {
+    //printf("BH %0.0f, i %d B %d power %d\n",(i*B)+0.0,i,B,(i&(i-1))==0);
     assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2?
+    
   }
   U8* operator[](U32 i);
 };
@@ -1932,7 +1933,7 @@ public:
 // <count,d> is updated to <2,0> or <1,1> (4 or 3).
 
 inline U64 CMlimit(U64 size){
-    if (size>0x100000000UL) return 0x100000000UL; //limit to 4GB
+    if (size>0x80000000UL) return 0x80000000UL; //limit to 4GB
     return (size);
 }
 
@@ -2083,7 +2084,7 @@ for (int i=pcount; i<7; ++i) {
 }
 
 // Construct using m bytes of memory for c contexts
-ContextMap::ContextMap(U64 m, int c): C(c), t(m>>6), cp(c), cp0(c),
+ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(c), cp0(c),
     cxt(c), runp(c), cn(0) {
   assert(m>=64 && (m&m-1)==0);  // power of 2?
   assert(sizeof(E)==64);
@@ -2300,7 +2301,7 @@ class wordModel1: public Model {
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),xword0(0),xword1(0),xword2(0),cword0(0),ccword(0),number0(0),
-  number1(0),text0(0),cm(CMlimit(MEM()*16), 45),nl1(-3), nl(-2),mask(0),wpos(0x10000),w(0) {
+  number1(0),text0(0),cm(CMlimit(MEM()*32), 45),nl1(-3), nl(-2),mask(0),wpos(0x10000),w(0) {
    }
 
    int p(Mixer& m,int val1=0,int val2=0)  {
@@ -3214,69 +3215,6 @@ inline int sqrbuf(int i) {
  
 };
 
-//p9a
-template <int B>
-class BHX {
-  U8* t;  // table: 1 element = B bytes: checksum priority data data
-  const U32 N;  // size in bytes
-public:
-  BHX(int n);
-  ~BHX();
-  U8* operator[](U32 i);
-};
-
-template <int B>
-BHX<B>::BHX(int n): t(0), N(n) {
-  assert(B>=2 && (B&B-1)==0);
-  assert(N>=B*4 && (N&N-1)==0);
-  t=(U8*)calloc( N+B*4+64,1);
-  t+=64-int(((long long)t)&63);  // align on cache line boundary
-  //programChecker.alloc(N+B*4+64);
-}
-
-template <int B>
-inline U8* BHX<B>::operator[](U32 i) {
-  int chk=i>>24;
-  i=i*B&N-B;
-  if (t[i]==chk) return t+i;
-  if (t[i^B]==chk) return t+(i^B);
-  if (t[i^B*2]==chk) return t+(i^B*2);
-  if (t[i+1]>t[i+1^B] || t[i+1]>t[i+1^B*2]) i^=B;
-  if (t[i+1]>t[i+1^B^B*2]) i^=B^B*2;
-  memset(t+i, 0, B);
-  t[i]=chk;
-  return t+i;/*
-  int chk=i>>24&255;
-  U32 h0=(i*B)&(N-B);
-  if (t[h0]==chk) return t+h0;
-  U32 h1=h0^B;
-  if (t[h1]==chk) return t+h1;
-  U32 h2=h0^(B*B);
-  if (t[h2]==chk) return t+h2;
-  if (t[h0+1]<=t[h1+1] && t[h0+1]<=t[h2+1])
-    return memset(&t[h0], 0, B), t[h0]=chk, t+h0;
-  else if (t[h1+1]<t[h2+1])
-    return memset(&t[h1], 0, B), t[h1]=chk, t+h1;
-  else
-    return memset(&t[h2], 0, B), t[h2]=chk, t+h2;*/
-}
-
-template <int B>
-BHX<B>::~BHX() {
- #ifndef NDEBUG
-  int c=0, c0=0;
-  for (U32 i=0; i<N; ++i) {
-    if (t[i]) {
-      ++c;
-      if (i%B==0) ++c0;
-    }
-  }
-  printf("HashTable<%d> %1.4f%% full, %1.4f%% utilized of %d KiB\n",
-    B, 100.0*c0*B/N, 100.0*c/N, N>>10);
-   // programChecker.alloc(-N+B*4+64);
-   #endif
-}
-
 //////////////////////////// jpegModel /////////////////////////
 
 // Model JPEG. Return 1 if a JPEG file is detected or else 0.
@@ -3299,7 +3237,7 @@ void dump(const char* msg, int p) {
   if (success && idx && buf.pos-lastPos==1) \
     printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\bEmbedded JPEG at offset %d, size: %d bytes, level %d\nCompressing... ", images[idx].offset-buf.pos+x.blpos, length, idx), fflush(stdout); \
   memset(&images[idx], 0, sizeof(JPEGImage)); \
-  dqt_state=-1; \
+  mcusize=0,dqt_state=-1; \
   idx-=(idx>0); \
   images[idx].app-=length; \
   if (images[idx].app < 0) \
@@ -3393,23 +3331,23 @@ struct JPEGImage{
   next_jpeg, // updated with jpeg on next byte boundary
   app, // Bytes remaining to skip in this marker
   sof, sos, data, // pointers to buf
-  htsize, // number of pointers in ht
-  mcusize, // number of coefficients in an MCU
-  linesize; // width of image in MCU
-  int hufsel[2][10];  // DC/AC, mcupos/64 -> huf decode table
+  htsize; // number of pointers in ht
+  //mcusize, // number of coefficients in an MCU
+  //linesize; // width of image in MCU
+  //int hufsel[2][10];  // DC/AC, mcupos/64 -> huf decode table
   int ht[8]; // pointers to Huffman table headers
-  HUF huf[128]; // Tc*64+Th*16+m -> min, max, val
-  U8 hbuf[2048]; // Tc*1024+Th*256+hufcode -> RS
+  //HUF huf[128]; // Tc*64+Th*16+m -> min, max, val
+  //U8 hbuf[2048]; // Tc*1024+Th*256+hufcode -> RS
   U8 qtab[256]; // table
   int qmap[10]; // block -> table number
 };
 class jpegModelx: public Model {
      int MaxEmbeddedLevel ;
    JPEGImage  images[3];
-int idx;
+   int idx;
    int lastPos;
    // State of parser
-  enum {SOF0=0xc0, SOF1, SOF2, SOF3, DHT, RST0=0xd0, SOI=0xd8, EOI, SOS, DQT,
+   enum {SOF0=0xc0, SOF1, SOF2, SOF3, DHT, RST0=0xd0, SOI=0xd8, EOI, SOS, DQT,
     DNL, DRI, APP0=0xe0, COM=0xfe, FF};  // Second byte of 2 byte codes
    int jpeg;  // 1 if JPEG is header detected, 2 if image data
   //static int next_jpeg=0;  // updated with jpeg on next byte boundary
@@ -3458,17 +3396,17 @@ int idx;
     // sum of S in RS codes in block and sum of S in first component
 
    IntBuf cbuf2;
-   Array<int> adv_pred, sumu, sumv;
+   Array<int> adv_pred, sumu, sumv, run_pred;
    Array<int> ls;  // block -> distance to previous block
    Array<int> lcp, zpos;
-Array<int> blockW, blockN, nBlocks, SamplingFactors;
+   Array<int> blockW, blockN, nBlocks, SamplingFactors;
     //for parsing Quantization tables
    int dqt_state , dqt_end , qnum;
    Array<U8> qtab; // table
    Array<int> qmap; // block -> table number
 
    // Context model
-  const int N; // size of t, number of contexts
+   const int N; // size of t, number of contexts
    BH<9> t;  // context hash -> bit history
     // As a cache optimization, the context does not include the last 1-2
     // bits of huffcode if the length (huffbits) is not a multiple of 3.
@@ -3480,17 +3418,17 @@ Array<int> blockW, blockN, nBlocks, SamplingFactors;
    APM a1, a2;
    BlockData& x;
    Buf& buf;
-    int hbcount;
+   int hbcount;
     
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
-  cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(7),
+  cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(4), zpos(64), blockW(10), blockN(10), nBlocks(4), SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
-  qtab(256),qmap(10),N(28),t(CMlimit(MEM()*level)/9),cxt(N),cp(N),m1(32,2050+3 /*770*/,bd, 3),
-  a1(0x8000),a2(0x10000),x(bd),buf(bd.buf),hbcount(2) {
+  qtab(256),qmap(10),N(30),t(level>11?0x10000000:(CMlimit(MEM()*2))),cxt(N),cp(N),m1(32,2050+3 /*770*/,bd, 3),
+  a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),hbcount(2) {
   sm=new StateMap[N];
   }
   int p(Mixer& m,int val1=0,int val2=0){
@@ -3557,9 +3495,9 @@ public:
     if (!images[idx].jpeg && buf(4)==FF && buf(3)==SOI && buf(2)==FF && ((buf(1)==0xC0 || buf(1)==0xC4 || (buf(1)>=0xDB && buf(1)<=0xFE))||(buf(1)>>4==0xe || buf(1)==0xdb)) ){
       images[idx].jpeg=1;
       images[idx].offset = buf.pos-4;
-      images[idx].sos=images[idx].sof=images[idx].htsize=images[idx].data=images[idx].mcusize=images[idx].linesize=0, images[idx].app=(buf(1)>>4==0xE)*2;
+      images[idx].sos=images[idx].sof=images[idx].htsize=images[idx].data=0, images[idx].app=(buf(1)>>4==0xE)*2;
       huffcode=huffbits=huffsize=mcupos=cpos=0, rs=-1;
-      memset(&images[idx].huf[0], 0, sizeof(images[idx].huf));
+      memset(&huf[0], 0, sizeof(huf));
       memset(&pred[0], 0, pred.size()*sizeof(int));
     }
 
@@ -3628,12 +3566,12 @@ public:
           int tc=buf[p]>>4, th=buf[p]&15;
           if (tc>=2 || th>=4) break;
           jassert(tc>=0 && tc<2 && th>=0 && th<4);
-          HUF* h=&images[idx].huf[tc*64+th*16]; // [tc][th][0];
+          HUF* h=&huf[tc*64+th*16]; // [tc][th][0];
           int val=p+17;  // pointer to values
           int hval=tc*1024+th*256;  // pointer to RS values in hbuf
           int j;
           for (j=0; j<256; ++j) // copy RS codes
-            images[idx].hbuf[hval+j]=buf[val+j];
+            hbuf[hval+j]=buf[val+j];
           int code=0;
           for (j=0; j<16; ++j) {
             h[j].min=code;
@@ -3653,7 +3591,7 @@ public:
       if (!images[idx].htsize){
         for (int tc = 0; tc < 2; tc++) {
           for (int th = 0; th < 2; th++) {
-            HUF* h = &images[idx].huf[tc*64+th*16];
+            HUF* h = &huf[tc*64+th*16];
             int hval = tc*1024 + th*256;
             int code = 0, c = 0, x = 0;
 
@@ -3684,7 +3622,7 @@ public:
                 case 3: x = values_ac_chrominance[c];
               }
 
-              images[idx].hbuf[hval+c] = x;
+              hbuf[hval+c] = x;
               c--;
             }
           }
@@ -3697,7 +3635,7 @@ public:
       int ns=buf[images[idx].sos+4];
       int nf=buf[images[idx].sof+9];
       jassert(ns<=4 && nf<=4);
-      images[idx].mcusize=0;  // blocks per MCU
+      mcusize=0;  // blocks per MCU
       int hmax=0;  // MCU horizontal dimension
       for (i=0; i<ns; ++i) {
         for (int j=0; j<nf; ++j) {
@@ -3707,41 +3645,41 @@ public:
             if (hv>>4>hmax) hmax=hv>>4;
             hv=(hv&15)*(hv>>4);  // number of blocks in component C
             nBlocks[j] = hv;
-            jassert(hv>=1 && hv+images[idx].mcusize<=10);
+            jassert(hv>=1 && hv+mcusize<=10);
             while (hv) {
-              jassert(images[idx].mcusize<10);
-              images[idx].hufsel[0][images[idx].mcusize]=buf[images[idx].sos+2*i+6]>>4&15;
-              images[idx].hufsel[1][images[idx].mcusize]=buf[images[idx].sos+2*i+6]&15;
-              jassert (images[idx].hufsel[0][images[idx].mcusize]<4 && images[idx].hufsel[1][images[idx].mcusize]<4);
-              color[images[idx].mcusize]=i;
+              jassert(mcusize<10);
+              hufsel[0][mcusize]=buf[images[idx].sos+2*i+6]>>4&15;
+              hufsel[1][mcusize]=buf[images[idx].sos+2*i+6]&15;
+              jassert (hufsel[0][mcusize]<4 && hufsel[1][mcusize]<4);
+              color[mcusize]=i;
               int tq=buf[images[idx].sof+3*j+12];  // quantization table index (0..3)
               jassert(tq>=0 && tq<4);
-              images[idx].qmap[images[idx].mcusize]=tq; // quantizazion table mapping
+              images[idx].qmap[mcusize]=tq; // quantizazion table mapping
               --hv;
-              ++images[idx].mcusize;
+              ++mcusize;
             }
           }
         }
       }
       jassert(hmax>=1 && hmax<=10);
       int j;
-      for (j=0; j<images[idx].mcusize; ++j) {
+      for (j=0; j<mcusize; ++j) {
         ls[j]=0;
-        for (int i=1; i<images[idx].mcusize; ++i) if (color[(j+i)%images[idx].mcusize]==color[j]) ls[j]=i;
-        ls[j]=(images[idx].mcusize-ls[j])<<6;
+        for (int i=1; i<mcusize; ++i) if (color[(j+i)%mcusize]==color[j]) ls[j]=i;
+        ls[j]=(mcusize-ls[j])<<6;
         blockW[j] = ls[j];
       }
       for (j=0; j<64; ++j) zpos[zzu[j]+8*zzv[j]]=j;
       width=buf[images[idx].sof+7]*256+buf[images[idx].sof+8];  // in pixels
       width=(width-1)/(hmax*8)+1;  // in MCU
       jassert(width>0);
-      images[idx].mcusize*=64;  // coefficients per MCU
+      mcusize*=64;  // coefficients per MCU
       row=column=0;
        for (i = 0; i < 10; i++)
-        blockN[i] = images[idx].mcusize * width;
+        blockN[i] = mcusize * width;
 
       // more blocks than components, we have subsampling
-      if (nf < images[idx].mcusize>>6) {
+      if (nf < mcusize>>6) {
         int x = 0;
         int s = 0;
         for (i = 0; i < nf; i++) {
@@ -3774,7 +3712,7 @@ public:
 
   // Decode Huffman
   {
-    if (images[idx].mcusize && buf(1+(!x.bpos))!=FF) {  // skip stuffed byte
+    if (mcusize && buf(1+(!x.bpos))!=FF) {  // skip stuffed byte
       jassert(huffbits<=32);
       huffcode+=huffcode+x.y;
       ++huffbits;
@@ -3783,17 +3721,17 @@ public:
         const int ac=(mcupos&63)>0;
         jassert(mcupos>=0 && (mcupos>>6)<10);
         jassert(ac==0 || ac==1);
-        const int sel=images[idx].hufsel[ac][mcupos>>6];
+        const int sel=hufsel[ac][mcupos>>6];
         jassert(sel>=0 && sel<4);
         const int i=huffbits-1;
         jassert(i>=0 && i<16);
-        const HUF *h=&images[idx].huf[ac*64+sel*16]; // [ac][sel];
+        const HUF *h=&huf[ac*64+sel*16]; // [ac][sel];
         jassert(h[i].min<=h[i].max && h[i].val<2048 && huffbits>0);
         if (huffcode<h[i].max) {
           jassert(huffcode>=h[i].min);
           int k=h[i].val+huffcode-h[i].min;
           jassert(k>=0 && k<2048);
-          rs=images[idx].hbuf[k];
+          rs=hbuf[k];
           huffsize=huffbits;
         }
       }
@@ -3811,7 +3749,7 @@ public:
           if (mcupos&63) {  // AC
             if (rs==0) { // EOB
               mcupos=(mcupos+63)&-64;
-              jassert(mcupos>=0 && mcupos<=images[idx].mcusize && mcupos<=640);
+              jassert(mcupos>=0 && mcupos<=mcusize && mcupos<=640);
               while (cpos&63) {
                 cbuf2[cpos]=0;
                 cbuf[cpos++]=0;
@@ -3856,8 +3794,8 @@ public:
             }
             ssum=rs;
           }
-          jassert(mcupos>=0 && mcupos<=images[idx].mcusize);
-          if (mcupos>=images[idx].mcusize) {
+          jassert(mcupos>=0 && mcupos<=mcusize);
+          if (mcupos>=mcusize) {
             mcupos=0;
             if (++column==width) column=0, ++row;
           }
@@ -3889,19 +3827,19 @@ public:
 
             for (int i=0; i<3; ++i)
             {
-              for (int st=0; st<8; ++st) {
+              run_pred[i]=run_pred[i+3]=0;
+              for (int st=0; st<10; ++st) {
                 const int zz2=min(zz+st, 63);
-                int p=(sumu[zzu[zz2]]*i+sumv[zzv[zz2]]*(2-i))/2;
-                p/=(images[idx].qtab[q+zz2]+1)*181*(16+zzv[zz2])*(16+zzu[zz2])/256;
+                int p=(sumu[zzu[zz2]]*i+sumv[zzv[zz2]]*(2-i));
+                p/=(images[idx].qtab[q+zz2]+1)*181*(16+zzv[zz2])*(16+zzu[zz2])/128;
                 if (zz2==0) p-=cbuf2[cpos_dc-ls[acomp]];
                 p=(p<0?-1:+1)*ilog(10*abs(p)+1);
                 if (st==0) {
                   adv_pred[i]=p;
-                  adv_pred[i+4]=p/40;
                 }
-                else if (abs(p)>abs(adv_pred[i])+5) {
-                  adv_pred[i]+=10*((st*2+(p>0))<<6);
-                  if (abs(p/40)>abs(adv_pred[i+4])+1) adv_pred[i+4]+=(st*2+(p>0))<<6;
+                else if (abs(p)>abs(adv_pred[i])+2) {
+                  run_pred[i]=st*2+(p>0);
+                  if (abs(p)>abs(adv_pred[i])+16) run_pred[i+3]=st*2+(p>0);
                   break;
                 }
               }
@@ -3923,8 +3861,8 @@ public:
               }
               lcp[i]=xe;
             }
-            if (column==0) adv_pred[1]=adv_pred[2], adv_pred[0]=1;
-            if (row==0) adv_pred[1]=adv_pred[0], adv_pred[2]=1;
+            if (column==0) run_pred[1]=run_pred[2], run_pred[0]=0, adv_pred[1]=adv_pred[2], adv_pred[0]=1;
+            if (row==0) run_pred[1]=run_pred[0], run_pred[2]=0, adv_pred[1]=adv_pred[0], adv_pred[2]=1;
           } // !!!!
 
         }
@@ -3958,35 +3896,54 @@ public:
   jassert(coef>=0 && coef<256);
   const int zu=zzu[mcupos&63], zv=zzv[mcupos&63];
   if (hbcount==0) {
-    int n=0;
-    cxt[0]=hash(++n, hc, coef, adv_pred[2], ssum2>>6);
-    cxt[1]=hash(++n, hc, coef, adv_pred[0], ssum2>>6);
-    cxt[2]=hash(++n, hc, coef, adv_pred[1], ssum2>>6);
-    cxt[3]=hash(++n, hc, rs1, adv_pred[2]);
-    cxt[4]=hash(++n, hc, rs1, adv_pred[0]);
-    cxt[5]=hash(++n, hc, rs1, adv_pred[1]);
-    cxt[6]=hash(++n, hc, adv_pred[2], adv_pred[0]);
-    cxt[7]=hash(++n, hc, cbuf[cpos-width*images[idx].mcusize], adv_pred[3]);
-    cxt[8]=hash(++n, hc, cbuf[cpos-ls[mcupos>>6]], adv_pred[3]);
-    cxt[9]=hash(++n, hc, lcp[0], lcp[1], adv_pred[1]);
-    cxt[10]=hash(++n, hc, lcp[0], lcp[1], mcupos&63);
-    cxt[11]=hash(++n, hc, zu, lcp[0], lcp[2]/3);
-    cxt[12]=hash(++n, hc, zv, lcp[1], lcp[3]/3);
-    cxt[13]=hash(++n, hc, mcupos>>1);
-    cxt[14]=hash(++n, hc, mcupos&63, column>>1);
-    cxt[15]=hash(++n, hc, column>>3, lcp[0]+256*(lcp[2]/4), lcp[1]+256*(lcp[3]/4));
-    cxt[16]=hash(++n, hc, ssum>>3, mcupos&63);
-    cxt[17]=hash(++n, hc, rs1, mcupos&63);
-    cxt[18]=hash(++n, hc, mcupos>>3, ssum2>>5, adv_pred[3]);
-    cxt[19]=hash(++n, hc, lcp[0]/4, lcp[1]/4, adv_pred[5]);
-    cxt[20]=hash(++n, hc, cbuf[cpos-width*images[idx].mcusize], adv_pred[6]);
-    cxt[21]=hash(++n, hc, cbuf[cpos-ls[mcupos>>6]], adv_pred[4]);
-    cxt[22]=hash(++n, hc, adv_pred[2]);
-    cxt[23]=hash(n, hc, adv_pred[0]);
-    cxt[24]=hash(n, hc, adv_pred[1]);
-    cxt[25]=hash(++n, hc, zv, lcp[1], adv_pred[6]);
-    cxt[26]=hash(++n, hc, zu, lcp[0], adv_pred[4]);
-    cxt[27]=hash(++n, hc, lcp[0], lcp[1], adv_pred[3]);
+    int n=hc*32;
+    cxt[0]=hash(++n, coef, adv_pred[2], run_pred[2], ssum2>>6);
+    cxt[1]=hash(++n, coef, adv_pred[0], run_pred[0], ssum2>>6);
+    cxt[2]=hash(++n, coef, adv_pred[1], run_pred[1], ssum2>>6);
+    cxt[3]=hash(++n, rs1, adv_pred[2], run_pred[5]/2);
+    cxt[4]=hash(++n, rs1, adv_pred[0], run_pred[3]/2);
+    cxt[5]=hash(++n, rs1, adv_pred[1], run_pred[4]);
+    cxt[6]=hash(++n, adv_pred[2]/2, run_pred[2], adv_pred[0]/2, run_pred[0]);
+    cxt[7]=hash(++n, cbuf[cpos-blockN[mcupos>>6]], adv_pred[3], run_pred[1]);
+    cxt[8]=hash(++n, cbuf[cpos-blockW[mcupos>>6]], adv_pred[3], run_pred[1]);
+    cxt[9]=hash(++n, lcp[0]/2, lcp[1]/2, adv_pred[1], run_pred[1]);
+    cxt[10]=hash(++n, lcp[0]/2, lcp[1]/2, mcupos&63);
+    cxt[11]=hash(++n, zu, lcp[0], lcp[2]/3);
+    cxt[12]=hash(++n, zv, lcp[1], lcp[3]/3);
+    cxt[13]=hash(++n, mcupos>>1);
+    cxt[14]=hash(++n, mcupos&63, column>>1);
+    cxt[15]=hash(++n, column>>3, lcp[0]+256*(lcp[2]/4), lcp[1]+256*(lcp[3]/4));
+    cxt[16]=hash(++n, ssum>>3, mcupos&63);
+    cxt[17]=hash(++n, rs1, mcupos&63, run_pred[1]);
+    cxt[18]=hash(++n, mcupos>>3, ssum2>>5, adv_pred[3]);
+    cxt[19]=hash(++n, lcp[0]/4, lcp[1]/4, adv_pred[1]/4);
+    cxt[20]=hash(++n, cbuf[cpos-blockN[mcupos>>6]], adv_pred[2]/4, run_pred[2]);
+    cxt[21]=hash(++n, cbuf[cpos-blockW[mcupos>>6]], adv_pred[0]/4, run_pred[0]);
+    cxt[22]=hash(++n, adv_pred[2], run_pred[2]);
+    cxt[23]=hash(n, adv_pred[0], run_pred[0]);
+    cxt[24]=hash(n, adv_pred[1], run_pred[1]);
+    cxt[25]=hash(++n, zv, lcp[1], adv_pred[2]/4, run_pred[5]);
+    cxt[26]=hash(++n, zu, lcp[0], adv_pred[0]/4, run_pred[3]);
+    cxt[27]=hash(++n, lcp[0], lcp[1], adv_pred[3]);
+ 
+    int PrevCompCoef = 0;
+    if ((nBlocks[comp]==1) && (comp>0)){
+      int h = SamplingFactors[comp-1]>>4;
+      int v = SamplingFactors[comp-1]&0xf;
+      int k = 0;
+      for (int j=1; j<=v; j++){
+        for (int i=1; i<=h; i++){
+          k = (v-j+1)*(64*h);
+          k-= (i-1)*64;
+          PrevCompCoef+= cbuf2[cpos-k];
+        }
+      }
+      PrevCompCoef/=(h*v);
+      PrevCompCoef = (1-2*(PrevCompCoef<0))*ilog(abs(PrevCompCoef)+1);
+    }
+    
+    cxt[28]=hash(++n, coef, PrevCompCoef);
+    cxt[29]=hash(++n, coef, ilog( (ssum*(1+log2(1+mcupos&0x3F)))/((mcupos&0x3F)+1) +1), cbuf[cpos-64] );
     
   }
 
@@ -4006,10 +3963,14 @@ public:
    m1.set( (hc&0x1FE)*2+min(3,ilog2(zu+zv+1)), 1024 );
   int pr=m1.p();
   m.add(stretch(pr));
+  //m.add((pr>>4)-(255-((pr>>4))));
   pr=a1.p(pr, (hc&511)|((adv_pred[1]==0?0:(abs(adv_pred[1])-4)&63)<<9), x.y,1023);
   m.add(stretch(pr)>>2);
-  pr=a2.p(pr, (hc&255)|(coef<<8),x.y, 255);
+  //m.add((pr>>4)-(255-((pr>>4))));
+  pr=a2.p(pr, (hc&511)|(coef<<9),x.y, 1023);
+  
   m.add(stretch(pr));
+  m.add((pr>>4)-(255-((pr>>4))));
   m.set((zu+zv<4)+(huffbits>6)*2+(column==0)*4, 8 );
   m.set((hc&0xFF) + 256*min(3,ilog2(zu+zv+1)), 1025 );
   m.set( buf(1)+256*min(3,huffbits), 1024 );
@@ -4575,9 +4536,9 @@ int EAPM::p1(int pr0,int pr, int r){
     else              pr =(pt*4+pu*5+pv*12+pz*11 +16)>>5;
     return pr;
 }
-int EAPM::p2(int pr0,int pr, int r){
+int EAPM::p2(int pr0,int pr8, int r){
 
-  pr=a.p(pr0, x.c0);
+  int pr=a.p(pr0, x.c0);
 
   int pr1=a1.p(pr0, x.c0+256*x.buf(1));
   int pr2=a2.p(pr0, (x.c0^hash(x.buf(1), x.buf(2)))&0xffff);
@@ -4695,7 +4656,6 @@ void Predictor::update()  {
 class PredictorJPEG: public Predictors {
   int pr;  // next prediction
   Mixer m;
-  //EAPM a;
 public:
   PredictorJPEG();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -4705,7 +4665,7 @@ public:
  }
 };
 
-PredictorJPEG::PredictorJPEG(): pr(2048), m(6+1+28, 2568+1024+1025+9-256-257-8,x, 5)/*, a(x)*/ {
+PredictorJPEG::PredictorJPEG(): pr(2048), m(6+1+28+3, 2568+1024+1025+9-256-257-8,x, 5) {
   //1+3+2=5
   matchModel=new matchModel1(x); 
   jpegModel=new jpegModelx(x); 
@@ -4717,8 +4677,7 @@ void PredictorJPEG::update()  {
     m.add(256);
     int ismatch=ilog(matchModel->p(m));  // Length of longest matching context
     if (jpegModel->p(m)) { 
-       // m.set(ismatch, 256);
-        pr=m.p();//a.p2(,pr,7);
+        pr=m.p();
     }
     else{
         
@@ -5853,9 +5812,9 @@ bool IsGrayscalePalette(FILE* in, int n = 256, int isRGBA = 0){
     if (!j)
       res = (res&((b-(res&0xFF)==order)<<8))|b; // load first component of this entry
     else if (j==3)
-      res&=((!b || (b==0xFF))<<9)-1; // alpha/attribute component must be zero or 0xFF
+      res&=((!b || (b==0xFF))*0x1FF); // alpha/attribute component must be zero or 0xFF
     else
-      res&=((b==res&0xFF)<<9)-1;
+      res&=((b==(res&0xFF))<<9)-1;
   }
   fseeko(in, offset, SEEK_SET);
   return res>>8;
@@ -9082,8 +9041,8 @@ thread(void *arg) {
 }
 #endif
 
-// To compress to file1.paq8pxd20: paq8pxd_v20 [-n] file1 [file2...]
-// To decompress: paq8pxd_v20 file1.paq8pxd20 [output_dir]
+// To compress to file1.paq8pxd: paq8pxd_v20 [-n] file1 [file2...]
+// To decompress: paq8pxd_v20 file1.paq8pxd [output_dir]
 int main(int argc, char** argv) {
     bool pause=argc<=2;  // Pause when done?
     try {
@@ -9574,13 +9533,13 @@ int main(int argc, char** argv) {
             printf("Total %0.0f bytes compressed to %0.0f bytes.\n", total_size+0.0, ftello(archive)+0.0); 
             
         }
-        // Decompress files to dir2: paq8pxd_v20 -d dir1/archive.paq8pxd20 dir2
+        // Decompress files to dir2: paq8pxd_v20 -d dir1/archive.paq8pxd dir2
         // If there is no dir2, then extract to dir1
         // If there is no dir1, then extract to .
         else if (!doList) {
             assert(argc>=2);
             String dir(argc>2?argv[2]:argv[1]);
-            if (argc==2) {  // chop "/archive.paq8pxd20"
+            if (argc==2) {  // chop "/archive.paq8pxd"
                 int i;
                 for (i=dir.size()-2; i>=0; --i) {
                     if (dir[i]=='/' || dir[i]=='\\') {
