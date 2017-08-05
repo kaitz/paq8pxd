@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jul. 30, 2017
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 5, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -536,19 +536,15 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V22
--wordmodel from paq8pxd_7, used on default/exe
--detect base64 changes
--transform text/text0 block compare. 
- use text0 if 10% smaller then text transform, ignore UTF block
--text failed on wrt transform is added to bigtext stream
--fix zlib 24b-image transform
--revert mixer changes
--jpeg model change from paq8px_86
+DIFFERENCES FROM PAQ8PXD_V23
+-SIMD RLC in ContexMap
+-small fixes
+-jpeg model changes from PAQ8PX_V89
 */
 
-#define PROGNAME "paq8pxd23"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd24"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
+#define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
 
 #ifdef WINDOWS                       
@@ -1340,16 +1336,18 @@ Stretch::Stretch(): t(4096) {
 class Mixer {
 private: 
   const int N, M, S;   // max inputs, max contexts, max context sets
-  Array<short, 32> tx; // N inputs from add()
+  
   Array<short, 32> wx; // N*M weights
   Array<int> cxt;  // S contexts
   int ncxt;        // number of contexts (0 to S)
   int base;        // offset of next context
-  int nx;          // Number of inputs in tx, 0 to N
+  
   Array<int> pr;   // last result (scaled 12 bits)
   Mixer* mp;       // points to a Mixer to combine results
   
 public:
+    Array<short, 32> tx; // N inputs from add()
+    int nx;          // Number of inputs in tx, 0 to N
 BlockData& x;
   Mixer(int n, int m,BlockData& bd, int s=1, int w=0);
   
@@ -1944,7 +1942,7 @@ inline U64 CMlimit(U64 size){
 }
 
 class ContextMap {
-  const int C;  // max number of contexts
+  const U32 C;  // max number of contexts
   class E {  // hash element, 64 bytes
     U16 chk[7];  // byte context checksums
     U8 last;     // last 2 accesses (0-6) in low, high nibble
@@ -1962,6 +1960,9 @@ class ContextMap {
   Array<U8*> cp0;  // First element of 7 element array containing cp[i]
   Array<U32> cxt;  // C whole byte contexts (hashes)
   Array<U8*> runp; // C [0..3] = count, value, unused, unused
+  Array<short, 16>  r0;
+     Array<short, 16>  r1;
+      Array<short, 16>  r0i;
   StateMap *sm;    // C maps of state -> p
   int cn;          // Next context to set by set()
   //void update(U32 cx, int c);  // train model that context cx predicts c
@@ -2089,9 +2090,9 @@ for (int i=pcount; i<7; ++i) {
 #endif
 }
 
-// Construct using m bytes of memory for c contexts
-ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(c), cp0(c),
-    cxt(c), runp(c), cn(0) {
+// Construct using m bytes of memory for c contexts(c+7)&-8
+ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
+    cxt(C), runp(C), r0(C),r1(C),r0i(C),cn(0) {
   assert(m>=64 && (m&m-1)==0);  // power of 2?
   assert(sizeof(E)==64);
   sm=new StateMap[C];
@@ -2135,11 +2136,14 @@ inline int mix2(Mixer& m, int s, StateMap& sm) {
   m.add((p1&n1)-(p0&n0));
   return s>0;
 }
+
+
 // Update the model with bit y1, and predict next bit to mixer m.
 // Context: cc=c0, bp=bpos, c1=buf(1), y1=y.
 int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
   // Update model with y
   int result=0;
+
   for (int i=0; i<cn; ++i) {
     if (cp[i]) {
       assert(cp[i]>=&t[0].bh[0][0] && cp[i]<=&t[t.size()-1].bh[6][6]);
@@ -2148,7 +2152,6 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
       if (ns>=204 && rnd() << ((452-ns)>>3)) ns-=4;  // probabilistic increment
       *cp[i]=ns;
     }
-
 
     // Update context pointers
     if (m.x.bpos>1 && runp[i][0]==0)
@@ -2191,17 +2194,63 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
       } break;
      }
     }
-
+  }
     // predict from last byte in context
-    if ((runp[i][1]+256)>>(8-bp)==cc) {
-      int rc=runp[i][0];  // count*2, +1 if 2 different bytes seen
-      int b=(runp[i][1]>>(7-bp)&1)*2-1;  // predicted bit + for 1, - for 0
-      int c=ilog(rc+1)<<(2+(~rc&1));
-      m.add(b*c);
-    }
-    else
-      m.add(0);
+     
+     for (int i=0; i<cn; ++i) {
+         U8 a=runp[i][0];
+         U8 b=runp[i][1];
+         r0[i]=a;
+         r1[i]=b;
+         r0i[i]=ilog(r0[i  ]+1);
+     }
 
+#if defined(SIMD_CM_R ) && defined(__SSE2__) 
+    int cnc=(cn/8)*8;
+    for (int i=0; i<(cnc); i=i+8) {
+        XMM  x0=_mm_setzero_si128();
+        XMM  x1=_mm_set1_epi16(1);
+        const int bsh=(8-bp);
+        XMM   b=_mm_load_si128 ((XMM  *) &r1[i]);
+        XMM xcc=_mm_set1_epi16(cc);
+        //(r1[i  ]+256)>>(8-bp)==cc
+        XMM   lasth=_mm_set1_epi16(256);
+        XMM  xr1=_mm_add_epi16 (b, lasth);
+        xr1=_mm_srli_epi16 (xr1, bsh);
+        xr1=_mm_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
+        //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
+        const int bsh1=(7-bp);
+        XMM xb=_mm_srli_epi16 (b, bsh1); //>>(7-bp)
+        xb=_mm_and_si128(xb,x1);         //&1
+        xb=_mm_slli_epi16(xb, 1);        //<<1
+        xb= _mm_sub_epi16(xb,x1);        //-1
+        //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
+        XMM xr0i=_mm_add_epi16 (*(XMM  *) &r0i[i], x0);           //r0i[i]
+        XMM  c=_mm_add_epi16 (*(XMM  *) &r0[i], x0);              //~r0[i]&1
+        XMM xc=_mm_andnot_si128 (c,x1);  
+        XMM r0ia= _mm_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
+        xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
+        xc=_mm_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
+        //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
+        XMM xr=_mm_mullo_epi16(xc,xb); 
+        XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
+        //store result
+        _mm_storeu_si128 ((XMM  *) &m.tx[m.nx],xresult);
+        m.nx=m.nx+8;
+    }
+    for (int i=cnc; i<cn; ++i) {
+        if ((r1[i  ]+256)>>(8-bp)==cc) {
+            m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
+        else   m.add(0);
+    }
+#else          
+    for (int i=0; i<cn; ++i) {
+        if ((r1[i  ]+256)>>(8-bp)==cc) {
+            m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
+        else   m.add(0);
+      }
+#endif    
+    for (int i=0; i<cn; ++i) {
     // predict from bit context
     if (cp[i]) {
       result+=mix2(m, *cp[i], sm[i]);
@@ -2667,7 +2716,7 @@ if (cp[0]==0 || cp[1]!=x.y) cp[0]=1, cp[1]=x.y;
   m.set((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80), 256);
   m.set((r0&0x3e)^((r1>>8)&0x0c)^((r2>>8)&0xc8),256);
    m.set( cp[0],256);
-    m.set( cp[1],1);
+    m.set( cp[1],2);
   return 0;
 }
  ~im1bitModel1(){  delete[] sm;}
@@ -3562,7 +3611,7 @@ class jpegModelx: public Model {
    Array<int> adv_pred, sumu, sumv, run_pred;
    Array<int> ls;  // block -> distance to previous block
    Array<int> lcp, zpos;
-   Array<int> blockW, blockN, nBlocks, SamplingFactors;
+   Array<int> blockW, blockN,/* nBlocks,*/ SamplingFactors;
     //for parsing Quantization tables
    int dqt_state , dqt_end , qnum;
    Array<U8> qtab; // table
@@ -3582,16 +3631,17 @@ class jpegModelx: public Model {
    BlockData& x;
    Buf& buf;
    int hbcount;
-   int prev_coef;
+   int prev_coef,prev_coef2, prev_coef_rs;
+   int rstpos,rstlen; // reset position
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
-  sumu(8), sumv(8), ls(10),lcp(4), zpos(64), blockW(10), blockN(10), nBlocks(4), SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
-  qtab(256),qmap(10),N(30),t(level>11?0x10000000:(CMlimit(MEM()*2))),cxt(N),cp(N),m1(32,2050+3 /*770*/,bd, 3),
-  a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),hbcount(2),prev_coef(0) {
+  sumu(8), sumv(8), ls(10),lcp(5), zpos(64), blockW(10), blockN(10), /*nBlocks(4),*/ SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
+  qtab(256),qmap(10),N(31),t(level>11?0x10000000:(CMlimit(MEM()*2))),cxt(N),cp(N),m1(32,2050+3 /*770*/,bd, 3),
+  a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0) {
   sm=new StateMap[N];
   }
   int p(Mixer& m,int val1=0,int val2=0){
@@ -3663,11 +3713,12 @@ public:
       mcusize=huffcode=huffbits=huffsize=mcupos=cpos=0, rs=-1;
       memset(&huf[0], 0, sizeof(huf));
       memset(&pred[0], 0, pred.size()*sizeof(int));
+      rstpos=rstlen=0;
     }
 
     // Detect end of JPEG when data contains a marker other than RSTx
     // or byte stuff (00), or if we jumped in position since the last byte seen
-    if (images[idx].jpeg && images[idx].data && ((buf(2)==FF && buf(1) && (buf(1)&0xf8)!=RST0))) {
+    if (images[idx].jpeg && images[idx].data && ((buf(2)==FF && buf(1) && (buf(1)&0xf8)!=RST0) || (buf.pos-lastPos>1)) ) {
       jassert((buf(1)==EOI) || (buf.pos-lastPos>1));
       finish(true);
       //images[idx].jpeg=images[idx].next_jpeg; // ??
@@ -3713,6 +3764,8 @@ public:
     if (buf(2)==FF && (buf(1)&0xf8)==RST0) {
       huffcode=huffbits=huffsize=mcupos=0, rs=-1;
       memset(&pred[0], 0, pred.size()*sizeof(int));
+      rstlen=column+row*width-rstpos;
+      rstpos=column+row*width;
     }
   }
 
@@ -3808,7 +3861,6 @@ public:
             SamplingFactors[j] = hv;
             if (hv>>4>hmax) hmax=hv>>4;
             hv=(hv&15)*(hv>>4);  // number of blocks in component C
-            nBlocks[j] = hv;
             jassert(hv>=1 && hv+mcusize<=10);
             while (hv) {
               jassert(mcusize<10);
@@ -3839,36 +3891,18 @@ public:
       jassert(width>0);
       mcusize*=64;  // coefficients per MCU
       row=column=0;
-       for (i = 0; i < 10; i++)
-        blockN[i] = mcusize * width;
-
-      // more blocks than components, we have subsampling
-      if (nf < mcusize>>6) {
-        int xd = 0;
-        int s = 0;
-        for (i = 0; i < nf; i++) {
-          // nBlocks tells us the number of blocks of each component
-          if (nBlocks[i]!=1) {
-            int h = SamplingFactors[i]>>4;
-            int v = SamplingFactors[i]&0xf;
-
-            if (h) {
-              blockW[xd] += h*(v-1)*64;
-              s = h;
-              while (s < nBlocks[i]){
-                blockW[xd+s] = blockW[xd];
-                s+=h;
-              }
-            }
-
-            for (s = 0; s < h; s++)
-              blockN[xd+s] -= h*(v-1)*64;
-            for (s = h; s < nBlocks[i]; s++)
-              blockN[xd+s] = h*64;
-          }
-
-          xd+=nBlocks[i];
-        }
+      
+      
+      // we can have more blocks than components then we have subsampling
+      int x=0, y=0; 
+      for (j = 0; j<(mcusize>>6); j++) {
+        int i = color[j];
+        int w = SamplingFactors[i]>>4, h = SamplingFactors[i]&0xf;
+        blockW[j] = x==0?mcusize-64*(w-1):64;
+        blockN[j] = y==0?mcusize*width-64*w*(h-1):w*64;
+        x++;
+        if (x>=w) { x=0; y++; }
+        if (y>=h) { x=0; y=0; }
       }
     }
   }
@@ -3994,16 +4028,16 @@ public:
                 if (st==0) {
                   adv_pred[i]=p;
                 }
-                else if (abs(p)>abs(adv_pred[i])+2) {
-                  run_pred[i]=st*2+(p>0);
-                  if (abs(p)>abs(adv_pred[i])+16) run_pred[i+3]=st*2+(p>0);
-                  break;
+                else if (abs(p)>abs(adv_pred[i])+2 && abs(adv_pred[i]) < 210) {
+                  if (run_pred[i]==0) run_pred[i]=st*2+(p>0);
+                  if (abs(p)>abs(adv_pred[i])+21 && run_pred[i+3]==0) run_pred[i+3]=st*2+(p>0);
                 }
               }
               adv_pred[i]/=10;
             }
             xe=2*sumu[zzu[zz]]+2*sumv[zzv[zz]];
             for (int i=0; i<8; ++i) xe-=(zzu[zz]<i)*sumu[i]+(zzv[zz]<i)*sumv[i];
+            xe=(xe*6+sumu[zzu[zz]]*zzu[zz]+sumv[zzv[zz]]*zzv[zz])/(zzu[zz]+zzv[zz]+6);
             xe/=(images[idx].qtab[q+zz]+1)*181;
             if (zz==0) xe-=cbuf2[cpos_dc-ls[acomp]];
             adv_pred[3]=(xe<0?-1:+1)*ilog(10*abs(xe)+1)/10;
@@ -4018,7 +4052,28 @@ public:
               }
               lcp[i]=xe;
             }
-                       
+            if (zzu[zz]*zzv[zz]){
+              const int zz2=zpos[zzu[zz]+8*zzv[zz]-9];
+              xe=(images[idx].qtab[q+zz2]+1)*cbuf2[cpos_dc+zz2]/(images[idx].qtab[q+zz]+1);
+              lcp[4]=(xe<0?-1:+1)*ilog(10*abs(xe)+1)/10;
+            }
+            else
+              lcp[4]=255;
+
+            int prev1=0,prev2=0,cnt1=0,cnt2=0,r=0,s=0;
+            prev_coef_rs = cbuf[cpos-64];
+            for (int i=0; i<acomp; i++) {
+              xe=0;
+              xe+=cbuf2[cpos-(acomp-i)*64];
+              if (zz==0) xe-=cbuf2[cpos_dc-(acomp-i)*64-ls[i]];
+              if (color[i]==color[acomp]-1) { prev1+=xe; cnt1++; r+=cbuf[cpos-(acomp-i)*64]>>4; s+=cbuf[cpos-(acomp-i)*64]&0xF; }
+              if (color[acomp]>1 && color[i]==color[0]) { prev2+=xe; cnt2++; }
+            }
+            if (cnt1>0) prev1/=cnt1, r/=cnt1, s/=cnt1, prev_coef_rs=(r<<4)|s;
+            if (cnt2>0) prev2/=cnt2;
+            prev_coef=(prev1<0?-1:+1)*ilog(10*abs(prev1)+1)/10+(cnt1<<16);
+            prev_coef2=(prev2<0?-1:+1)*ilog(10*abs(prev2)+1)/10;
+               
             if (column==0) run_pred[1]=run_pred[2], run_pred[0]=0, adv_pred[1]=adv_pred[2], adv_pred[0]=1;
             if (row==0) run_pred[1]=run_pred[0], run_pred[2]=0, adv_pred[1]=adv_pred[0], adv_pred[2]=1;
           } // !!!!
@@ -4037,7 +4092,13 @@ public:
     m.set(buf(1), 1024);
     return 1;
   }
-
+  if (rstlen>0 && rstlen==column+row*width-rstpos && mcupos==0 && (int)huffcode==(1<<huffbits)-1) {
+    m.add(4095);
+    m.set(0, 9);
+    m.set(0, 1025); 
+    m.set(buf(1), 1024);
+    return 1;
+  }
   // Update model
   if (cp[N-1]) {
     for (int i=0; i<N; ++i)
@@ -4055,26 +4116,26 @@ public:
   const int zu=zzu[mcupos&63], zv=zzv[mcupos&63];
   if (hbcount==0) {
     int n=hc*32;
-    cxt[0]=hash(++n, coef, adv_pred[2], run_pred[2], ssum2>>6);
-    cxt[1]=hash(++n, coef, adv_pred[0], run_pred[0], ssum2>>6);
-    cxt[2]=hash(++n, coef, adv_pred[1], run_pred[1], ssum2>>6);
-    cxt[3]=hash(++n, rs1, adv_pred[2], run_pred[5]/2);
-    cxt[4]=hash(++n, rs1, adv_pred[0], run_pred[3]/2);
-    cxt[5]=hash(++n, rs1, adv_pred[1], run_pred[4]);
+        cxt[0]=hash(++n, coef, adv_pred[2]+(run_pred[2]<<8), ssum2>>6, prev_coef/8);
+    cxt[1]=hash(++n, coef, adv_pred[0]+(run_pred[0]<<8), ssum2>>6, prev_coef/8);
+    cxt[2]=hash(++n, coef, adv_pred[1]/2+(run_pred[1]<<8), ssum2>>6);
+    cxt[3]=hash(++n, rs1, adv_pred[2], run_pred[5]/2, prev_coef);
+    cxt[4]=hash(++n, rs1, adv_pred[0], run_pred[3]/2, prev_coef);
+    cxt[5]=hash(++n, rs1, adv_pred[1]/2, run_pred[4]);
     cxt[6]=hash(++n, adv_pred[2]/2, run_pred[2], adv_pred[0]/2, run_pred[0]);
     cxt[7]=hash(++n, cbuf[cpos-blockN[mcupos>>6]], adv_pred[3], run_pred[1]);
     cxt[8]=hash(++n, cbuf[cpos-blockW[mcupos>>6]], adv_pred[3], run_pred[1]);
     cxt[9]=hash(++n, lcp[0]/2, lcp[1]/2, adv_pred[1], run_pred[1]);
-    cxt[10]=hash(++n, lcp[0]/2, lcp[1]/2, mcupos&63);
-    cxt[11]=hash(++n, zu, lcp[0], lcp[2]/3);
-    cxt[12]=hash(++n, zv, lcp[1], lcp[3]/3);
+    cxt[10]=hash(++n, lcp[0]/2, lcp[1]/2, mcupos&63, lcp[4]/3);
+    cxt[11]=hash(++n, zu/2, lcp[0], lcp[2]/3, prev_coef/4+((prev_coef2/4)<<20));
+    cxt[12]=hash(++n, zv/2, lcp[1], lcp[3]/3, prev_coef/4+((prev_coef2/4)<<20));
     cxt[13]=hash(++n, mcupos>>1);
     cxt[14]=hash(++n, mcupos&63, column>>1);
     cxt[15]=hash(++n, column>>3, lcp[0]+256*(lcp[2]/4), lcp[1]+256*(lcp[3]/4));
     cxt[16]=hash(++n, ssum>>3, mcupos&63);
     cxt[17]=hash(++n, rs1, mcupos&63, run_pred[1]);
-    cxt[18]=hash(++n, mcupos>>3, ssum2>>5, adv_pred[3]);
-    cxt[19]=hash(++n, lcp[0]/4, lcp[1]/4, adv_pred[1]/4);
+    cxt[18]=hash(++n, coef, ssum2>>5, adv_pred[3]/2, (comp)?hash(prev_coef/3,prev_coef2/3):ssum/((mcupos&0x3F)+1));
+    cxt[19]=hash(++n, lcp[0]/4, lcp[1]/4, adv_pred[1]/4, hash( (comp)?prev_coef/4+((prev_coef2/4)<<20):lcp[4]/2, min(7,zu+zv), ssum/(2*(zu+zv)+1) ) );
     cxt[20]=hash(++n, cbuf[cpos-blockN[mcupos>>6]], adv_pred[2]/4, run_pred[2]);
     cxt[21]=hash(++n, cbuf[cpos-blockW[mcupos>>6]], adv_pred[0]/4, run_pred[0]);
     cxt[22]=hash(++n, adv_pred[2], run_pred[2]);
@@ -4083,25 +4144,10 @@ public:
     cxt[25]=hash(++n, zv, lcp[1], adv_pred[2]/4, run_pred[5]);
     cxt[26]=hash(++n, zu, lcp[0], adv_pred[0]/4, run_pred[3]);
     cxt[27]=hash(++n, lcp[0], lcp[1], adv_pred[3]);
+    cxt[28]=hash(++n, coef, prev_coef, prev_coef2/2);
+    cxt[29]=hash(++n, coef, ssum>>2, prev_coef_rs);
+    cxt[30]=hash(++n, coef, adv_pred[1]/2, hash(lcp[0]/2,lcp[2]/2,lcp[3]/2) );
      
-    int PrevCompCoef = 0;
-    if ((nBlocks[comp]==1) && (comp>0)){
-      int h = SamplingFactors[comp-1]>>4;
-      int v = SamplingFactors[comp-1]&0xf;
-      int k = 0;
-      for (int j=1; j<=v; j++){
-        for (int i=1; i<=h; i++){
-          k = (v-j+1)*(64*h);
-          k-= (i-1)*64;
-          PrevCompCoef+= cbuf2[cpos-k];
-        }
-      }
-      PrevCompCoef/=(h*v);
-      PrevCompCoef = (1-2*(PrevCompCoef<0))*ilog(abs(PrevCompCoef)+1);
-    }
-    
-    cxt[28]=hash(++n, coef, PrevCompCoef);
-    cxt[29]=hash(++n, coef, ilog( (ssum*(1+log2(1+mcupos&0x3F)))/((mcupos&0x3F)+1) +1), cbuf[cpos-64] );
     
   }
 
@@ -4118,7 +4164,7 @@ public:
 
    m1.set(column==0, 2);
    m1.set( coef+256*min(3,huffbits), 1024 );
-   m1.set( (hc&0x1FE)*2+min(3,ilog2(zu+zv+1)), 1024 );
+   m1.set( (hc&0x1FE)*2+min(3,ilog2(zu+zv)), 1024 );
   int pr=m1.p();
   m.add(stretch(pr)>>2);
   m.add((pr>>4)-(255-((pr>>4))));
@@ -4129,9 +4175,9 @@ public:
   
   m.add(stretch(pr)>>2);
   m.add((pr>>4)-(255-((pr>>4))));
-  m.set(1+(zu+zv<4)+(huffbits>6)*2+(column==0)*4, 9 );
-  m.set(1+(hc&0xFF) + 256*min(3,ilog2(zu+zv+1)), 1025 );
-  m.set(coef+256*min(3,huffbits), 1024 );
+m.set( 1 + (zu+zv<5)+(huffbits>8)*2+(column==0)*4, 9 );
+  m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025 );
+  m.set( coef+256*min(3,huffbits/2), 1024 );
   return 1;
   }
   ~jpegModelx(){
@@ -4732,7 +4778,7 @@ public:
   }
 };
 
-Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), m(809+6+1+2+6+2+10, 7432,x, 7), a(x) {
+Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), m(809+6+1+2+6+2+10, 7432+256,x, 7), a(x) {
   //=1+72+18+252+264+72+2+60+3+57+8=809 
   if (x.clevel>=4 && recordModel==0) recordModel=new recordModel1(x); 
   if (x.clevel>=4 && distanceModel==0) distanceModel=new distanceModel1(x); 
@@ -4774,7 +4820,7 @@ void Predictor::update()  {
     m.add(256);
     ismatch=ilog(matchModel->p(m));  // Length of longest matching context
     order=normalModel->p(m);
-    order=order-2; if(order<0) order=0;
+    order=order-2; if(order<0) order=0;if(order>8) order=7;
     int rlen=0;
     if (x.clevel>=4){        
         
@@ -4800,7 +4846,7 @@ void Predictor::update()  {
   m.set(x.c0, 256);
   m.set(rlen?rlen:c2, 1024);
   U8 d=x.c0<<(8-x.bpos);
-  m.set(order*256+(x.w4&240)+(x.b3>>4),2048);
+  m.set(order*256+(x.w4&240)+(x.b3>>4),2048+256);
   m.set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
   m.set(ismatch, 256);
   if (x.bpos) {
@@ -4999,7 +5045,7 @@ public:
   }
 };
 
-PredictorIMG8::PredictorIMG8(): pr(2048),b8g(0), m((100 +24+8*6)*3+5*5 , 2864-8+512,x, 7), a(x) {
+PredictorIMG8::PredictorIMG8(): pr(2048),b8g(0), m((100 +24+8*6)*3, 2864-8+512,x, 7), a(x) {
   //1 +3 +96=  100                
   matchModel=new matchModel1(x);   
   im8bitModel=new im8bitModel1(x); 
@@ -5085,7 +5131,7 @@ public:
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),
- m(925+6+2, 9728 /*10240-256*2*/,x, 7),a(x) {
+ m(925+6+2, 9728 +256+256+256+256/*10240-256*2*/,x, 7),a(x) {
   if (x.clevel>=4){
     if (recordModelw==0) recordModelw=new recordModelx(x);
     if (sparseModel1==0) sparseModel1=new sparseModelx(x);
@@ -5107,7 +5153,7 @@ inline void PredictorTXTWRT::setmixer(){
   c=(c2&0x1F)|((c3&0x1F)<<5);
   m.set(c, 1024);
   U8 d=x.c0<<(8-x.bpos);
-  m.set(order*256+(x.w4&240)+(x.b3>>4),256*7);
+  m.set(order*256+(x.w4&240)+(x.b3>>4),256*9);
   m.set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
   m.set(ismatch, 256);
   if (x.bpos) {
@@ -5144,7 +5190,7 @@ void PredictorTXTWRT::update()  {
     m.add(256);
     ismatch=ilog(matchModel->p(m));  // Length of longest matching context
     order=normalModel->p(m);
-    order=order-3; if(order<0) order=0;
+    order=order-3; if(order<0) order=0;if(order>8) order=7;
     if (x.clevel>=4){        
         wordModel->p(m);
         sparseModel1->p(m,ismatch,order);
@@ -5158,8 +5204,8 @@ void PredictorTXTWRT::update()  {
         c=(x.words>>1)&63;
         m.set(x.c0, 256);
         m.set(ismatch, 256);
-        m.set((x.w4&3)*64+c+order*256, 256*7);         
-        m.set(256*order + (x.w4&240) + (x.b3>>4), 256*7);
+        m.set((x.w4&3)*64+c+order*256, 256*9);         
+        m.set(256*order + (x.w4&240) + (x.b3>>4), 256*9);
         c=(x.w4&255)+256*x.bpos;
         m.set(c, 256*8);
         if (x.bpos){
@@ -5192,7 +5238,7 @@ public:
   }
 };
 
-PredictorIMG1::PredictorIMG1(): pr(2048), m(12, 12801+256,x, 7) {
+PredictorIMG1::PredictorIMG1(): pr(2048), m(12, 12801+256+1,x, 7) {
     //8+3+1=12
   matchModel=new matchModel1(x); 
   im1bitModel=new im1bitModel1(x); 
@@ -8064,7 +8110,6 @@ public:
         return result;
     }
     void EncodeOrder(U32 prev, U32 result){
-        assert(prev>255);
         EncodeOrder1(prev,result); 
         UpdateOrder1(prev,result,ORDER1_STEP); 
     }
