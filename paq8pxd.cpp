@@ -536,15 +536,11 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V24
--changes from PAQ8PX_V99 (sf2 audio/pam image detect, jpeg/xml/nest/exe model changes)
--tar detect,  enabled on opion -q
--matchmodel fix
--all predictors take mixer input counts from models
--wrt change
+DIFFERENCES FROM PAQ8PXD_V26
+-small fix
 */
 
-#define PROGNAME "paq8pxd26"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd27"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -8055,9 +8051,10 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       else if ((p==31) && buf0) bmp=0;
       else if (p==48){
         if ( (!buf0 || ((bswap(buf0)<=(U32)(1<<imgbpp)) && (imgbpp<=8))) && (((bmpx*bmpy*imgbpp)>>3)>512) ) {
-            if (hdrless && (imgbpp<=24))
+            if (hdrless && (imgbpp==32|| imgbpp==4)) bmp=imgbpp=0;
+            else if (hdrless && (imgbpp<=24))
             bmpof+=(buf0)?bswap(buf0)*4:4<<imgbpp;
-            else if (hdrless && (imgbpp==32)) bmp=imgbpp=0;
+            
 
           if (imgbpp==1) IMG_DET(IMAGE1,bmp-1,bmpof,(((bmpx-1)>>5)+1)*4,bmpy);
           else if (imgbpp==4) IMG_DET(IMAGE4,bmp-1,bmpof,((bmpx>>1)+3)&-4,bmpy);
