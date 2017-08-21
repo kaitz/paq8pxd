@@ -43,6 +43,7 @@
 #define CHAR_FIRSTUPPER		1	// for encode lower word with first capital letter
 #define CHAR_UPPERWORD		2	// for encode upper word
 #define CHAR_ESCAPE			3	// for encode reserved chars (CHAR_ESCAPE,CHAR_FIRSTUPPER,...)
+#define CHAR_UTF			4
 #define BINARY_FIRST		128
 #define BINARY_LAST			255
 
@@ -542,7 +543,7 @@ void XWRT_Common::initializeCodeWords(int word_count,bool initMem){
 		outputSet[c]=0;
 	}
 	for (c=0; c<256; c++){
-		if (c==CHAR_ESCAPE || c==CHAR_FIRSTUPPER || c==CHAR_UPPERWORD )
+		if (c==CHAR_ESCAPE || c==CHAR_FIRSTUPPER || c==CHAR_UPPERWORD || c==CHAR_UTF)
 		{
 			reservedSet[c]=1;
 			addSymbols[c]=0;
@@ -720,7 +721,7 @@ private:
 	enum EUpperType { UFALSE, UTRUE, FORCE };
 
 	int s_size,WRTd_c;
-	int last_c;
+	int last_c,WRTd_UTF;
 	bool WRTd_upper;
 	bool WRTd_initialized;
 	unsigned char WRTd_data[STRING_MAX_SIZE];
@@ -730,7 +731,7 @@ private:
 public:
 }; // end class 
 
-XWRT_Decoder::XWRT_Decoder() : WRTd_s(&WRTd_data[0]) 
+XWRT_Decoder::XWRT_Decoder() : WRTd_s(&WRTd_data[0]) ,WRTd_UTF(0)
 { 	
 
 };
@@ -868,7 +869,25 @@ int XWRT_Decoder::WRT_decode(){
 		return -1;
 
 		PRINT_CHARS(("c=%d (%c)\n",WRTd_c,WRTd_c));
-
+if (WRTd_UTF>0 ){
+          // WRTd_UTF=WRTd_UTF-1;
+			
+		//	DECODE_GETC(WRTd_c);
+		//	last_c=rchar;
+          //  rchar=WRTd_c;
+		//	return rchar;
+			for (int i=0   ; i<WRTd_UTF; i++){
+		DECODE_GETC(WRTd_c);
+		  WRTd_s[i]=WRTd_c;
+		  
+	}
+    s_size=WRTd_UTF;
+    WRTd_UTF=0;
+			s_sizep=1;
+				rchar=WRTd_s[0];;
+				last_c=rchar;
+				return rchar;
+		}
 		if (outputSet[WRTd_c]){
 			PRINT_CHARS(("addSymbols[%d] upperWord=%d\n",WRTd_c,upperWord));
 
@@ -898,9 +917,14 @@ int XWRT_Decoder::WRT_decode(){
 				upperWord=FORCE;
 				DECODE_GETC(WRTd_c);
 				continue;
-
+          case CHAR_UTF:
+				PRINT_CHARS(("c==CHAR_UTF\n"));
+ 
+				DECODE_GETC(WRTd_UTF);
+			 
+				continue;
 			}
-
+         
 			if (upperWord==FORCE)
 			upperWord=UTRUE;
 			else
@@ -926,6 +950,7 @@ int XWRT_Decoder::WRT_decode(){
 			}
 		}
 
+       
 		if (WRTd_c>='0' && WRTd_c<='9'){
 			//unsigned int no,mult;
 			//int c,i;
@@ -1142,13 +1167,65 @@ XWRT_Encoder::~XWRT_Encoder(){
 		filelento++;\
 		last_c_bak=c; \
 	}
+	
+bool is_ascii(unsigned char *s, int len){
+    for (int i = 0; i < len; i++) {
+        if (s[i]<127) return false;
+    }
+    return true;
+}
+// Markus Kuhn <http://www.cl.cam.ac.uk/~mgk25/> -- 1999-12-31
+// License: https://www.cl.cam.ac.uk/~mgk25/short-license.html
 
+unsigned char *utf8_check(unsigned char *s){
+  while (*s) {
+    if (*s < 0x80)      /* 0xxxxxxx */
+      s++;
+    else if ((s[0] & 0xe0) == 0xc0) {      /* 110XXXXx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 || (s[0] & 0xfe) == 0xc0)                        /* overlong? */
+	return s;
+      else
+	s += 2;
+    } else if ((s[0] & 0xf0) == 0xe0) {      /* 1110XXXX 10Xxxxxx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 ||
+	  (s[2] & 0xc0) != 0x80 ||
+	  (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||    /* overlong? */
+	  (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||    /* surrogate? */
+	  (s[0] == 0xef && s[1] == 0xbf &&
+	   (s[2] & 0xfe) == 0xbe))                      /* U+FFFE or U+FFFF? */
+	return s;
+      else
+	s += 3;
+    } else if ((s[0] & 0xf8) == 0xf0) {      /* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 ||
+	  (s[2] & 0xc0) != 0x80 ||
+	  (s[3] & 0xc0) != 0x80 ||
+	  (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||    /* overlong? */
+	  (s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) /* > U+10FFFF? */
+	return s;
+      else
+	s += 4;
+    } else
+      return s;
+  }
 
+  return NULL;
+}
 // encode word (should be lower case) using n-gram array (when word doesn't exist in the dictionary)
 inline void XWRT_Encoder::encodeAsText(unsigned char* &s,int &s_size,EWordType wordType){
 	int i=0;
-	for (i=0; i<s_size; i++)
+	if (s_size>3 && is_ascii(s,s_size)==true && (utf8_check(s) )){
+	    //CHAR_UTF
+	    ENCODE_PUTC(CHAR_UTF);
+	    ENCODE_PUTC(s_size);
+	    for (i=0; i<s_size; i++)
 	{
+	 
+		ENCODE_PUTC(s[i]);
+	}
+	return;
+    }
+	for (i=0; i<s_size; i++)	{
 		if (addSymbols[s[i]])
 		ENCODE_PUTC(CHAR_ESCAPE);
 		ENCODE_PUTC(s[i]);
@@ -1364,15 +1441,12 @@ inline void XWRT_Encoder::toLower(unsigned char* s,int &s_size){
 }*/
 // encode word "s" using dictionary
 void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int& c){
+    s[s_size+1]=0;
 	if (detect)	{
 		if (s_size>0 && wordType!=3){
-			//s[s_size+1]=0;
-			//printf("%s %d %d\n",s,s_size,wordType);
 			toLower(s,s_size);
 		}
-		if ((s_size<3 && s[0]>='0' && s[0]<='9') && wrtnum==1) return; //???
-	//	if (s_size==4 && ((s[0]=='1' && s[1]=='9') || (s[0]=='2' && s[1]=='0'))) return;
-		
+		if ((s_size<3 && s[0]>='0' && s[0]<='9') && wrtnum==1) return; //if text0 mode 
 		checkWord(s,s_size,c);
 		return;
 	}
@@ -1383,7 +1457,6 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
 	int i=-1;
 	int size=0;
 	int flagToEncode=-1;
-//	bool justAdded=false;
 	
 	if (s_size>=WORD_MIN_SIZE){
 		checkHashExactly(s,s_size,i);
@@ -1524,6 +1597,7 @@ void XWRT_Encoder::WRT_encode(int filelen){
 			}		
 			
 		}
+
 		if (wordSet[c]){
 			if (c!=' '){
 				if (s_size==0){
@@ -1597,6 +1671,46 @@ void XWRT_Encoder::WRT_encode(int filelen){
 				continue;
 			}
 			s[s_size++]=c;
+			// ending and starting syllable thai
+			if (s_size>3 && (
+            (s[s_size-3]==0xE0&& s[s_size-2]==0xB9 &&s[s_size-1]>=0x80 && s[s_size-1]<=0x84) || 
+            (s[s_size-3]==0xE0&& s[s_size-2]==0xB8 &&s[s_size-1]==0xB3) || 
+            (s[s_size-3]==0xE0&& s[s_size-2]==0xB8 &&s[s_size-1]==0xB0) 
+            
+            )){
+				encodeWord(s,s_size,wordType,c);
+				s_size=0;
+			//	s[s_size++]==0xE0,s[s_size++]=0xB9,s[s_size++]=0x80;
+				ENCODE_GETC(c);
+			continue;
+			}
+			//Chinese 
+			if (s_size>3 && (
+            (s[s_size-3]==0xE3&& s[s_size-2]==0x80 &&s[s_size-1]==0x80) || 
+            (s[s_size-3]==0xEF&& s[s_size-2]==0xBC &&s[s_size-1]==0x9A) || 
+            (s[s_size-3]==0xEF&& s[s_size-2]==0xBC &&s[s_size-1]==0x8C) ||
+            (s[s_size-3]==0xEF&& s[s_size-2]==0xBC &&s[s_size-1]==0x81) || 
+            (s[s_size-3]==0xE4&& s[s_size-2]==0xB8 &&s[s_size-1]==0x80) || 
+            (s[s_size-3]==0xE2&& s[s_size-2]==0x80 &&s[s_size-1]==0x9C ) ||
+            (s[s_size-3]==0xE7&& s[s_size-2]==0x9A &&s[s_size-1]==0x84 ) 
+            )){
+				encodeWord(s,s_size,wordType,c);
+				s_size=0;
+			//	s[s_size++]==0xE0,s[s_size++]=0xB9,s[s_size++]=0x80;
+				ENCODE_GETC(c);
+			continue;
+			}
+//E3 80 80 
+//EF BC 9A 
+//EF BC 8C 
+//EF BC 81 
+
+////E4 B8 80 
+//E2 80 9C 
+//E7 9A 84
+			
+			//printf("%x ",c);
+			
 			if (s_size>=STRING_MAX_SIZE-2){
 				encodeWord(s,s_size,wordType,c);
 				s_size=0;
@@ -1604,6 +1718,7 @@ void XWRT_Encoder::WRT_encode(int filelen){
 			ENCODE_GETC(c);
 			continue;
 		}
+		
 		encodeWord(s,s_size,wordType,c);
 		s_size=0;
 		ENCODE_PUTC(c);
