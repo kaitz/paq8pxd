@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 21, 2017
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 22, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -537,7 +537,7 @@ which computes 8 elements at a time, is not any faster).
 
 
 DIFFERENCES FROM PAQ8PXD_V26
--small fix
+-wrt utf8 (add single utf8 char to dict)
 */
 
 #define PROGNAME "paq8pxd27"  // Please change this if you change the program.
