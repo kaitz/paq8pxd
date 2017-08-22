@@ -1,4 +1,4 @@
-# paq8pxd
+# Paq8pxd
 
 To install and use in Windows:
 
@@ -14,7 +14,7 @@ progress.  When it is done you can close the window by pressing
 ENTER or clicking [X].
 
 
-COMMAND LINE INTERFACE
+# COMMAND LINE INTERFACE
 
 - To install, put paq8pxd.exe somewhere in your PATH.
 - To compress:      paq8pxd [-N] file1 [file2...]
@@ -63,7 +63,7 @@ File names with nonprintable characters are not supported (spaces
 are OK).
 
 
-TO COMPILE
+# TO COMPILE
 
 There are 2 files: paq8pxd.cpp (C++) and wrtpre.cpp (C++).
 paq8pxd.cpp recognizes the following compiler options:
@@ -101,7 +101,7 @@ Recommended compiler commands and optimizations:
     g++ paq8pxd.cpp -O2 -DUNIX -s -o paq8pxd
 
 
-ARCHIVE FILE FORMAT
+# ARCHIVE FILE FORMAT
 
 An archive has the following format.  
 
@@ -163,7 +163,7 @@ are stored as decimal numbers.  CR, LF, TAB are ASCII codes
 13, 10, 9 respectively.
 
 
-ARITHMETIC CODING
+# ARITHMETIC CODING
 
 The binary data is arithmetic coded as the shortest base 256 fixed point
 number x = SUM_i x_i 256^-1-i such that p(<y) <= x < p(<=y), where y is the
@@ -178,7 +178,7 @@ bits of y, and y_j is the next bit.  Compression depends almost entirely
 on the ability to predict the next bit accurately.
 
 
-MODEL MIXING
+# MODEL MIXING
 
 paq8pxd uses a neural network to combine a large number of models.  The
 i'th model independently predicts
@@ -208,7 +208,7 @@ which is -log(p0) if y = 1 or -log(p1) if y = 0.  Taking
 the partial derivative of cost with respect to w_i yields (2).
 
 
-MODELS
+# MODELS
 
 Most models are context models.  A function of the context (last few
 bytes) is mapped by a lookup table or hash table to a state which depends
@@ -297,7 +297,7 @@ There are several types of bit history states:
   and b can be retrieved from the buffer.
 
 
-CONTEXTS
+# CONTEXTS
 
 High compression is achieved by combining a large number of contexts.
 Most (not all) contexts start on a byte boundary and end on the bit
@@ -390,7 +390,7 @@ modeled with both a run map and a nonstationary map unless indicated.
   DMC.  The second predictor is a bit history state mapped adaptively to
   a probability as as in a Nonstationary Map.
 
-ARCHITECTURE
+# ARCHITECTURE
 
 The context models are mixed by several of several hundred neural networks
 selected by a low-order context.  The outputs of these networks are
@@ -407,7 +407,7 @@ adjacent quantized values of stretch(p1).  There are 2 APM stages in series:
   p1 := (p1 + 3 APM(order 0, p1)) / 4.
   p1 := (APM(order 1, p1) + 2 APM(order 2, p1) + APM(order 3, p1)) / 4.
 
-PREPROCESSING
+# PREPROCESSING
 
 paq8pxd uses preprocessing transforms on certain data types to improve
 compression.  To improve reliability, the decoding transform is
@@ -422,22 +422,22 @@ of the data after decoding, which may be different than the size of <data>.
 Data is stored uncompressed after compressed data ends.
 The preprocessor has 3 parts:
 
-- Detector.  Splits the input into smaller blocks depending on data type.
+- Detector. Splits the input into smaller blocks depending on data type.
 
-- Coder.  Input is a block to be compressed.  Output is a temporary
+ - Coder. Input is a block to be compressed.  Output is a temporary
   file.  The coder determines whether a transform is to be applied
   based on file type, and if so, which one.  A coder may use lots
   of resources (memory, time) and make multiple passes through the
   input file.  The file type is stored (as one byte) during compression.
 
-- Decoder.  Performs the inverse transform of the coder.  It uses few
+ - Decoder. Performs the inverse transform of the coder.  It uses few
   resorces (fast, low memory) and runs in a single pass (stream oriented).
   It takes input either from a file or the arithmetic decoder.  Each call
   to the decoder returns a single decoded byte.
 
-The following transforms are used:
+ The following transforms are used:
 
-- EXE:  CALL (0xE8) and JMP (0xE9) address operands are converted from
+ - EXE: CALL (0xE8) and JMP (0xE9) address operands are converted from
   relative to absolute address.  The transform is to replace the sequence
   E8/E9 xx xx xx 00/FF by adding file offset modulo 2^25 (signed range,
   little-endian format).  Data to transform is identified by trying the
@@ -481,7 +481,7 @@ The following transforms are used:
 - MRB: 8 bit images with RLE compression
 
 
-IMPLEMENTATION
+# IMPLEMENTATION
 
 Hash tables are designed to minimize cache misses, which consume most
 of the CPU time.
@@ -514,3 +514,6 @@ algorithms are implemented in MMX assembler, which computes 4 elements
 at a time.  Using assembler is 8 times faster than C++ for this code
 and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
+
+# SEE ALSO
+ paq8px https://github.com/hxim/paq8px
