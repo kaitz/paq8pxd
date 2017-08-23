@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 22, 2017
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 23, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -536,11 +536,11 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V26
--wrt utf8 (add single utf8 char to dict)
+DIFFERENCES FROM PAQ8PXD_V28
+-fix exe predictor
 */
 
-#define PROGNAME "paq8pxd27"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd29"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -5228,8 +5228,8 @@ int p(Mixer& m,int val1=0,int val2=0){
          ((Op.Category==OP_GEN_BRANCH)<<4)|
          (((x.c0&((1<<x.bpos)-1))==0)<<5);
 
-  m.set(Context*4+(s>>4), 1024);
-  m.set(State*64+x.bpos*8+(Op.BytesRead>0)*4+(s>>4), 1024);
+  m.set((Context*4+(s>>4))&0x3FF, 1024);
+  m.set((State*64+x.bpos*8+(Op.BytesRead>0)*4+(s>>4))&0x3FF, 1024);
 
  // if (Status)
   //  *Status = Valid|(Context<<1)|(s<<9);
@@ -6381,7 +6381,7 @@ void PredictorEXE::update()  {
     m->add(256);
     int ismatch=ilog(matchModel->p(*m));  // Length of longest matching context
     int order=normalModel->p(*m);
-    order=order-2; if(order<0) order=0;
+    order=order-2; if(order<0) order=0;if(order>8) order=7;
     int execxt=0;
     if (x.clevel>=4 ){
         recordModel->p(*m);
