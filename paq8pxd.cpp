@@ -540,7 +540,7 @@ DIFFERENCES FROM PAQ8PXD_V28
 -fix exe predictor
 */
 
-#define PROGNAME "paq8pxd29"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd30"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -7003,8 +7003,12 @@ FILE* tmpfile2(void){
     char temppath[MAX_PATH]; 
     char filename[MAX_PATH];
     
-    i=GetTempPath(MAX_PATH,temppath);
+    //i=GetTempPath(MAX_PATH,temppath);
+	i=GetModuleFileName(NULL,temppath,MAX_PATH);
     if ((i==0) || (i>MAX_PATH)) return NULL;
+    char *p=strrchr(temppath, '\\');
+    if (p==0) return NULL;
+	p++;*p=0;
     if (GetTempFileName(temppath,"tmp",0,filename)==0) return NULL;
     f=fopen(filename,"w+bTD");
     if (f==NULL) unlink(filename);
