@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 23, 2017
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 24, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -536,11 +536,14 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V28
--fix exe predictor
+DIFFERENCES FROM PAQ8PXD_V30
+-xmlmodel fix undefined memory error
+-correct fix for exe model
+-im24 model changes from paq8px_v100
+
 */
 
-#define PROGNAME "paq8pxd30"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd31"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -3093,7 +3096,7 @@ public:
   im24bitModel1(BlockData& bd): SC(0x20000),scm1(SC), scm2(SC),
     scm3(SC), scm4(SC), scm5(SC), scm6(SC), scm7(SC), scm8(SC), scm9(SC*2), scm10(512),
     /*cm(CMlimit(MEM()*8), 15),*/col(0) ,color(-1),stride(3), ctx(0), padding(0), lastPos(0), ix(0),x(bd),buf(bd.buf) {
-        inpts=15+5+1+1;
+        inpts=15+5+1+1+2;
     if (modeQuick) 
         cm = new vMContextMap (CMlimit(MEM()*8), inpts),inpts*=2;
     else 
@@ -3122,7 +3125,7 @@ public:
     const int logvar=ilog(var);
     int i=color<<5;
 
-    int WWW=buf(3*stride), WW=buf(2*stride), W=buf(stride), NW=buf(w+stride), N=buf(w), NE=buf(w-stride), NNW=buf(w*2+stride), NN=buf(w*2), NNE=buf(w*2-stride), NNN=buf(w*3);
+    int WWW=buf(3*stride), WW=buf(2*stride), W=buf(stride), NW=buf(w+stride), N=buf(w), NE=buf(w-stride),  NEE=buf(w-2*stride), NNW=buf(w*2+stride), NN=buf(w*2), NNE=buf(w*2-stride), NNEE=buf((w-stride)*2), NNN=buf(w*3);
     ctx = (min(color,stride)<<9)|((abs(W-N)>8)<<8)|((W>N)<<7)|((W>NW)<<6)|((abs(N-NW)>8)<<5)|((N>NW)<<4)|((abs(N-NE)>8)<<3)|((N>NE)<<2)|((W>WW)<<1)|(N>NN);
     cm->set(hash( (N+1)>>1, LogMeanDiffQt(N,Clip(NN*2-NNN)) ));
     cm->set(hash( (W+1)>>1, LogMeanDiffQt(W,Clip(WW*2-WWW)) ));
@@ -3131,7 +3134,9 @@ public:
     cm->set(hash( (WWW+W+4)/8, Clip(W*3-WW*3+WWW)>>1 ));
     cm->set(hash(++i, (W+Clip(NE*3-NNE*3+buf(w*3-stride)))/4 ));
     cm->set(hash(++i, Clip((-buf(4*stride)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buf(w*3-stride)*4-buf(w*4-stride),N,NE,buf(w-2*stride),buf(w-3*stride)))/5)/4 ));
-
+    cm->set( Clip(NEE+N-NNEE) );
+    cm->set( Clip(NN+W-NNW) );
+    
     cm->set(hash(++i, buf(stride)));
     cm->set(hash(++i, buf(stride), buf(1)));
     cm->set(hash(++i, buf(stride), buf(1), buf(2)));
@@ -5170,7 +5175,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     }
 
     Valid = (TotalOps>2*MinRequired) && ((OpMask&((1<<MinRequired)-1))==((1<<MinRequired)-1));
-    Context = State+16*Op.BytesRead+128*(Op.REX & REX_w);
+    Context = State+16*Op.BytesRead+16*(Op.REX & REX_w);
     StateBH[Context] = (StateBH[Context]<<8)|B;
 
     if (Valid ){
@@ -5228,8 +5233,8 @@ int p(Mixer& m,int val1=0,int val2=0){
          ((Op.Category==OP_GEN_BRANCH)<<4)|
          (((x.c0&((1<<x.bpos)-1))==0)<<5);
 
-  m.set((Context*4+(s>>4))&0x3FF, 1024);
-  m.set((State*64+x.bpos*8+(Op.BytesRead>0)*4+(s>>4))&0x3FF, 1024);
+  m.set((Context*4+(s>>4)), 1024);
+  m.set((State*64+x.bpos*8+(Op.BytesRead>0)*4+(s>>4)), 1024);
 
  // if (Status)
   //  *Status = Valid|(Context<<1)|(s<<9);
@@ -5714,6 +5719,7 @@ class XMLModel1: public Model {
 public:
   XMLModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
    WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2), cm(CMlimit(MEM()/4), 4)  {
+       memset(&Cache, 0, sizeof(XMLTagCache));
   }
   int inputs() {return 4*6;}
 int p(Mixer& m,int val1=0,int val2=0){
@@ -5755,7 +5761,7 @@ int p(Mixer& m,int val1=0,int val2=0){
       case ReadTagName : {
         if ((*Tag).Length>0 && (B==0x09 || B==0x0A || B==0x0D || B==0x20))
           State = ReadTag;
-        else if ((B>0x128 ||B==0x3A || (B>='A' && B<='Z') || B==0x5F || (B>='a' && B<='z')) || ((*Tag).Length>0 && (B==0x2D || B==0x2E || (B>='0' && B<='9')))){
+        else if ((B==0x3A || (B>='A' && B<='Z') || B==0x5F || (B>='a' && B<='z')) || ((*Tag).Length>0 && (B==0x2D || B==0x2E || (B>='0' && B<='9')))){
           (*Tag).Length++;
           (*Tag).Name = (*Tag).Name * 263 * 32 + (B&0xDF);
         }
