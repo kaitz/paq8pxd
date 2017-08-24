@@ -536,14 +536,12 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V30
--xmlmodel fix undefined memory error
--correct fix for exe model
--im24 model changes from paq8px_v100
+DIFFERENCES FROM PAQ8PXD_V31
+-exemodel fix undefined memory error
 
 */
 
-#define PROGNAME "paq8pxd31"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd32"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -4985,7 +4983,7 @@ class exeModel1: public Model {
   Buf& buf;
   const int N1, N2;
  ContextMap cm;
-     OpCache Cache;
+    OpCache Cache;
     ExeState pState , State ;
     Instruction Op;
     U32 TotalOps, OpMask, OpCategMask, Context;
@@ -4993,6 +4991,9 @@ class exeModel1: public Model {
     U32 StateBH[256];
 public:
   exeModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),N1(8), N2(9),cm(CMlimit(MEM()), N1+N2),pState (Start), State( Start), TotalOps(0), OpMask(0),OpCategMask(0), Context(0),Valid(false) {
+      memset(&Cache, 0, sizeof(OpCache));
+      memset(&Op, 0, sizeof(Instruction));
+      memset(&StateBH, 0, sizeof(StateBH));
   }
   int inputs() {return (N1+N2)*6;}
 int p(Mixer& m,int val1=0,int val2=0){
