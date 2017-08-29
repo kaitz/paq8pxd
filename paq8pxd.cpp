@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 24, 2017
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 29, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -536,12 +536,12 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V31
--exemodel fix undefined memory error
+DIFFERENCES FROM PAQ8PXD_V32
+-small changes
 
 */
 
-#define PROGNAME "paq8pxd32"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd33"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -874,11 +874,11 @@ public:
     assert(i>0);
     b.resize(i);
   }
-  U8& operator[](int i) {
+  U8& operator[](U32 i) {
       if (i>=b.size()) setsize(i+1);
     return b[i];
   }
-  int operator()(int i) const {
+  U8 operator()(U32 i) const {
     assert(i>=0);
     assert(i<=b.size());
     return b[i];
@@ -1826,7 +1826,7 @@ class SmallStationaryContextMap {
 public:
   SmallStationaryContextMap(int m): t(m/2), cxt(0) {
     assert((m/2&m/2-1)==0); // power of 2?
-    for (int i=0; i<t.size(); ++i)
+    for (U32 i=0; i<t.size(); ++i)
       t[i]=32768;
     cp=&t[0];
   }
@@ -2097,7 +2097,7 @@ ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
   assert(m>=64 && (m&m-1)==0);  // power of 2?
   assert(sizeof(E)==64);
   sm=new StateMap[C];
-  for (int i=0; i<C; ++i) {
+  for (U32 i=0; i<C; ++i) {
     cp0[i]=cp[i]=&t[0].bh[0][0];
     runp[i]=cp[i]+3;
   }
@@ -2359,7 +2359,7 @@ class wordModel1: public Model {
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),xword0(0),xword1(0),xword2(0),cword0(0),ccword(0),number0(0),
-  number1(0),text0(0),N(45+1),cm(CMlimit(MEM()*32), N),nl1(-3), nl(-2),mask(0),wpos(0x10000),w(0),lastLetter(0), lastUpper(0), wordGap(0) {
+  number1(0),text0(0),N(45),cm(CMlimit(MEM()*32), N),nl1(-3), nl(-2),mask(0),wpos(0x10000),w(0),lastLetter(0), lastUpper(0), wordGap(0) {
    }
    int inputs() {return N*6;}
    int p(Mixer& m,int val1=0,int val2=0)  {
@@ -2416,7 +2416,7 @@ public:
             number1=number0;
             number0=0,ccword=0;
         }
-   
+        
         x.col=min(255, buf.pos-nl);
         int above=buf[nl1+x.col]; // text column context
         if (x.col<=2) x.frstchar=(x.col==2?min(c,96):0);
@@ -2431,7 +2431,7 @@ public:
         cm.set(hash(256,number0, word2));
         cm.set(hash(257,number0, word1,wordGap));//
         cm.set(hash(258,number1, c,ccword));
-        cm.set(hash(259,number0, number1,wordGap));//
+        cm.set(hash(259,number0, number1,wordGap));
         cm.set(hash(260,word0, number1));
 
         cm.set(hash(518,x.wordlen1,x.col));
@@ -2466,8 +2466,6 @@ public:
         cm.set(hash(276,h, word3));
         cm.set(hash(277,h, word4));
         cm.set(hash(278,h, word5));
-//        cm.set(buf(1)|buf(3)<<8|buf(5)<<16);
-//        cm.set(buf(2)|buf(4)<<8|buf(6)<<16);
         cm.set(hash(279,h, word1,word3));
         cm.set(hash(280,h, word2,word3));
         if (f) {
@@ -2481,11 +2479,10 @@ public:
         cm.set(hash(524,buf(1),above));
         cm.set(hash(525,x.col,buf(1)));
         cm.set(hash(526,x.col,c==32));
-        //cm.set(hash(527,col,0));
+
         cm.set(hash(281, w, llog(x.blpos-wpos[w])>>4));
         cm.set(hash(282,buf(1),llog(x.blpos-wpos[w])>>2));
-   
-        
+
    int fl = 0;
     if ((x.c4&0xff) != 0) {
       if (isalpha(x.c4&0xff)) fl = 1;
@@ -4997,7 +4994,7 @@ public:
   }
   int inputs() {return (N1+N2)*6;}
 int p(Mixer& m,int val1=0,int val2=0){
-    U32 *Status = NULL;
+   // U32 *Status = NULL;
   if (!x.bpos) {
     pState = State;
     U8 B = (U8)x.c4;
@@ -5224,7 +5221,7 @@ int p(Mixer& m,int val1=0,int val2=0){
   if (Valid )
     cm.mix(m);
   else{
-      for (int i=0; i<N1+N2; ++i)
+      for (int i=0; i<inputs(); ++i)
         m.add(0);
   }
   U8 s = ((StateBH[Context]>>(28-x.bpos))&0x08) |
@@ -5239,7 +5236,7 @@ int p(Mixer& m,int val1=0,int val2=0){
 
  // if (Status)
   //  *Status = Valid|(Context<<1)|(s<<9);
-  return Context;
+  return Valid;
 }
 
 inline bool IsInvalidX64Op(U8 Op){
@@ -5717,10 +5714,13 @@ class XMLModel1: public Model {
   XMLState State, pState;
   U32 c8, WhiteSpaceRun, pWSRun, IndentTab, IndentStep, LineEnding;
   ContextMap cm;
+  U32 StateBH[8];
 public:
   XMLModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
    WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2), cm(CMlimit(MEM()/4), 4)  {
        memset(&Cache, 0, sizeof(XMLTagCache));
+       memset(&StateBH, 0, sizeof(StateBH));
+        
   }
   int inputs() {return 4*6;}
 int p(Mixer& m,int val1=0,int val2=0){
@@ -5762,7 +5762,7 @@ int p(Mixer& m,int val1=0,int val2=0){
       case ReadTagName : {
         if ((*Tag).Length>0 && (B==0x09 || B==0x0A || B==0x0D || B==0x20))
           State = ReadTag;
-        else if ((B==0x3A || (B>='A' && B<='Z') || B==0x5F || (B>='a' && B<='z')) || ((*Tag).Length>0 && (B==0x2D || B==0x2E || (B>='0' && B<='9')))){
+        else if ((B>127)||(B==0x3A || (B>='A' && B<='Z') || B==0x5F|| B==1|| B==2 || (B>='a' && B<='z')) || ((*Tag).Length>0 && (B==0x2D || B==0x2E || (B>='0' && B<='9')))){
           (*Tag).Length++;
           (*Tag).Name = (*Tag).Name * 263 * 32 + (B&0xDF);
         }
@@ -5885,13 +5885,21 @@ int p(Mixer& m,int val1=0,int val2=0){
         break;
       }
     }
-
+StateBH[State] = (StateBH[State]<<8)|B;
     pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ];
     cm.set(hash(State, (*Tag).Level, pState*2+(*Tag).EndTag, (*Tag).Name));
     cm.set(hash((*pTag).Name, State*2+(*pTag).EndTag, (*pTag).Content.Type, (*Tag).Content.Type));
     cm.set(hash(State*2+(*Tag).EndTag, (*Tag).Name, (*Tag).Content.Type, x.c4&0xE0FF));
   }
   cm.mix(m);
+  U8 s = ((StateBH[State]>>(28-x.bpos))&0x08) |
+         ((StateBH[State]>>(21-x.bpos))&0x04) |
+         ((StateBH[State]>>(14-x.bpos))&0x02) |
+         ((StateBH[State]>>( 7-x.bpos))&0x01) |
+         ((x.bpos)<<4);
+  //if (Stats)
+ //   (*Stats).XML = (s<<3)|State;
+  return (s<<3)|State;
 }
 virtual ~XMLModel1(){ }
 };
@@ -6039,10 +6047,8 @@ int p(Mixer& m,int val1=0,int val2=0){
   m.add(stretch(4096-ppmd_6_32_1.ppmd_Predict(4096,x.y)));
   return 0;
 }
-  ~ppmdModel1(){ }
+  virtual ~ppmdModel1(){ }
 };
-
-
 //////////////////////////// Predictor /////////////////////////
 
 // A Predictor estimates the probability that the next bit of
@@ -6074,7 +6080,7 @@ public:
   normalModel1* normalModel;
   im1bitModel1* im1bitModel;
   XMLModel1* XMLModel;
-ppmdModel1* ppmdModel;
+  ppmdModel1* ppmdModel;
 virtual ~Predictors(){
   if (jpegModel!=0) delete jpegModel;
   if (sparseModel1!=0) delete sparseModel1;
@@ -6220,13 +6226,14 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0),  a(x) {
         nestModel=new nestModel1(x); 
         ppmdModel=new ppmdModel1(x);
         XMLModel=new XMLModel1(x);
+        exeModel=new exeModel1(x); 
    }
    matchModel=new matchModel1(x);
    normalModel=new normalModel1(x);
    const int tinput=1+(x.clevel>=4?(recordModel->inputs() + distanceModel->inputs() +
    sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-   nestModel->inputs()+ppmdModel->inputs()+XMLModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs();
-   m=new Mixer(tinput,  7432+256,x, 7 );
+   nestModel->inputs()+ppmdModel->inputs()+XMLModel->inputs()+exeModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs();
+   m=new Mixer(tinput,  7432+256+1024+1024+8+1024,x, 7 +2+1);
 }
 
 void Predictor::update()  {
@@ -6255,7 +6262,7 @@ void Predictor::update()  {
     ismatch=ilog(matchModel->p(*m));  // Length of longest matching context
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>8) order=7;
-    int rlen=0;
+    int rlen=0,Valid=0,xmlstate=0;
     if (x.clevel>=4){        
             rlen=recordModel->p(*m);
             wordModel->p(*m);
@@ -6265,14 +6272,18 @@ void Predictor::update()  {
             nestModel->p(*m);
             dmcModel->p(*m);
             ppmdModel->p(*m);
-            XMLModel->p(*m);
+            xmlstate=XMLModel->p(*m);
+            Valid=exeModel->p(*m);
     } 
       U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-    m->set(c1+8, 264); 
+   m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
-    m->set(rlen?rlen:c2, 1024);
+    m->set(rlen, 1024);
+     m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+128*Valid, 256);  
+  //m->set(c2, 256);
+  //m->set(c3, 256);
     U8 d=x.c0<<(8-x.bpos);
-    m->set(order*256+(x.w4&240)+(x.b3>>4),2048+256);
+    m->set((xmlstate&3>0)*1024+(x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4),2048);
     m->set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
     m->set(ismatch, 256);
     if (x.bpos) {
@@ -6294,8 +6305,7 @@ public:
   PredictorJPEG();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
   void update() ;
-  ~PredictorJPEG(){
-  
+  ~PredictorJPEG(){  
  }
 };
 
@@ -6303,7 +6313,7 @@ PredictorJPEG::PredictorJPEG(): pr(2048) ,  a(x)  {
   matchModel=new matchModel1(x); 
   jpegModel=new jpegModelx(x); 
   const int tinput=1+ matchModel->inputs() + jpegModel->inputs() ;
-  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8,x, 5);
+  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024,x, 5);
 }
 
 void PredictorJPEG::update()  {
@@ -6317,7 +6327,7 @@ void PredictorJPEG::update()  {
     }
     else{
         U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-        m->set(c1+8, 264); 
+         m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
         m->set(x.c0, 256);
         m->set(c2, 256);
         m->set(ismatch, 256);
@@ -6355,13 +6365,14 @@ PredictorEXE::PredictorEXE(): pr(2048),a(x) {
     exeModel=new exeModel1(x); 
     indirectModel=new indirectModel1(x);
     dmcModel=new dmcModel1(x);  
+    nestModel=new nestModel1(x); 
   }
   matchModel=new matchModel1(x); 
   normalModel=new normalModel1(x);
   const int tinput=1+(x.clevel>=4?(recordModel->inputs()+distanceModel->inputs()+sparseModel->inputs()+
-  wordModeld->inputs()+  exeModel->inputs() + indirectModel->inputs() + dmcModel->inputs() ):0)+
+  wordModeld->inputs()+  exeModel->inputs() + indirectModel->inputs() + dmcModel->inputs()+ nestModel->inputs() ):0)+
   matchModel->inputs() + normalModel->inputs() ;
-  m=new Mixer(tinput, 3080+1024*2,x, 7+1);
+  m=new Mixer(tinput, 6920,x, 10);
 }
 
 void PredictorEXE::update()  {
@@ -6389,24 +6400,25 @@ void PredictorEXE::update()  {
     int ismatch=ilog(matchModel->p(*m));  // Length of longest matching context
     int order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>8) order=7;
-    int execxt=0;
+    int valid=0,rec=0;
     if (x.clevel>=4 ){
-        recordModel->p(*m);
+        rec=recordModel->p(*m);
         wordModeld->p(*m);
+        nestModel->p(*m);
         sparseModel->p(*m,ismatch,order);
         distanceModel->p(*m);
         indirectModel->p(*m);
         dmcModel->p(*m);
-        exeModel->p(*m);  
+        valid=exeModel->p(*m); //1024*2
     }
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-    m->set(c1+8, 264); 
+    m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
     m->set(c2, 256);
+    m->set(rec, 1024);
     U8 d=x.c0<<(8-x.bpos);
-    m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+(c2==0x8b || c2==0x89)*128, 256); //8b 89 for mov
+    m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+valid*128, 256);
     m->set(c3, 256);
-   // m->set(execxt, 256);  
     m->set(ismatch, 256);
     if (x.bpos) {
         c=d; if (x.bpos==1)c+=c3/2;
@@ -6436,7 +6448,7 @@ PredictorIMG4::PredictorIMG4(): pr(2048),  a(x){
   recordModel=new recordModel1(x);
   dmcModel=new dmcModel1(x); 
   const int tinput=1+recordModel->inputs() + dmcModel->inputs() + matchModel->inputs();
-  m=new Mixer(tinput,  2568,x, 5 );
+  m=new Mixer(tinput,  2568+8+1024-264,x, 5 );
 }
 
 void PredictorIMG4::update()  {
@@ -6574,28 +6586,11 @@ PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0), a(x) {
   normalModel=new normalModel1(x);
   const int tinput=1+(x.clevel>=4?(recordModelw->inputs() + sparseModel1->inputs() +
   wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
-  ppmdModel->inputs()+ XMLModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs() ;
-  m=new Mixer(tinput,  9728 +256+256+256+256,x, 7 );
+  ppmdModel->inputs()+ XMLModel->inputs()):0) + matchModel->inputs() + normalModel->inputs() ;
+  m=new Mixer(tinput, 7936,x, 7 );
 }
 
-inline void PredictorTXTWRT::setmixer(){
-  U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-  m->set(c1+8, 264); 
-  m->set(x.c0, 256);
-  c=(c2&0x1F)|((c3&0x1F)<<5);
-  m->set(c, 1024);
-  U8 d=x.c0<<(8-x.bpos);
-  m->set(order*256+(x.w4&240)+(x.b3>>4),256*9);
-  m->set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
-  m->set(ismatch, 256);
-  if (x.bpos) {
-    c=d; if (x.bpos==1)c+=c3/2;
-    c=(min(x.bpos,5))*256+c1/32+8*(c2/32)+(c&192);
-  }
-  else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
-  m->set(c, 1536);
-  pr0=m->p();
-}
+
 
 void PredictorTXTWRT::update()  {
     update0();
@@ -6623,23 +6618,25 @@ void PredictorTXTWRT::update()  {
     ismatch=ilog(matchModel->p(*m));  // Length of longest matching context
     order=normalModel->p(*m);
     order=order-3; if(order<0) order=0;if(order>8) order=7;
+    int xmlstate=0;
     if (x.clevel>=4){        
-        wordModel->p(*m);
         sparseModel1->p(*m,ismatch,order);
         nestModel->p(*m);
         indirectModel->p(*m);
         dmcModel->p(*m);
         recordModelw->p(*m);
+        wordModel->p(*m);
         ppmdModel->p(*m);
-        XMLModel->p(*m);
+        xmlstate=XMLModel->p(*m);
+    }    
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
         m->set(x.c0, 256);
         m->set(ismatch, 256);
-        m->set((x.w4&3)*64+c+order*256, 256*9);         
-        m->set(256*order + (x.w4&240) + (x.b3>>4), 256*9);
-        c=(x.w4&255)+256*x.bpos;
-        m->set(c, 256*8);
+        m->set((x.w4&3)*64+c+order*256, 256*7);         
+        m->set((xmlstate&3>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4),1024);
+        c=(x.w4&255)+(x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
+        m->set(c, 256*4);
         if (x.bpos){
             c=x.c0<<(8-x.bpos); if (x.bpos==1)c+=c3/2;
             c=(min(x.bpos,5))*256+(x.tt&63)+(c&192);
@@ -6649,10 +6646,8 @@ void PredictorTXTWRT::update()  {
         c=x.bpos*256+((x.c0<<(8-x.bpos))&255);
         c3 = (x.words<<x.bpos) & 255;
         m->set(c+(c3>>x.bpos), 2048);
-        pr0=m->p();}
-    else{
-        setmixer();
-    }
+        pr0=m->p();
+        
     pr=a.p1(pr0,pr,7);
 }
 
@@ -6835,6 +6830,7 @@ public:
     }
     pr0=(pr0)>>1;
     pr0=a.p(pr0, x.c0);
+    
   }
 };
   
@@ -7549,8 +7545,8 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 DEClast=0;   // offset of most recent CALL or JMP
 
   U64 soi=0, sof=0, sos=0, app=0,eoi=0;  // For JPEG detection - position where found
-  U64 wavi=0;
-  int wavsize=0,wavch=0,wavbps=0,wavm=0,wavsr=0,wavt=0,wavtype=0,wavlen=0,wavlist=0;  // For WAVE detection
+  U64 wavi=0,wavlist=0;
+  int wavsize=0,wavch=0,wavbps=0,wavm=0,wavsr=0,wavt=0,wavtype=0,wavlen=0;  // For WAVE detection
   U64 aiff=0;
   int aiffm=0,aiffs=0;  // For AIFF detection
   U64 s3mi=0;
@@ -7581,7 +7577,7 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 b85s=0,b85s1=0,b85p=0,b85slen=0,b85h=0;
   U64 base85start=0,base85end=0,b85line=0;//,b85lcount=0;//b85nl=0,
   //int b64f=0,b64fstart=0,b64flen=0,b64send=0,b64fline=0; //force base64 detection
-  int gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0; // For GIF detection
+  U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0; // For GIF detection
   //MSZip
   U64 MSZip=0, MSZ=0, MSZipz=0;
   int yu=0;
@@ -7589,14 +7585,16 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 fSZDD=0; //
   //U64 fKWAJ=0; //
   LZSS* lz77;
-  unsigned char zbuf[32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
-  int zbufpos=0,zzippos=-1;
-  int pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfimp=0;
+  U8 zbuf[32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
+  int zbufpos=0;
+  U64 zzippos=-1;
+  int pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0;
+  U64 pdfimp=0;
   U64 mrb=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0; // For MRB detection
   //
   U64 tar=0,tarn=0;;
   TARheader tarh;
-  //unsigned op=0;//DEC A
+  //U32 op=0;//DEC A
   U64 nesh=0,nesp=0;
   static int deth=0,detd=0;  // detected header/data size in bytes
   static Filetype dett;  // detected block type
@@ -7675,7 +7673,6 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
                 MSZip=MSZipz=zlen=0;
             }
        }
-      // continue;
     }
     
     // ZLIB stream detection
@@ -7814,7 +7811,7 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) cdi=0; // FIX it ?
       else if (p==16 && i+2336<n) {
         U8 data[2352];
-        int64_t savedpos=ftello(in);
+        U64 savedpos=ftello(in);
         fseeko(in, start+i-23, SEEK_SET);
         fread(data, 1, 2352, in);
         int t=expand_cd_sector(data, cda, 1);
@@ -7846,8 +7843,7 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     //if (!soi && i>=3 && ((buf0&0xfffffff0)==0xffd8ffe0 /*|| buf0==0xffd8ffdb*/)) soi=i, app=i+2, sos=sof=0;
     if (!soi && i>=3 && ((
     ((buf0&0xffffff00)==0xffd8ff00 && ((U8)buf0==0xC0 || (U8)buf0==0xC4 || ((U8)buf0>=0xDB && (U8)buf0<=0xFE)))
-    ||(buf0&0xfffffff0)==0xffd8ffe0 ) )
-    
+    ||(buf0&0xfffffff0)==0xffd8ffe0 ) )    
     ) soi=i, app=i+2, sos=sof=0;
     if (soi) {
       if (app==i && (buf0>>24)==0xff &&
@@ -7871,27 +7867,8 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     // Detect .wav file header
     if (buf0==0x52494646) wavi=i,wavm=0;
     if (wavi) {
-     /* const int p=int(i-wavi);
-      if (p==4) wavsize=bswap(buf0);
-      else if (p==8 && buf0!=0x57415645) wavi=0;
-      else if (p==16 && (buf1!=0x666d7420 || bswap(buf0)!=16)) wavi=0;
-      else if (p==20) wavt=bswap(buf0)&0xffff;
-      else if (p==22) wavch=bswap(buf0)&0xffff;
-      else if (p==24) wavsr=bswap(buf0) ;
-      else if (p==34) wavbps=bswap(buf0)&0xffff;
-      else if (p==40+wavm && buf1!=0x64617461) wavm+=bswap(buf0)+8,wavi=(wavm>0xfffff?0:wavi);
-      else if (p==40+wavm) {
-        int wavd=bswap(buf0);
-        info2=wavsr;
-        if ((wavch==1 || wavch==2) && (wavbps==8 || wavbps==16) && wavt==1 && wavd>0 && wavsize>=wavd+36
-           && wavd%((wavbps/8)*wavch)==0 && wavsr>=0) AUD_DET(AUDIO,wavi-3,44+wavm,wavd,wavch+wavbps/4-3);
-           //32bit IEEE
-        //if ((wavch==1 || wavch==2) && wavbps==32 && wavt==3 && wavd>0 && wavsize>=wavd+36
-        //   && wavd%((wavbps/8)*wavch)==0 && wsr>=0) AUD_DET(AUDIO,wavi-3,44+wavm,wavd,wavch+wavbps/8-3+(wsr<<5)+(1<<7));
-        wavi=0;
-      }*/
             int p=i-wavi;
-      if (p==4) wavsize=bswap(buf0);
+            if (p==4) wavsize=bswap(buf0);
             else if (p==8){
                 wavtype=(buf0==0x57415645)?1:(buf0==0x7366626B)?2:0;
                 if (!wavtype) wavi=0;
@@ -8062,10 +8039,17 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       else if ((p==31) && buf0) bmp=0;
       else if (p==48){
         if ( (!buf0 || ((bswap(buf0)<=(U32)(1<<imgbpp)) && (imgbpp<=8))) && (((bmpx*bmpy*imgbpp)>>3)>512) ) {
-            if (hdrless && (imgbpp==32|| imgbpp==4)) bmp=imgbpp=0;
-            else if (hdrless && (imgbpp<=24))
+             if (hdrless && (bmpx*2==bmpy) && (
+            (bmpx==8)   || (bmpx==10) || (bmpx==14) || (bmpx==16) || (bmpx==20) ||
+            (bmpx==22)  || (bmpx==24) || (bmpx==32) || (bmpx==40) || (bmpx==48) ||
+            (bmpx==60)  || (bmpx==64) || (bmpx==72) || (bmpx==80) || (bmpx==96) ||
+            (bmpx==128) || (bmpx==256)
+          ))
+            bmpy=bmpx;
+            if (hdrless && (imgbpp==32)) bmp=imgbpp=0;
+            else if (hdrless && (imgbpp<24))
             bmpof+=(buf0)?bswap(buf0)*4:4<<imgbpp;
-            
+           if (hdrless && imgbpp==4) bmpof=104;
 
           if (imgbpp==1) IMG_DET(IMAGE1,bmp-1,bmpof,(((bmpx-1)>>5)+1)*4,bmpy);
           else if (imgbpp==4) IMG_DET(IMAGE4,bmp-1,bmpof,((bmpx>>1)+3)&-4,bmpy);
@@ -8243,8 +8227,8 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     if (((buf1&0xfe)==0xe8 || (buf1&0xfff0)==0x0f80) && ((buf0+1)&0xfe)==0) {
       int r=buf0>>24;  // relative address low 8 bits
       int a=((buf0>>24)+i)&0xff;  // absolute address low 8 bits
-      int rdist=int(i-relpos[r]);
-      int adist=int(i-abspos[a]);
+      U64 rdist=(i-relpos[r]);
+      U64 adist=(i-abspos[a]);
       if (adist<rdist && adist<0x800 && abspos[a]>5) {
         e8e9last=i;
         ++e8e9count;
@@ -8350,7 +8334,6 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         if  ((buf0&0xff)==0x0d && b85line==0) {
             b85line=i-base85start;//,b85nl=i+2;//capture line lenght
             if (b85line<=4 || b85line>255) b85s=0;
-           // else continue;
         }
         
         else if ( ((buf0&0xff)==0x7E|| (buf0&0xffff)==0x0a7E)) { //if padding '~' or '=='
@@ -8359,11 +8342,9 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
             if (((base85end-base85start)>60) && ((base85end-base85start)<base85max))
             B85_DET(BASE85,b85h,b85slen,base85end -base85start);
         }
-        else if ( (is_base85(c)))          ;//continue;
+        else if ( (is_base85(c)))          ;
         else if  ((buf0&0xff)==0x0d && b85line!=0) {
-            //b85line=i-base85start,b85nl=i+2;//capture line lenght
             if (b85line!=i-base85start) b85s=0;
-            //else continue;
         }
         else     b85s=0;   
     }
@@ -8400,9 +8381,6 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
        else if ((c&0xFC)==0xF8 && utfc==0){ //if possible UTF8 5 byte
             utfc=5,utfb=1;
             }
-       //else if ((c&0xFE)==0xFC && utfc==0){//if possible UTF8 6 byte
-      ///      utfc=6,utfb=1;
-         //   }
        else if (utfc>=2 && utfb>=1 && utfb<=5 && (c&0xC0)==0x80){
             utfb=utfb+1; //inc byte count
             //overlong UTF-8 sequence, UTF-16 surrogates as well as U+FFFE and U+FFFF test needed!!!
@@ -8419,9 +8397,6 @@ Filetype detect(FILE* in, U64 n, Filetype type, int &info, int &info2, int it=0,
             case 5:
                  if (utfb==5) txtLen=txtLen+5,utfc=0,utfb=0,txtIsUTF8=1,txta=txta+5;
                  break;
-            //case 6:
-             //    if (utfb==6) txtLen=txtLen+6,utfc=0,utfb=0,txtIsUTF8=1;
-             //    break;
             }
        }
        else if (utfc>=2 && utfb>=1){ // wrong utf
@@ -9641,48 +9616,29 @@ void encode_mrb(FILE* in, FILE* out, int len, int width, int height) {
                 value=getc(in);
             }
             count--;
-           ptrin[i] =value; //putc(value,out);
+           ptrin[i] =value; 
         }
     
-    int savepos1=ftell(in);
-    U8 *ptr,*fptr;
+   // int savepos1=ftell(in);
+    U8 *ptr;//,*fptr;
     ptr = (U8*)calloc(len+4, 1);
     if (!ptr) quit("Out of memory (encode_MBR)");
-    //fptr = (U8*)calloc(size+4, 1);
-    //if (!fptr) quit("Out of memory (encode_MBR)");
-    //fread(&fptr[0], 1, size, in);
     int aaa=encodeRLE(ptr,ptrin,totalSize);
-    ///programChecker.alloc(size*2);
-    //Write out or compare
-    //if (mode==FDECOMPRESS){
-    //        fwrite(&ptr[0], 1, aaa, out1);
-    //    }
-    //else if (mode==FCOMPARE){
     int diffcount=0, diffpos[4096];
     fseek(in,savepos,SEEK_SET);
-    // printf("  \n");
     for(int i=0;i<len;i++){
         U8 b=ptr[i];
         U8 c=fgetc(in);
             if (b!=c )  {
-                //printf("%d %d %d\n",b,c,i);
                 if (diffcount<4096)diffpos[diffcount++]=c+(i<<8);
             }
         }
-    //}
-  //  if (savepos1!=ftell(in)){
-  //      printf("%d  \n",savepos1);
-   // }
     putc((diffcount>>8)&255, out); putc(diffcount&255, out);
     if (diffcount>0)
     fwrite(&diffpos[0], 4, diffcount, out);
     fwrite(&ptrin[0], 1, totalSize, out);
     free(ptr);
     free(ptrin);
-    //programChecker.alloc(-size*2);
-    //assert(aaa<size);
-    //return aaa;
-    
 }
 
 int decode_mrb(FILE* in, int size, int width, FILE *out1, FMode mode, uint64_t &diffFound) {
@@ -10097,8 +10053,8 @@ public:
         EOLType=UNDEFINED;
         fpos=0;
         char*p,b11[256],*t=b11;
-        FILE* dtmp;
-        int i;
+        //FILE* dtmp;
+        //int i;
         int b=0,z,v;
         int bb=0;
         coder.StartDecode(outeol);
@@ -10289,7 +10245,7 @@ void DetectRecursive(FILE *in, U64 n, Encoder &en, char *blstr, int it, U64 s1, 
 
 
 
-void transform_encode_block(Filetype type, FILE *in, U32 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
+void transform_encode_block(Filetype type, FILE *in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
     if (type==EXE || type==DECA || type==CD|| /*type==MSZIP||*/ type==MDF || type==IMAGE24 || type==IMAGE32  ||type==MRBR ||type==EOLTEXT||
      ((type==TEXT || type==TXTUTF8|| type==TEXT0) )  || type==BASE64 || type==BASE85 ||type==SZDD|| (type==AUDIO && (modeQuick))||type==ZLIB|| type==GIF) {
         U64 diffFound=0;
@@ -10332,11 +10288,11 @@ void transform_encode_block(Filetype type, FILE *in, U32 len, Encoder &en, int i
         else if (type==BASE64) encode_base64(in, tmp, int(len));
         else if (type==BASE85) encode_ascii85(in, tmp, int(len));
         else if (type==SZDD) encode_szdd(in, tmp, info);
-        else if (type==ZLIB) diffFound=encode_zlib(in, tmp, len)?0:1;
+        else if (type==ZLIB) diffFound=encode_zlib(in, tmp, int(len))?0:1;
         //else if (type==MSZIP) diffFound=encode_mszlib(in, tmp, len)?0:1;//encode_zlib(in, tmp, len);
         else if (type==CD) encode_cd(in, tmp, int(len), info);
         else if (type==MDF) encode_mdf(in, tmp, int(len));
-        else if (type==GIF) diffFound=encode_gif(in, tmp, len)?0:1;
+        else if (type==GIF) diffFound=encode_gif(in, tmp, int(len))?0:1;
         if (type==EOLTEXT && diffFound) {
             // if EOL size is below 25 then drop EOL transform and try TEXT type
             printf(" (no EOL)");
@@ -10532,7 +10488,7 @@ void DetectRecursive(FILE *in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1
       type=DEFAULT;
     }
     U64 len=U64(end-begin);
-    
+    if (begin>end) len=0;
     if (len>0) {
     if (it>itcount)    itcount=it;
     typenamess[type][it]+=len,  typenamesc[type][it]++; 
@@ -10547,8 +10503,9 @@ void DetectRecursive(FILE *in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1
       transform_encode_block(type, in, len, en, info,info2, blstr, it, s1, s2, begin);
       
       s1+=len;
+      n-=len;
     }
-    n-=len;
+    
     type=nextType;
     begin=end;
   }
@@ -10638,7 +10595,7 @@ U64 decompressStreamRecursive(FILE *out, U64 size, Encoder& en, FMode mode, int 
                 else if (type==ZLIB)   len=decode_zlib(tmp,int(len),out, mode, diffFound);
                 else if (type==CD)     len=decode_cd(tmp, int(len), out, mode, diffFound);
                 else if (type==MDF)    len=decode_mdf(tmp, int(len), out, mode, diffFound);
-                else if (type==GIF)    len=decode_gif(tmp, len, out, mode, diffFound);
+                else if (type==GIF)    len=decode_gif(tmp, int(len), out, mode, diffFound);
                 else if (type==MRBR)   len=decode_mrb(tmp, int(len), info, out, mode, diffFound);
                 else if (type==EOLTEXT)   len=decode_txtd(tmp, int(len), out, mode, diffFound);
             }
