@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Dec. 19, 2017
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Dec. 20, 2017
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -540,19 +540,11 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V35
--wrt utf8 capital conversion for greek,cyrillic,latin suplement
--reduce arhcive size for small files
--changed wordmodel
--small fixes
--bintext data type
--progress to stderr so you can see it and it will not pollute 'prog arg >resultfile'
--24 bit image model changes from paq8px_v123
--change encoder
--zlib image fix
+DIFFERENCES FROM PAQ8PXD_V36
+- fix im4 model (crash on -s4 -q4 -s2 etc)
 */
 
-#define PROGNAME "paq8pxd36"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd37"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -1865,8 +1857,8 @@ class HashTable {
   const int N;  // size in bytes
 public:
   HashTable(int n): t(n), N(n) {
-    assert(B>=2 && (B&B-1)==0);
-    assert(N>=B*4 && (N&N-1)==0);
+   assert(B>=2 && (B&(B-1))==0);
+    assert(N>=B*4 && (n&(n-1))==0);
   }
   U8* operator[](U32 i);
   void reset(){
@@ -3722,49 +3714,49 @@ class im4bitModel1: public Model {
   NEE(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0),col(0), line(0), run(0), prevColor(0), px(0),t1(65536/2) {
    sm=new StateMap[S];
    cpr=t1[0]+1;
+   for (int i=0;i<S;i++)
+      cp[i]=t[263*i];
    }
-  int inputs() {return S+2;}
+  int inputs() {return S+2+1;}
 int p(Mixer& m,int w=0,int val2=0)  {
   int i;
-  if (x.blpos==0){//helps only on bigger files+1024kb
+  if (x.blpos==1){//helps only on bigger files+1024kb
       t.reset();
       for (i=0;i<S;i++)
-      cp[i]=t[263*i]+1;
-  }
-  if (!cp[0]){
-    for (i=0;i<S;i++)
-      cp[i]=t[263*i]+1;
+      cp[i]=t[263*i];
   }
   for (i=0;i<S;i++)
     *cp[i]=nex(*cp[i],x.y);
 
-  if (!x.bpos || x.bpos==4){
+  if (x.bpos==0 || x.bpos==4){
       WW=W, NWW=NW, NW=N, N=NE, NE=NEE, NNWW=NWW, NNW=NN, NN=NNE, NNE=NNEE;
-      if (!x.bpos)
-        W=x.c4&0xF, NEE=buf(w-1)>>4, NNEE=buf(w*2-1)>>4;
+      if (x.bpos==0)
+        {
+        W=x.c4&0xF, NEE=buf(w-1)>>4, NNEE=buf(w*2-1)>>4;}
       else
-        W=x.c0&0xF, NEE=buf(w-1)&0xF, NNEE=buf(w*2-1)&0xF;
-      run=(W!=WW || !col)?(prevColor=WW,0):min(0xFFF,run+1);
+       {
+        W=x.c0&0xF, NEE=buf(w-1)&0xF, NNEE=buf(w*2-1)&0xF; }
+      run=(W!=WW || col==0)?(prevColor=WW,0):min(0xFFF,run+1);
       if (cpr[0]==0 || cpr[1]!=W) cpr[0]=1, cpr[1]=W;
   else if (cpr[0]<255) ++cpr[0];
   cpr=t1[hash(W,NW,N)]+1;
   
       px=1, i=0;
 
-      cp[i++]=t[hash(W,NW,N)]+1;
-      cp[i++]=t[hash(N, min(0xFFF, col/8))]+1;
-      cp[i++]=t[hash(W,NW,N,NN,NE)]+1;
-      cp[i++]=t[hash(W, N, NE+NNE*16, NEE+NNEE*16)]+1;
-      cp[i++]=t[hash(W, N, NW+NNW*16, NWW+NNWW*16)]+1;
-      cp[i++]=t[hash(W, ilog2(run+1), prevColor, col/max(1,w/2) )]+1;
-      cp[i++]=t[hash(NE, min(0x3FF, (col+line)/max(1,w*8)))]+1;
-      cp[i++]=t[hash(NW, (col-line)/max(1,w*8))]+1;
-      cp[i++]=t[hash(WW*16+W,NN*16+N,NNWW*16+NW)]+1;
-      cp[i++]=t[N+NN*16]+1;
-      cp[i++]=t[-1]+1;
+      cp[i++]=t[hash(W,NW,N)];
+      cp[i++]=t[hash(N, min(0xFFF, col/8))];
+      cp[i++]=t[hash(W,NW,N,NN,NE)];
+      cp[i++]=t[hash(W, N, NE+NNE*16, NEE+NNEE*16)];
+      cp[i++]=t[hash(W, N, NW+NNW*16, NWW+NNWW*16)];
+      cp[i++]=t[hash(W, ilog2(run+1), prevColor, col/max(1,w/2) )];
+      cp[i++]=t[hash(NE, min(0x3FF, (col+line)/max(1,w*8)))];
+      cp[i++]=t[hash(NW, (col-line)/max(1,w*8))];
+      cp[i++]=t[hash(WW*16+W,NN*16+N,NNWW*16+NW)];
+      cp[i++]=t[N+NN*16];
+      cp[i++]=t[-1];
       
-      col*=(++col)<w*2;
-      line+=(!col);
+      col++;
+      if(col==w*2){col=0;line++;}
   }
   else{
     px+=px+x.y;
@@ -3779,7 +3771,7 @@ int p(Mixer& m,int w=0,int val2=0)  {
   // predict
   for (i=0; i<S; i++)
     m.add(stretch(sm[i].p(*cp[i],x.y)));
-
+ 
   m.set(W*16+px, 256);
   m.set(min(31,col/max(1,w/16))+N*32, 512);
   m.set((x.bpos&3)+4*W+64*min(7,ilog2(run+1)), 512);
@@ -3811,11 +3803,11 @@ public:
    sm=new StateMap[N];
    cp=t1[0]+1;
    }
-  int inputs() {return N+1;}
+  int inputs() {return N+2;}
 int p(Mixer& m,int w=0,int val2=0)  {
   // update the model
   int i;
-  for (i=0; i<N; ++i)
+  for (i=0; i<N; i++)
     t[cxt[i]]=nex(t[cxt[i]],x.y);
   //count run
   if (cp[0]==0 || cp[1]!=x.y) cp[0]=1, cp[1]=x.y;
@@ -3839,7 +3831,7 @@ int p(Mixer& m,int w=0,int val2=0)  {
   cxt[10]=0x13000+((r0&0x3e)^(r1&0x0c0c)^(r2&0xc800));
  
   // predict
-  for (i=0; i<N; ++i) m.add(stretch(sm[i].p(t[cxt[i]],x.y)));
+  for (i=0; i<N; i++) m.add(stretch(sm[i].p(t[cxt[i]],x.y)));
   //run
   if (cp[1]==x.y)
       m.add(((cp[1]&1)*2-1)*ilog(cp[0]+1)*8);
@@ -6956,7 +6948,6 @@ PredictorIMG24::PredictorIMG24(): pr(2048),a(x) {
   im24bitModel=new im24bitModel1(x);
   const int tinput=1+matchModel->inputs() + im24bitModel->inputs() ;
   m=new Mixer(tinput, 5254,x,9);
-   //6+   256+   512+   2048+   8*32+   6*64+   256*2+   1024+   256
 }
 
 void PredictorIMG24::update()  {
