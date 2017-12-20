@@ -541,10 +541,10 @@ which computes 8 elements at a time, is not any faster).
 
 
 DIFFERENCES FROM PAQ8PXD_V36
-- fix im4 model (crash on -s4 -q4 -s2 etc)
+- fix 2 in im4 model: replace HashTable with BH
 */
 
-#define PROGNAME "paq8pxd37"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd38"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -1837,52 +1837,7 @@ inline  U8* BH<B>::operator[](U32 i) {
   memcpy(&t[i*B], &tmp, B);
   return &t[i*B+1];
 }
-
-//////////////////////////// HashTable /////////////////////////
-
-// A HashTable maps a 32-bit index to an array of B bytes.
-// The first byte is a checksum using the upper 8 bits of the
-// index.  The second byte is a priority (0 = empty) for hash
-// replacement.  The index need not be a hash.
-
-// HashTable<B> h(n) - create using n bytes  n and B must be 
-//     powers of 2 with n >= B*4, and B >= 2.
-// h[i] returns array [1..B-1] of bytes indexed by i, creating and
-//     replacing another element if needed.  Element 0 is the
-//     checksum and should not be modified.
-
-template <int B>
-class HashTable {
-  Array<U8,64> t;  // table: 1 element = B bytes: checksum priority data data
-  const int N;  // size in bytes
-public:
-  HashTable(int n): t(n), N(n) {
-   assert(B>=2 && (B&(B-1))==0);
-    assert(N>=B*4 && (n&(n-1))==0);
-  }
-  U8* operator[](U32 i);
-  void reset(){
-      memset(&t[0], 0, N);
-  }
-};
-
-template <int B>
-inline U8* HashTable<B>::operator[](U32 i) {
-  i*=123456791;
-  i=i<<16|i>>16;
-  i*=234567891;
-  int chk=i>>24;
-  i=(i*B)&(N-B);
-  U8 *p = &t[0];
-  if (p[i]==chk) return p+i+1;
-  if (p[i^B]==chk) return p+(i^B)+1;
-  if (p[i^(B*2)]==chk) return p+(i^(B*2))+1;
-  if (p[i+1]>p[(i+1)^B] || p[i+1]>p[(i+1)^(B*2)]) i^=B;
-  if (p[i+1]>p[(i+1)^B^(B*2)]) i^=B^(B*2);
-  memset(p+i, 0, B);
-  p[i]=chk;
-  return p+i+1;
-}
+ 
 /////////////////////////// ContextMap /////////////////////////
 //
 // A ContextMap maps contexts to a bit histories and makes predictions
@@ -3700,7 +3655,7 @@ inline int sqrbuf(int i) {
 class im4bitModel1: public Model {
     BlockData& x;
    Buf& buf;
-    HashTable<16> t;
+    BH<16> t;
   const int S; // number of contexts
     //U8* cp[S];
     Array<U8*> cp;
@@ -3715,15 +3670,15 @@ class im4bitModel1: public Model {
    sm=new StateMap[S];
    cpr=t1[0]+1;
    for (int i=0;i<S;i++)
-      cp[i]=t[263*i];
+      cp[i]=t[263*i]+1;
    }
   int inputs() {return S+2+1;}
 int p(Mixer& m,int w=0,int val2=0)  {
   int i;
   if (x.blpos==1){//helps only on bigger files+1024kb
-      t.reset();
+      //t.reset();
       for (i=0;i<S;i++)
-      cp[i]=t[263*i];
+      cp[i]=t[263*i]+1;
   }
   for (i=0;i<S;i++)
     *cp[i]=nex(*cp[i],x.y);
@@ -3743,17 +3698,17 @@ int p(Mixer& m,int w=0,int val2=0)  {
   
       px=1, i=0;
 
-      cp[i++]=t[hash(W,NW,N)];
-      cp[i++]=t[hash(N, min(0xFFF, col/8))];
-      cp[i++]=t[hash(W,NW,N,NN,NE)];
-      cp[i++]=t[hash(W, N, NE+NNE*16, NEE+NNEE*16)];
-      cp[i++]=t[hash(W, N, NW+NNW*16, NWW+NNWW*16)];
-      cp[i++]=t[hash(W, ilog2(run+1), prevColor, col/max(1,w/2) )];
-      cp[i++]=t[hash(NE, min(0x3FF, (col+line)/max(1,w*8)))];
-      cp[i++]=t[hash(NW, (col-line)/max(1,w*8))];
-      cp[i++]=t[hash(WW*16+W,NN*16+N,NNWW*16+NW)];
-      cp[i++]=t[N+NN*16];
-      cp[i++]=t[-1];
+      cp[i++]=t[hash(W,NW,N)]+1;
+      cp[i++]=t[hash(N, min(0xFFF, col/8))]+1;
+      cp[i++]=t[hash(W,NW,N,NN,NE)]+1;
+      cp[i++]=t[hash(W, N, NE+NNE*16, NEE+NNEE*16)]+1;
+      cp[i++]=t[hash(W, N, NW+NNW*16, NWW+NNWW*16)]+1;
+      cp[i++]=t[hash(W, ilog2(run+1), prevColor, col/max(1,w/2) )]+1;
+      cp[i++]=t[hash(NE, min(0x3FF, (col+line)/max(1,w*8)))]+1;
+      cp[i++]=t[hash(NW, (col-line)/max(1,w*8))]+1;
+      cp[i++]=t[hash(WW*16+W,NN*16+N,NNWW*16+NW)]+1;
+      cp[i++]=t[N+NN*16]+1;
+      cp[i++]=t[-1]+1;
       
       col++;
       if(col==w*2){col=0;line++;}
