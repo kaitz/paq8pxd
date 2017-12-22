@@ -154,7 +154,7 @@ CMemoryBuffer::CMemoryBuffer(std::string mname)
     name=mname;
     Clear(); 
     AllocTgtBuf(); 
-};
+}
 
 CMemoryBuffer::~CMemoryBuffer() 
 { 
@@ -163,7 +163,7 @@ CMemoryBuffer::~CMemoryBuffer()
     
     if (SourceBuf)
     free(SourceBuf);
-};
+}
 
 inline void CMemoryBuffer::Clear()
 {
@@ -231,7 +231,7 @@ inline void CMemoryBuffer::ReallocTgtBuf(unsigned int len){
     TargetBuf=NewTargetBuf;
 }
 
-CContainers::CContainers() : bigBuffer(NULL) {};
+CContainers::CContainers() : bigBuffer(NULL) {}
 
 void CContainers::prepareMemBuffers(){
     memout=new CMemoryBuffer();
@@ -735,7 +735,7 @@ public:
 XWRT_Decoder::XWRT_Decoder() : WRTd_s(&WRTd_data[0]) ,WRTd_UTF(0)
 {   
 
-};
+}
 
 XWRT_Decoder::~XWRT_Decoder(){ 
     if (cont.bigBuffer)

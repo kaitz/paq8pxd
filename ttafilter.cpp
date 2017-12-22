@@ -478,7 +478,7 @@ int decompress (FILE *fdin, FILE *fdout,int dlen, int info, int info2,int smr) {
     int    **buffer;
     unsigned int    i, num_chan, byte_size;
     unsigned int    is_float, frame_size, frame_len;
-    int  len;
+    unsigned int  len;
     
     int bits=(((info&31)%4)/2)*8+8;
     int tta_level        = 3;
