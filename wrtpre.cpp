@@ -43,8 +43,8 @@
 #define CHAR_FIRSTUPPER     1   // for encode lower word with first capital letter
 #define CHAR_UPPERWORD      2   // for encode upper word
 #define CHAR_ESCAPE         3   // for encode reserved chars (CHAR_ESCAPE,CHAR_FIRSTUPPER,...)
-#define CHAR_UTFUPPER       4
-#define CHAR_EOL            5   // for enocde linefeed in EOLencoder not in wrt
+#define CHAR_UTF            4
+#define CHAR_UTFUPPER       5
 #define BINARY_FIRST        128
 #define BINARY_LAST         255
 
@@ -544,7 +544,7 @@ void XWRT_Common::initializeCodeWords(int word_count,bool initMem){
         outputSet[c]=0;
     }
     for (c=0; c<256; c++){
-        if (c==CHAR_ESCAPE || c==CHAR_FIRSTUPPER || c==CHAR_UPPERWORD || /*c==CHAR_EOL ||*/ c==CHAR_UTFUPPER)
+        if (c==CHAR_ESCAPE || c==CHAR_FIRSTUPPER || c==CHAR_UPPERWORD || c==CHAR_UTF || c==CHAR_UTFUPPER)
         {
             reservedSet[c]=1;
             addSymbols[c]=0;
@@ -919,12 +919,12 @@ if (WRTd_UTF>0 ){
                 upperWord=FORCE;
                 DECODE_GETC(WRTd_c);
                 continue;
-          //case CHAR_UTF:
-           //     PRINT_CHARS(("c==CHAR_UTF\n"));
+          case CHAR_UTF:
+                PRINT_CHARS(("c==CHAR_UTF\n"));
  
-           //     DECODE_GETC(WRTd_UTF);
+                DECODE_GETC(WRTd_UTF);
              
-           //     continue;
+                continue;
             case CHAR_UTFUPPER:
                 PRINT_CHARS(("c==CHAR_UTFPPRE\n"));
  utfupp=1;
@@ -1487,7 +1487,7 @@ void XWRT_Encoder::encodeWord(unsigned char* s,int s_size,EWordType wordType,int
         if (i<0){
             if (wordType==UTF8UPPER) { //revert back to UPPERCASE UTF if not found. Well, this is not correct palce to to this
                 wordType=LOWERWORD;
-				if ((U8)s[0]==0xD0 &&  (U8)s[1]>=0xb0 && (U8)s[1]<=0xbf &&       s_size==2 )s[1]=(U8)s[1]-0x20;
+                if ((U8)s[0]==0xD0 &&  (U8)s[1]>=0xb0 && (U8)s[1]<=0xbf &&       s_size==2 )s[1]=(U8)s[1]-0x20;
                 else if ((U8)s[0]==0xD1 &&  (U8)s[1]>=0x80 && (U8)s[1]<=0x8f &&  s_size==2 )s[1]=(U8)s[1]-0xe0,s[0]=0xD0;
                 else if ((U8)s[0]==0xce &&  (U8)s[1]>=0xb1 && (U8)s[1]<=0xbf &&  s_size==2 )s[1]=(U8)s[1]-0x20;
                 else if ((U8)s[0]==0xcf &&  (U8)s[1]>=0x80 && (U8)s[1]<=0x89 &&  s_size==2 )s[1]=(U8)s[1]-0xe0,s[0]=0xce;

@@ -540,12 +540,18 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V39
-- resolve conflict in WRT vs EOLencode
-- modify wordmodel
+DIFFERENCES FROM PAQ8PXD_V36
+- detect dBase files (based on paq8px_v124)
+- detect 1 bit images in pdf
+- gif gray (paq8px_v124)
+- recordmodel changes (paq8px_v124)
+- text detect change
+- zlib fix for negative pos
+- reduce compiler warnings
+- modify DEC Alpha detection, enable
 */
 
-#define PROGNAME "paq8pxd40"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd39"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -828,6 +834,7 @@ public:
 // buf(i) returns i'th byte back from pos (i > 0)
 // buf.size() returns n.
 
+
 class Buf {
   Array<U8> b;
 public:
@@ -916,6 +923,7 @@ public:
     return b.size();
   }
 };
+
 
 /////////////////////// Global context /////////////////////////
 bool modeFast=false;
@@ -1409,6 +1417,8 @@ Stretch::Stretch(): t(4096) {
  */
 //static void train (const short* const t, short* const w, int n, const int e);
 
+
+
 class Mixer {
 private: 
   const int N, M, S;   // max inputs, max contexts, max context sets
@@ -1567,7 +1577,7 @@ void train(short *t, short *w, int n, int err) {
   // Adjust weights to minimize coding cost of last prediction
   void update() {
     for (int i=0; i<ncxt; ++i) {
-      int err=((x.y<<12)-pr[i]*7);
+      int err=((x.y<<12)-pr[i])*7;
       assert(err>=-32768 && err<32768);
       train(&tx[0], &wx[cxt[i]*N], nx, err);
     }
@@ -1632,7 +1642,7 @@ Mixer::Mixer(int n, int m, BlockData& bd, int s, int w):
     cxt(S), ncxt(0), base(0), pr(S), mp(0),tx(N),nx(0),x(bd) {
   assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
-  for (i=0; i<S; ++i) 
+  for (i=0; i<S; ++i)
     pr[i]=2048;
 
   for (i=0; i<N*M; ++i)
@@ -2427,7 +2437,7 @@ public:
 };
 //////////////////////////// wordModel /////////////////////////
 
-#define SPACE 0x20
+
 // Model English text (words and columns/end of line)
 class wordModel1: public Model {
    BlockData& x;
@@ -2439,6 +2449,8 @@ class wordModel1: public Model {
      U32 text0,N;  // hash stream of letters
      ContextMap cm;
      int nl1, nl;  // previous, current newline position
+     int nnl1, nnl;  // previous, current newline position in non az09 stream
+      int ncol,nabove;
      U32 mask,mask2;
      Array<int> wpos;  // last position of word
      int w;
@@ -2446,7 +2458,7 @@ class wordModel1: public Model {
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),cword0(0),ccword(0),number0(0),
-  number1(0),text0(0),N(56+3),cm(CMlimit(MEM()*32), N),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),
+  number1(0),text0(0),N(56+1+3),cm(CMlimit(MEM()*32), N),nl1(-3), nl(-2),nnl1(-3), nnl(-2),ncol(0),nabove(0),mask(0),mask2(0),wpos(0x10000),w(0),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) {
    }
    int inputs() {return N*6;}
@@ -2463,7 +2475,7 @@ public:
         mask2<<=2;
         
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
-        if ((c>='a' && c<='z') ||  (c>=128 &&(x.b3!=3) || (c>0 && c<4 ))) {
+        if ((c>='a' && c<='z') || c==1 || c==2||(c>=128 &&(x.b2!=3))) {
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
                 if ((lastLetter=3 && (x.c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
@@ -2483,7 +2495,7 @@ public:
             }
             lastLetter=0;
             ++x.words, ++x.wordcount;
-             if (c>4   )word0^=hash(word0, c,0);
+            word0^=hash(word0, c,0);
             text0=text0*997*16+c;
             x.wordlen++;
             x.wordlen=min(x.wordlen,45);
@@ -2516,7 +2528,7 @@ public:
             }
             if ((x.c4&0xFFFF)==0x3D3D) xword1=word1,xword2=word2; // == wiki
             if ((x.c4&0xFFFF)==0x2727) xword1=word1,xword2=word2; // ''
-            if (c==SPACE || c==10 || c==5) { ++x.spaces, ++x.spacecount; if (c==10 || c==5) nl1=nl, nl=buf.pos-1;}
+            if (c==32 || c==10 || c==4) { ++x.spaces, ++x.spacecount; if (c==10 || c==4) nl1=nl, nl=buf.pos-1;}
             else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') x.spafdo=0,ccword=c,mask2+=3;
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
         }
@@ -2530,12 +2542,35 @@ public:
             number1=number0;
             number0=0,ccword=0;
         }
+        // buffer contains non a-z 0-9, space marks gap 
+        // *Signed [[Revenue Act of 1861]] -> * [[ ]]
+        if (  c==' ' || (c>='0' && c<='9') || (c>='a' && c<='z') || c==1 || c==2 ||(c>=128 &&(x.b2!=3))){
+           if ( x.bufn(1)!=' ') {
+              x.bufn[x.bufn.pos++]=' ';
+           }
+        }
+        else{            
+            x.bufn[x.bufn.pos++]=buf(1);
+            x.bufn.pos=x.bufn.pos&x.bufn.poswr; 
+        }
+        if (x.bufn(1)==' ') { 
+           cm.set(0); //cm.set(0); cm.set(0);
+        }       
+        else{
+            if (c==10  ) nnl1=nnl, nnl=x.bufn.pos-1; 
+            ncol=min(255, x.bufn.pos-nnl);
+            nabove=x.bufn[nnl1+ncol]; //  column context
+            cm.set(hash(1, ncol,x.bufn(1),nabove));  
+           // cm.set(hash(2, x.bufn(1),nabove)); 
+            //cm.set(hash(3, ncol,x.bufn(1))); 
+        }
         x.col=min(255, buf.pos-nl);
         
         int above=buf[nl1+x.col]; // text column context
         if (val2) x.col=val2,above=buf[buf.pos-x.col];
         if (x.col<=2) x.frstchar=(x.col==2?min(c,96):0);
         if (x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
+    //cm.set(hash(532,spafdo, col));
 //256+ hash 513+ none
 if (  x.filetype==DEFAULT){cm.set(0);cm.set(0);cm.set(0);cm.set(0);cm.set(0);cm.set(0);
 }
@@ -2579,7 +2614,7 @@ else
          cm.set(hash(262,h, 0));
          cm.set(hash( number0*271+buf(1), 0));
          cm.set(hash(263,word0, 0)); 
-         if (wrdhsh) cm.set(hash(wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); else cm.set(0);
+         cm.set(hash(wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); 
          cm.set(hash(264,h, word1)); 
          cm.set(hash(265,word0, word1));
          cm.set(hash(266,h, word1,word2,lastUpper<x.wordlen));//?
@@ -2658,7 +2693,7 @@ else
        cm.set(0);cm.set(0);cm.set(0);cm.set(0);
     }
     if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above&0x5F,x.c4&0x5F)); else cm.set(0); //wordlist
-    if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
+    cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); 
 
     }
     cm.mix(m);
@@ -2673,7 +2708,7 @@ else
 // Model 2-D data with fixed record length.  Also order 1-2 models
 // that include the distance to the last match.
 
-
+#define SPACE 0x20
 inline U8 Clip(int const Px){
   if(Px>255)return 255;
   if(Px<0)return 0;
@@ -5994,7 +6029,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     const int lc = (c >= 'A' && c <= 'Z'?c+'a'-'A':c);
     if (lc == 'a' || lc == 'e' || lc == 'i' || lc == 'o' || lc == 'u'){ vv = 1; w = w*997*8 + (lc/4-22); } else
     if (lc >= 'a' && lc <= 'z'){ vv = 2; w = w*271*32 + lc-97; } else
-    if (lc == ' ' || lc == '.' || lc == ',' || lc == '\n'|| lc == 5) vv = 3; else
+    if (lc == ' ' || lc == '.' || lc == ',' || lc == '\n') vv = 3; else
     if (lc >= '0' && lc <= '9') vv = 4; else
     if (lc == 'y') vv = 5; else
     if (lc == '\'') vv = 6; else vv=(c&32)?7:0;
@@ -6754,7 +6789,6 @@ void Predictor::update()  {
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     m->set(c, 1536);
-    bool doAdaptive=((x.filetype==BINTEXT)?true:false);
     pr0=m->p();
     pr=a.p1(pr0,pr,7);
 }
@@ -8988,7 +9022,7 @@ if  ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 || c==0 || c==4 ) tex
             if (txtIsUTF8==1)            return fseeko(in, start+txtOff, SEEK_SET),TXTUTF8;
             else                         return fseeko(in, start+txtOff, SEEK_SET),TEXT;
         }
-        if ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9|| c==5) {
+        if ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9|| c==4) {
             ++txtLen;
             if ( txtLen>txtMinLen) brute=false; //disable zlib brute if text lenght is over minimum.
             if ((c>='a' && c<='z') ||  (c>='A' && c<='Z')) txta++;
@@ -10569,7 +10603,7 @@ public:
                             EncodeEOLformat(EOLType);
                         }
                         lastEOL=fpos;
-                        if (last_c==10)  xc=5;//LF marker
+                        if (last_c==10)  xc=4;//LF marker
                         else xc=last_c;
                     }
                     else
@@ -10751,7 +10785,7 @@ public:
                  i++;
                  hook_putc(c,out);
                  }
-        else*/ if (c==5)hook_putc(13,out),hook_putc(10,out);
+        else*/ if (c==4)hook_putc(13,out),hook_putc(10,out);
        /* else if(c>127){
                         if (c>239){
                               c=getc(wd);
