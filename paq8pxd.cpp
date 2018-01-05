@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jan. 04, 2018
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jan. 05, 2018
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -540,16 +540,11 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V40
-- file class, image model, wordmodel changes from paq8px_c128
-- removed option -q -f
-- small gain on heavily segmented files.
-- tweak tar parsing, fixes samba compression
-- another change to wordmodel
-- tweak jpeg class
+DIFFERENCES FROM PAQ8PXD_V41
+- small tweak 
 */
 
-#define PROGNAME "paq8pxd41"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd42"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -3413,6 +3408,7 @@ public:
    }
    int inputs() {return N*6;}
    int p(Mixer& m,int val1=0,int val2=0)  {
+ 
     // Update word hashes
     if (x.bpos==0) {
         int c=x.c4&255,pC=(U8)(x.c4>>8),f=0;
@@ -3434,7 +3430,7 @@ public:
            cWord=&StemWords[StemIndex];
            memset(cWord, 0, sizeof(Word));
         }
-        if ((c>='a' && c<='z') ||  (c>=128 &&(x.b3!=3) || (c>0 && c<3 ))) { //4
+        if ((c>='a' && c<='z') ||  (c>=128 &&(x.b3!=3) || (c>0 && c<4 ))) { //4
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
                 if ((lastLetter=3 && (x.c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
@@ -3499,8 +3495,8 @@ public:
             else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') x.spafdo=0,ccword=c,mask2+=3;//,type0 = (type0<<2);
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
         }
-        if ((x.c4&0xFFFF)==0x3D3D && x.frstchar==0x3d) xword1=word1;//,xword2=word2; // == wiki
-            if ((x.c4&0xFFFF)==0x2727) xword2=word1;//,xword2=word2; // '' wiki
+        if ((x.c4&0xFFFF)==0x3D3D && x.frstchar==0x3d) xword1=word1;// ,xword2=word2; // == wiki
+            if ((x.c4&0xFFFF)==0x2727) xword2=word1 ;//,xword2=word2; // '' wiki
        if ((x.c4&0xFFFF)==0x7D7D) xword3=word1;       //}} wiki
         lastDigit=min(0xFF,lastDigit+1);
         if (c>='0' && c<='9') {
@@ -6362,7 +6358,7 @@ public:
   }
   int inputs() {return (N1+N2)*6;}
 int p(Mixer& m,int val1=0,int val2=0){
-    if (x.filetype==DBASE  ||x.filetype==HDR  ){
+    if (x.filetype==DBASE  ||x.filetype==HDR  ||x.filetype==DECA ){
         for (int i=0; i<inputs(); i++)
         m.add(0); 
         m.set(0, 1024);
@@ -7405,10 +7401,10 @@ int p(Mixer& m,int val1=0,int val2=0){
     int i;
     if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && buf(3)!=10 && 
     (x.filetype==DICTTXT || x.filetype==BIGTEXT /*||x.filetype==TXTUTF8 ||x.filetype==TEXT*/)) for (i=15; i>0; --i) 
-      cxt[i]=cxt[i-1];//*primes[i];
+      cxt[i]=cxt[i-1]*primes[i];
       
     for (i=15; i>0; --i)  // update order 0-11 context hashes
-      cxt[i]=cxt[i-1]*primes[i]+(x.c4&255);
+      cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
     for (i=0; i<7; ++i)
       cm.set(cxt[i]);
       
@@ -7436,7 +7432,9 @@ class ppmdModel1: public Model {
 
 public:
   ppmdModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){
-    int ppmdmem=(64<<(x.clevel>8));
+   // int ppmdmem=(64<<(x.clevel>8));
+   // ppmd_12_256_1.Init(12+(x.clevel>8),ppmdmem,1,0);
+    int ppmdmem=(210<<(x.clevel>8))<<(x.clevel>13);
     ppmd_12_256_1.Init(12+(x.clevel>8),ppmdmem,1,0);
  }
  int inputs() {return 1;}
@@ -9777,26 +9775,31 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     // DEC Alpha
     op=buf0>>21; 
     int decA4=buf1>>24;
-    if ((op==0x34*32+26 || op==0x30*32+31 ) && (decA4==0x47 || decA4==0xb0 || decA4==0x22 )) { //  mov-stl-lda -> bsr 
+    if ((op==0x34*32+26 || op==0x30*32+31 ) && 
+    (decA4==0xe4 ||decA4==0xe6 ||decA4==0xa2 ||decA4==0xa5 ||decA4==0xa6 ||decA4==0xa7||
+     decA4==0xb3 ||decA4==0xb4 ||decA4==0xb5 ||decA4==0xb6 ||decA4==0xb7||decA4==0x41||
+     decA4==0x47 ||decA4==0xb1 ||decA4==0xb0 ||decA4==0xb2 ||decA4==0x22 || decA4==0xd3||
+     decA4==0xf4 ||decA4==0xf5 ||decA4==0x23 ||decA4==0x21 ||decA4==0xe5||decA4==0x25||
+     decA4==0x20 ||decA4==0xf7||decA4==0x44 ||decA4==0x98 )) { //  stq mov-stl-lda -> bsr 
       int a=op&0xff;// absolute address low 8 bits
       int r=op&0x1fffff;
       r+=(i)/4;  // relative address low 8 bits
       r=r&0xff;
       int rdist=int(i-relposDEC[r]);
       int adist=int(i-absposDEC[a]);
-      if (adist<rdist && adist<0x800 && absposDEC[a]>4) {
+      if (adist<rdist && adist<0x1000 && absposDEC[a]>4) {
         DEClast=i;
         ++DECcount;
         if (DECpos==0 || DECpos>absposDEC[a]) DECpos=absposDEC[a];
       }
       else DECcount=0;
-      if (type==DEFAULT && DECcount>=3 && DECpos>4) //?
+      if (type==DEFAULT && DECcount>=4 && DECpos>4) //?
           return  in->setpos(start+DECpos-2), DECA;
               
       absposDEC[a]=i;
       relposDEC[r]=i;
     }
-    if (i-DEClast>0x4000) {
+    if (i-DEClast>0x10000) {
       if (type==DECA) 
       return  in->setpos( start+DEClast), DEFAULT;
       DECcount=0,DECpos=0;
@@ -10438,7 +10441,7 @@ int decode_zlib(File* in, int size, File*out, FMode mode, U64 &diffFound) {
 void encode_dec(File* in, File* out, int len, int begin) {
   const int BLOCK=0x10000;
   Array<U8> blk(BLOCK);
- 
+ int count=0;
   for (int j=0; j<len; j+=BLOCK) {
     int size=min(int(len-j), BLOCK);
     int bytesRead=in->blockread(&blk[0], size  );
@@ -10454,11 +10457,13 @@ void encode_dec(File* in, File* out, int len, int begin) {
         blk[i]=op;
         blk[i+1]=op>>8;
         blk[i+2]=op>>16;
+        count++;
       }
     }
- 
+    
     out->blockwrite(&blk[0],  bytesRead  );
   }
+  printf("DEC replacement Count %d\n",count);
 }
 
 U64 decode_dec(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int s1=0, int s2=0) {
@@ -11862,7 +11867,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                     typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                     transform_encode_block(type2,  tmp, tmpsize-hdrsize, en, info&0xffffff,-1, blstr, it, s1, s2, hdrsize); 
                 } else {     
-                    DetectRecursive( tmp, tmpsize, en, blstr,(type==ZLIB ||type==BASE64 || type==BASE85)?0:it+1, 0, tmpsize);//it+1
+                    DetectRecursive( tmp, tmpsize, en, blstr,it+1, 0, tmpsize);//it+1
                     tmp->close();
                     return;
                 }    

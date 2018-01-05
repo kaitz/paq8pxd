@@ -1977,7 +1977,7 @@ void XWRT_Encoder::WRT_detectFinish(){
     minWordFreq2=minWordFreq-2;
     for (i=1; i<sizeDict-1; i++){
         num=dictfreq[i];
-        if (num>=minWordFreq || (num>=minWordFreq2 && (dictlen[i]>=7)) || (lowerfq && num>=6 && utf8_check(dict[i])) )  
+        if (num>=minWordFreq || (num>=minWordFreq2 && (dictlen[i]>=7)) /*|| (lowerfq && num>=6 && utf8_check(dict[i]))*/ )  
          ;
         else
         dictfreq[i]=0;
