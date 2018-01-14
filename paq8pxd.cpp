@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jan. 05, 2018
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jan. 14, 2018
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -540,11 +540,14 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V41
-- small tweak 
+DIFFERENCES FROM PAQ8PXD_V40
+- change DEC Alpha detection
+- change tar detection
+- im8/im24 changes, fixes from paq8px_v129
+- wordmodel change
 */
 
-#define PROGNAME "paq8pxd42"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd43"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define SIMD_CM_R     // for contextMap RLC SSE2
 #define MT            //uncomment for multithreading, compression only
@@ -825,8 +828,8 @@ int makedir(const char* dir) {
 */
 bool makedir(const char* dir) {
   struct stat status;
-  stat(dir, &status);
-  if (status.st_mode & S_IFDIR) return -1; //-1: directory already exists, no need to create
+  bool success = stat(dir, &status)==0;
+  if(success && (status.st_mode & S_IFDIR)!=0) return -1; //-1: directory already exists, no need to create
 #ifdef WINDOWS
   return CreateDirectory(dir, 0)==TRUE;
 #else
@@ -869,10 +872,9 @@ void makedirectories(const char* filename) {
 //
 // On Windows when using tmpfile() the temporary file may be created 
 // in the root directory causing access denied error when User Account Control (UAC) is on.
-// To avoid this issue we create the temporary file in the same directory where the 
-// executable resides. Luckily the MS C runtime library provides two (MS specific) fopen() 
-// flags: "T"emporary and "D"elete.
-// Try to make a directory, return true if successful
+// To avoid this issue with tmpfile() we simply use fopen() instead.
+// We create the temporary file in the directory where the executable is launched from. 
+// Luckily the MS C runtime library provides two (MS specific) fopen() flags: "T"emporary and "D"elete.
 
 
 FILE* tmpfile2(void){
@@ -942,9 +944,24 @@ protected:
 public:
   FileDisk() {file=0;}
    ~FileDisk() {close();}
-  bool open(const char *filename) { assert(file==0); file = fopen(filename, "rb+"); return file != 0; }
-  void create(const char *filename) { assert(file == 0); makedirectories(filename); file = fopen(filename, "wb+"); if (!file) quit("FileDisk: unable to create file"); }
-  void createtmp() { assert(file == 0); file = tmpfile2(); if (!file) quit("FileDisk: unable to create temporary file"); }
+  bool open(const char *filename) { 
+    assert(file==0); 
+    file = fopen(filename, "rb"); 
+    bool success=(file!=0);
+    if(!success)printf("FileDisk: unable to open file (%s)\n", strerror(errno));
+    return success; 
+  }
+  void create(const char *filename) { 
+    assert(file==0); 
+    makedirectories(filename); 
+    file=fopen(filename, "wb+");
+    if (!file) quit("FileDisk: unable to create file"); 
+  }
+  void createtmp() { 
+    assert(file==0); 
+    file = tmpfile2(); 
+    if (!file) quit("FileDisk: unable to create temporary file"); 
+  }
   void close() { if(file) fclose(file); file=0;}
   int getc() { return fgetc(file); }
   void putc(U8 c) { fputc(c, file); }
@@ -1038,7 +1055,7 @@ public:
     {
       U64 available = filesize - filepos;
       if (available<count)count = available;
-      memcpy(ptr, &((*content_in_ram)[(U32)filepos]), count);
+      if(count>0) memcpy(ptr, &((*content_in_ram)[(U32)filepos]), count);
       filepos += count;
       return count;
     }
@@ -1049,7 +1066,7 @@ public:
       if (filepos+count <= MAX_RAM_FOR_TMP_CONTENT) 
       { 
         (*content_in_ram).resize((U32)(filepos + count));
-        memcpy(&((*content_in_ram)[(U32)filepos]), ptr, count);
+        if(count>0)memcpy(&((*content_in_ram)[(U32)filepos]), ptr, count);
         filesize += count;
         filepos += count;
         return count;
@@ -1060,8 +1077,8 @@ public:
   }
   void setpos(U64 newpos) { 
     if(content_in_ram) {
-      filepos = newpos; 
-      assert(filepos<=filesize);// attempt to seek past end of file
+      if(newpos>filesize)ram_to_disk(); //panic: we don't support seeking past end of file - let's switch to disk
+      else {filepos = newpos; return;}
     }  
     else (*file_on_disk).setpos(newpos);
   }
@@ -3185,7 +3202,7 @@ private:
               return true;
             }
             case 'e': case 'g': case 'm': case 'n': case 'r': case 'w': {
-              if ((*W).Length()>4+((*W)(2)=='r')){
+              if ((*W).Length()>(U32)(4+((*W)(2)=='r'))){
                 (*W).End-=2;
                 (*W).Type|=AdverbOfManner;
                 return true;
@@ -3302,6 +3319,352 @@ public:
   }
 };
 
+bool CAlpha2(U32 ins) {
+  int function=0;
+  int opc=ins >> 26;
+      if (opc==0)   goto op_00;	  
+      if (opc==1)   return false;
+      if (opc==2)   return false;
+      if (opc==3)   return false;
+      if (opc==4)   return false;
+      if (opc==5)   return false;
+      if (opc==6)   return false;
+      if (opc==7)   return false;
+      if (opc==0x08) return true; 
+      if (opc==0x09) return true; 
+      if (opc==0x0a) return true; 
+      if (opc==0x0b) return true; 
+      if (opc==0x0c) return true; 
+      if (opc==0x0d) return true; 
+      if (opc==0x0e) return true; 
+      if (opc==0x0f) return true; 
+      if (opc==0x10) goto op_10;
+      if (opc==0x11) goto op_11;
+      if (opc==0x12) goto op_12;
+      if (opc==0x13) goto op_13;
+      if (opc==0x14) goto op_14;
+      if (opc==0x15) goto op_15;
+      if (opc==0x16) goto op_16;
+      if (opc==0x17) goto op_17;
+      if (opc==0x18) goto op_18;
+      if (opc==0x19) return true;
+      if (opc==0x1a) return true;
+      if (opc==0x1b) return true;
+      if (opc==0x1c) goto op_1c;
+      if (opc>=0x1d && opc<=0x3f) return true;
+      return false;
+
+op_00:  // PAL
+  function = ins & 0x1fffffff;
+  if( ((function > 0x3f) && (function < 0x80)) || (function > 0xbf))                             
+  {                                                              
+    return false;                                                   
+  } 
+  return true;
+
+op_10:  // INTA
+  function = (ins >> 5) & 0x7f;
+  switch(function) {
+  case 0x40: 
+  case 0x00: 
+  case 0x02: 
+  case 0x49: 
+  case 0x09: 
+  case 0x0b: 
+  case 0x0f: 
+  case 0x12: 
+  case 0x1b: 
+  case 0x1d: 
+  case 0x60: 
+  case 0x20: 
+  case 0x22: 
+  case 0x69: 
+  case 0x29: 
+  case 0x2b: 
+  case 0x2d: 
+  case 0x32: 
+  case 0x3b: 
+  case 0x3d: 
+  case 0x4d: 
+  case 0x6d: return true;
+  default:   return false; 
+  }
+
+op_11:  // INTL
+  function = (ins >> 5) & 0x7f;
+  
+  switch(function) {
+  case 0x00: 
+  case 0x08: 
+  case 0x14: 
+  case 0x16: 
+  case 0x20: 
+  case 0x24: 
+  case 0x26: 
+  case 0x28: 
+  case 0x40: 
+  case 0x44: 
+  case 0x46: 
+  case 0x48: 
+  case 0x61: 
+  case 0x64: 
+  case 0x66: 
+  case 0x6c:  return true;
+  default:    return false; 
+  }
+
+op_12:  // INTS
+  function = (ins >> 5) & 0x7f;
+  
+  switch(function) {
+  case 0x02:  
+  case 0x06:  
+  case 0x0b:  
+  case 0x12:  
+  case 0x16:  
+  case 0x1b:  
+  case 0x22:  
+  case 0x26:  
+  case 0x2b:  
+  case 0x30:  
+  case 0x31:  
+  case 0x32:  
+  case 0x34:  
+  case 0x36:  
+  case 0x39:  
+  case 0x3b:  
+  case 0x3c:  
+  case 0x52:  
+  case 0x57:  
+  case 0x5a:  
+  case 0x62:  
+  case 0x67:  
+  case 0x6a:  
+  case 0x72:  
+  case 0x77:  
+  case 0x7a:  return true;
+  default:    return false; 
+  }
+
+op_13:  // INTM
+
+  function = (ins >> 5) & 0x7f;
+  switch(function) 
+  {
+  case 0x40: 
+  case 0x00: 
+  case 0x60: 
+  case 0x20: 
+  case 0x30:  return true;
+  default:   return false; 
+  }
+
+op_14:   // ITFP
+  function = (ins >> 5) & 0x7ff;
+  
+  switch(function) {
+  case 0x004:
+  case 0x00a:
+  case 0x08a:
+  case 0x10a:
+  case 0x18a:
+  case 0x40a:
+  case 0x48a:
+  case 0x50a:
+  case 0x58a:
+  case 0x00b:
+  case 0x04b:
+  case 0x08b:
+  case 0x0cb:
+  case 0x10b:
+  case 0x14b:
+  case 0x18b:
+  case 0x1cb:
+  case 0x50b:
+  case 0x54b:
+  case 0x58b:
+  case 0x5cb:
+  case 0x70b:
+  case 0x74b:
+  case 0x78b:
+  case 0x7cb:
+  case 0x014:
+  case 0x024:
+  case 0x02a:
+  case 0x0aa:
+  case 0x12a:
+  case 0x1aa:
+  case 0x42a:
+  case 0x4aa:
+  case 0x52a:
+  case 0x5aa:
+  case 0x02b:
+  case 0x06b:
+  case 0x0ab:
+  case 0x0eb:
+  case 0x12b:
+  case 0x16b:
+  case 0x1ab:
+  case 0x1eb:
+  case 0x52b:
+  case 0x56b:
+  case 0x5ab:
+  case 0x5eb:
+  case 0x72b:
+  case 0x76b:
+  case 0x7ab:
+  case 0x7eb:
+    return true;
+
+  default:
+    return false; 
+  }
+
+op_15:     // FLTV
+  function = (ins >> 5) & 0x7ff;
+  
+  switch(function) {
+  case 0x0a5:
+  case 0x4a5:
+  case 0x0a6:
+  case 0x4a6:
+  case 0x0a7:
+  case 0x4a7:
+  case 0x03c:
+  case 0x0bc:
+  case 0x03e:
+  case 0x0be:
+    return true;
+
+  default:
+    if(function & 0x200)  return false; 
+
+    switch(function & 0x7f) {
+    case 0x000: 
+    case 0x001: 
+    case 0x002: 
+    case 0x003: 
+    case 0x01e: 
+    case 0x020: 
+    case 0x021: 
+    case 0x022: 
+    case 0x023: 
+    case 0x02c: 
+    case 0x02d: 
+    case 0x02f: return true;
+    default:  return false; 
+    }
+    break;
+  }
+
+op_16:    // FLTI
+  function = (ins >> 5) & 0x7ff;  
+  switch(function) {
+  case 0x0a4:
+  case 0x5a4:
+  case 0x0a5:
+  case 0x5a5:
+  case 0x0a6:
+  case 0x5a6:
+  case 0x0a7:
+  case 0x5a7:
+  case 0x2ac:
+  case 0x6ac:
+    return true;
+
+  default:
+    if(((function & 0x600) == 0x200) || ((function & 0x500) == 0x400)) return false; 
+
+    switch(function & 0x3f) {
+    case 0x00: 
+    case 0x01: 
+    case 0x02: 
+    case 0x03: 
+    case 0x20: 
+    case 0x21: 
+    case 0x22: 
+    case 0x23: 
+    case 0x2c: 
+    case 0x2f:  return true;
+    case 0x3c:  if((function & 0x300) == 0x100){ return false;} return true;
+    case 0x3e:  if((function & 0x300) == 0x100){ return false;} return true;
+    default:    return false; 
+    }
+    break;
+  }
+
+op_17:     // FLTL
+  function = (ins >> 5) & 0x7ff;
+  switch(function) {
+  case 0x010:
+  case 0x020:
+  case 0x021:
+  case 0x022:
+  case 0x024:
+  case 0x025:
+  case 0x02a:
+  case 0x02b:
+  case 0x02c:
+  case 0x02d:
+  case 0x02e:
+  case 0x02f:
+  case 0x030:
+  case 0x130:
+  case 0x530:
+   return true;
+
+  default:
+   return false; 
+  }
+
+op_18:    // MISC
+
+  function = (ins & 0xffff);
+  switch(function) {
+  case 0x0000: 
+  case 0x0400: 
+  case 0x4000: 
+  case 0x4400: 
+  case 0x8000: 
+  case 0xA000: 
+  case 0xC000: 
+  case 0xE000: 
+  case 0xE800: 
+  case 0xF000: 
+  case 0xF800: 
+  case 0xFC00: return true;
+  default:     return false; 
+  }
+
+op_1c:   // FPTI
+  function = (ins >> 5) & 0x7f;
+  
+  switch(function) {
+  case 0x00: 
+  case 0x01: 
+  case 0x30: 
+  case 0x31: 
+  case 0x32: 
+  case 0x33: 
+  case 0x34: 
+  case 0x35: 
+  case 0x36: 
+  case 0x37: 
+  case 0x38: 
+  case 0x39: 
+  case 0x3a: 
+  case 0x3b: 
+  case 0x3c: 
+  case 0x3d: 
+  case 0x3e: 
+  case 0x3f: 
+  case 0x70: 
+  case 0x78:  return true;
+  default:    return false; 
+  }
+
+  return false;
+}
 //////////////////////////// Models //////////////////////////////
 
 // All of the models below take a Mixer as a parameter and write
@@ -3402,7 +3765,7 @@ class wordModel1: public Model {
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),number0(0),
-  number1(0),text0(0),N(57+1+3),data0(0),type0(0),cm(CMlimit(MEM()*32), N),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),
+  number1(0),text0(0),N(57+1+3+1+1),data0(0),type0(0),cm(CMlimit(MEM()*32), N),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0){
       cWord=&StemWords[0], pWord=&StemWords[3];
    }
@@ -3419,7 +3782,6 @@ public:
         lastUpper=min(lastUpper+1,255);
         lastLetter=min(lastLetter+1,255);
         mask2<<=2;
-        
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
         if ((c>='a' && c<='z') || c=='\'' || c=='-')
            (*cWord)+=c;
@@ -3430,7 +3792,7 @@ public:
            cWord=&StemWords[StemIndex];
            memset(cWord, 0, sizeof(Word));
         }
-        if ((c>='a' && c<='z') ||  (c>=128 &&(x.b3!=3) || (c>0 && c<4 ))) { //4
+        if ((c>='a' && c<='z') ||  (c>=128 &&(x.b3!=3) || (c>0 && c<4 ))) {
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
                 if ((lastLetter=3 && (x.c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
@@ -3481,14 +3843,13 @@ public:
                 word2=word1;
                 word1=word0;
                 x.wordlen1=x.wordlen;
-                 wpos[w]=x.blpos;
+                wpos[w]=x.blpos;
                 if (c==':'|| c=='=') cword0=word0;
                 //if (c==']'&& (x.frstchar!=':' || x.frstchar!='*')) xword0=word0;
                 if (c==']'&& (x.frstchar!=':')) xword0=word0; // wiki 
                 ccword=0;
                 word0=x.wordlen=0;
                 if((c=='.'||c=='!'||c=='?' ||c=='}' ||c==')') && buf(2)!=10 && x.filetype!=EXE) f=1; 
-                
             }
             
             if (c==SPACE || c==10 || c==5) { ++x.spaces, ++x.spacecount; if (c==10 || c==5) nl1=nl, nl=buf.pos-1;}
@@ -3520,7 +3881,7 @@ public:
         
         int above=buf[nl1+x.col]; // text column context
         if (val2) x.col=val2,above=buf[buf.pos-x.col];
-        if (x.col<=2) x.frstchar=(x.col==2?min(c,96):0);
+        if (x.col<=2) x.frstchar=(x.col==2?min(c,126):0);
         if (x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
 //256+ hash 513+ none
         if (x.filetype==DEFAULT){
@@ -3551,6 +3912,7 @@ public:
         cm.set(hash(520,c,h,ccword));  //?//?
         cm.set(hash(517,x.frstchar,h,lastLetter)); //+
         cm.set(hash(data0,word1, number1,type0&0xFFF));
+        cm.set(h);
         cm.set(hash(521,h,x.spafdo)); 
         U32 d=x.c4&0xf0ff;
         cm.set(hash(522,d,x.frstchar,ccword));
@@ -3573,10 +3935,10 @@ public:
          //cm.set(text0&0xffffff);
          cm.set(text0&0xfffff);
          //cm.set(hash(word0, xword1,xword2,x.frstchar));
-         cm.set(hash(269,word0, xword0));
-         cm.set(hash(270,h, xword1));
-         cm.set(hash(271,h, xword2));
-         //cm.set(hash(268,h, xword3));
+         cm.set(hash(269,word0,number0, xword0));
+         cm.set(hash(270,word0,number0, xword1));  //wiki 
+         cm.set(hash(271,word0,number0, xword2));  //
+         cm.set(hash(268,word0,number0, xword3));  //
          cm.set(hash(272,x.frstchar, xword2));
          cm.set(hash(273,word0, cword0));
          cm.set(hash(275,h, word2));
@@ -3610,7 +3972,7 @@ public:
        else cm.set(0);
 
         cm.set(hash(282,buf(1),llog(x.blpos-wpos[word1&(wpos.size()-1)])>>2));   
-        cm.set(hash(283,buf(1),word0,llog(x.blpos-wpos[word2&(wpos.size()-1)])>>2));       
+        cm.set(hash(283,buf(1),word0,llog(x.blpos-wpos[word2&(wpos.size()-1)])>>2));
 
    int fl = 0;
     if ((x.c4&0xff) != 0) {
@@ -3647,7 +4009,7 @@ public:
    
     if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above&0x5F,x.c4&0x5F)); else cm.set(0); //wordlist
     if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
-    if ( lastLetter<16) cm.set(hash((*pWord).Hash, h)); else cm.set(0);
+    if ( (*cWord).Length()>0) cm.set(hash((*pWord).Hash, h)); else cm.set(0);
     }
     cm.mix(m);
     return 0;
@@ -3854,7 +4216,7 @@ class recordModelx: public Model {
   ContextMap cm, cn, co,cp, cq;
 public:
   recordModelx(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cpos1(256),wpos1(0x10000),wpos2(0x10000),
-  cm(32768*2, 3), cn(32768/2, 4+1), co(32768*4, 4),cp(32768*2, 3), cq(32768*2, 3) {
+  cm(32768, 3-1), cn(32768/2, 4+1), co(32768*4, 4),cp(32768*2, 3), cq(32768*2, 3) {
   }
   int inputs() {return (2+1+5+4+3+3)*6;}
   int p(Mixer& m,int val1=0,int val2=0){
@@ -3864,7 +4226,7 @@ public:
    
     cm.set(c<<8| (min(255, buf.pos-cpos1[c])/4));
     cm.set(w<<9| llog(buf.pos-wpos1[w])>>2);
-    cm.set(f<<10| llog(buf.pos-wpos2[f])>>2);
+   // cm.set(f<<10| llog(buf.pos-wpos2[f])>>2);
     cn.set(w);
     cn.set(d<<8);
     cn.set(c<<16);
@@ -3887,7 +4249,7 @@ public:
     // update last context positions
     cpos1[c]=buf.pos;
     wpos1[w]=buf.pos;
-    wpos2[f]=buf.pos;
+   // wpos2[f]=buf.pos;
   }
   x.rm1=0;
   cm.mix(m);
@@ -4009,7 +4371,7 @@ inline U8 Paeth(U8 W, U8 N, U8 NW){
 }
 
 
-const int imBcxt[35]  = {12, 12, 12, 12, 10, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 0};
+const int imBcxt[38]  = {12, 12, 12, 12, 10, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 0};
 //////////////////////////// im24bitModel /////////////////////////////////
 // Model for 24-bit image data
 class im24bitModel1: public Model {
@@ -4041,7 +4403,7 @@ public:
    scm7(SC), scm8(SC), scm9(SC*2), scm10(256),inpts(47),cm(CMlimit(MEM()*4), inpts), col(0) ,color(-1),stride(3), padding(0), x(0),xx(bd),
    buf(bd.buf), buffer(0x100000),WWW(0), WW(0), W(0),NWW(0),NW(0) ,N(0), NE(0), NEE(0), NNWW(0), NNW(0),
    NN(0), NNE(0), NNEE(0), NNN(0), px(0),filter(0),  w(0), line(0), isPNG(0),R1(0), R2(0),filterOn(false),
-   c4(bd.c4),c0(bd.c0),bpos(bd.bpos),nMaps(35),Map(nMaps),lastWasPNG(0), WWp1(0), Wp1(0), p1(0), NWp1(0),
+   c4(bd.c4),c0(bd.c0),bpos(bd.bpos),nMaps(38),Map(nMaps),lastWasPNG(0), WWp1(0), Wp1(0), p1(0), NWp1(0),
    Np1(0), NEp1(0), NNp1(0),p2(0) {
     for(int i=0;i<nMaps;i++)  {
         Map[i] =new StationaryMap(imBcxt[i]);
@@ -4117,6 +4479,8 @@ public:
         }
          if(!filterOn)px=0;
       }
+      else
+        buffer.Add(c4 & 0xFF);
     }
 
     if (x || !isPNG){
@@ -4254,65 +4618,53 @@ public:
       Map[0]->set( ((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<8) );
       Map[1]->set( ((U8)(Clip(N*2-NN)-px))|(LogMeanDiffQt(W,Clip(NW*2-NNW))<<8) );
       Map[2]->set( ((U8)(Clip(W*2-WW)-px))|(LogMeanDiffQt(N,Clip(NW*2-NWW))<<8) );
-      if (isPNG){
-        Map[3]->set( ((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(p1,Clip(Wp1+Np1-NWp1))<<8) );
-        Map[4]->set( (min(color,stride-1)<<8)|((U8)( Clip(N+p1-Np1)-px )) );
-        Map[5]->set( Clip((-buffer(4*stride)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buffer(w*3-stride)*4-buf(w*4-stride),N,NE,buffer(w-2*stride),buffer(w-3*stride)))/5)-px );
-        Map[6]->set( (W+Clamp4(NE*3-NNE*3+buffer(w*3-stride),W,N,NE,NEE))/2-px );
-        Map[7]->set( Clip((buffer(w*5)-6*buffer(w*4)+15*NNN-20*NN+15*N+Clamp4(W*4-NWW*6+buffer(w*2+3*stride)*4-buffer(w*3+4*stride),W,NW,N,NN))/6)-px );
-        Map[8]->set( Clip((-3*WW+8*W+Clamp4(NEE*3-NNEE*3+buffer(w*3-stride*2),NE,NEE,buffer(w-3*stride),buffer(w-4*stride)))/6)-px );
-        Map[9]->set( Clip((buffer(w*3-3*stride)-4*NNEE+6*NE+Clip(W*4-NW*6+NNW*4-buffer(w*3+stride)))/4)-px );
-        Map[10]->set( Clip(W+N-NW+p1-Clip(Wp1+Np1-NWp1))-px );
-        Map[11]->set( Clip(W+N-NW+p2-Clip(buffer(stride+2)+buffer(w+2)-buffer(w+stride+2)))-px );       
-        Map[12]->set( Clip(N*2-NN + p1 - Clip(Np1*2-NNp1))-px );
-        Map[13]->set( Clip(W*2-WW + p1 - Clip(Wp1*2-WWp1))-px );
-        Map[14]->set( Clip(N+NN-NNN+p1-Clip(Np1+NNp1-buffer(w*3+1)) )-px );
-        Map[15]->set( Clip(W+WW-WWW+p1-Clip(Wp1+WWp1-buffer(stride*3+1)) )-px );
-        Map[16]->set( Clip(W+NEE-NE+p1-Clip(Wp1+buffer(w-stride*2+1)-NEp1))-px );
-        Map[17]->set( Clip(NN+W-NNW+p1-Clip(NNp1+Wp1-buffer(w*2+stride+1)))-px );
-        Map[18]->set( Clip(NN+NW-buffer(w*3+stride)+p1-Clip(NNp1+NWp1-buffer(w*3+stride+1)))-px );
-        Map[19]->set( Clip(NN+NE-buffer(w*3-stride)+p1-Clip(NNp1+NEp1-buffer(w*3-stride+1)))-px );
-        Map[20]->set( Clip(NN+buffer(w*4)-buffer(w*6)+p1-Clip(NNp1+buffer(w*4+1)-buffer(w*6+1)))-px );
-        Map[21]->set( Clip(WW+buffer(stride*4)-buffer(stride*6)+p1-Clip(WWp1+buffer(stride*4+1)-buffer(stride*6+1)))-px );
-        Map[22]->set( Clip(WW+NEE-N+p1-Clip(WWp1+buffer(w-stride*2+1)-Np1))-px );
-        Map[23]->set( Clip(((N+3*NW)/4)*3-((NNW+NNWW)/2)*3+(buffer(w*3+2*stride)*3+buffer(w*3+3*stride))/4)-px );
-        Map[24]->set(buffer(w*6)-px);
-        Map[25]->set((buffer(w-4*stride)+buffer(w-6*stride))/2-px);
-        Map[26]->set((buffer(stride*6)+buffer(stride*4))/2-px);
+      Map[3]->set(((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(p1,Clip(Wp1+Np1-NWp1))<<8));
+      Map[4]->set((min(color,stride-1)<<8)|((U8)( Clip(N+p1-Np1)-px )));
+      Map[5]->set(Clip((-buffer(4*stride)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buffer(w*3-stride)*4-buffer(w*4-stride),N,NE,buffer(w-2*stride),buffer(w-3*stride)))/5)-px);
+      Map[6]->set((W+Clamp4(NE*3-NNE*3+buffer(w*3-stride),W,N,NE,NEE))/2-px);
+      Map[7]->set(Clip((buffer(w*5)-6*buffer(w*4)+15*NNN-20*NN+15*N+Clamp4(W*4-NWW*6+buffer(w*2+3*stride)*4-buffer(w*3+4*stride),W,NW,N,NN))/6)-px);
+      Map[8]->set(Clip((-3*WW+8*W+Clamp4(NEE*3-NNEE*3+buffer(w*3-stride*2),NE,NEE,buffer(w-3*stride),buffer(w-4*stride)))/6)-px);
+      Map[9]->set(Clip((buffer(w*3-3*stride)-4*NNEE+6*NE+Clip(W*4-NW*6+NNW*4-buffer(w*3+stride)))/4)-px);
+      Map[10]->set(Clip(W+N-NW+p1-Clip(Wp1+Np1-NWp1))-px);
+      Map[11]->set(Clip(W+N-NW+p2-Clip(buffer(stride+2)+buffer(w+2)-buffer(w+stride+2)))-px);
+      Map[12]->set(Clip(N*2-NN+p1-Clip(Np1*2-NNp1))-px);
+      Map[13]->set(Clip(W*2-WW+p1-Clip(Wp1*2-WWp1))-px);
+      if (isPNG) {
+        Map[14]->set(Clip(N+NN-NNN+p1-Clip(Np1+NNp1-buffer(w*3+1)) )-px);
+        Map[15]->set(Clip(W+WW-WWW+p1-Clip(Wp1+WWp1-buffer(stride*3+1)))-px);
+        Map[16]->set(Clip(W+NEE-NE+p1-Clip(Wp1+buffer(w-stride*2+1)-NEp1))-px);
+        Map[17]->set(Clip(NN+W-NNW+p1-Clip(NNp1+Wp1-buffer(w*2+stride+1)))-px);
+        Map[18]->set(Clip(NN+NW-buffer(w*3+stride)+p1-Clip(NNp1+NWp1-buffer(w*3+stride+1)))-px);
+        Map[19]->set(Clip(NN+NE-buffer(w*3-stride)+p1-Clip(NNp1+NEp1-buffer(w*3-stride+1)))-px);
+        Map[20]->set(Clip(NN+buffer(w*4)-buffer(w*6)+p1-Clip(NNp1+buffer(w*4+1)-buffer(w*6+1)))-px);
+        Map[21]->set(Clip(WW+buffer(stride*4)-buffer(stride*6)+p1-Clip(WWp1+buffer(stride*4+1)-buffer(stride*6+1)))-px);
       }
-      else{
-        Map[3]->set( ((U8)Clip(W+N-NW))|(LogMeanDiffQt(p1,Clip(Wp1+Np1-NWp1))<<8) );
-        Map[4]->set( (min(color,stride-1)<<8)|Clip(N+p1-Np1) );
-        Map[5]->set( Clip((-buf(4*stride)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buf(w*3-stride)*4-buf(w*4-stride),N,NE,buf(w-2*stride),buf(w-3*stride)))/5));
-        Map[6]->set((W+Clamp4(NE*3-NNE*3+buf(w*3-stride),W,N,NE,NEE))/2);
-        Map[7]->set( Clip((buf(w*5)-6*buf(w*4)+15*NNN-20*NN+15*N+Clamp4(W*4-NWW*6+buf(w*2+3*stride)*4-buf(w*3+4*stride),W,NW,N,NN))/6) );
-        Map[8]->set( Clip((-3*WW+8*W+Clamp4(NEE*3-NNEE*3+buf(w*3-stride*2),NE,NEE,buf(w-3*stride),buf(w-4*stride)))/6) );
-        Map[9]->set( Clip((buf(w*3-3*stride)-4*NNEE+6*NE+Clip(W*4-NW*6+NNW*4-buf(w*3+stride)))/4) );
-        Map[10]->set( Clip(W+N-NW+p1-Clip(Wp1+Np1-NWp1)) );
-        Map[11]->set( Clip(W+N-NW+p2-Clip(buf(stride+2)+buf(w+2)-buf(w+stride+2))) );
-        Map[12]->set( Clip(N*2-NN + p1 - Clip(Np1*2-NNp1)) );
-        Map[13]->set( Clip(W*2-WW + p1 - Clip(Wp1*2-WWp1)) );
-        Map[14]->set( Clip(N+NN-NNN) );
-        Map[15]->set( Clip(W+WW-WWW) );
-        Map[16]->set( Clip(W+NEE-NE) );
-        Map[17]->set( Clip(NN+W-NNW) );
-        Map[18]->set( Clip(NN+NW-buf(w*3+stride)) );
-        Map[19]->set( Clip(NN+NE-buf(w*3-stride)) );
-        Map[20]->set( Clip(NN+buf(w*4)-buf(w*6)) );
-        Map[21]->set( Clip(WW+buf(stride*4)-buf(stride*6)) );
-        Map[22]->set( Clip(WW+NEE-N+p1-Clip(WWp1+buf(w-stride*2+1)-Np1)) );
-        Map[23]->set( Clip(((N+3*NW)/4)*3-((NNW+NNWW)/2)*3+(buf(w*3+2*stride)*3+buf(w*3+3*stride))/4) );
-        Map[24]->set(buf(w*6));
-        Map[25]->set((buf(w-4*stride)+buf(w-6*stride))/2);
-        Map[26]->set((buf(stride*6)+buf(stride*4))/2);
+      else {
+        Map[14]->set(Clip(N+NN-NNN));
+        Map[15]->set(Clip(W+WW-WWW));
+        Map[16]->set(Clip(W+NEE-NE));
+        Map[17]->set(Clip(NN+W-NNW));
+        Map[18]->set(Clip(NN+NW-buf(w*3+stride)));
+        Map[19]->set(Clip(NN+NE-buf(w*3-stride)));
+        Map[20]->set(Clip(NN+buf(w*4)-buf(w*6)));
+        Map[21]->set(Clip(WW+buf(stride*4)-buf(stride*6)));
       }
-      Map[27]->set( Clip(W+N-NW)-px );
-      Map[28]->set( buf(1+(isPNG && x<2)) );
-      Map[29]->set( (W+NEE)/2-px );
-      Map[30]->set( Clip(N*3-NN*3+NNN)-px );
-      Map[31]->set( Clip(N+NW-NNW)-px );
-      Map[32]->set( Clip(N+NE-NNE)-px );
-      Map[33]->set( (Clip(W*2-NW) + Clip(W*2-NWW) + N + NE)/4-px );
+      Map[22]->set(Clip(WW+NEE-N+p1-Clip(WWp1+buffer(w-stride*2+1)-Np1))-px);
+      Map[23]->set(Clip(((N+3*NW)/4)*3-((NNW+NNWW)/2)*3+(buffer(w*3+2*stride)*3+buffer(w*3+3*stride))/4)-px);
+      Map[24]->set(buffer(w*6)-px);
+      Map[25]->set((buffer(w-4*stride)+buffer(w-6*stride))/2-px);
+      Map[26]->set((buffer(stride*6)+buffer(stride*4))/2-px);
+      Map[27]->set(Clip(W+N-NW)-px);
+      Map[28]->set(buf(1+(isPNG && x<2)));
+      Map[29]->set((W+NEE)/2-px);
+      Map[30]->set(Clip(N*3-NN*3+NNN)-px);
+      Map[31]->set(Clip(N+NW-NNW)-px);
+      Map[32]->set(Clip(N+NE-NNE)-px);
+      Map[33]->set((Clip(W*2-NW)+Clip(W*2-NWW)+N+NE)/4-px);
+      Map[34]->set(Clip((-4*WW+15*W+10*Clip(NE*3-NNE*3+buffer(w*3-stride))-Clip(buffer(w-3*stride)*3-buffer(w*2-3*stride)*3+buffer(w*3-3*stride)))/20)-px);
+      Map[35]->set(((W+N)*3-NW*2)/4-px);
+      Map[36]->set(Clip((WWW-4*WW+6*W+Clip(NE*4-NNE*6+buffer(w*3-stride)*4-buffer(w*4-stride)))/4)-px);
+      //37 ?
     }
   }
 
@@ -4379,7 +4731,7 @@ class im8bitModel1: public Model {
  int col;
  BlockData& xx;
  Buf& buf;
- int ctx,  lastWasPNG, line, x, filter, gray,isPNG;// columns, column,
+ int ctx,  lastWasPNG, line, x, filter, gray,isPNG,jump;// columns, column,
  
  U32& c4;
  int& c0;
@@ -4391,11 +4743,12 @@ class im8bitModel1: public Model {
  U8 WWW, WW, W, NWW, NW, N, NE, NEE, NNWW, NNW, NN, NNE, NNEE, NNN;//pixel neighborhood
  bool filterOn;
  int columns[2]   , column[2];
+ Array<short> jumps;
 public:
-  im8bitModel1( BlockData& bd):  inpts(48),cm(CMlimit(MEM()*16), inpts),col(0),xx(bd),buf(bd.buf), ctx(0), lastWasPNG(0),line(0), x(0),
-   filter(0),gray(0),isPNG(0), c4(bd.c4),c0(bd.c0),bpos(bd.bpos), nMaps(56),Map(nMaps), px (0),
+  im8bitModel1( BlockData& bd):  inpts(49),cm(CMlimit(MEM()*16), inpts),col(0),xx(bd),buf(bd.buf), ctx(0), lastWasPNG(0),line(0), x(0),
+   filter(0),gray(0),isPNG(0),jump(0), c4(bd.c4),c0(bd.c0),bpos(bd.bpos), nMaps(56),Map(nMaps), px (0),
    res (0),buffer(0x100000),WWW(0),WW(0),W(0),NWW(0),NW(0),N(0),NE(0),NEE(0),NNWW(0),NNW(0),
-   NN(0),NNE(0),NNEE(0),NNN(0),filterOn(false){
+   NN(0),NNE(0),NNEE(0),NNN(0),filterOn(false),jumps(0x8000){
   
    for(int i=0;i<nMaps;i++)  
              Map[i] =new StationaryMap(im8Bcxt[i]);
@@ -4411,7 +4764,7 @@ int p(Mixer& m,int w,int val2=0){
     if (xx.blpos==1){
       isPNG=  (xx.filetype==PNG8?1:xx.filetype==PNG8GRAY?1:0);
       gray=xx.filetype==PNG8GRAY?1:xx.filetype==IMAGE8GRAY?1:0;
-      x =1; line =  px= 0;
+      x =1; line = jump =  px= 0;
       filterOn = false;
       columns[0] = max(1,w/max(1,ilog2(w)*2));
       columns[1] = max(1,columns[0]/max(1,ilog2(columns[0])));
@@ -4466,15 +4819,52 @@ int p(Mixer& m,int w,int val2=0){
         if(!filterOn)px=0;
       }
     }  
-    else
+    else {
       buffer.Add((U8)c4);
+      if (x==0) {
+        memset(&jumps[0], 0, sizeof(short)*jumps.size());
+        if (line>0 && w>8) {
+          U8 bMask = 0xFF-((1<<gray)-1);
+          U32 pMask = bMask*0x01010101u;
+          U32 left=0, right=0;
+          int l=min(w, jumps.size()), end=l-4;
+          do {
+            left = ((buffer(l-x)<<24)|(buffer(l-x-1)<<16)|(buffer(l-x-2)<<8)|buffer(l-x-3))&pMask;
+            int i = end;
+            while (i>=x+4) {
+              right = ((buffer(l-i-3)<<24)|(buffer(l-i-2)<<16)|(buffer(l-i-1)<<8)|buffer(l-i))&pMask;
+              if (left==right) {
+                int j=(i+3-x-1)/2, k=0;
+                for (; k<=j; k++) {
+                  if (k<4 || (buffer(l-x-k)&bMask)==(buffer(l-i-3+k)&bMask)) {
+                    jumps[x+k] = -(x+(l-i-3)+2*k);
+                    jumps[i+3-k] = i+3-x-2*k;
+                  }
+                  else
+                    break;
+                }
+                x+=k;
+                end-=k;
+                break;
+              }
+              i--;
+            }
+            x++;
+            if (x>end)
+              break;
+          } while (x+4<l);
+          x = 0;
+        }
+      }
+    }
 
     if (x || !isPNG){
       int i=filterOn ? (filter+1)<<6 : 0;
       column[0]=(x-isPNG)/columns[0];
       column[1]=(x-isPNG)/columns[1];
       WWW=buffer(3), WW=buffer(2), W=buffer(1), NWW=buffer(w+2), NW=buffer(w+1), N=buffer(w), NE=buffer(w-1), NEE=buffer(w-2), NNWW=buffer(w*2+2), NNW=buffer(w*2+1), NN=buffer(w*2), NNE=buffer(w*2-1), NNEE=buffer(w*2-2), NNN=buffer(w*3);
-
+      jump = jumps[min(x,jumps.size()-1)];
+      cm.set(hash(++i, (jump!=0)?(0x100|buffer(abs(jump)))*(1-2*(jump<0)):N, line&3));
       if (!gray){
         cm.set(hash(++i, W, px));
         cm.set(hash(++i, W, px, column[0]));
@@ -8268,7 +8658,10 @@ void Encoder::flush() {
 #define IMG_DET(type,start_pos,header_len,width,height) return dett=(type),\
 deth=int(header_len),detd=int((width)*(height)),info=int(width),\
  in->setpos(start+(start_pos)),HDR
-
+#define IMG_DETP(type,start_pos,header_len,width,height) return dett=(type),\
+deth=int(header_len),detd=int((width)*(height)),info=int(width),\
+ in->setpos(start+(start_pos)),TEXT
+ 
 #define DBS_DET(type,start_pos,header_len,datalen,reclen) return dett=(type),\
 deth=int(header_len),detd=int(datalen),info=int(reclen),\
  in->setpos(start+(start_pos)),HDR
@@ -8764,9 +9157,9 @@ int tarchecksum(char *p){
     }
     return (u==getoct(p+148,8));
 }
-int tarend(const char *p){
-    for (int n=511; n>=0; --n) if (p[n] != '\0') return 0;
-    return 1;
+bool tarend(const char *p){
+    for (int n=511; n>=0; --n) if (p[n] != '\0') return false;
+    return true;
 }
 struct dBASE {
   U8 Version;
@@ -8784,6 +9177,7 @@ struct dTIFF {
   U8 bits;
   U8 bits1;
 };
+
 // Detect EXE or JPEG data
 Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,int s1=0) {
   U32 buf3=0, buf2=0, buf1=0, buf0=0;  // last 8 bytes
@@ -8796,8 +9190,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 e8e9pos=0;    // offset of first CALL or JMP instruction
   U64 e8e9last=0;   // offset of most recent CALL or JMP
   // For EXE detection
-  Array<U64> absposDEC(256),  // CALL/JMP abs. addr. low byte -> last offset
-    relposDEC(256);    // CALL/JMP relative addr. low byte -> last offset
+  Array<U64> absposDEC(0xff+1),  // CALL/JMP abs. addr. low byte -> last offset
+    relposDEC(0xff+1);    // CALL/JMP relative addr. low byte -> last offset
   int DECcount=0;  // number of consecutive CALL/JMPs
   U64 DECpos=0;    // offset of first CALL or JMP instruction
   U64 DEClast=0;   // offset of most recent CALL or JMP
@@ -8852,7 +9246,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 pdfimp=0;
   U64 mrb=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0; // For MRB detection
   //
-  U64 tar=0,tarn=0;;
+  U64 tar=0,tarn=0,tarl=0;
   TARheader tarh;
   U32 op=0;//DEC A
   U64 nesh=0,nesp=0;
@@ -8879,9 +9273,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
  
 
   for (U64 i=0; i<n; ++i) {
-     // if (n-1==i){
-     //     printf("fdfd");
-     // }
     int c=in->getc();
     if (c==EOF) return (Filetype)(-1);
     buf3=buf3<<8|buf2>>24;
@@ -8913,7 +9304,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
        }
       }  
      // detect PNG images
-    if (!png && buf3==0x89504E47 /*%PNG*/ && buf2==0x0D0A1A0A && buf1==0x0000000D && buf0==0x49484452) png=i, pngtype=-1, lastchunk=buf3;
+    if (!png && buf3==0x89504E47 && buf2==0x0D0A1A0A && buf1==0x0000000D && buf0==0x49484452) png=i, pngtype=-1, lastchunk=buf3;//%PNG
     if (png){
       const int p=i-png;
       if (p==12){
@@ -8931,25 +9322,28 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         nextchunk =(png)?i+8:0;
       }
       else if (p>17 && i==nextchunk){
-        nextchunk+=buf1+4/*CRC*/+8/*Chunk length+Id*/;
+        nextchunk+=buf1+4+8;//CRC, Chunk length+Id
         lastchunk = buf0;
-        png*=(lastchunk!=0x49454E44/*IEND*/);
-        if (lastchunk==0x504C5445/*PLTE*/){
+        png*=(lastchunk!=0x49454E44);//IEND
+        if (lastchunk==0x504C5445){//PLTE
           png*=(buf1%3==0);
           pnggray = (png && IsGrayscalePalette(in, buf1/3));
         }
       }
     }
+    
     // tar
-    if (((buf0)==0x61722020 || (buf0&0xffffff00)==0x61720000) && (buf1&0xffffff)==0x757374 && tar==0 /*&& (modeQuick) */) tar=i,tarn=0;
-    if (tar) {
+    if (((buf0)==0x61722020 || (buf0&0xffffff00)==0x61720000) && (buf1&0xffffff)==0x757374 && tar==0&&tarl==0) tar=i,tarn=0,tarl=1;
+    if (tarl) {
         const int p=int(i-tar+263);        
-        if (p==512) {
+        if (p==512 && tarn==0 && tarl==1) {
             U64 savedpos= in->curpos();
              in->setpos( savedpos-513);
              in->blockread((U8*) &tarh,  sizeof(tarh) );
-            if (!tarchecksum((char*)&tarh)) tar=0,tarn=0;
+            if (!tarchecksum((char*)&tarh)) tar=0,tarn=0,tarl=0;
             else{
+                tarl=2;
+                tar=in->curpos();
                int a=getoct(tarh.size,12);
                int b=a-(a/512)*512;
                if (b) tarn=tarn+512*2+(a/512)*512;
@@ -8958,14 +9352,14 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
                tarn=tarn+p;
             }
         }
-        if (tarn && tarn==(i-tar+263)) {
+        if (tarn && tarl==2 && tarn==(start+i-tar+512)) {
             U64 savedpos= in->curpos();
              in->setpos(savedpos-512);
             in->blockread((U8*) &tarh,  sizeof(tarh)  );
-            if (!tarchecksum((char*)&tarh))  tarn=tar,tar=0;
-            if (tarend((char*)&tarh)) {
+            if (!tarchecksum((char*)&tarh))  tarn=tar-512-start,tar=0,tarl=0;
+            if (tarend((char*)&tarh)==true) {
                 if (type==TAR) return  in->setpos(start+i),DEFAULT;
-                return  in->setpos(start+tarn-263),TAR;
+                return  in->setpos(start+tarn),TAR;
             } else{
                 int a=getoct(tarh.size,12);
                 int b=a-(a/512)*512;
@@ -9523,6 +9917,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       if (pgmw && pgmh && pgmc && (pgmn==6 || (pgmn==7 && pamd==3 && pamatr==6))) IMG_DET(IMAGE24,pgm-2,i-pgm+3,pgmw*3,pgmh);
       if (pgmw && pgmh && pgmc && (pgmn==7 && pamd==4 && pamatr==6)) IMG_DET(IMAGE32,pgm-2,i-pgm+3,pgmw*4,pgmh);
     }
+    
    /* image in pdf
      'BI
       /W 86
@@ -9559,7 +9954,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       pdfi_buf[pdfi_ptr++]=((c>='0' && c<='9') || ' ')?c:0;
       if (pdfi_ptr>=16) pdfi1=pdfi_ptr=0;
       if (i-pdfi1>63) pdfi1=pdfi_ptr=0;
-      if (pdfiw && pdfih && pdfic==1 && pdfin==5) IMG_DET(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
+      if (pdfiw && pdfih && pdfic==1 && pdfin==5) IMG_DETP(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
     }
     
     // Detect .rgb image
@@ -9773,42 +10168,39 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     }
 
     // DEC Alpha
-    op=buf0>>21; 
-    int decA4=buf1>>24;
-    if ((op==0x34*32+26 || op==0x30*32+31 ) && 
-    (decA4==0xe4 ||decA4==0xe6 ||decA4==0xa2 ||decA4==0xa5 ||decA4==0xa6 ||decA4==0xa7||
-     decA4==0xb3 ||decA4==0xb4 ||decA4==0xb5 ||decA4==0xb6 ||decA4==0xb7||decA4==0x41||
-     decA4==0x47 ||decA4==0xb1 ||decA4==0xb0 ||decA4==0xb2 ||decA4==0x22 || decA4==0xd3||
-     decA4==0xf4 ||decA4==0xf5 ||decA4==0x23 ||decA4==0x21 ||decA4==0xe5||decA4==0x25||
-     decA4==0x20 ||decA4==0xf7||decA4==0x44 ||decA4==0x98 )) { //  stq mov-stl-lda -> bsr 
+    op=bswap(buf0)>>21; 
+    //test if bsr opcode and if last 3 opcodes are valid
+    if ((op==0x34*32+26) && CAlpha2(bswap(buf1))==true && CAlpha2(bswap(buf2))==true && CAlpha2(bswap(buf3))==true && e8e9count==0 &&
+     !tar && !soi && !pgm && !rgbi && !bmp && !wavi && !tga) {
       int a=op&0xff;// absolute address low 8 bits
       int r=op&0x1fffff;
       r+=(i)/4;  // relative address low 8 bits
       r=r&0xff;
       int rdist=int(i-relposDEC[r]);
       int adist=int(i-absposDEC[a]);
-      if (adist<rdist && adist<0x1000 && absposDEC[a]>4) {
+      if (adist<rdist && adist<0x1fffff && absposDEC[a]>16 &&  adist>16 && adist%4==0) {
         DEClast=i;
         ++DECcount;
         if (DECpos==0 || DECpos>absposDEC[a]) DECpos=absposDEC[a];
       }
       else DECcount=0;
-      if (type==DEFAULT && DECcount>=4 && DECpos>4) //?
-          return  in->setpos(start+DECpos-2), DECA;
-              
+      if (type==DEFAULT && DECcount>=16 && DECpos>16 ) 
+          return  in->setpos(start+DECpos-DECpos%4), DECA;
       absposDEC[a]=i;
       relposDEC[r]=i;
     }
-    if (i-DEClast>0x10000) {
-      if (type==DECA) 
-      return  in->setpos( start+DEClast), DEFAULT;
-      DECcount=0,DECpos=0;
+    if (i-DEClast>0x4000) {
+      if (type==DECA)       
+      return  in->setpos( start+DEClast-DEClast%4), DEFAULT;
+      DECcount=0,DECpos=0,DEClast=0;
+      memset(&relposDEC[0], 0, sizeof(relposDEC));
+      memset(&absposDEC[0], 0, sizeof(absposDEC));
     }
  
     // base64 encoded data detection
     // detect base64 in html/xml container, single stream
     // ';base64,' or '![CDATA[' :image> 3a696d6167653e
-    if (b64s1==0 &&   ((buf1==0x3b626173 && buf0==0x6536342c)||(buf1==0x215b4344 && buf0==0x4154415b) /*||((buf1&0xffffff)==0x3a696d && buf0==0x6167653e)*/)) b64s1=1,b64h=i+1,base64start=i+1; //' base64'
+    if (b64s1==0 &&   ((buf1==0x3b626173 && buf0==0x6536342c)||(buf1==0x215b4344 && buf0==0x4154415b) )) b64s1=1,b64h=i+1,base64start=i+1; //' base64' ||((buf1&0xffffff)==0x3a696d && buf0==0x6167653e)
     else if (b64s1==1 && (isalnum(c) || (c == '+') || (c == '/')||(c == '=')) ) {
         continue;
         }  
@@ -9884,7 +10276,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     }
  
      //Detect text and utf-8   teolc=0,teoll=0;
-    if (txtStart==0 /*&& !gif*/ && !tar && !soi && !pgm && !rgbi && !bmp/*&& !mrb*/ && !wavi && !tga && !b64s1 && !b64s && !b85s1 && !b85s &&
+    if (txtStart==0  && !tar && !soi && !pgm && !rgbi && !bmp && !wavi && !tga && !b64s1 && !b64s && !b85s1 && !b85s &&
         ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 )) txtStart=1,txtOff=i,txt0=0,txta=0,txtNL=0,txtNLC=0,txtNLT=0;
     if (txtStart   ) {
         // report as text if over minumum lenght
@@ -10442,6 +10834,7 @@ void encode_dec(File* in, File* out, int len, int begin) {
   const int BLOCK=0x10000;
   Array<U8> blk(BLOCK);
  int count=0;
+ //U32 op1=0;
   for (int j=0; j<len; j+=BLOCK) {
     int size=min(int(len-j), BLOCK);
     int bytesRead=in->blockread(&blk[0], size  );
@@ -10449,21 +10842,25 @@ void encode_dec(File* in, File* out, int len, int begin) {
     // int g=begin-(begin/4)*4;
         for (int i=0; i<bytesRead-3; i+=4) {
         unsigned op=blk[i]|(blk[i+1]<<8)|(blk[i+2]<<16)|(blk[i+3]<<24);
-        if ((op>>21)==0x34*32+26/*||(op>>21)==0x30*32+31*/) { // bsr r26,offset  br r31, offset
+        if ((op>>21)==0x34*32+26) { // bsr r26,offset
         int offset=op&0x1fffff;
         offset+=(i)/4;
         op&=~0x1fffff;
         op|=offset&0x1fffff;
+        
+        count++;
+      }
+      op=bswap(op);
         blk[i]=op;
         blk[i+1]=op>>8;
         blk[i+2]=op>>16;
-        count++;
-      }
+        blk[i+3]=op>>24;
+    //  op1=op;
     }
     
     out->blockwrite(&blk[0],  bytesRead  );
   }
-  printf("DEC replacement Count %d\n",count);
+  //printf("DEC replacement Count %d\n",count);
 }
 
 U64 decode_dec(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int s1=0, int s2=0) {
@@ -10473,6 +10870,7 @@ U64 decode_dec(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
     int b=0;
     FileTmp dtmp;
     FileTmp dtmp1;
+    U32 count=0;
     //decompress file
     for (int i=0; i<size1; i++) {
         c=en.decompress(); 
@@ -10487,15 +10885,22 @@ U64 decode_dec(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
         //int g=begin-(begin/4)*4;
         for (int i=0; i<bytesRead-3; i+=4) {
             unsigned op=blk[i]|(blk[i+1]<<8)|(blk[i+2]<<16)|(blk[i+3]<<24);
-                if ((op>>21)==0x34*32+26/*||(op>>21)==0x30*32+31*/) { // bsr r26,offset
+            op=bswap(op);
+       
+                if ((op>>21)==0x34*32+26  ) { // bsr r26,offset
                    int offset=op&0x1fffff;
                    offset-=(i)/4;
                    op&=~0x1fffff;
                    op|=offset&0x1fffff;
-                   blk[i]=op;
-                   blk[i+1]=op>>8;
-                   blk[i+2]=op>>16;
+                   //blk[i]=op;
+                  // blk[i+1]=op>>8;
+                   //blk[i+2]=op>>16;
+                   count++;
                 }
+                   blk[i]=op;
+        blk[i+1]=op>>8;
+        blk[i+2]=op>>16;
+        blk[i+3]=op>>24;
         }
         dtmp1.blockwrite(&blk[0],   bytesRead  );
     }
@@ -10510,6 +10915,7 @@ U64 decode_dec(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
             if (b!=out->getc() && !diffFound) diffFound=i;
         }
     }
+    if(count<16) diffFound=1; //fail if replaced below threshold
     dtmp1.close();
     return size1; 
 }
@@ -11825,13 +12231,13 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2, info);
             } else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0)  ) {
                    if ( len>0xA00000){ //if WRT is smaller then original block 
-                      if (tmpsize>(len-256)) {
+                      if (tmpsize>(len-256) ) {
                        
                          in->setpos( begin);
                          direct_encode_blockstream(NOWRT, in, len, en, s1, s2); }
                       else
                         direct_encode_blockstream(BIGTEXT, tmp, tmpsize, en, s1, s2);}
-                   else if (tmpsize< (len*2-len/2)) {
+                   else if (tmpsize< (len*2-len/2)||len) {
                         // encode as text without wrt transoform, 
                         // this will be done when stream is compressed
                         in->setpos( begin);
@@ -11857,15 +12263,20 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 segment.put1(type&0xff);
                 segment.put8(tmpsize);
                 if (type==SZDD ||  type==ZLIB) segment.put4(info);
-                if (type==ZLIB && info) {// PDF or PNG image
+                if (type==ZLIB) {// PDF or PNG image && info
                     Filetype type2 =(Filetype)(info>>24);
                     if (it==itcount)    itcount=it+1;
                     int hdrsize=7+5*tmp->getc();
                     tmp->setpos(0);
                     typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
                     direct_encode_blockstream(HDR,  tmp, hdrsize, en,0,0);
+                    if (info){
+                    
                     typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                    transform_encode_block(type2,  tmp, tmpsize-hdrsize, en, info&0xffffff,-1, blstr, it, s1, s2, hdrsize); 
+                    transform_encode_block(type2,  tmp, tmpsize-hdrsize, en, info&0xffffff,-1, blstr, it, s1, s2, hdrsize); }
+                    else{
+                         DetectRecursive( tmp, tmpsize-hdrsize, en, blstr,it+1, 0, tmpsize-hdrsize);//it+1
+                    }
                 } else {     
                     DetectRecursive( tmp, tmpsize, en, blstr,it+1, 0, tmpsize);//it+1
                     tmp->close();
@@ -11898,7 +12309,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 direct_encode_blockstream(HDR, in, tarn, en,0,0);
                }
             else if (!tarchecksum((char*)&tarh))  
-                printf("tar checksum error\n");
+                quit("tar checksum error\n");
             else{
                 int a=getoct(tarh.size,12);
                 int b=a-(a/512)*512;
@@ -11993,6 +12404,14 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
 // <type> <size> and call encode_X to convert to type X.
 // Test transform and compress.
 void DetectStreams(const char* filename, U64 filesize) {
+  /*  FILE *in1=fopen(filename, "rb");
+     FILE *out=fopen("testtar.tar", "wb");
+    fseeko(in1,3326639645,SEEK_SET);
+    for(int i=0;i<51173;i++){
+        fputc(fgetc(in1),out);
+        
+    }
+    quit("");*/
   FileTmp tmp;
   Predictors *t;
   t=0;
