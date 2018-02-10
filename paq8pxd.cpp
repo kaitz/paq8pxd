@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Jan. 19, 2018
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Feb. 10, 2018
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -540,15 +540,11 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V43
-- tar header as TEXT
-- wordmodel change
-- avoid setting useless context in xml and word model (set 0)
-- indirect and sparse model context hashed
-- other small changes
+DIFFERENCES FROM PAQ8PXD_V44
+- revert tar header to  HDR
 */
 
-#define PROGNAME "paq8pxd44"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd45"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 
@@ -12320,10 +12316,10 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 sprintf(blstr,"%s%d",b2,blnum++);
                 int tarover=512+pad;
                 //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                printf(" %-11s | %-9s |%10.0I64i [%0I64i - %0I64i]\n",blstr,typenames[TEXT],tarover,savedpos,savedpos+tarover-1);
-                typenamess[TEXT][it+1]+=tarover,  typenamesc[TEXT][it+1]++; 
+                printf(" %-11s | %-9s |%10.0I64i [%0I64i - %0I64i]\n",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
+                typenamess[HDR][it+1]+=tarover,  typenamesc[HDR][it+1]++; 
                 if (it==itcount)    itcount=it+1;
-                direct_encode_blockstream(TEXT, in, tarover, en,0,0);
+                direct_encode_blockstream(HDR, in, tarover, en,0,0);
                 pad=0;
                 if (a!=0){
                     #ifdef tarpad
@@ -13309,7 +13305,7 @@ int main(int argc, char** argv) {
             printf("Total %0I64i bytes compressed to %0I64i bytes.\n", total_size,  archive->curpos()); 
             
         }
-        // Decompress files to dir2: paq8pxd_v20 -d dir1/archive.paq8pxd dir2
+        // Decompress files to dir2: paq8pxd -d dir1/archive.paq8pxd dir2
         // If there is no dir2, then extract to dir1
         // If there is no dir1, then extract to .
         else if (!doList) {
