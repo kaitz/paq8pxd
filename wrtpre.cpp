@@ -661,7 +661,7 @@ void XWRT_Common::defaultSettings(int n){
     maxDynDictBuf=8*4;
     maxDictSize=65535*32700;
     tryShorterBound=3;//4
-    minWordFreq=7*2; //7*2 64;
+    minWordFreq=7*3; //7*2 64;
     wrtnum=n;
     //printf("WRT: num: %d",wrtnum);
     //maxDictSize=  //e
@@ -1070,7 +1070,7 @@ int XWRT_Decoder::WRT_start_decoding(File* in){
     //GETC(maxMemSize); 
     //maxMemSize*=1024*1024;
     int fileLen;
-
+GETC(c);GETC(c);GETC(c);GETC(c);//header
     GETC(c);
     fileLen=c;
     GETC(c);
@@ -1785,11 +1785,12 @@ void XWRT_Encoder::write_dict(){
     }
     sortedDictSize=(int)i; // i<=count
     PRINT_DICT(("sortedDictCount=%d\n",sortedDictSize));
+	//printf("sortedDictCount=%d\n",sortedDictSize);
     count_header[0]=sortedDictSize%256;
     count_header[1]=(sortedDictSize/256)%256;
     count_header[2]=sortedDictSize/65536;
     count=(int)(bufferData-(writeBuffer+3));
-    PRINT_DICT(("write_dict count=%d\n",count));
+    //printf("write_dict count=%d\n",count);
     PUTC(count>>16);
     PUTC(count>>8);
     PUTC(count);
@@ -1822,7 +1823,10 @@ if (fileLenMB<1)         minWordFreq=minWordFreq*6;
     WRT_detectFileType(fileLen);
 
     XWRT_file->setpos(  pos );
-
+    PUTC('!');
+    PUTC('P');
+    PUTC('q');
+    PUTC('8');
     //PUTC(maxMemSize/(1024*1024));
     //not safe FIXME to i64
     PUTC(fileLen&0xFF);
@@ -1971,7 +1975,7 @@ void XWRT_Encoder::WRT_detectFinish(){
     sortedDict.clear();
     int num;
     int minWordFreq2;
-    if (minWordFreq<6)
+    if (minWordFreq<6*2)
     minWordFreq2=minWordFreq;
     else
     minWordFreq2=minWordFreq-2;
