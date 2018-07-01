@@ -295,7 +295,7 @@ struct ppmd_Model {
 
     void* MoveUnitsUp( void* OldPtr, U32 NU ) {
         U32 indx = Units2Indx[NU-1];
-        PrefetchData(OldPtr);
+       // PrefetchData(OldPtr);
         if( (U8*)OldPtr > UnitsStart+128*1024 ||
                 (BLK_NODE*)OldPtr > getNext(&BList[indx]) ) return OldPtr;
 
@@ -366,9 +366,9 @@ struct ppmd_Model {
     template <class T>
     void SWAP( T& t1, T& t2 ) { T tmp=t1; t1=t2; t2=tmp; }
 
-    void PrefetchData(void* Addr) {
-        U8 Prefetchbyte = *(volatile U8*)Addr;
-    }
+   // void PrefetchData(void* Addr) {
+        //U8 Prefetchbyte = *(volatile U8*)Addr;
+  //  }
 
     enum {
         UP_FREQ     = 5
@@ -567,7 +567,7 @@ struct ppmd_Model {
 
     void AuxCutOff( STATE* p, int Order, int MaxOrder ) {
         if( Order<MaxOrder ) {
-            PrefetchData( getSucc(p) );
+            //PrefetchData( getSucc(p) );
             p->iSuccessor = cutOff( getSucc(p)[0], Order+1,MaxOrder);
         } else {
             p->iSuccessor=0;
@@ -735,7 +735,7 @@ struct ppmd_Model {
     PPM_CONTEXT* saved_pc;
 
     PPM_CONTEXT* UpdateModel( PPM_CONTEXT* MinContext ) {
-        U8 Flag, sym, FSymbol;
+        U8 Flag,  FSymbol;
         U32 ns1, ns, cf, sf, s0, FFreq;
         U32 iSuccessor, iFSuccessor;
         PPM_CONTEXT* pc;
@@ -778,8 +778,8 @@ struct ppmd_Model {
         if( iFSuccessor ) {
             if( (U8*)Indx2Ptr(iFSuccessor) < UnitsStart )
             iFSuccessor = CreateSuccessors( 0, p, MinContext );
-            else
-            PrefetchData( Indx2Ptr(iFSuccessor) );
+            //else
+           // PrefetchData( Indx2Ptr(iFSuccessor) );
         } else
         iFSuccessor = ReduceOrder( p, MinContext );
 
@@ -1016,7 +1016,7 @@ struct ppmd_Model {
                 if( p[i].Freq > p[i-1].Freq ) SWAP( p[i], p[i-1] ), i--;
                 p = &p[i];
             } else {
-                if( q.iSuffix ) PrefetchData( suff(&q) );
+                //if( q.iSuffix ) PrefetchData( suff(&q) );
                 freq = total-low;
                 NumMasked = cnum;
                 for( i=0; i<=cnum; i++ ) CharMask[p[i].Symbol]=EscCount;
@@ -1042,7 +1042,7 @@ struct ppmd_Model {
         int count=0;
         int low;
         int see_freq;
-        int freq;
+        //int freq;
         int cnum = q.NumStats;
         SEE2_CONTEXT* psee2c;
         if( cnum != 0xFF ) {
@@ -1081,7 +1081,7 @@ struct ppmd_Model {
                 low = pl;
             }
             p+=j;
-            freq = p[0].Freq;
+            //freq = p[0].Freq;
             if( see_freq>2 ) psee2c->Summ -= see_freq;
             psee2c->update();
             FoundState = p;
@@ -1091,7 +1091,7 @@ struct ppmd_Model {
             EscCount++;
         } else {
             low = Total;
-            freq = see_freq;
+            //freq = see_freq;
             NumMasked  = cnum;
             psee2c->Summ += Total-see_freq;
         }
@@ -1166,7 +1166,7 @@ struct ppmd_Model {
             SQ[SQ_ptr++].store(p[i].Symbol,freq,total);
             low += freq;
         }
-        if( q.iSuffix ) PrefetchData( suff(&q) );
+       // if( q.iSuffix ) PrefetchData( suff(&q) );
         NumMasked = cnum;
         for( i=0; i<=cnum; i++ ) CharMask[p[i].Symbol]=EscCount;
         SQ[SQ_ptr++].store(256,total-low,total);
@@ -1177,10 +1177,10 @@ struct ppmd_Model {
     void processSymbol2_T( PPM_CONTEXT& q, int ) {
         STATE* p = getStats(&q);
         int c;
-        int count;
+        //int count;
         int low;
         int see_freq;
-        int freq;
+        //int freq;
         int cnum = q.NumStats;
         SEE2_CONTEXT* psee2c;
         if( cnum != 0xFF ) {
@@ -1193,8 +1193,8 @@ struct ppmd_Model {
             psee2c = &DummySEE2Cont;
             see_freq = 1;
         }
-        int flag=0,pj,pl;
-        int i,j;
+      //  int /*flag=0,*/pj,pl;
+        int i;//,j;
         for( i=0,low=0; i<=cnum; i++ ) {
             c = p[i].Symbol;
             if( CharMask[c]!=EscCount ) low += p[i].Freq;
