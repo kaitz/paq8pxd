@@ -3,7 +3,6 @@
 //
 #include <stdlib.h> 
 #include <memory.h>
-#pragma warning(disable:4786)
 #include <stdio.h>
 #include <vector>
 #include <string>
@@ -14,19 +13,13 @@
 #include <conio.h>
 #endif
 
-#define PRINT_CHARS(data) ;//printf data
+#define PRINT_CHARS(data);//  printf data
 #define PRINT_CODEWORDS(data); // printf data
 #define PRINT_STACK(data) ;//printf data;
 #define PRINT_DICT(data) ;//printf data;
 #define PRINT_CONTAINERS(data) ;//printf data
 //#define PRINT_STATUS(data) printf data;
 
-#pragma warning(disable:4244) //  '=' : conversion from ... to ..., possible loss of data
-#pragma warning(disable:4786) // STL warnings
-#pragma warning(disable:4996) // '_getch' was declared deprecated
-#pragma warning(disable:4503) // STL
-#pragma warning(disable:4390) // empty controlled statement found; is this the intent?
-#pragma warning(disable:4018) // signed/unsigned mismatch
 #define _CRT_SECURE_NO_DEPRECATE // VC++ 2005 deprecate warnings
 
 
@@ -64,13 +57,8 @@
 #define MAX_DYNAMIC_DICT_COUNT  (65536*256)
 #define HASH_TABLE_SIZE         (1<<20) //1MB*4
 
-//#define BYTES_TO_DETECT           (50*1024)
-
-//#define NUM_BASE          256
 #define HASH_DOUBLE_MULT    37
 #define HASH_MULT           23
-//#define CHARSET_COUNT     6
-
 
 enum EWordType { LOWERWORD, FIRSTUPPER, UPPERWORD, VARWORD, NUMBER,UTF8UPPER};
 enum ELetterType { LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR };
@@ -131,8 +119,8 @@ class CContainers
 public:
     CContainers();
     void prepareMemBuffers();
-    void writeMemBuffers(int preprocFlag);
-    void readMemBuffers(int preprocFlag, int maxMemSize);
+    void writeMemBuffers();
+    void readMemBuffers(int maxMemSize);
     void freeMemBuffers(bool freeMem);
 
     CMemoryBuffer *memout;
@@ -152,32 +140,27 @@ CMemoryBuffer::CMemoryBuffer(std::string mname)
     AllocTgtBuf(); 
 }
 
-CMemoryBuffer::~CMemoryBuffer() 
-{ 
+CMemoryBuffer::~CMemoryBuffer(){
     if (TargetBuf)
     free(TargetBuf-3);
-    
+
     if (SourceBuf)
     free(SourceBuf);
 }
 
-inline void CMemoryBuffer::Clear()
-{
+inline void CMemoryBuffer::Clear(){
     TargetBuf=NULL; SourceBuf=NULL; SrcPtr=0; TgtPtr=0; SrcLen=0; TgtLen=0;
 }
 
-inline int CMemoryBuffer::Size() 
-{
+inline int CMemoryBuffer::Size(){
     return TgtPtr;
 }
 
-inline int CMemoryBuffer::Allocated() 
-{
+inline int CMemoryBuffer::Allocated(){
     return TgtLen;
 }
 
-void CMemoryBuffer::OutTgtByte( U8 c ) 
-{ 
+void CMemoryBuffer::OutTgtByte( U8 c ){
     memsize++;
 
     *(TargetBuf+(TgtPtr++))=c; 
@@ -189,8 +172,7 @@ void CMemoryBuffer::OutTgtByte( U8 c )
     }
 }
 
-int CMemoryBuffer::InpSrcByte( void ) 
-{
+int CMemoryBuffer::InpSrcByte( void ){
     memsize++;
 
     if (SrcPtr>=SrcLen)
@@ -235,13 +217,10 @@ void CContainers::prepareMemBuffers(){
     memmap.insert(p);   
 }
 
-void CContainers::writeMemBuffers(int preprocFlag){
+void CContainers::writeMemBuffers(){
     std::map<std::string,CMemoryBuffer*>::iterator it;
 
     int fileLen=0;
-    //int len=0;
-    //int lenCompr=0;
-    //int allocated=0;
 
     for (it=memmap.begin(); it!=memmap.end(); it++)
     {
@@ -250,11 +229,7 @@ void CContainers::writeMemBuffers(int preprocFlag){
         
         PRINT_CONTAINERS(("cont=%s fileLen=%d\n",it->first.c_str(),fileLen));
 
-        if (fileLen>0)
-        {
-//          allocated+=b->Allocated();
-    //      len+=fileLen;
-            
+        if (fileLen>0){
             PUTC((int)it->first.size());
             for (int i=0; i<(int)it->first.size(); i++)
             PUTC(it->first[i]);
@@ -265,7 +240,6 @@ void CContainers::writeMemBuffers(int preprocFlag){
             PUTC(fileLen);
 
             fwrite_fast(it->second->TargetBuf,it->second->TgtPtr,XWRT_fileout);
-//          lenCompr+=fileLen;
         }
     }
     PUTC(0)
@@ -275,13 +249,8 @@ void CContainers::writeMemBuffers(int preprocFlag){
     prepareMemBuffers();
 }
 
-void CContainers::readMemBuffers(int preprocFlag, int maxMemSize){
-    //U8* buf=NULL;
-//  U32 bufLen=0;
+void CContainers::readMemBuffers(int maxMemSize){
     U32 fileLen;
-//  U32 ui;
-//  int len=0;
-//  int lenCompr=0;
     int i,c;
     U8 s[STRING_MAX_SIZE];
 
@@ -289,7 +258,7 @@ void CContainers::readMemBuffers(int preprocFlag, int maxMemSize){
     prepareMemBuffers();
     CMemoryBuffer* memout_tmp=NULL;
 
-    while (true){           
+    while (true){
         GETC(i);
 
         if (i<=0)
@@ -318,13 +287,10 @@ void CContainers::readMemBuffers(int preprocFlag, int maxMemSize){
             fileLen=fileLen*256+c;
         }
         
-        //len+=fileLen;
-        //lenCompr+=fileLen;
         memout_tmp->AllocSrcBuf(fileLen);
 
         fread_fast(memout_tmp->SourceBuf,memout_tmp->SrcLen,XWRT_file);
 
-        //printStatus(fileLen,0,false);
     }
     //PRINT_DICT(("readMemBuffers() dataSize=%d compr=%d allocated=%d\n",len,lenCompr,maxMemSize+10240));
 }
@@ -355,7 +321,6 @@ public:
     ~XWRT_Common();
 
     void defaultSettings(int n);
-    //U32 flen( File* &f );
     
     CContainers cont;
     int preprocFlag;
@@ -367,7 +332,7 @@ protected:
     U8* loadDynamicDictionary(U8* mem,U8* mem_end);
     void initializeLetterSet();
     void initializeCodeWords(int word_count,bool initMem=true);
-    bool initialize(bool encoding);
+    bool initialize();
     void WRT_deinitialize();
 
     void WRT_print_options();
@@ -398,7 +363,7 @@ protected:
 
     int dictionary,dict1size,dict2size,dict3size,dict4size,dict1plus2plus3,dict1plus2;
     int bound4,bound3,dict123size,dict12size,collision,quoteOpen,quoteClose,detectedSym;
-    int maxMemSize;
+    U32 maxMemSize;
     int sortedDictSize;
     
 
@@ -487,9 +452,7 @@ U8* XWRT_Common::loadDynamicDictionary(U8* mem,U8* mem_end){
     for (i=0; i<256; i++)
     spacesCodeword[i]=0;
     int count=sortedDictSize;
-    for (i=0; i<count; i++)
-    {
-        //std::string s=sortedDict[i];
+    for (i=0; i<count; i++){
         int len=(int)sortedDict[i].size();
         memcpy(mem,sortedDict[i].c_str(),len+1);
         if (addWord(mem,len)==0)
@@ -498,13 +461,6 @@ U8* XWRT_Common::loadDynamicDictionary(U8* mem,U8* mem_end){
         if (mem>mem_end)
         break;
     }
-    /*if (mem<mem_end)
-    {
-        i=strlen("http://www.");
-        memcpy(mem,"http://www.",i);
-        if (addWord(mem,i)!=0)
-            mem+=(i/4+1)*4;
-    }*/
     PRINT_DICT(("count=%d sortedDict.size()=%d\n",count,sortedDictSize));
     sizeDynDict=sizeDict;
     return mem;
@@ -611,9 +567,7 @@ void XWRT_Common::initializeCodeWords(int word_count,bool initMem){
     PRINT_DICT((" %d %d %d %d(%d) charsUsed=%d sizeDict=%d\n",dict1size,dict2size,dict3size,dict4size,dictionary,charsUsed,sizeDict));
 }
 // read dictionary from files to arrays
-bool XWRT_Common::initialize(bool encoding){
-//  int fileLen;
-//  File* file;
+bool XWRT_Common::initialize(){
     WRT_deinitialize();
     memset(&word_hash[0],0,HASH_TABLE_SIZE*sizeof(word_hash[0]));
     
@@ -657,46 +611,18 @@ void XWRT_Common::WRT_deinitialize(){
 void XWRT_Common::defaultSettings(int n){
     RESET_OPTIONS;
     TURN_ON(OPTION_TRY_SHORTER_WORD);
-    //maxMemSize=8*1024*1024;
     maxDynDictBuf=8*4;
     maxDictSize=65535*32700;
     tryShorterBound=3;//4
     minWordFreq=7*3; //7*2 64;
     wrtnum=n;
-    //printf("WRT: num: %d",wrtnum);
-    //maxDictSize=  //e
-    //minWordFreq=  // f
-    //maxMemSize  maxMemSize*=1024*1024;//m
-    //maxDynDictBuf //b
 }
 
 size_t fread_fast(U8* dst, int len, File* file){
     return file->blockread(dst,len);
-/*  int rd;
-    size_t sum=0;
-    while (len > 1<<17) // 128 kb
-    {
-        rd=fread(dst,1,1<<17,file);
-        dst+=rd;
-        len-=rd;
-        sum+=rd;
-    }
-    sum+=fread(dst,1,len,file);
-    return sum;*/
 }
 size_t fwrite_fast(U8* dst, int len, File* file){
     return file->blockwrite(dst, len );
-    /*int wt;
-    size_t sum=0;
-    while (len > 1<<17) // 128 kb
-    {
-        wt=fwrite(dst,1,1<<17,file);
-        dst+=wt;
-        len-=wt;
-        sum+=wt;
-    }
-    sum+=fwrite(dst,1,len,file);
-    return sum;*/
 }
 //////////////////////////////////////////
 
@@ -728,7 +654,7 @@ private:
 public:
 }; // end class 
 
-XWRT_Decoder::XWRT_Decoder() : WRTd_s(&WRTd_data[0]) ,WRTd_UTF(0)
+XWRT_Decoder::XWRT_Decoder() : WRTd_UTF(0),WRTd_s(&WRTd_data[0]) 
 {   
 
 }
@@ -749,7 +675,7 @@ XWRT_Decoder::~XWRT_Decoder(){
         if (cont.memout->memsize>maxMemSize) \
         { \
             PRINT_DICT(("%d maxMemSize=%d\n",cont.memout->memsize,maxMemSize)); \
-            cont.readMemBuffers(preprocFlag,maxMemSize); \
+            cont.readMemBuffers(maxMemSize); \
             cont.memout->memsize=0; \
         } \
         \
@@ -849,7 +775,6 @@ inline int XWRT_Decoder::decodeCodeWord(U8* &s,int& c){
 int XWRT_Decoder::WRT_decode(){
     int rchar=0;
     int utfupp=0;
-//  int c;
     static int s_sizep=0;
     if (s_sizep<s_size && s_sizep!=0 ){
         rchar=WRTd_s[s_sizep];
@@ -867,24 +792,17 @@ int XWRT_Decoder::WRT_decode(){
         return -1;
 
         PRINT_CHARS(("c=%d (%c)\n",WRTd_c,WRTd_c));
-if (WRTd_UTF>0 ){
-          // WRTd_UTF=WRTd_UTF-1;
-            
-        //  DECODE_GETC(WRTd_c);
-        //  last_c=rchar;
-          //  rchar=WRTd_c;
-        //  return rchar;
-            for (int i=0   ; i<WRTd_UTF; i++){
-        DECODE_GETC(WRTd_c);
-          WRTd_s[i]=WRTd_c;
-          
-    }
-    s_size=WRTd_UTF;
-    WRTd_UTF=0;
+        if (WRTd_UTF>0 ){
+            for (int i=0; i<WRTd_UTF; i++){
+                DECODE_GETC(WRTd_c);
+                WRTd_s[i]=WRTd_c;
+            }
+            s_size=WRTd_UTF;
+            WRTd_UTF=0;
             s_sizep=1;
-                rchar=WRTd_s[0];;
-                last_c=rchar;
-                return rchar;
+            rchar=WRTd_s[0];;
+            last_c=rchar;
+            return rchar;
         }
         if (outputSet[WRTd_c]){
             PRINT_CHARS(("addSymbols[%d] upperWord=%d\n",WRTd_c,upperWord));
@@ -915,15 +833,9 @@ if (WRTd_UTF>0 ){
                 upperWord=FORCE;
                 DECODE_GETC(WRTd_c);
                 continue;
-          //case CHAR_UTF:
-           //     PRINT_CHARS(("c==CHAR_UTF\n"));
- 
-           //     DECODE_GETC(WRTd_UTF);
-             
-           //     continue;
             case CHAR_UTFUPPER:
                 PRINT_CHARS(("c==CHAR_UTFPPRE\n"));
- utfupp=1;
+                utfupp=1;
                 DECODE_GETC(WRTd_c);
              
                 continue;
@@ -952,7 +864,7 @@ if (WRTd_UTF>0 ){
                 //0xD0B0-0xD18F> 0xD090 - 0xD0AF 
                 if ((U8)WRTd_s[0]==0xD0 &&  (U8)WRTd_s[1]>=0xb0 && (U8)WRTd_s[1]<=0xbf && s_size==2 )WRTd_s[1]=(U8)WRTd_s[1]-0x20;
                 else if ((U8)WRTd_s[0]==0xD1 &&  (U8)WRTd_s[1]>=0x80 && (U8)WRTd_s[1]<=0x8f &&  s_size==2 )WRTd_s[1]=(U8)WRTd_s[1]-0xe0,WRTd_s[0]=0xD0;
-                    //greek
+                //greek
                 else        if ((U8)WRTd_s[0]==0xce &&  (U8)WRTd_s[1]>=0xb1 && (U8)WRTd_s[1]<=0xbf && s_size==2 )WRTd_s[1]=(U8)WRTd_s[1]-0x20;
                 else if ((U8)WRTd_s[0]==0xcf &&  (U8)WRTd_s[1]>=0x80 && (U8)WRTd_s[1]<=0x89 &&  s_size==2 )WRTd_s[1]=(U8)WRTd_s[1]-0xe0,WRTd_s[0]=0xce;
                 //latin
@@ -970,11 +882,6 @@ if (WRTd_UTF>0 ){
 
        
         if (WRTd_c>='0' && WRTd_c<='9'){
-            //U32 no,mult;
-            //int c,i;
-            //no=0;
-            //mult=1;
-            //static int wType=0;
             rchar=WRTd_c;
             DECODE_GETC(WRTd_c);
             last_c=rchar;
@@ -1029,10 +936,6 @@ void XWRT_Decoder::read_dict(){
     std::string s;
     std::string last_s;
     for (i=0; i<count; i++){
-        /*if ( bufferData[0]>=128){
-            s.append(last_s.c_str(),bufferData[0]-128);
-            bufferData++;
-        }*/
 
         while (bufferData[0]!=10){
             s.append(1,bufferData[0]);
@@ -1067,10 +970,8 @@ int XWRT_Decoder::WRT_start_decoding(File* in){
     collision=0;
 
     defaultSettings(0); 
-    //GETC(maxMemSize); 
-    //maxMemSize*=1024*1024;
     int fileLen;
-GETC(c);GETC(c);GETC(c);GETC(c);//header
+    GETC(c);GETC(c);GETC(c);GETC(c);//header
     GETC(c);
     fileLen=c;
     GETC(c);
@@ -1086,13 +987,13 @@ GETC(c);GETC(c);GETC(c);GETC(c);//header
     //PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
     read_dict();
 
-    cont.readMemBuffers(preprocFlag,maxMemSize);
+    cont.readMemBuffers(maxMemSize);
     cont.memout->memsize=0;
 
     WRT_deinitialize();
 
     decoding=true;
-    if (!initialize(false))
+    if (!initialize())
     return 0;
 
     DECODE_GETC(WRTd_c);
@@ -1123,7 +1024,7 @@ private:
     inline void encodeCodeWord(int &i);
     inline void encodeSpaces();
     inline void encodeWord(U8* s,int s_size,EWordType wordType,int& c);
-    inline void encodeAsText(U8* &s,int &s_size,EWordType wordType);
+    inline void encodeAsText(U8* &s,int &s_size);
     inline int findShorterWord(U8* &s,int &s_size);
     inline void toLower(U8* s,int &s_size);
     inline void toUpper(U8* s,int &s_size);
@@ -1132,8 +1033,7 @@ private:
     inline void checkHashExactly(U8* &s,int &s_size,int& i);
     inline int checkHash(U8* &s,int &s_size,int h);
     inline void stringHash(const U8 *ptr, int len,int& hash);
-    
-    //void encodeMixed(U8* s,int s_size,int& c);
+
     void sortDict(int size);
 
     void write_dict();
@@ -1154,11 +1054,10 @@ public:
 int compare_freq( const void *arg1, const void *arg2 );
 
 
-XWRT_Encoder::XWRT_Encoder() :  last_c_bak(0),filelento(0),lowerfq(0)
-{   
-};
-XWRT_Encoder::~XWRT_Encoder(){ 
-    
+XWRT_Encoder::XWRT_Encoder() :  last_c_bak(0),filelento(0),lowerfq(0){
+}
+XWRT_Encoder::~XWRT_Encoder(){
+
 }
 #define ENCODE_PUTC(c)\
     { \
@@ -1167,7 +1066,7 @@ XWRT_Encoder::~XWRT_Encoder(){
             if (cont.memout->memsize>maxMemSize) \
             { \
                 PRINT_DICT(("%d maxMemSize=%d\n",cont.memout->memsize,maxMemSize)); \
-                cont.writeMemBuffers(preprocFlag); \
+                cont.writeMemBuffers(); \
                 cont.memout->memsize=0; \
             } \
             \
@@ -1187,7 +1086,7 @@ XWRT_Encoder::~XWRT_Encoder(){
     }
     
 bool is_ascii(U8 *s, int len){
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++){
         if (s[i]<127) return false;
     }
     return true;
@@ -1228,20 +1127,8 @@ U32 utf8_check(U8 *s){
   return i;
 }
 // encode word (should be lower case) using n-gram array (when word doesn't exist in the dictionary)
-inline void XWRT_Encoder::encodeAsText(U8* &s,int &s_size,EWordType wordType){
-    int i=0;
-    /*if (s_size>3 && is_ascii(s,s_size)==true && (utf8_check(s) )){
-        //CHAR_UTF
-        ENCODE_PUTC(CHAR_UTF);
-        ENCODE_PUTC(s_size);
-        for (i=0; i<s_size; i++)
-    {
-     
-        ENCODE_PUTC(s[i]);
-    }
-    return;
-    }*/
-    for (i=0; i<s_size; i++)    {
+inline void XWRT_Encoder::encodeAsText(U8* &s,int &s_size){
+    for (int i=0; i<s_size; i++)    {
         if (addSymbols[s[i]])
         ENCODE_PUTC(CHAR_ESCAPE);
         ENCODE_PUTC(s[i]);
@@ -1398,8 +1285,8 @@ inline int XWRT_Encoder::findShorterWord(U8* &s,int &s_size){
     hash = HASH_MULT * hash + s[i];
 
     best=-1;
-    for (i=WORD_MIN_SIZE+tryShorterBound; i<s_size; i++){
-        ret=checkHash(s,i,hash&(HASH_TABLE_SIZE-1));    
+    for (i=WORD_MIN_SIZE+tryShorterBound; i<s_size; i++){ //3 vs 3 minimum
+        ret=checkHash(s,i,hash&(HASH_TABLE_SIZE-1));
         if (ret>=0)
         best=ret;
         hash = HASH_MULT*hash + s[i];
@@ -1416,45 +1303,7 @@ inline void XWRT_Encoder::toLower(U8* s,int &s_size){
     for (int i=0; i<s_size; i++)
     s[i]=tolower(s[i]);
 }
-/*void XWRT_Encoder::encodeMixed(U8* s,int s_size,int& old_c){
-    int c,size,start,ptr=0;
-    EWordType wordType;
-    U8* s2;
-    do
-    {
-        start=ptr;
-        do
-        {
-            c=s[ptr++];
-            letterType=letterSet[c];
-        }
-        while (ptr<s_size && letterType==NUMBERCHAR);
-        
-        if (letterType!=NUMBERCHAR)
-        ptr--;
-        wordType=NUMBER;
-        encodeWord(s+start,ptr-start,wordType,old_c);
-        
-        if (ptr>=s_size)
-        break;
-        
-        start=ptr;
-        do
-        {
-            c=s[ptr++];
-            letterType=letterSet[c];
-        }
-        while (ptr<s_size && letterType!=NUMBERCHAR);
-        
-        if (letterType==NUMBERCHAR)
-        ptr--;
-        wordType=VARWORD;
-        s2=s+start;
-        size=ptr-start;
-        encodeAsText(s2,size,wordType);
-    }
-    while (ptr<s_size);
-}*/
+
 // encode word "s" using dictionary
 void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     if (detect) {
@@ -1543,13 +1392,12 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
             }
             if (i>=0 && wordType!=UPPERWORD){
                 size=dictlen[i];
-                //encodeSpaces();
                 encodeCodeWord(i);
                 s2=s2+size;
                 s_size2=s_size2-size;
-                if (s_size2>0) encodeAsText(s2,s_size2,wordType);
+                if (s_size2>0) encodeAsText(s2,s_size2);
             }
-            else encodeAsText(s2,s_size2,wordType);
+            else encodeAsText(s2,s_size2);
         }
     }
     else
@@ -1559,7 +1407,7 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
         else if (wordType==UPPERWORD)
         toUpper(s,s_size);
         encodeSpaces();
-        encodeAsText(s,s_size,wordType);
+        encodeAsText(s,s_size);
     }
     return;
 }
@@ -1580,12 +1428,13 @@ void XWRT_Encoder::WRT_encode(int filelen){
         if (c==EOF || filelento>=filelen) break;
     
         PRINT_CHARS(("c=%c (%d) last=%c \n",c,c,last_c));
-        
+       
         if (detect){
             letterType=letterSet[c];
         }
         else
         {
+          
             if (c==13){
                 encodeWord(s,s_size,wordType,c);
                 s_size=0;
@@ -1617,9 +1466,8 @@ void XWRT_Encoder::WRT_encode(int filelen){
                 s_size=0;
                 ENCODE_PUTC(c);
                 ENCODE_GETC(c);
-                //  wordType=LOWERWORD;
                 continue;
-            }                   
+            }
         }
 
         if (wordSet[c]){
@@ -1650,8 +1498,7 @@ void XWRT_Encoder::WRT_encode(int filelen){
                         wordType=VARWORD;
                         break;
                     case FIRSTUPPER:
-                        if (letterType!=LOWERCHAR)
-                        {
+                        if (letterType!=LOWERCHAR){
                             if (s_size==1 && letterType==UPPERCHAR)
                             wordType=UPPERWORD;
                             else
@@ -1660,9 +1507,7 @@ void XWRT_Encoder::WRT_encode(int filelen){
                         break;
                     }
                 }
-            }
-            else
-            {
+            }else{
                 encodeWord(s,s_size,wordType,c);
                 s_size=0;
                 spaces++;
@@ -1688,20 +1533,20 @@ void XWRT_Encoder::WRT_encode(int filelen){
                     }
                 }
                 encodeWord(s,s_size,wordType,c);
-                s_size=0;               
+                s_size=0;
                 continue;
             }
             s[s_size++]=c;
             //check if utf8 char, if so add to dict
-            if (s_size>1){           
+            if (s_size>1){
                 s[s_size]=0;
                 y=utf8_check(s);
-				utfcount=utfcount+y;
-                if (y>0) { 
+                utfcount=utfcount+y;
+                if (y>0){
                     //cyrillic
                     if ((U8)s[1]>=0x90 && (U8)s[1]<=0x9F && (U8)s[0]==0xd0 && y==2){
                         s[1]=(U8)s[1]+0x20;
-                        wordType=UTF8UPPER; 
+                        wordType=UTF8UPPER;
                         } 
                     else if ((U8)s[1]>0x9F && (U8)s[1]<=0xAF && (U8)s[0]==0xd0 && y==2){
                         s[1]=(U8)s[1]+0xE0;
@@ -1753,7 +1598,7 @@ void XWRT_Encoder::WRT_encode(int filelen){
     }
     encodeWord(s,s_size,wordType,c);
     s_size=0;
-	if ((filelen-utfcount)<(filelen>>1)) lowerfq=1;  // set flag if more utf then ascii
+    if ((filelen-utfcount)<(filelen>>1)) lowerfq=1; // set flag if more utf then ascii
 }
 inline int common(const char* offset1,const char* offset2, int bound){
     int lp=0;
@@ -1808,16 +1653,8 @@ void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U32 fileLen,bool type_
     
     cont.prepareMemBuffers();
     cont.memout->memsize=0;
-    //if (fileLenMB>64) minWordFreq-=4,tryShorterBound=2;
-    
-    /*  if (fileLenMB>64) minWordFreq-=16;
-    if (fileLenMB<16)
-        minWordFreq-=7;
-    //if (fileLenMB<6)
-    //  minWordFreq=minWordFreq+15;*/
-if (fileLenMB<1)         minWordFreq=minWordFreq*6;
-    //if (fileLenMB<1)      minWordFreq=9,tryShorterBound=4;
-    //if (fileLen<256*1024)     minWordFreq=7,tryShorterBound=3;
+
+    if (fileLenMB<1)         minWordFreq=minWordFreq*6;
     uint64_t pos=XWRT_file->curpos();
     if (!type_detected)
     WRT_detectFileType(fileLen);
@@ -1827,7 +1664,6 @@ if (fileLenMB<1)         minWordFreq=minWordFreq*6;
     PUTC('P');
     PUTC('q');
     PUTC('8');
-    //PUTC(maxMemSize/(1024*1024));
     //not safe FIXME to i64
     PUTC(fileLen&0xFF);
     PUTC((fileLen>>8)&0xFF);
@@ -1838,10 +1674,10 @@ if (fileLenMB<1)         minWordFreq=minWordFreq*6;
     write_dict(); // przed initialize()
     decoding=false;
     WRT_deinitialize();
-    if (!initialize(true))
+    if (!initialize())
     return;
     WRT_encode(fileLen);
-    cont.writeMemBuffers(preprocFlag);
+    cont.writeMemBuffers();
     cont.freeMemBuffers(true);
 }
 
@@ -1881,9 +1717,6 @@ inline void XWRT_Encoder::checkWord(U8* &s,int &s_size,int& c){
 }
 int XWRT_Encoder::WRT_detectFileType(int filelen){
     detect=true;
-    //U8 s[STRING_MAX_SIZE];
-    //EWordType wordType;
-    //int c ;
     s_size=0;
     memset(addSymbols,0,sizeof(addSymbols));
     memset(reservedSet,0,sizeof(reservedSet));
@@ -1959,10 +1792,6 @@ void XWRT_Encoder::sortDict(int size){
     if (size>bound4)
     qsort(&inttable[bound4],size-bound4,sizeof(inttable[0]),compare_str);//compare_str
     
-    /*std::string str="";
-    sortedDict.push_back(str); //
-    sortedDict.push_back(str); //
-    sortedDict.push_back(str); //*/
     for (i=0; i<size; i++){
         std::string str=(char*)dict[inttable[i]];
         sortedDict.push_back(str);
