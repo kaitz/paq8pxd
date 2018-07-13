@@ -540,17 +540,17 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V48
-- im24 model changes from paq8px_v146
-- revert to old dmcModel
-- use adaptive mixer for IMAGE24
+DIFFERENCES FROM PAQ8PXD_V49
+-small fixes
+-add back SIMD implemetation of ContextMap byterun
+
 - 
 */
 
-#define PROGNAME "paq8pxd49"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd50"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only
-
+#define SIMD_CM_R       // SIMD ContextMap byterun
 
 #ifdef WINDOWS                       
 #ifdef MT
@@ -919,7 +919,7 @@ FILE* maketmpfile(void) {
 class File {
 public:
   virtual ~File(){};// = default;
-  virtual bool open(const char* filename) = 0;
+  virtual bool open(const char* filename, bool must_succeed) = 0;
   virtual void create(const char* filename) = 0;
   virtual void close() = 0;
   virtual int getc() = 0;
@@ -945,11 +945,11 @@ protected:
 public:
   FileDisk() {file=0;}
    ~FileDisk() {close();}
-  bool open(const char *filename) { 
+  bool open(const char *filename, bool must_succeed) {
     assert(file==0); 
     file = fopen(filename, "rb"); 
     bool success=(file!=0);
-    if(!success)printf("FileDisk: unable to open file (%s)\n", strerror(errno));
+    if(!success && must_succeed)printf("FileDisk: unable to open file (%s)\n", strerror(errno));
     return success; 
   }
   void create(const char *filename) { 
@@ -1018,7 +1018,7 @@ private:
 public:
   FileTmp(): MAX_RAM_FOR_TMP_CONTENT( 16 * 1024 * 1024){content_in_ram=new Array<U8,1>(MAX_RAM_FOR_TMP_CONTENT); filepos=0; filesize=0; file_on_disk = 0;}
   ~FileTmp() {close();}
-  bool open(const char *filename) { assert(true); return false; } //this method is forbidden for temporary files
+  bool open(const char *filename, bool must_succeed) { assert(true); return false; } //this method is forbidden for temporary files
   void create(const char *filename) { assert(true); } //this method is forbidden for temporary files
   void close() {
     forget_content_in_ram();
@@ -1726,6 +1726,7 @@ struct ErrorInfo {
 inline U32 SQR(U32 x) {
   return x*x;
 }
+typedef __m128i XMM;
 #define DEFAULT_LEARNING_RATE 7
 class Mixer {
 private: 
@@ -1781,9 +1782,9 @@ public:
 #elif defined(__SSE2__) || defined(__SSSE3__)
  int dot_product (const short* const t, const short* const w, int n) {
   assert(n == ((n + 15) & -16));
-  __m128i sum = _mm_setzero_si128 ();
+  XMM sum = _mm_setzero_si128 ();
   while ((n -= 8) >= 0) { // Each loop sums eight products
-    __m128i tmp = _mm_madd_epi16 (*(__m128i *) &t[n], *(__m128i *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
+    XMM tmp = _mm_madd_epi16 (*(XMM *) &t[n], *(XMM *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
     tmp = _mm_srai_epi32 (tmp, 8); //                                        (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
     sum = _mm_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
   }
@@ -1800,15 +1801,15 @@ public:
  void train (const short* const t, short* const w, int n, const int e) {
   assert(n == ((n + 15) & -16));
   if (e) {
-    const __m128i one = _mm_set1_epi16 (1);
-    const __m128i err = _mm_set1_epi16 (short(e));
+    const XMM one = _mm_set1_epi16 (1);
+    const XMM err = _mm_set1_epi16 (short(e));
     while ((n -= 8) >= 0) { // Each iteration adjusts eight weights
-      __m128i tmp = _mm_adds_epi16 (*(__m128i *) &t[n], *(__m128i *) &t[n]); // t[n] * 2
+      XMM tmp = _mm_adds_epi16 (*(XMM *) &t[n], *(XMM *) &t[n]); // t[n] * 2
       tmp = _mm_mulhi_epi16 (tmp, err); //                                     (t[n] * 2 * err) >> 16
       tmp = _mm_adds_epi16 (tmp, one); //                                     ((t[n] * 2 * err) >> 16) + 1
       tmp = _mm_srai_epi16 (tmp, 1); //                                      (((t[n] * 2 * err) >> 16) + 1) >> 1
-      tmp = _mm_adds_epi16 (tmp, *(__m128i *) &w[n]); //                    ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
-      *(__m128i *) &w[n] = tmp; //                                          save the new eight weights, bounded to +- 32K
+      tmp = _mm_adds_epi16 (tmp, *(XMM *) &w[n]); //                    ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
+      *(XMM *) &w[n] = tmp; //                                          save the new eight weights, bounded to +- 32K
     }
   }
 }
@@ -1928,7 +1929,10 @@ void train(short *t, short *w, int n, int err) {
     assert(nx<N);
     tx[nx++]=x;
   }
-
+  void addXMM(XMM a){
+    _mm_storeu_si128 ((XMM *) &tx[nx],a);
+    nx=nx+8;
+  }
   // Set a context (call S times, sum of ranges <= M)
   void set(int cx, int range) {
     assert(range>=0);
@@ -1940,23 +1944,23 @@ void train(short *t, short *w, int n, int err) {
     base+=range;
   }
   // predict next bit
-  int p() {
+  int p(const int shift0=0, const int shift1=0) {
     while (nx&15) tx[nx++]=0;  // pad
     if (mp) {  // combine outputs
       mp->update2();
       for (int i=0; i<ncxt; ++i) {
           int dp=((dot_product(&tx[0], &wx[cxt[i]*N], nx)));//*7)>>8);
           if(doText==true) dp=(dp*9)>>9;  
-          else             dp=dp>>5;
+          else             dp=dp>>(5+shift0);
           pr[i]=squash(dp);
           mp->add(dp);
       }
      if(doText==false) mp->set(0, 1);
-      return mp->p();
+      return mp->p(shift0, shift1);
     }
     else {  // S=1 context
     if(doText==false)  
-    return pr[0]=squash(dot_product(&tx[0], &wx[0], nx)>>8);
+    return pr[0]=squash(dot_product(&tx[0], &wx[0], nx)>>(8+shift1));
       int z=dot_product(&tx[0], &wx[0], nx);
     base=squash( (z*16) >>13);
     return squash(z>>9);
@@ -2391,24 +2395,28 @@ class ContextMap {
   Array<U8*> cp0;  // First element of 7 element array containing cp[i]
   Array<U32> cxt;  // C whole byte contexts (hashes)
   Array<U8*> runp; // C [0..3] = count, value, unused, unused
+  Array<short, 16>  r0;   //for rle 
+  Array<short, 16>  r1;
+  Array<short, 16>  r0i;
+  Array<short, 16>  rmask; // mask for skiped context
   StateMap *sm;    // C maps of state -> p
   int cn;          // Next context to set by set()
-
   //void update(U32 cx, int c);  // train model that context cx predicts c
   Random rnd;
   int mix1(Mixer& m, int cc, int bp, int c1, int y1);
     // mix() with global context passed as arguments to improve speed.
+    
 public:
   ContextMap(U64 m, int c=1);  // m = memory in bytes, a power of 2, C = c
   ~ContextMap();
   void set(U32 cx, int next=-1);   // set next whole byte context to cx
     // if next is 0 then set order does not matter
   int mix(Mixer& m) {return mix1(m, m.x.c0, m.x.bpos, m.x.buf(1), m.x.y);}
-  int inputs();
+    int inputs();
 };
 
 #if defined(SIMD_GET_SSE) 
-typedef __m128i XMM;  
+
 #define xmmbshl(x,n)  _mm_slli_si128(x,n) // xm <<= 8*n  -- BYTE shift left
 #define xmmbshr(x,n)  _mm_srli_si128(x,n) // xm >>= 8*n  -- BYTE shift right
 #define xmmshl64(x,n) _mm_slli_epi64(x,n) // xm.hi <<= n, xm.lo <<= n
@@ -2520,10 +2528,10 @@ for (int i=pcount; i<7; ++i) {
 #endif
 }
 
-// Construct using m bytes of memory for c contexts
-ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(c), cp0(c),
-    cxt(c), runp(c), cn(0)  {
-  assert(m>=64 && (m&(m-1))==0);  // power of 2?
+// Construct using m bytes of memory for c contexts(c+7)&-8
+ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
+    cxt(C), runp(C), r0(C),r1(C),r0i(C),rmask(C),cn(0) {
+  assert(m>=64 && (m&m-1)==0);  // power of 2?
   assert(sizeof(E)==64);
   sm=new StateMap[C];
   for (int i=0; i<C; ++i) {
@@ -2541,15 +2549,15 @@ ContextMap::~ContextMap() {
 
 // Set the i'th context to cx
 inline void ContextMap::set(U32 cx, int next) {
-  
   int i=cn++;
   i&=next;
   assert(i>=0 && i<C);
-  if (cx==0){ cxt[i]=0;}
+  if (cx==0){ cxt[i]=0; rmask[i]=0;}
   else{
   cx=cx*987654323+i;  // permute (don't hash) cx to spread the distribution
   cx=cx<<16|cx>>16;
   cxt[i]=cx*123456791+i;
+  rmask[i]=-1;
   }
 }
 // Predict to mixer m from bit history state s, using sm to map s to
@@ -2569,14 +2577,16 @@ inline int mix2(Mixer& m, int s, StateMap& sm) {
   m.add((p1&n1)-(p0&n0));
   return s>0;
 }
+
+
 // Update the model with bit y1, and predict next bit to mixer m.
 // Context: cc=c0, bp=bpos, c1=buf(1), y1=y.
 int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
   // Update model with y
   int result=0;
-  for (int i=0; i<cn; ++i) {
-    if(cxt[i]){
 
+  for (int i=0; i<cn; ++i) {
+   if(cxt[i]){
     if (cp[i]) {
       assert(cp[i]>=&t[0].bh[0][0] && cp[i]<=&t[t.size()-1].bh[6][6]);
       assert(((long long)(cp[i])&63)>=15);
@@ -2584,6 +2594,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
       if (ns>=204 && rnd() << ((452-ns)>>3)) ns-=4;  // probabilistic increment
       *cp[i]=ns;
     }
+
     // Update context pointers
     if (m.x.bpos>1 && runp[i][0]==0)
     {
@@ -2591,22 +2602,24 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
     }
     else
     {
+     U16 chksum=cxt[i]>>16;
+     U64 tmask=t.size()-1;
      switch(m.x.bpos)
      {
       case 1: case 3: case 6: cp[i]=cp0[i]+1+(cc&1); break;
       case 4: case 7: cp[i]=cp0[i]+3+(cc&3); break;
-      case 2: case 5: cp0[i]=cp[i]=t[(cxt[i]+cc)&(t.size()-1)].get(cxt[i]>>16); break;
+      case 2: case 5: cp0[i]=cp[i]=t[(cxt[i]+cc)&tmask].get(chksum); break;
       default:
       {
-       cp0[i]=cp[i]=t[(cxt[i]+cc)&(t.size()-1)].get(cxt[i]>>16);
+       cp0[i]=cp[i]=t[(cxt[i]+cc)&tmask].get(chksum);
        // Update pending bit histories for bits 2-7
        if (cp0[i][3]==2) {
          const int c=cp0[i][4]+256;
-         U8 *p=t[(cxt[i]+(c>>6))&(t.size()-1)].get(cxt[i]>>16);
+         U8 *p=t[(cxt[i]+(c>>6))&tmask].get(chksum);
          p[0]=1+((c>>5)&1);
          p[1+((c>>5)&1)]=1+((c>>4)&1);
          p[3+((c>>4)&3)]=1+((c>>3)&1);
-         p=t[(cxt[i]+(c>>3))&(t.size()-1)].get(cxt[i]>>16);
+         p=t[(cxt[i]+(c>>3))&tmask].get(chksum);
          p[0]=1+((c>>2)&1);
          p[1+((c>>2)&1)]=1+((c>>1)&1);
          p[3+((c>>1)&3)]=1+(c&1);
@@ -2625,26 +2638,76 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
       } break;
      }
     }
-    // predict from last byte in context
-    if ((runp[i][1]+256)>>(8-bp)==cc ) {
-      int rc=runp[i][0];  // count*2, +1 if 2 different bytes seen
-      int b=(runp[i][1]>>(7-bp)&1)*2-1;  // predicted bit + for 1, - for 0
-      int c=ilog(rc+1)<<(2+(~rc&1));
-      m.add(b*c);
-    }
-    else
-     m.add(0);
-    
+    // predict from bit context
     int s = 0;
     if (cp[i]) s = *cp[i];
     if (s>0) result++;
     mix2(m, s, sm[i]);
+
+
   }else{
-    for (int i=0; i<inputs(); i++)
+    for (int i=0; i<(inputs()-1); i++)
         m.add(0);     
   }
-  
   }
+    // predict from last byte in context
+     
+     for (int i=0; i<cn; ++i) {
+         U8 a=runp[i][0];
+         U8 b=runp[i][1];
+         r0[i]=a;
+         r1[i]=b;
+         r0i[i]=ilog(a+1);
+     }
+
+#if defined(SIMD_CM_R ) && defined(__SSE2__) 
+    int cnc=(cn/8)*8;
+    for (int i=0; i<(cnc); i=i+8) {
+        XMM  x0=_mm_setzero_si128();
+        XMM  x1=_mm_set1_epi16(1);
+        const int bsh=(8-bp);
+        XMM   b=_mm_load_si128 ((XMM  *) &r1[i]);
+        XMM xcc=_mm_set1_epi16(cc);
+        //(r1[i  ]+256)>>(8-bp)==cc
+        XMM   lasth=_mm_set1_epi16(256);
+        XMM  xr1=_mm_add_epi16 (b, lasth);
+        xr1=_mm_srli_epi16 (xr1, bsh);
+        xr1=_mm_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
+        //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
+        const int bsh1=(7-bp);
+        XMM xb=_mm_srli_epi16 (b, bsh1); //>>(7-bp)
+        xb=_mm_and_si128(xb,x1);         //&1
+        xb=_mm_slli_epi16(xb, 1);        //<<1
+        xb= _mm_sub_epi16(xb,x1);        //-1
+        //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
+        XMM xr0i=_mm_add_epi16 (*(XMM  *) &r0i[i], x0);           //r0i[i]
+        XMM  c=_mm_add_epi16 (*(XMM  *) &r0[i], x0);              //~r0[i]&1
+        XMM xc=_mm_andnot_si128 (c,x1);  
+        XMM r0ia= _mm_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
+        xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
+        xc=_mm_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
+        //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
+        XMM xr=_mm_mullo_epi16(xc,xb); 
+        XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
+        XMM   runm=_mm_load_si128 ((XMM  *) &rmask[i]);
+        xresult=_mm_and_si128(xresult,runm); //mask out skiped context
+        //store result
+        m.addXMM(xresult);
+    }
+    //do remaining 
+    for (int i=cnc; i<cn; ++i) {
+        if (rmask[i] &&( (r1[i  ]+256)>>(8-bp)==cc)) {
+            m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
+        else   m.add(0);
+    }
+#else          
+    for (int i=0; i<cn; ++i) {
+        if (rmask[i] && ((r1[i  ]+256)>>(8-bp)==cc)) {
+            m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
+        else   m.add(0);
+      }
+#endif    
+   
   if (bp==7) cn=0;
   return result;
 }
@@ -5625,19 +5688,23 @@ public:
     cm.set(hash(j++,buf(4)|buf(8)<<8));
     cm.set(hash(j++,buf(1)|buf(3)<<8|buf(5)<<16));
     cm.set(hash(j++,buf(2)|buf(4)<<8|buf(6)<<16));
+    if (x.c4==0){
+        for (int i=0; i<11; ++i) cm.set(0); 
+    }else{
     cm.set(hash(j++,x.c4&0x00f0f0ff));
     cm.set(hash(j++,x.c4&0x00ff00ff));
     cm.set(hash(j++,x.c4&0xff0000ff));
     cm.set(hash(j++,x.c4&0x00f8f8f8));
     cm.set(hash(j++,x.c4&0xf8f8f8f8));
-    cm.set(hash(j++,x.f4&0x00000fff));
-    cm.set(hash(j++,x.f4));
     cm.set(hash(j++,x.c4&0x00e0e0e0));
     cm.set(hash(j++,x.c4&0xe0e0e0e0));
     cm.set(hash(j++,x.c4&0x810000c1));
     cm.set(hash(j++,x.c4&0xC3CCC38C));
     cm.set(hash(j++,x.c4&0x0081CC81));
     cm.set(hash(j++,x.c4&0x00c10081));
+    }
+    cm.set(hash(j++,x.f4&0x00000fff));
+    cm.set(hash(j++,x.f4));
     for (int i=1; i<8; ++i) {
       cm.set(hash(j++,seenbefore|buf(i)<<8)); 
       cm.set(hash(j++,(buf(i+2)<<8)|buf(i+1)));
@@ -5784,7 +5851,6 @@ public:
    
   int inputs() {return inpts*cm.inputs()+nSCMaps+nMaps*2+1;}
   int p(Mixer& m,int info,int val2=0){
-  
   if (!bpos) {
     if (xx.blpos==1  ){
       const int alpha=xx.filetype==IMAGE32?1:xx.filetype==PNG32?1:0;
@@ -6175,9 +6241,9 @@ public:
     m.set(c0+256*(isPNG && abs(R1-128)>8), 256*2);
     m.set((ctx[1]<<2)|(bpos>>1), 1024);
     m.set(hash(LogMeanDiffQt(W,WW,5), LogMeanDiffQt(N,NN,5), LogMeanDiffQt(W,N,5), ilog2(W), color)&0x1FFF, 8192);
-      m.set(hash(ctx[0], column[0]/8)&0x1FFF, 8192);
-      m.set(hash(LogQt(N,5), LogMeanDiffQt(N,NN,3), c0)&0x1FFF, 8192);
-      m.set(hash(LogQt(W,5), LogMeanDiffQt(W,WW,3), c0)&0x1FFF, 8192);
+    m.set(hash(ctx[0], column[0]/8)&0x1FFF, 8192);
+    m.set(hash(LogQt(N,5), LogMeanDiffQt(N,NN,3), c0)&0x1FFF, 8192);
+    m.set(hash(LogQt(W,5), LogMeanDiffQt(W,WW,3), c0)&0x1FFF, 8192);
   }
   else{
     for (int j=0;j<nSCMaps;j++)m.add(0);
@@ -8457,7 +8523,7 @@ int p(Mixer& m,int val1=0,int val2=0){
         Context+256*((Op.ModRM & ModRM_mod)==ModRM_mod),
         Op.Data&((mask|PrefixREX)^(ModRM_mod<<ModRMShift))
       ));
-      
+     
       mask = 0x04|CodeMask;
       cm.set(hash(OpN(Cache, 1)&mask, OpN(Cache, 2)&mask, OpN(Cache, 3)&mask, OpN(Cache, 4)&mask, (Op.Data&mask)|(State<<11)|(Op.BytesRead<<15)));
 
@@ -8480,11 +8546,12 @@ int p(Mixer& m,int val1=0,int val2=0){
         State+16*pState+256*Op.BytesRead,
         ((Op.Flags&fMODE)==fAM)*16 + (Op.REX & REX_w) + (Op.o16)*4 + ((Op.Code & 0xFE)==0xE8)*2 + ((Op.Data & MultiByteOpcode)!=0 && (Op.Code & 0xF0)==0x80)
       ));
+      
     }
   }
-  if (Valid || val1)
+  if (Valid || val1){
     cm.mix(m);
-  else{
+  }else{
       for (int i=0; i<inputs(); ++i)
         m.add(0);
   }
@@ -9203,16 +9270,26 @@ public:
     scm5.set(seenbefore);
     scm6.set(howmany);
     U32 h=x.x4<<6;
+    U32 d=x.c4&0xffff;
+    if (x.c4==0 && x.x4==0){
+        cm.set(0);
+        cm.set(0);
+        cm.set(0);
+        cm.set(0);
+        cm.set(0);
+        cm.set(0);
+    }else{
+    
     cm.set(buf(1)+(h&0xffffff00));
     cm.set(buf(1)+(h&0x00ffff00));
     cm.set(buf(1)+(h&0x0000ff00));
-    U32 d=x.c4&0xffff;
+    
     h<<=6;
     cm.set(d+(h&0xffff0000));
     cm.set(d+(h&0x00ff0000));
     h<<=6, d=x.c4&0xffffff;
     cm.set(d+(h&0xff000000));
-
+}
     for (int i=1; i<5; ++i) { 
       cm.set(seenbefore|buf(i)<<8);
       cm.set((x.buf(i+3)<<8)|buf(i+1));
@@ -10286,7 +10363,7 @@ void PredictorIMG24::update()  {
   m->set(ismatch,256);
   im24bitModel->p(*m,x.finfo);
   
-  int pr0=m->p();
+  int pr0=m->p(0,1);
   pr=a.p1(pr0,pr,7);
 }
 //TEXT predicor class
@@ -14397,7 +14474,7 @@ void DetectStreams(const char* filename, U64 filesize) {
   assert(en.getMode()==COMPRESS);
   assert(filename && filename[0]);
   FileDisk in;
-  in.open(filename);
+  in.open(filename,true);
   printf("Block segmentation:\n");
   char blstr[32]="";
   DetectRecursive(&in, filesize, en, blstr);
@@ -14473,7 +14550,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
   Encoder en(COMPRESS, &tmp,*t);
   // Test if output file exists.  If so, then compare.
   FileDisk f;
-  bool success=f.open(filename);
+  bool success=f.open(filename,true);
   if (success) mode=FCOMPARE,printf("Comparing");
   else {
     // Create file
@@ -14509,7 +14586,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
 int putsize(String& archive, String& s, const char* fname, int base) {
   int result=0;
   FileDisk f;
-  bool success=f.open(fname);
+  bool success=f.open(fname,true);
   if (success) {
     f.setend();
     U64 len=f.curpos();
@@ -14611,7 +14688,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
     int datasegmentpos;
     int datasegmentinfo;
     Filetype datasegmenttype;
-    //U64 scompsize=0;
+    U64 scompsize=0;
                 datasegmentsize=size;
                     U64 total=size;
                     datasegmentpos=0;
@@ -14956,7 +15033,7 @@ int main(int argc, char** argv) {
         // Decompress: open archive for reading and store file names and sizes
         if (mode==DECOMPRESS) {
             archive= new FileDisk();
-            archive->open(archiveName.c_str());
+            archive->open(archiveName.c_str(),true);
             // Check for proper format and get option
             String header;
             int len=strlen(PROGNAME)+1, c, i=0;
