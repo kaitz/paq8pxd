@@ -540,14 +540,16 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V49
--small fixes
--add back SIMD implemetation of ContextMap byterun
-
-- 
+DIFFERENCES FROM PAQ8PXD_V50
+-better detection for NES
+-changes from paq8px_v155
+-Estonian stemmer (minimal), mostly conflicts with French
+-add compiler info for gcc, clang
+-removed dmcModel from jpegModel
+-detect ARM executables, do address translation
 */
 
-#define PROGNAME "paq8pxd50"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd51"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -725,8 +727,9 @@ public:
   void resize(U32 i);  // change size to i
   void pop_back() {if (n>0) --n;}  // decrement size
   void push_back(const T& x);  // increment size, append x
+  Array(const Array&) { assert(false); } 
 private:
-  Array(const Array&);  // no copy or assignment
+  //Array(const Array&);  // no copy or assignment
   Array& operator=(const Array&);
 };
 
@@ -1222,13 +1225,13 @@ U64 MEM(){
 Segment segment; //for file segments type size info(if not -1)
 const int streamc=12;
 File * filestreams[streamc];
-const int datatypecount=38;
-typedef enum {DEFAULT=0,BINTEXT,DBASE, JPEG, HDR,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,
+const int datatypecount=39;
+typedef enum {DEFAULT=0,BINTEXT,DBASE, JPEG, HDR,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85, GIF ,SZDD,MRBR,
               ZLIB,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,PNG24, PNG32,TEXT0PDF,TYPELAST} Filetype;
 typedef enum {INFO=0, STREAM,RECURSIVE} Filetypes;
 const char* typenames[datatypecount]={"default","bintext","dBase", "jpeg", "hdr", "imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
-                                "exe","DECa", "cd", "text","text0","utf-8","nes","base64","base85","gif","SZDD","mrb","zlib","mdf","mszip","eoltxt",
+                                "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","gif","SZDD","mrb","zlib","mdf","mszip","eoltxt",
                                 "","","","tar","PNG8","PNG8G","PNG24","PNG32","TEXT0PDF"};
 static const int typet[TYPELAST][3]={
  // info, stream, recursive
@@ -1247,6 +1250,7 @@ static const int typet[TYPELAST][3]={
   { 1, 6, 0},// AUDIO, 
   { 0, 7, 0},// EXE,
   { 0, 11, 0},// DECA, 
+   { 0, 0, 0},// ARM, 
   { 0,-1, 1},//  CD,
   { 0, 9, 0},// TEXT,  
   { 0, 8, 0},// TEXT0,
@@ -1310,9 +1314,29 @@ public:
     U32 fails, failz, failcount,x5;
     U32 frstchar,spafdo,spaces,spacecount, words,wordcount,wordlen,wordlen1;
     U32 clevel; //level in predictor
+     struct {
+    U8 state:3;
+    U8 lastPunct:5;
+    U8 wordLength:4;
+    U8 boolmask:4;
+    U8 firstLetter;
+    U8 mask;
+  } Text;
+  struct {
+    U32 length;
+    U8 byte;
+  } Match;
+  struct {
+    struct {
+      U8 WW, W, NN, N, Wp1, Np1;
+    } pixels;
+    U8 plane;
+    U8 ctx;
+  } Image;
+  U64 Misses;
 BlockData():y(0), c0(1), c4(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
     b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
-    failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),wordlen(0),wordlen1(0){
+    failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),wordlen(0),wordlen1(0),Text{0},Match{0},Image{0},Misses(0){
         clevel=(U32)level;
         // Set globals according to option
         assert(level<=15);
@@ -1917,17 +1941,28 @@ void train(short *t, short *w, int n, int err) {
           memset(&info[i], 0, sizeof(ErrorInfo));
         }
     }
+    reset();
+  }
+    void reset() {
     nx=base=ncxt=0;
   }
   void update2() {
       if (x.filetype==EXE || x.filetype==IMAGE24 || x.filetype==DECA )update1();
-    else     if(doText==true) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), nx=base=ncxt=0;
+    else     if(doText==true) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), reset();
     else             update();
   }
   // Input x (call up to N times)
   void add(int x) {
     assert(nx<N);
     tx[nx++]=x;
+  }
+  void add32(U32 a){
+     ((U32 *) &tx[nx],a);
+    nx=nx+2;
+  }
+  void add64(U64 a){
+     ((U64 *) &tx[nx],a);
+    nx=nx+4;
   }
   void addXMM(XMM a){
     _mm_storeu_si128 ((XMM *) &tx[nx],a);
@@ -2084,40 +2119,39 @@ StateMap::StateMap(int n): N(n), cxt(0), t(n) {
 
 // An APM maps a probability and a context to a new probability.  Methods:
 //
-// APM a(n) creates with n contexts using 96*n bytes memory.
+// APM a(n) creates with n contexts using 4*STEPS*n bytes memory.
 // a.pp(y, pr, cx, limit) updates and returns a new probability (0..4095)
 //     like with StateMap.  pr (0..4095) is considered part of the context.
-//     The output is computed by interpolating pr into 24 ranges nonlinearly
+//     The output is computed by interpolating pr into STEPS ranges nonlinearly
 //     with smaller ranges near the ends.  The initial output is pr.
 //     y=(0..1) is the last bit.  cx=(0..n-1) is the other context.
 //     limit=(0..1023) defaults to 255.
 
-class APM: public StateMap {
+template <int steps> class APM : public StateMap {
+  static_assert(steps>4, "APM: number of steps must be a positive integer bigger than 4");
 public:
-  APM(int n);
-  int p(int pr, int cx, int y,int limit=255) {
-   // assert(y>>1==0);
+  APM(int n) : StateMap(n*steps) {
+    for (int i=0; i<N; ++i) {
+      int p = ((i%steps*2+1)*4096)/(steps*2)-2048;
+      t[i] = (U32(squash(p))<<20)+6; //initial count: 6
+    }
+  }
+  int p(int pr, int cx, int y,const int limit=0xFF) {
     assert(pr>=0 && pr<4096);
-    assert(cx>=0 && cx<N/24);
-    assert(y==0 || y==1);
+    assert(cx>=0 && cx<N/steps);
     assert(limit>0 && limit<1024);
+    //adapt (update prediction from previous pass)
     update(y,limit);
-    pr=(stretch(pr)+2048)*23;
-    int wt=pr&0xfff;  // interpolation weight of next element
-    cx=cx*24+(pr>>12);
+    //predict
+    pr = (stretch(pr)+2048)*(steps-1);
+    int wt = pr&0xfff;  // interpolation weight (0..4095)
+    cx = cx*steps+(pr>>12);
     assert(cx>=0 && cx<N-1);
-    cxt=cx+(wt>>11);
-    pr=((t[cx]>>13)*(0x1000-wt)+(t[cx+1]>>13)*wt)>>19;
+    cxt = cx+(wt>>11);
+    pr = ((t[cx]>>13)*(4096-wt)+(t[cx+1]>>13)*wt)>>19;
     return pr;
   }
 };
-
-APM::APM(int n): StateMap(n*24) {
-  for (int i=0; i<N; ++i) {
-    int p=((i%24*2+1)*4096)/48-2048;
-    t[i]=(U32(squash(p))<<20)+6;
-  }
-}
 
 
 //////////////////////////// hash //////////////////////////////
@@ -2249,34 +2283,48 @@ public:
 
  
 
-// Context is looked up directly.
-// m: Count of (bit) contexts. m must be a power of 2.
-// c0 (the partial byte) and some of the lower bits of cx are used for context selection.
-// For example with m=65536 (=2^16) c0 (8 bits) and the lowest 8 bits of cx are used thus giving the total of 16 bits.
+/*
+Map for modelling contexts of (nearly-)stationary data.
+The context is looked up directly. For each bit modelled, a 16bit prediction is stored.
+The adaptation rate is controlled by the caller, see mix().
+
+- BitsOfContext: How many bits to use for each context. Higher bits are discarded.
+- BitsPerContext: How many bits [1..8] of input are to be modelled for each context.
+New contexts must be set at those intervals.
+
+Uses 2^(BitsOfContext+BitsPerContext+1) bytes of memory.
+*/
 class SmallStationaryContextMap {
-private:
-  Array<U16> t; // 0..65535 representing p = 0.0 .. 1.0
-  U32 cxt;      // selected bit context
-  U16 *cp;      // pointer to last context (to update in next pass)
-  const int mask;
+  Array<U16> Data;
+  int Context, Mask, bCount, B;
+  U16 *cp;
 public:
-  SmallStationaryContextMap(int m): t(m), cxt(0), mask(m-1) {
-    assert((m&mask)==0); // power of 2?
-    for (U32 i=0; i<t.size(); ++i)
-      t[i]=32768; // p=0.5
-    cp=&t[0];
+  SmallStationaryContextMap(int BitsOfContext, int BitsPerContext = 8) : Data(1ull<<(BitsOfContext+BitsPerContext)), Context(0), Mask(1<<BitsPerContext), bCount(1), B(1) {
+    assert(BitsOfContext<=16);
+    assert(BitsPerContext && BitsPerContext<=8);
+    Reset();
+    cp=&Data[0];
   }
-  void set(U32 cx) {
-    cxt=cx;
+  void set(U32 ctx) {
+    Context = (ctx*Mask)&(Data.size() - Mask);
+    bCount=B=1;
   }
-  void mix(Mixer& m, int rate=7) {
-    //adapt (update prediction from previous pass)
-    *cp += ((m.x.y<<16)-(*cp)+(1<<(rate-1))) >> rate;
-    //predict
-    U32 idx=(cxt*256+m.x.c0)&mask;  //c0: the partial byte
-    assert(idx<t.size());
-    cp=&t[idx];
-    m.add(stretch((*cp)>>4)/2); //?
+  void Reset() {
+    for (U32 i=0; i<Data.size(); ++i)
+      Data[i]=0x7FFF;
+  }
+  void mix(Mixer& m, const int rate = 7, const int Multiplier = 1, const int Divisor = 4) {
+    *cp+=((m.x.y<<16)-(*cp)+(1<<(rate-1)))>>rate;
+    B+=(m.x.y && B>1);
+    cp = &Data[Context+B];
+    int Prediction = (*cp)>>4;
+    m.add((stretch(Prediction)*Multiplier)/Divisor);
+    m.add(((Prediction-2048)*Multiplier)/(Divisor*2));
+    bCount<<=1; B<<=1;
+    if (bCount==Mask) {
+      bCount=1;
+      B=1;
+    }
   }
 };
  
@@ -2300,19 +2348,20 @@ class StationaryMap {
   U32 *cp;
 public:
   StationaryMap(int BitsOfContext, int BitsPerContext = 8, int Rate = 0): Data(1<<(BitsOfContext+BitsPerContext)), Context(0), Mask(1<<BitsPerContext), bCount(1), B(1) {
-    assert(BitsOfContext<16);
+    assert(BitsOfContext<=16);
     assert(BitsPerContext && BitsPerContext<=8);
     Reset(Rate);
     cp=&Data[0];
   }
   void set(U32 ctx) {
     Context = (ctx*Mask)&(Data.size()-Mask);
+    bCount=B=1;
   }
   void Reset( int Rate = 0 ){
     for (U32 i=0; i<Data.size(); ++i)
       Data[i]=(0x7FF<<20)|min(0x3FF,Rate);
   }
-  void mix(Mixer& m, const U16 Limit = 0x3FF) {
+    void mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 0x3FF) {
     U32 Count = min(min(Limit,0x3FF), ((*cp)&0x3FF)+1);
     int Prediction = (*cp)>>10, Error = (m.x.y<<22)-Prediction;
     Error = ((Error/8)*dt[Count])/1024;
@@ -2321,8 +2370,8 @@ public:
     B+=(m.x.y && B>1);
     cp=&Data[Context+B];
     Prediction = (*cp)>>20;
-    m.add(stretch(Prediction)/4);
-    m.add((Prediction-2048)/8);//?
+    m.add((stretch(Prediction)*Multiplier)/Divisor);
+    m.add(((Prediction-2048)*Multiplier)/(Divisor*2));
     bCount<<=1; B<<=1;
     if (bCount==Mask){
       bCount=1;
@@ -2572,7 +2621,7 @@ inline int mix2(Mixer& m, int s, StateMap& sm) {
   p1>>=4;
   int p0=255-p1;
   if (m.x.rm1)  m.add(p1-p0); else m.add(0);
-  m.add(st*(n1-n0));
+  m.add(st*abs(n1-n0));
   m.add((p1&n0)-(p0&n1));
   m.add((p1&n1)-(p0&n0));
   return s>0;
@@ -2606,7 +2655,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
      U64 tmask=t.size()-1;
      switch(m.x.bpos)
      {
-      case 1: case 3: case 6: cp[i]=cp0[i]+1+(cc&1); break;
+      case 1: case 3: case 6: cp[i]=cp0[i]+1+y1/*(cc&1)*/; break;
       case 4: case 7: cp[i]=cp0[i]+3+(cc&3); break;
       case 2: case 5: cp0[i]=cp[i]=t[(cxt[i]+cc)&tmask].get(chksum); break;
       default:
@@ -2646,7 +2695,9 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
 
 
   }else{
-    for (int i=0; i<(inputs()-1); i++)
+    //for (int i=0; i<(inputs()-1); i++)
+     m.add64(0);
+   //  m.add32(0);
         m.add(0);     
   }
   }
@@ -2662,19 +2713,19 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
 
 #if defined(SIMD_CM_R ) && defined(__SSE2__) 
     int cnc=(cn/8)*8;
+    XMM xcc=_mm_set1_epi16(cc);
+    XMM  x0=_mm_setzero_si128();
+    XMM  x1=_mm_set1_epi16(1);
+    XMM  lasth=_mm_set1_epi16(256);
+    const int bsh=(8-bp);
+    const int bsh1=(7-bp);
     for (int i=0; i<(cnc); i=i+8) {
-        XMM  x0=_mm_setzero_si128();
-        XMM  x1=_mm_set1_epi16(1);
-        const int bsh=(8-bp);
         XMM   b=_mm_load_si128 ((XMM  *) &r1[i]);
-        XMM xcc=_mm_set1_epi16(cc);
         //(r1[i  ]+256)>>(8-bp)==cc
-        XMM   lasth=_mm_set1_epi16(256);
         XMM  xr1=_mm_add_epi16 (b, lasth);
         xr1=_mm_srli_epi16 (xr1, bsh);
         xr1=_mm_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
         //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
-        const int bsh1=(7-bp);
         XMM xb=_mm_srli_epi16 (b, bsh1); //>>(7-bp)
         xb=_mm_and_si128(xb,x1);         //&1
         xb=_mm_slli_epi16(xb, 1);        //<<1
@@ -2853,6 +2904,7 @@ public:
     English,
     French,
     German,
+    Estonian,
     Count
   };
   virtual ~Language() {};
@@ -2915,6 +2967,20 @@ public:
     Adjective              = (1<<2),
     Plural                 = (1<<3),
     Female                 = (1<<4)
+  };
+  bool IsAbbreviation(Word *W) { return W->MatchesAny(Abbreviations, NUM_ABBREV); };
+};
+
+
+class Estonian : public Language {
+private:
+  static const int NUM_ABBREV = 3;
+  const char *Abbreviations[NUM_ABBREV]={ "hr","pr","prl" };
+public:
+  enum Flags {
+    Adjective              = (1<<2),
+    Plural                 = (1<<3),
+    PreffixNoun            = (1<<4)|Noun
   };
   bool IsAbbreviation(Word *W) { return W->MatchesAny(Abbreviations, NUM_ABBREV); };
 };
@@ -4181,6 +4247,128 @@ public:
     return res;
   }
 };
+
+
+class EstonianStemmer : public Stemmer {
+private:
+  static const int NUM_VOWELS = 9;
+  const char Vowels[NUM_VOWELS]={'a','e','i','o','u','\xE4','\xF5','\xF6','\xFC'};
+  static const int NUM_COMMON_WORDS = 18;
+  const char *CommonWords[NUM_COMMON_WORDS]={"ja","ta","see","ei","et","kui","ma","mis","aga","oma","nad","ise","nagu","siis","kes","nii","ka","ning"};
+  static const int NUM_SUFFIXES_STEP1 = 38;
+  const char *SuffixesStep1[NUM_SUFFIXES_STEP1]={"d","te","de","e","id","sid","tesse","desse","esse","tes","des","es","test","dest","est","tele","dele","ele",
+  "tel","del","el","telt","delt","elt","teke","deks","eks","teni","deni","eni","tena","dena","ena","teta","deta","tega","dega","ega"}; //plural
+  static const int NUM_SUFFIXES_STEP2 = 16;
+  const char *SuffixesStep2[NUM_SUFFIXES_STEP2]={"t","d","tt","de","tte","sse","s","st","le","l","lt","ks","ni","na","ta","ga"}; //singular
+  static const int NUM_PREFFIXES_STEP1 = 23;
+  const char *PreffixesStep1[NUM_PREFFIXES_STEP1]={"ala","all","ase","eel","ees","era","eri","igi","j\xE4rel","kaas","kald","k\xF5rval","liba","piki","risti","sega",
+  "taga","ulgu","vaeg","vastas","vastu","\xFCla","\xFCli"}; //prefix+noun
+  void ConvertUTF8(Word *W) {
+    for (int i=W->Start; i<W->End; i++) {
+      U8 c = W->Letters[i+1]+((W->Letters[i+1]<0x9F)?0x60:0x40);
+      if (W->Letters[i]==0xC3 && (IsVowel(c))) {
+        W->Letters[i] = c;
+        if (i+1<W->End)
+          memmove(&W->Letters[i+1], &W->Letters[i+2], W->End-i-1);
+        W->End--;
+      }
+    }
+  }
+   inline bool IsConsonant(const char c){
+    return !IsVowel(c);
+  }
+  void MarkVowelsAsConsonants(Word *W) {
+    for (int i=W->Start+1; i<W->End; i++) {
+      U8 c = W->Letters[i];
+      if ((c=='u' || c=='y') && IsVowel(W->Letters[i-1]) && IsVowel(W->Letters[i+1]))
+        W->Letters[i] = toupper(c);
+    }
+  }
+  bool ProcessPrefixes(Word *W){
+      int i=0;
+      for (; i<NUM_PREFFIXES_STEP1; i++) {
+          int plen=strlen(PreffixesStep1[i]);
+           if (W->StartsWith(PreffixesStep1[i]) && 
+           (W->Length()-plen)>2&&
+           !(IsConsonant(W->Letters[plen+1]) &&IsConsonant(W->Letters[plen+2]))){
+               W->Start+=strlen(PreffixesStep1[i]);
+               W->Type|=Estonian::PreffixNoun;
+               return true;
+           }
+      }
+      return false;
+   }
+  bool Step1(Word *W, const U32 R1) {
+    int i = 4;
+    for (; i<NUM_SUFFIXES_STEP1; i++) {
+      if (W->EndsWith(SuffixesStep1[i]) && SuffixInRn(W, R1, SuffixesStep1[i])) {
+        W->End-=U8(strlen(SuffixesStep1[i]));
+        W->Type|=Estonian::Plural;
+        return true;
+      }
+    }
+    return false;
+  }
+  bool Step2(Word *W, const U32 R1) {
+    for (int i=0; i<NUM_SUFFIXES_STEP2; i++) {
+      if (W->EndsWith(SuffixesStep2[i]) && SuffixInRn(W, R1, SuffixesStep2[i])) {
+        W->End-=U8(strlen(SuffixesStep2[i]));
+        
+        return true;
+      }
+    }
+    return false;
+  }
+  
+public:
+  inline bool IsVowel(const char c) final {
+    return CharInArray(c, Vowels, NUM_VOWELS);
+  }
+  inline void Hash(Word *W) final {
+    W->Hash[2] = W->Hash[3] = ~0xcea7be1e;
+    for (int i=W->Start; i<=W->End; i++) {
+      U8 l = W->Letters[i];
+      W->Hash[2]=W->Hash[2]*263*32 + l;
+      if (IsVowel(l))
+        W->Hash[3]=W->Hash[3]*997*16 + l;
+      else if (l>='b' && l<='z')
+        W->Hash[3]=W->Hash[3]*251*32 + (l-97);
+      else
+        W->Hash[3]=W->Hash[3]*11*32 + l;
+    }
+  }
+  bool Stem(Word *W) {
+    ConvertUTF8(W);
+    if (W->Length()<2) {
+      Hash(W);
+      return false;
+    }
+    
+   bool res=ProcessPrefixes(W);
+    U32 R1=GetRegion(W, 0), R2=GetRegion(W, R1);
+    R1 = min(3, R1);
+    res |= Step1(W, R1);
+    res |= Step2(W, R1);
+    for (int i=W->Start; i<=W->End; i++) {
+      switch (W->Letters[i]) {
+        case 0xE4: { W->Letters[i] = 'a'; break; }
+        case 0xF5: { W->Letters[i] = 'o'; break; }
+        case 0xF6: { W->Letters[i] = 'o'; break; }
+        case 0xFC: { W->Letters[i] = 'u'; break; }
+        default: W->Letters[i] = tolower(W->Letters[i]);
+      }
+    }
+    if (!res)
+      res=W->MatchesAny(CommonWords, NUM_COMMON_WORDS);
+    Hash(W);
+    if (res){
+          W->Language = Language::Estonian;
+    }
+
+  return res;
+  }
+};
+
 bool CAlpha2(U32 ins) {
   int function=0;
   int opc=ins >> 26;
@@ -4644,9 +4832,11 @@ public:
     Stemmers[Language::English-1] = new EnglishStemmer();
     Stemmers[Language::French-1] = new FrenchStemmer();
     Stemmers[Language::German-1] = new GermanStemmer();
+    Stemmers[Language::Estonian-1] = new EstonianStemmer();
     Languages[Language::English-1] = new English();
     Languages[Language::French-1] = new French();
     Languages[Language::German-1] = new German();
+    Languages[Language::Estonian-1] = new Estonian();
     cWord = &Words[Lang.Id](0);
     pWord = &Words[Lang.Id](1);
     cSegment = &Segments(0);
@@ -4783,6 +4973,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
           case Language::English: { printf("[Language: English, blpos: %d]\n",mixer.x.blpos); break; };
           case Language::French : { printf("[Language: French, blpos: %d]\n",mixer.x.blpos);  break; };
           case Language::German : { printf("[Language: German,  blpos: %d]\n",mixer.x.blpos); break; };
+          case Language::Estonian : { printf("[Language: Estonian,  blpos: %d]\n",mixer.x.blpos); break; };
         }
       }
     #endif
@@ -4949,6 +5140,15 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
   else
     Info.UTF8Remaining = (leadingBitsSet!=1)?(c!=0xC0 && c!=0xC1 && c<0xF5)?(leadingBitsSet-(leadingBitsSet>0)):-1:0;
   Info.maskPunct = (BytePos[',']>BytePos['.'])|((BytePos[',']>BytePos['!'])<<1)|((BytePos[',']>BytePos['?'])<<2)|((BytePos[',']>BytePos[':'])<<3)|((BytePos[',']>BytePos[';'])<<4);
+   mixer.x.Text.state = State;
+    mixer.x.Text.lastPunct = min(0x1F, Info.lastPunct);
+    mixer.x.Text.wordLength = min(0xF, Info.wordLength[0]);
+    mixer.x.Text.boolmask = (Info.lastDigit<Info.wordLength[0]+Info.wordGap)|
+                          ((Info.lastUpper<Info.lastLetter+Info.wordLength[1])<<1)|
+                          ((Info.lastPunct<Info.wordLength[0]+Info.wordGap)<<2)|
+                          ((Info.lastUpper<Info.wordLength[0])<<3);
+    mixer.x.Text.firstLetter = Info.firstLetter;
+    mixer.x.Text.mask = Info.masks[1]&0xFF;
 }
 
 void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
@@ -5070,65 +5270,131 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
 
 //////////////////////////// matchModel ///////////////////////////
 
-// matchModel() finds the longest matching context and returns its length
 class matchModel1: public Model {
+private:
     BlockData& x;
-    Buf& buf;
-    const int MAXLEN;  // longest allowed match + 1
-    Array<int> t;  // hash table of pointers to contexts
-    int h;  // hash of last 7 bytes
-    U32 ptr;  // points to next byte of match if any
-    int len;  // length of match, or 0 if no match
-    int result;
-    int ilen;
-    int mlen;
-    int match;
-    SmallStationaryContextMap scm1;
-public:
-    matchModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),  MAXLEN(65534), 
-    t(CMlimit(MEM())),h(0), ptr(0),len(0),result(0), ilen(0),mlen(0),match(0),scm1(0x10000) {
+    Buf& buffer;
+    const int Size;
+  enum Parameters : U32{
+    MaxLen = 0xFFFF,        // longest allowed match when not in bypass mode
+    MinLen = 2,         // minimum required match
+    DeltaLen = 5,       // minimum length to switch to delta mode
+    MaxBypass = 0xFFFF, // absolute longest allowed match
+    NumCtxs = 5,        // number of contexts used
+    NumHashes = 2       // number of hashes used
+  };
+  Array<U32> Table;
+  StateMap StateMaps[NumCtxs];
+  SmallStationaryContextMap SCM[2];
+  StationaryMap Map;
+  U32 hashes[NumHashes];
+  U32 ctx[NumCtxs];
+  U32 length;    // length of match, or 0 if no match
+  U32 index;     // points to next byte of match, if any
+  U32 mask;
+  bool delta;
+  bool canBypass;
+  void Update() {
+    delta = false;
+    if (length==0 && Bypass)
+      Bypass = false; // can only quit bypass mode on byte boundary
+    // update hashes
+    hashes[0] = (hashes[0]*(3<<3) + buffer(1))&mask;
+    hashes[1] = (hashes[1]*(5<<5) + buffer(1))&mask;
+    // extend current match, if available
+    if (length) {
+      index++;
+      if (length<MaxLen)
+        length++;
     }
-    int inputs() {return 2+1;}
-    int p(Mixer& m,int val1=0,int val2=0)  {
-        if (match!=m.x.y) len=0; 
-        if (!x.bpos) {
-            h=(h*997*8+buf(1)+1)&(t.size()-1);  // update context hash
-            if (len) len+=len<MAXLEN, ++ptr;
-            else {  // find match
-                ptr=t[h];
-                if (ptr && buf.pos-ptr<buf.size())
-                while (buf(len+1)==buf[ptr-len-1] && len<MAXLEN) ++len;
-            }
-            t[h]=buf.pos;  // update hash table
-            result=ilog(len);
-            //    if (result>0 && !(result&0xfff)) printf("pos=%d len=%d ptr=%d\n", pos, len, ptr);
-            scm1.set(buf.pos);
-             ilen=ilog(result)<<2;
-            mlen=min(len, 32)<<6;
+    // or find a new match
+    else {
+      for (U32 i=0; i<NumHashes && length<MinLen; i++){
+        index = Table[hashes[i]];
+        if (index && index!=(U32)buffer.pos && (U64)buffer.pos<(index+buffer.size())) {
+          while (length<MaxLen && (index-length-1)!=(U32)buffer.pos && buffer(length+1)==buffer[index-length-1])
+            length++;
         }
-
-        // predict
-        if (len) {
-            match=(buf[ptr]>>(7-x.bpos))&1;
-                 if (match) { //1
-                    m.add(ilen);
-                    m.add(mlen);
-                }
-                else {
-                    m.add(-(ilen));
-                    m.add(-(mlen));
-                }
-            }
-            else {
-                //len=0;
-                m.add(0);
-                m.add(0);
-            }
-        
-        scm1.mix(m);
-        return result;
+      }
     }
-   virtual ~matchModel1(){ }
+    for (U32 i=0; i<NumHashes; i++)
+      Table[hashes[i]] = buffer.pos;
+    SCM[0].set(buffer[index]);
+    SCM[1].set(buffer.pos);
+    Map.set((buffer[index]<<8)|buffer(1));
+    x.Match.byte = (length)?buffer[index]:0;
+  }
+public:
+  bool Bypass;
+  U16 BypassPrediction; // prediction for bypass mode
+  virtual ~matchModel1(){ }
+  int inputs() {return  2+NumCtxs+2+2;}
+  matchModel1(BlockData& bd, U32 val1=0) :
+    x(bd),buffer(bd.buf),Size( CMlimit(MEM()*4)),
+    Table(Size/sizeof(U32)),
+    StateMaps{ 56<<8, 0x80800, 0x10100, 0x10100, 0x10100 },
+    SCM{ {8,8},{8,8} },
+    Map{ 16 },
+    hashes{ 0 },
+    ctx{ 0 },
+    length(0),
+    mask((Size-1)/sizeof(U32)),
+    delta(false),
+    canBypass(true),
+    Bypass(false),
+    BypassPrediction(2047)
+  {
+    assert((Size&(Size-1))==0);
+  }
+  int p(Mixer& mixer,int val1=0,int val2=0) {
+    if (x.bpos==0)
+      Update();
+    int bit = (buffer[index]>>(7-x.bpos))&1;
+    if (canBypass && Bypass) {
+      if (length>0 && ((buffer[index]+256)>>(8-x.bpos))!=x.c0)
+        length = 0;
+    }
+    else {
+      ctx[0] = ctx[1] = ctx[2] = ctx[3] = ctx[4] = x.c0;
+      ctx[2]+= (buffer(1)+1)<<8;
+      if (!delta) {
+        if (length) {
+          if (buffer(1)==buffer[index-1] && x.c0==((buffer[index] + 256)>>(8-x.bpos))) { // bits match?
+            if (length<16)
+              ctx[0] = length*2 + bit;
+            else
+              ctx[0] = (min(length, 63)>>2)*2 + bit + 24;
+            ctx[0] = (ctx[0]<<8) + buffer(1);
+            ctx[1] = ((buffer[index]+1)<<11)|(x.bpos<<8)|buffer(1);
+            mixer.add((min(length, 32)<<5)*(2*bit-1));
+            mixer.add((ilog(length)<<2)*(2*bit-1));
+          }
+          else // we have a mismatch
+          {
+            delta = length>DeltaLen;
+            length = 0;
+            mixer.add32(0);
+          }
+        }
+        else{        
+          mixer.add32(0);
+        }
+      }
+      else { //delta mode
+        ctx[3] = ctx[2];
+        ctx[4]+= (buffer[index]+1)<<8;
+        mixer.add32(0);
+      }
+      for (U32 i=0; i<NumCtxs; i++)
+        mixer.add(stretch(StateMaps[i].p(ctx[i],x.y))/2);
+      SCM[0].mix(mixer, 7, 1, 4);
+      SCM[1].mix(mixer, 5);
+      Map.mix(mixer, 1, 4, 0xFF);
+    }
+    BypassPrediction = (length)?bit*0xFFF:0x7FF;
+    x.Match.length = length;
+    return length;
+  }
 };
 //////////////////////////// wordModel /////////////////////////
 #define bswap(x) \
@@ -5390,7 +5656,7 @@ public:
         }
         mask = (mask<<3)|fl;
         if (x.filetype!=DEFAULT  ) { 
-            cm.set(hash(528,mask,0)); 
+            cm.set(mask); 
             cm.set(hash(529,mask,buf(1))); 
             cm.set(hash(530,mask&0xff,x.col)); 
             cm.set(hash(531,mask,buf(2),buf(3))); 
@@ -5405,7 +5671,7 @@ public:
              (lastUpper < x.wordlen + x.wordlen1 + wordGap)
              ),type0&0xFFF);
         } else {
-            cm.set(hash(528,mask,0)); 
+            cm.set(mask); 
             cm.set(hash(529,mask,buf(1)));
             cm.set(0);cm.set(0);cm.set(0);cm.set(0);
         }
@@ -5597,7 +5863,9 @@ public:
   cp.mix(m);
   
   if(x.filetype==AUDIO ||x.filetype==EXE || x.filetype==BINTEXT || x.filetype==DECA){
-      for (int i=0;i<4;i++)m.add(0);
+      //for (int i=0;i<4;i++)
+      m.add64(0);
+     // m.add32(0);
       m.set(0, 512 );
   }
   else{
@@ -5786,28 +6054,12 @@ inline U8 Paeth(U8 W, U8 N, U8 NW){
 }
 //////////////////////////// im24bitModel /////////////////////////////////
 // Model for 24-bit image data
-const int imBcxt[94]  = {12, 12, 12, 12, 12, 12, 12, 12, 12, 10,
-                         10, 10, 10,  8,  8,  8,  8,  8,  8,  8,
-                          8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
-                          8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
-                          8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
-                          8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
-                          8,  8,  8,  8,  8,  8,  8,  2,  8,  8,
-                          8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
-                          8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
-                          8,  8,  8,  0};
-#define  SCM 0x10000
-#define nSCMaps  60+3
-const int imSCMap[nSCMaps] = { SCM, SCM, SCM, SCM, SCM, SCM, SCM, SCM,
-                               SCM, SCM, SCM, SCM, SCM, SCM, SCM, SCM,
-                               SCM, SCM, SCM, SCM, SCM, SCM, SCM, SCM,
-                               SCM, SCM, SCM, SCM, SCM, SCM, SCM, SCM,
-                               SCM, SCM, SCM, SCM, SCM, SCM, SCM, SCM,
-                               SCM, SCM, SCM, SCM, SCM, SCM, SCM, SCM,
-                               SCM, SCM, SCM, SCM, SCM, SCM, SCM, SCM,
-                               SCM, SCM, SCM, SCM, SCM, SCM, 256};
+
+#define NMAPS 94
+#define nSCMaps 59
 
 class im24bitModel1: public Model {
+
  int inpts;
  ContextMap cm;
  int col, color,stride;
@@ -5825,31 +6077,41 @@ class im24bitModel1: public Model {
  U32& c4;
  int& c0;
  int& bpos;
- const int nMaps;
- Array<StationaryMap*> Map;
  int lastWasPNG;
  U8 WWp1, Wp1, p1, NWp1, Np1, NEp1, NNp1 ;
  U8 WWp2, Wp2, p2, NWp2, Np2, NEp2, NNp2;
  U32 lastw,lastpos,curpos;
- Array<SmallStationaryContextMap*> SCMap;
+    SmallStationaryContextMap SCMap[nSCMaps] = { {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4},
+                                                      {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4},
+                                                      {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4},
+                                                      {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4},
+                                                      {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4},
+                                                      {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4},
+                                                      {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4}, {9,4},
+                                                      {9,4}, {9,4}, {0,8}};
+    StationaryMap Map[NMAPS] ={      8,      8,      8,      2,      0, {13,4}, {13,4}, {13,4}, {13,4}, {13,4},
+                                     {15,4}, {15,4}, {15,4}, {15,4}, {11,4}, {11,4}, {11,4}, {11,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4}, { 9,4},
+                                     { 9,4}, { 9,4}, { 9,4}, { 9,4}};
 public:
-  im24bitModel1(BlockData& bd): inpts(47+1),cm(CMlimit(MEM()*4), inpts), col(0) ,color(-1),stride(3), padding(0), x(0),xx(bd),
+  im24bitModel1(BlockData& bd): inpts(47),cm(CMlimit(MEM()*4), inpts), col(0) ,color(-1),stride(3), padding(0), x(0),xx(bd),
    buf(bd.buf), buffer(0x100000),WWW(0), WW(0), W(0),NWW(0),NW(0) ,N(0), NE(0), NEE(0), NNWW(0), NNW(0),
    NN(0), NNE(0), NNEE(0), NNN(0), px(0),filter(0),  w(0), line(0), isPNG(0),R1(0), R2(0),filterOn(false),
-   c4(bd.c4),c0(bd.c0),bpos(bd.bpos),nMaps(94),Map(nMaps),lastWasPNG(0), WWp1(0), Wp1(0), p1(0), NWp1(0),
-   Np1(0), NEp1(0), NNp1(0),p2(0),lastw(0),lastpos(0),curpos(0),SCMap(nSCMaps) {
-    for(int i=0;i<nMaps;i++)  {
-        Map[i] =new StationaryMap(imBcxt[i]);
-    }
-    for(int i=0;i<nSCMaps;i++)  {
-        SCMap[i] =new SmallStationaryContextMap(imSCMap[i]);
-    }
+   c4(bd.c4),c0(bd.c0),bpos(bd.bpos),lastWasPNG(0), WWp1(0), Wp1(0), p1(0), NWp1(0),
+   Np1(0), NEp1(0), NNp1(0),p2(0),lastw(0),lastpos(0),curpos(0){
+  
     columns[0] = 1, columns[1]=1;
     column[0]=0,column[1]=0;
     ctx[0]=0,ctx[1]=0;
     }
    
-  int inputs() {return inpts*cm.inputs()+nSCMaps+nMaps*2+1;}
+  int inputs() {return inpts*cm.inputs()+nSCMaps*2+NMAPS*2+1;}
   int p(Mixer& m,int info,int val2=0){
   if (!bpos) {
     if (xx.blpos==1  ){
@@ -5868,8 +6130,8 @@ public:
       columns[0] = max(1,w/max(1,ilog2(w)*3));
       columns[1] = max(1,columns[0]/max(1,ilog2(columns[0])));
       if ( lastWasPNG!=isPNG){
-        for (int i=0;i<nMaps;i++)
-          Map[i]->Reset();
+        for (int i=0;i<NMAPS;i++)
+          Map[i].Reset();
       }
       lastWasPNG = isPNG;
       buffer.Fill(0x7F);
@@ -5986,8 +6248,6 @@ public:
         cm.set(hash(++i, N+p1-Np1));
         cm.set(hash(++i, buf(w*3-stride), buf(w*3-stride*2)));
         cm.set(hash(++i, buf(w*3+stride), buf(w*3+stride*2)));
-        //previous image
-        if (lastw==w)cm.set(hash(++i, buf(buf.pos-lastpos+w*3)/2,p1/2,W/4 )); else         cm.set(0);
 
         cm.set(hash(++i, mean, logvar>>4));
 
@@ -6043,192 +6303,196 @@ public:
         cm.set(hash(++i, buf(1+(x<2)), px));
         cm.set(hash(i>>8, buf(w+1), buf((w+1)*2), buf((w+1)*3), px));                                                       
         cm.set(~0x5ca1ab1e);
-        for (int j=0;j<8;j++)cm.set(0);
+        for (int j=0;j<9;j++)cm.set(0);
 
         ctx[0] = (min(color,stride-1)<<9)|((abs(W-N)>3)<<8)|((W>N)<<7)|((W>NW)<<6)|((abs(N-NW)>3)<<5)|((N>NW)<<4)|((N>NE)<<3)|min(5, filterOn?filter+1:0);
         ctx[1] = ((LogMeanDiffQt(p1,Clip(Np1+NEp1-buffer(w*2-stride+1)))>>1)<<5)|((LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))>>1)<<2)|min(color,stride-1);
       }
-      i=0;
-      Map[i++]->set(((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<8));
-      Map[i++]->set(((U8)(Clip(N*2-NN)-px))|(LogMeanDiffQt(W,Clip(NW*2-NNW))<<8));
-      Map[i++]->set(((U8)(Clip(W*2-WW)-px))|(LogMeanDiffQt(N,Clip(NW*2-NWW))<<8));
-      Map[i++]->set(((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(p1,Clip(Wp1+Np1-NWp1))<<8));
-      Map[i++]->set(((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(p2,Clip(Wp2+Np2-NWp2))<<8));
-      Map[i++]->set(hash(W,N));
-      Map[i++]->set(hash(W,WW));
-      Map[i++]->set(hash(N,NN));
-      Map[i++]->set(hash(Clip(N+NE-NNE), Clip(N+NW-NNW)));
-      Map[i++]->set((min(color,stride-1)<<8)|((U8)( Clip(N+p1-Np1)-px )));
-      Map[i++]->set((min(color,stride-1)<<8)|((U8)( Clip(N+p2-Np2)-px )));
-      Map[i++]->set((min(color,stride-1)<<8)|((U8)( Clip(W+p1-Wp1)-px )));
-      Map[i++]->set((min(color,stride-1)<<8)|((U8)( Clip(W+p2-Wp2)-px )));
-      Map[i++]->set(Clamp4(N+p1-Np1,W,NW,N,NE)-px);
-      Map[i++]->set(Clamp4(N+p2-Np2,W,NW,N,NE)-px);
-
-      Map[i++]->set((W+Clamp4(NE*3-NNE*3+buffer(w*3-stride),W,N,NE,NEE))/2-px);
-      Map[i++]->set(Clamp4((W+Clip(NE*2-NNE))/2,W,NW,N,NE)-px);
-      Map[i++]->set((W+NEE)/2-px);
-      Map[i++]->set(Clip((WWW-4*WW+6*W+Clip(NE*4-NNE*6+buffer(w*3-stride)*4-buffer(w*4-stride)))/4)-px);
-      Map[i++]->set(Clip((-buffer(4*stride)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buffer(w*3-stride)*4-buffer(w*4-stride),N,NE,buffer(w-2*stride),buffer(w-3*stride)))/5)-px);
-      Map[i++]->set(Clip((-4*WW+15*W+10*Clip(NE*3-NNE*3+buffer(w*3-stride))-Clip(buffer(w-3*stride)*3-buffer(w*2-3*stride)*3+buffer(w*3-3*stride)))/20)-px);
-      Map[i++]->set(Clip((-3*WW+8*W+Clamp4(NEE*3-NNEE*3+buffer(w*3-stride*2),NE,NEE,buffer(w-3*stride),buffer(w-4*stride)))/6)-px);
-      Map[i++]->set(Clip((W+Clip(NE*2-NNE))/2+p1-(Wp1+Clip(NEp1*2-buffer(w*2-stride+1)))/2)-px);
-      Map[i++]->set(Clip((W+Clip(NE*2-NNE))/2+p2-(Wp2+Clip(NEp2*2-buffer(w*2-stride+2)))/2)-px);
-      Map[i++]->set(Clip((-3*WW+8*W+Clip(NEE*2-NNEE))/6 +p1-(-3*WWp1+8*Wp1+Clip(buffer(w-stride*2+1)*2-buffer(w*2-stride*2+1)))/6)-px);
-      Map[i++]->set(Clip((-3*WW+8*W+Clip(NEE*2-NNEE))/6 +p2-(-3*WWp2+8*Wp2+Clip(buffer(w-stride*2+2)*2-buffer(w*2-stride*2+2)))/6)-px);
-      Map[i++]->set(Clip((W+NEE)/2+p1-(Wp1+buffer(w-stride*2+1))/2)-px);
-      Map[i++]->set(Clip((W+NEE)/2+p2-(Wp2+buffer(w-stride*2+2))/2)-px);
-      Map[i++]->set(Clip((WW+Clip(NEE*2-NNEE))/2+p1-(WWp1+Clip(buffer(w-stride*2+1)*2-buffer(w*2-stride*2+1)))/2)-px);
-      Map[i++]->set(Clip((WW+Clip(NEE*2-NNEE))/2+p2-(WWp2+Clip(buffer(w-stride*2+2)*2-buffer(w*2-stride*2+2)))/2)-px);
-      Map[i++]->set(Clip(WW+NEE-N+p1-Clip(WWp1+buffer(w-stride*2+1)-Np1))-px);
-      Map[i++]->set(Clip(WW+NEE-N+p2-Clip(WWp2+buffer(w-stride*2+2)-Np2))-px);
-
-      Map[i++]->set(Clip(W+N-NW)-px);
-      Map[i++]->set(Clip(W+N-NW+p1-Clip(Wp1+Np1-NWp1))-px);
-      Map[i++]->set(Clip(W+N-NW+p2-Clip(Wp2+Np2-NWp2))-px);
-      Map[i++]->set(Clip(W+NE-N)-px);
-      Map[i++]->set(Clip(N+NW-NNW)-px);
-      Map[i++]->set(Clip(N+NW-NNW+p1-Clip(Np1+NWp1-buffer(w*2+stride+1)))-px);
-      Map[i++]->set(Clip(N+NW-NNW+p2-Clip(Np2+NWp2-buffer(w*2+stride+2)))-px);
-      Map[i++]->set(Clip(N+NE-NNE)-px);
-      Map[i++]->set(Clip(N+NE-NNE+p1-Clip(Np1+NEp1-buffer(w*2-stride+1)))-px);
-      Map[i++]->set(Clip(N+NE-NNE+p2-Clip(Np2+NEp2-buffer(w*2-stride+2)))-px);
-      Map[i++]->set(Clip(N+NN-NNN));
-      Map[i++]->set(Clip(N+NN-NNN+p1-Clip(Np1+NNp1-buffer(w*3+1)))-px);
-      Map[i++]->set(Clip(N+NN-NNN+p2-Clip(Np2+NNp2-buffer(w*3+2)))-px);
-      Map[i++]->set(Clip(W+WW-WWW));
-      Map[i++]->set(Clip(W+WW-WWW+p1-Clip(Wp1+WWp1-buffer(stride*3+1)))-px);
-      Map[i++]->set(Clip(W+WW-WWW+p2-Clip(Wp2+WWp2-buffer(stride*3+2)))-px);
-      Map[i++]->set(Clip(W+NEE-NE));
-      Map[i++]->set(Clip(W+NEE-NE+p1-Clip(Wp1+buffer(w-stride*2+1)-NEp1))-px);
-      Map[i++]->set(Clip(W+NEE-NE+p2-Clip(Wp2+buffer(w-stride*2+2)-NEp2))-px);
-      Map[i++]->set(Clip(NN+p1-NNp1)-px);
-      Map[i++]->set(Clip(NN+p2-NNp2)-px);
-      Map[i++]->set(Clip(NN+W-NNW));
-      Map[i++]->set(Clip(NN+W-NNW+p1-Clip(NNp1+Wp1-buffer(w*2+stride+1)))-px);
-      Map[i++]->set(Clip(NN+W-NNW+p2-Clip(NNp2+Wp2-buffer(w*2+stride+2)))-px);
-      Map[i++]->set(Clip(NN+NW-buffer(w*3+stride)));
-      Map[i++]->set(Clip(NN+NW-buffer(w*3+stride)+p1-Clip(NNp1+NWp1-buffer(w*3+stride+1)))-px);
-      Map[i++]->set(Clip(NN+NW-buffer(w*3+stride)+p2-Clip(NNp2+NWp2-buffer(w*3+stride+2)))-px);
-      Map[i++]->set(Clip(NN+NE-buffer(w*3-stride)));
-      Map[i++]->set(Clip(NN+NE-buffer(w*3-stride)+p1-Clip(NNp1+NEp1-buffer(w*3-stride+1)))-px);
-      Map[i++]->set(Clip(NN+NE-buffer(w*3-stride)+p2-Clip(NNp2+NEp2-buffer(w*3-stride+2)))-px);
-      Map[i++]->set(Clip(NN+buffer(w*4)-buffer(w*6)));
-      Map[i++]->set(Clip(NN+buffer(w*4)-buffer(w*6)+p1-Clip(NNp1+buffer(w*4+1)-buffer(w*6+1)))-px);
-      Map[i++]->set(Clip(NN+buffer(w*4)-buffer(w*6)+p2-Clip(NNp2+buffer(w*4+2)-buffer(w*6+2)))-px);
-      Map[i++]->set(Clip(WW+p1-WWp1)-px);
-      Map[i++]->set(Clip(WW+p2-WWp2)-px);
-      Map[i++]->set(Clip(WW+buffer(stride*4)-buffer(stride*6)));
-      Map[i++]->set(Clip(WW+buffer(stride*4)-buffer(stride*6)+p1-Clip(WWp1+buffer(stride*4+1)-buffer(stride*6+1)))-px);
-      Map[i++]->set(Clip(WW+buffer(stride*4)-buffer(stride*6)+p2-Clip(WWp2+buffer(stride*4+2)-buffer(stride*6+2)))-px);
-
-      Map[i++]->set(Clip(N*2-NN+p1-Clip(Np1*2-NNp1))-px);
-      Map[i++]->set(Clip(N*2-NN+p2-Clip(Np2*2-NNp2))-px);
-      Map[i++]->set(Clip(W*2-WW+p1-Clip(Wp1*2-WWp1))-px);
-      Map[i++]->set(Clip(W*2-WW+p2-Clip(Wp2*2-WWp2))-px);
-      Map[i++]->set(Clip(N*3-NN*3+NNN)-px);
-      Map[i++]->set(Clamp4(N*3-NN*3+NNN,W,NW,N,NE)-px);
-      Map[i++]->set(Clamp4(W*3-WW*3+WWW,W,NW,N,NE)-px);
-      Map[i++]->set(Clamp4(N*2-NN,W,NW,N,NE)-px);
-      Map[i++]->set(Clip((buffer(w*5)-6*buffer(w*4)+15*NNN-20*NN+15*N+Clamp4(W*4-NWW*6+buffer(w*2+3*stride)*4-buffer(w*3+4*stride),W,NW,N,NN))/6)-px);
-      Map[i++]->set(Clip((buffer(w*3-3*stride)-4*NNEE+6*NE+Clip(W*4-NW*6+NNW*4-buffer(w*3+stride)))/4)-px);
-
-      Map[i++]->set(Clip(((N+3*NW)/4)*3-((NNW+NNWW)/2)*3+(buffer(w*3+2*stride)*3+buffer(w*3+3*stride))/4)-px);
-      Map[i++]->set(Clip((W*2+NW)-(WW+2*NWW)+buffer(w+3*stride))-px);
-      Map[i++]->set((Clip(W*2-NW)+Clip(W*2-NWW)+N+NE)/4-px);
-
-      Map[i++]->set(buffer(w*6)-px);
-      Map[i++]->set((buffer(w-4*stride)+buffer(w-6*stride))/2-px);
-      Map[i++]->set((buffer(stride*6)+buffer(stride*4))/2-px);
-      Map[i++]->set(buf(1+(isPNG && x<2)));
-      Map[i++]->set(((W+N)*3-NW*2)/4-px);
-      Map[i++]->set(N-px);
-      Map[i++]->set(NN-px);
-      Map[i++]->set((W&0xC0)|((N&0xC0)>>2)|((WW&0xC0)>>4)|(NN>>6));
-      Map[i++]->set((N&0xC0)|((NN&0xC0)>>2)|((NE&0xC0)>>4)|(NEE>>6));
-      Map[i++]->set(min(color,stride-1));
-
-      i=0;
-      SCMap[i++]->set(N+p1-Np1);
-      SCMap[i++]->set(N+p2-Np2);
-      SCMap[i++]->set(W+p1-Wp1);
-      SCMap[i++]->set(W+p2-Wp2);
-      SCMap[i++]->set(NW+p1-NWp1);
-      SCMap[i++]->set(NW+p2-NWp2);
-      SCMap[i++]->set(NE+p1-NEp1);
-      SCMap[i++]->set(NE+p2-NEp2);
-      SCMap[i++]->set(NN+p1-NNp1);
-      SCMap[i++]->set(NN+p2-NNp2);
-      SCMap[i++]->set(WW+p1-WWp1);
-      SCMap[i++]->set(WW+p2-WWp2);
-      SCMap[i++]->set(W+N-NW);
-      SCMap[i++]->set(W+N-NW+p1-Wp1-Np1+NWp1);
-      SCMap[i++]->set(W+N-NW+p2-Wp2-Np2+NWp2);
-      SCMap[i++]->set(W+NE-N);
-      SCMap[i++]->set(W+NE-N+p1-Wp1-NEp1+Np1);
-      SCMap[i++]->set(W+NE-N+p2-Wp2-NEp2+Np2);
-      SCMap[i++]->set(W+NEE-NE);
-      SCMap[i++]->set(W+NEE-NE+p1-Wp1-buffer(w-stride*2+1)+NEp1);
-      SCMap[i++]->set(W+NEE-NE+p2-Wp2-buffer(w-stride*2+2)+NEp2);
-      SCMap[i++]->set(N+NN-NNN);
-      SCMap[i++]->set(N+NN-NNN+p1-Np1-NNp1+buffer(w*3+1));
-      SCMap[i++]->set(N+NN-NNN+p2-Np2-NNp2+buffer(w*3+2));
-      SCMap[i++]->set(N+NE-NNE);
-      SCMap[i++]->set(N+NE-NNE+p1-Np1-NEp1+buffer(w*2-stride+1));
-      SCMap[i++]->set(N+NE-NNE+p2-Np2-NEp2+buffer(w*2-stride+2));
-      SCMap[i++]->set(N+NW-NNW);
-      SCMap[i++]->set(N+NW-NNW+p1-Np1-NWp1+buffer(w*2+stride+1));
-      SCMap[i++]->set(N+NW-NNW+p2-Np2-NWp2+buffer(w*2+stride+2));
-      SCMap[i++]->set(NE+NW-NN);
-      SCMap[i++]->set(NE+NW-NN+p1-NEp1-NWp1+NNp1);
-      SCMap[i++]->set(NE+NW-NN+p2-NEp2-NWp2+NNp2);
-      SCMap[i++]->set(NW+W-NWW);
-      SCMap[i++]->set(NW+W-NWW+p1-NWp1-Wp1+buffer(w+stride*2+1));
-      SCMap[i++]->set(NW+W-NWW+p2-NWp2-Wp2+buffer(w+stride*2+2));
-      SCMap[i++]->set(W*2-WW);
-      SCMap[i++]->set(W*2-WW+p1-Wp1*2+WWp1);
-      SCMap[i++]->set(W*2-WW+p2-Wp2*2+WWp2);
-      SCMap[i++]->set(N*2-NN);
-      SCMap[i++]->set(N*2-NN+p1-Np1*2+NNp1);
-      SCMap[i++]->set(N*2-NN+p2-Np2*2+NNp2);
-      SCMap[i++]->set(NW*2-NNWW);
-      SCMap[i++]->set(NW*2-NNWW+p1-NWp1*2+buffer(w*2+stride*2+1));
-      SCMap[i++]->set(NW*2-NNWW+p2-NWp2*2+buffer(w*2+stride*2+2));
-      SCMap[i++]->set(NE*2-NNEE);
-      SCMap[i++]->set(NE*2-NNEE+p1-NEp1*2+buffer(w*2-stride*2+1));
-      SCMap[i++]->set(NE*2-NNEE+p2-NEp2*2+buffer(w*2-stride*2+2));
-      SCMap[i++]->set(N*3-NN*3+NNN+p1-Np1*3+NNp1*3-buffer(w*3+1));
-      SCMap[i++]->set(N*3-NN*3+NNN+p2-Np2*3+NNp2*3-buffer(w*3+2));
-      SCMap[i++]->set(N*3-NN*3+NNN);
-      SCMap[i++]->set((W+NE*2-NNE)/2);
-      SCMap[i++]->set((W+NE*3-NNE*3+buffer(w*3-stride))/2);
-      SCMap[i++]->set((W+NE*2-NNE)/2+p1-(Wp1+NEp1*2-buffer(w*2-stride+1))/2);
-      SCMap[i++]->set((W+NE*2-NNE)/2+p2-(Wp2+NEp2*2-buffer(w*2-stride+2))/2);
-      SCMap[i++]->set(NNE+NE-buffer(w*3-stride));
-      SCMap[i++]->set(NNE+W-NN);
-      SCMap[i++]->set(NNW+W-NNWW);
-      //previous image
-      if (lastw==w){
-          SCMap[i++]->set(buf(buf.pos-lastpos+w*3)+p1-N );
-          SCMap[i++]->set(buf(buf.pos-lastpos+w*3)+p2-W);
-          SCMap[i++]->set(buf(buf.pos-lastpos+w*3)+p1-NW);
-          SCMap[i++]->set(buf(buf.pos-lastpos+w*3)+p2-NE);
-      }else{
-          SCMap[i++]->set(0);
-          SCMap[i++]->set(0);
-          SCMap[i++]->set(0);
-          SCMap[i++]->set(0);
-      }
+       i=0;
+      Map[i++].set((W&0xC0)|((N&0xC0)>>2)|((WW&0xC0)>>4)|(NN>>6));
+      Map[i++].set((N&0xC0)|((NN&0xC0)>>2)|((NE&0xC0)>>4)|(NEE>>6));
+      Map[i++].set(buf(1+(isPNG && x<2)));
+      Map[i++].set(min(color, stride-1));
+      
+        xx.Image.plane =  min(color, stride-1);
+        xx.Image.pixels.W = W;
+        xx.Image.pixels.N = N;
+        xx.Image.pixels.NN = NN;
+        xx.Image.pixels.WW = WW;
+        xx.Image.pixels.Wp1 = Wp1;
+        xx.Image.pixels.Np1 = Np1;
+        xx.Image.ctx = ctx[0]>>3;
+      
     }
+  }
+  if ((bpos==0 || bpos==4) && (x>0 || !isPNG)) {
+    U8 B=(c0<<(8-bpos)), lsb=(bpos>0);
+    int i=5;
+
+    Map[i++].set((((U8)(Clip(W+N-NW)-px-B))*2+lsb)|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<9));
+    Map[i++].set((((U8)(Clip(N*2-NN)-px-B))*2+lsb)|(LogMeanDiffQt(W,Clip(NW*2-NNW))<<9));
+    Map[i++].set((((U8)(Clip(W*2-WW)-px-B))*2+lsb)|(LogMeanDiffQt(N,Clip(NW*2-NWW))<<9));
+    Map[i++].set((((U8)(Clip(W+N-NW)-px-B))*2+lsb)|(LogMeanDiffQt(p1,Clip(Wp1+Np1-NWp1))<<9));
+    Map[i++].set((((U8)(Clip(W+N-NW)-px-B))*2+lsb)|(LogMeanDiffQt(p2,Clip(Wp2+Np2-NWp2))<<9));
+    Map[i++].set(hash(W-px-B,N-px-B)*2+lsb);
+    Map[i++].set(hash(W-px-B,WW-px-B)*2+lsb);
+    Map[i++].set(hash(N-px-B,NN-px-B)*2+lsb);
+    Map[i++].set(hash(Clip(N+NE-NNE)-px-B, Clip(N+NW-NNW)-px-B)*2+lsb);
+    Map[i++].set((min(color,stride-1)<<9)|(((U8)(Clip(N+p1-Np1)-px-B))*2+lsb));
+    Map[i++].set((min(color,stride-1)<<9)|(((U8)(Clip(N+p2-Np2)-px-B))*2+lsb));
+    Map[i++].set((min(color,stride-1)<<9)|(((U8)(Clip(W+p1-Wp1)-px-B))*2+lsb));
+    Map[i++].set((min(color,stride-1)<<9)|(((U8)(Clip(W+p2-Wp2)-px-B))*2+lsb));
+    Map[i++].set((Clamp4(N+p1-Np1,W,NW,N,NE)-px-B)*2+lsb);
+    Map[i++].set((Clamp4(N+p2-Np2,W,NW,N,NE)-px-B)*2+lsb);
+
+    Map[i++].set(((W+Clamp4(NE*3-NNE*3+buffer(w*3-stride),W,N,NE,NEE))/2-px-B)*2+lsb);
+    Map[i++].set((Clamp4((W+Clip(NE*2-NNE))/2,W,NW,N,NE)-px-B)*2+lsb);
+    Map[i++].set(((W+NEE)/2-px-B)*2+lsb);
+    Map[i++].set((Clip((WWW-4*WW+6*W+Clip(NE*4-NNE*6+buffer(w*3-stride)*4-buffer(w*4-stride)))/4)-px-B)*2+lsb);
+    Map[i++].set((Clip((-buffer(4*stride)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buffer(w*3-stride)*4-buffer(w*4-stride),N,NE,buffer(w-2*stride),buffer(w-3*stride)))/5)-px-B)*2+lsb);
+    Map[i++].set((Clip((-4*WW+15*W+10*Clip(NE*3-NNE*3+buffer(w*3-stride))-Clip(buffer(w-3*stride)*3-buffer(w*2-3*stride)*3+buffer(w*3-3*stride)))/20)-px-B)*2+lsb);
+    Map[i++].set((Clip((-3*WW+8*W+Clamp4(NEE*3-NNEE*3+buffer(w*3-stride*2),NE,NEE,buffer(w-3*stride),buffer(w-4*stride)))/6)-px-B)*2+lsb);
+    Map[i++].set((Clip((W+Clip(NE*2-NNE))/2+p1-(Wp1+Clip(NEp1*2-buffer(w*2-stride+1)))/2)-px-B)*2+lsb);
+    Map[i++].set((Clip((W+Clip(NE*2-NNE))/2+p2-(Wp2+Clip(NEp2*2-buffer(w*2-stride+2)))/2)-px-B)*2+lsb);
+    Map[i++].set((Clip((-3*WW+8*W+Clip(NEE*2-NNEE))/6 +p1-(-3*WWp1+8*Wp1+Clip(buffer(w-stride*2+1)*2-buffer(w*2-stride*2+1)))/6)-px-B)*2+lsb);
+    Map[i++].set((Clip((-3*WW+8*W+Clip(NEE*2-NNEE))/6 +p2-(-3*WWp2+8*Wp2+Clip(buffer(w-stride*2+2)*2-buffer(w*2-stride*2+2)))/6)-px-B)*2+lsb);
+    Map[i++].set((Clip((W+NEE)/2+p1-(Wp1+buffer(w-stride*2+1))/2)-px-B)*2+lsb);
+    Map[i++].set((Clip((W+NEE)/2+p2-(Wp2+buffer(w-stride*2+2))/2)-px-B)*2+lsb);
+    Map[i++].set((Clip((WW+Clip(NEE*2-NNEE))/2+p1-(WWp1+Clip(buffer(w-stride*2+1)*2-buffer(w*2-stride*2+1)))/2)-px-B)*2+lsb);
+    Map[i++].set((Clip((WW+Clip(NEE*2-NNEE))/2+p2-(WWp2+Clip(buffer(w-stride*2+2)*2-buffer(w*2-stride*2+2)))/2)-px-B)*2+lsb);
+    Map[i++].set((Clip(WW+NEE-N+p1-Clip(WWp1+buffer(w-stride*2+1)-Np1))-px-B)*2+lsb);
+    Map[i++].set((Clip(WW+NEE-N+p2-Clip(WWp2+buffer(w-stride*2+2)-Np2))-px-B)*2+lsb);
+
+    Map[i++].set((Clip(W+N-NW)-px-B)*2+lsb);
+    Map[i++].set((Clip(W+N-NW+p1-Clip(Wp1+Np1-NWp1))-px-B)*2+lsb);
+    Map[i++].set((Clip(W+N-NW+p2-Clip(Wp2+Np2-NWp2))-px-B)*2+lsb);
+    Map[i++].set((Clip(W+NE-N)-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NW-NNW)-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NW-NNW+p1-Clip(Np1+NWp1-buffer(w*2+stride+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NW-NNW+p2-Clip(Np2+NWp2-buffer(w*2+stride+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NE-NNE)-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NE-NNE+p1-Clip(Np1+NEp1-buffer(w*2-stride+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NE-NNE+p2-Clip(Np2+NEp2-buffer(w*2-stride+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NN-NNN)-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NN-NNN+p1-Clip(Np1+NNp1-buffer(w*3+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(N+NN-NNN+p2-Clip(Np2+NNp2-buffer(w*3+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(W+WW-WWW)-px-B)*2+lsb);
+    Map[i++].set((Clip(W+WW-WWW+p1-Clip(Wp1+WWp1-buffer(stride*3+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(W+WW-WWW+p2-Clip(Wp2+WWp2-buffer(stride*3+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(W+NEE-NE)-px-B)*2+lsb);
+    Map[i++].set((Clip(W+NEE-NE+p1-Clip(Wp1+buffer(w-stride*2+1)-NEp1))-px-B)*2+lsb);
+    Map[i++].set((Clip(W+NEE-NE+p2-Clip(Wp2+buffer(w-stride*2+2)-NEp2))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+p1-NNp1)-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+p2-NNp2)-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+W-NNW)-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+W-NNW+p1-Clip(NNp1+Wp1-buffer(w*2+stride+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+W-NNW+p2-Clip(NNp2+Wp2-buffer(w*2+stride+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+NW-buffer(w*3+stride))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+NW-buffer(w*3+stride)+p1-Clip(NNp1+NWp1-buffer(w*3+stride+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+NW-buffer(w*3+stride)+p2-Clip(NNp2+NWp2-buffer(w*3+stride+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+NE-buffer(w*3-stride))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+NE-buffer(w*3-stride)+p1-Clip(NNp1+NEp1-buffer(w*3-stride+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+NE-buffer(w*3-stride)+p2-Clip(NNp2+NEp2-buffer(w*3-stride+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+buffer(w*4)-buffer(w*6))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+buffer(w*4)-buffer(w*6)+p1-Clip(NNp1+buffer(w*4+1)-buffer(w*6+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(NN+buffer(w*4)-buffer(w*6)+p2-Clip(NNp2+buffer(w*4+2)-buffer(w*6+2)))-px-B)*2+lsb);
+    Map[i++].set((Clip(WW+p1-WWp1)-px-B)*2+lsb);
+    Map[i++].set((Clip(WW+p2-WWp2)-px-B)*2+lsb);
+    Map[i++].set((Clip(WW+buffer(stride*4)-buffer(stride*6))-px-B)*2+lsb);
+    Map[i++].set((Clip(WW+buffer(stride*4)-buffer(stride*6)+p1-Clip(WWp1+buffer(stride*4+1)-buffer(stride*6+1)))-px-B)*2+lsb);
+    Map[i++].set((Clip(WW+buffer(stride*4)-buffer(stride*6)+p2-Clip(WWp2+buffer(stride*4+2)-buffer(stride*6+2)))-px-B)*2+lsb);
+
+    Map[i++].set((Clip(N*2-NN+p1-Clip(Np1*2-NNp1))-px-B)*2+lsb);
+    Map[i++].set((Clip(N*2-NN+p2-Clip(Np2*2-NNp2))-px-B)*2+lsb);
+    Map[i++].set((Clip(W*2-WW+p1-Clip(Wp1*2-WWp1))-px-B)*2+lsb);
+    Map[i++].set((Clip(W*2-WW+p2-Clip(Wp2*2-WWp2))-px-B)*2+lsb);
+    Map[i++].set((Clip(N*3-NN*3+NNN)-px-B)*2+lsb);
+    Map[i++].set((Clamp4(N*3-NN*3+NNN,W,NW,N,NE)-px-B)*2+lsb);
+    Map[i++].set((Clamp4(W*3-WW*3+WWW,W,NW,N,NE)-px-B)*2+lsb);
+    Map[i++].set((Clamp4(N*2-NN,W,NW,N,NE)-px-B)*2+lsb);
+    Map[i++].set((Clip((buffer(w*5)-6*buffer(w*4)+15*NNN-20*NN+15*N+Clamp4(W*4-NWW*6+buffer(w*2+3*stride)*4-buffer(w*3+4*stride),W,NW,N,NN))/6)-px-B)*2+lsb);
+    Map[i++].set((Clip((buffer(w*3-3*stride)-4*NNEE+6*NE+Clip(W*4-NW*6+NNW*4-buffer(w*3+stride)))/4)-px-B)*2+lsb);
+
+    Map[i++].set((Clip(((N+3*NW)/4)*3-((NNW+NNWW)/2)*3+(buffer(w*3+2*stride)*3+buffer(w*3+3*stride))/4)-px-B)*2+lsb);
+    Map[i++].set((Clip((W*2+NW)-(WW+2*NWW)+buffer(w+3*stride))-px-B)*2+lsb);
+    Map[i++].set(((Clip(W*2-NW)+Clip(W*2-NWW)+N+NE)/4-px-B)*2+lsb);
+
+    Map[i++].set((buffer(w*6)-px-B)*2+lsb);
+    Map[i++].set(((buffer(w-4*stride)+buffer(w-6*stride))/2-px-B)*2+lsb);
+    Map[i++].set(((buffer(stride*6)+buffer(stride*4))/2-px-B)*2+lsb);
+    Map[i++].set((((W+N)*3-NW*2)/4-px-B)*2+lsb);
+    Map[i++].set((N-px-B)*2+lsb);
+    Map[i++].set((NN-px-B)*2+lsb);
+
+    i=0;
+    SCMap[i++].set((N+p1-Np1-px-B)*2+lsb);
+    SCMap[i++].set((N+p2-Np2-px-B)*2+lsb);
+    SCMap[i++].set((W+p1-Wp1-px-B)*2+lsb);
+    SCMap[i++].set((W+p2-Wp2-px-B)*2+lsb);
+    SCMap[i++].set((NW+p1-NWp1-px-B)*2+lsb);
+    SCMap[i++].set((NW+p2-NWp2-px-B)*2+lsb);
+    SCMap[i++].set((NE+p1-NEp1-px-B)*2+lsb);
+    SCMap[i++].set((NE+p2-NEp2-px-B)*2+lsb);
+    SCMap[i++].set((NN+p1-NNp1-px-B)*2+lsb);
+    SCMap[i++].set((NN+p2-NNp2-px-B)*2+lsb);
+    SCMap[i++].set((WW+p1-WWp1-px-B)*2+lsb);
+    SCMap[i++].set((WW+p2-WWp2-px-B)*2+lsb);
+    SCMap[i++].set((W+N-NW-px-B)*2+lsb);
+    SCMap[i++].set((W+N-NW+p1-Wp1-Np1+NWp1-px-B)*2+lsb);
+    SCMap[i++].set((W+N-NW+p2-Wp2-Np2+NWp2-px-B)*2+lsb);
+    SCMap[i++].set((W+NE-N-px-B)*2+lsb);
+    SCMap[i++].set((W+NE-N+p1-Wp1-NEp1+Np1-px-B)*2+lsb);
+    SCMap[i++].set((W+NE-N+p2-Wp2-NEp2+Np2-px-B)*2+lsb);
+    SCMap[i++].set((W+NEE-NE-px-B)*2+lsb);
+    SCMap[i++].set((W+NEE-NE+p1-Wp1-buffer(w-stride*2+1)+NEp1-px-B)*2+lsb);
+    SCMap[i++].set((W+NEE-NE+p2-Wp2-buffer(w-stride*2+2)+NEp2-px-B)*2+lsb);
+    SCMap[i++].set((N+NN-NNN-px-B)*2+lsb);
+    SCMap[i++].set((N+NN-NNN+p1-Np1-NNp1+buffer(w*3+1)-px-B)*2+lsb);
+    SCMap[i++].set((N+NN-NNN+p2-Np2-NNp2+buffer(w*3+2)-px-B)*2+lsb);
+    SCMap[i++].set((N+NE-NNE-px-B)*2+lsb);
+    SCMap[i++].set((N+NE-NNE+p1-Np1-NEp1+buffer(w*2-stride+1)-px-B)*2+lsb);
+    SCMap[i++].set((N+NE-NNE+p2-Np2-NEp2+buffer(w*2-stride+2)-px-B)*2+lsb);
+    SCMap[i++].set((N+NW-NNW-px-B)*2+lsb);
+    SCMap[i++].set((N+NW-NNW+p1-Np1-NWp1+buffer(w*2+stride+1)-px-B)*2+lsb);
+    SCMap[i++].set((N+NW-NNW+p2-Np2-NWp2+buffer(w*2+stride+2)-px-B)*2+lsb);
+    SCMap[i++].set((NE+NW-NN-px-B)*2+lsb);
+    SCMap[i++].set((NE+NW-NN+p1-NEp1-NWp1+NNp1-px-B)*2+lsb);
+    SCMap[i++].set((NE+NW-NN+p2-NEp2-NWp2+NNp2-px-B)*2+lsb);
+    SCMap[i++].set((NW+W-NWW-px-B)*2+lsb);
+    SCMap[i++].set((NW+W-NWW+p1-NWp1-Wp1+buffer(w+stride*2+1)-px-B)*2+lsb);
+    SCMap[i++].set((NW+W-NWW+p2-NWp2-Wp2+buffer(w+stride*2+2)-px-B)*2+lsb);
+    SCMap[i++].set((W*2-WW-px-B)*2+lsb);
+    SCMap[i++].set((W*2-WW+p1-Wp1*2+WWp1-px-B)*2+lsb);
+    SCMap[i++].set((W*2-WW+p2-Wp2*2+WWp2-px-B)*2+lsb);
+    SCMap[i++].set((N*2-NN-px-B)*2+lsb);
+    SCMap[i++].set((N*2-NN+p1-Np1*2+NNp1-px-B)*2+lsb);
+    SCMap[i++].set((N*2-NN+p2-Np2*2+NNp2-px-B)*2+lsb);
+    SCMap[i++].set((NW*2-NNWW-px-B)*2+lsb);
+    SCMap[i++].set((NW*2-NNWW+p1-NWp1*2+buffer(w*2+stride*2+1)-px-B)*2+lsb);
+    SCMap[i++].set((NW*2-NNWW+p2-NWp2*2+buffer(w*2+stride*2+2)-px-B)*2+lsb);
+    SCMap[i++].set((NE*2-NNEE-px-B)*2+lsb);
+    SCMap[i++].set((NE*2-NNEE+p1-NEp1*2+buffer(w*2-stride*2+1)-px-B)*2+lsb);
+    SCMap[i++].set((NE*2-NNEE+p2-NEp2*2+buffer(w*2-stride*2+2)-px-B)*2+lsb);
+    SCMap[i++].set((N*3-NN*3+NNN+p1-Np1*3+NNp1*3-buffer(w*3+1)-px-B)*2+lsb);
+    SCMap[i++].set((N*3-NN*3+NNN+p2-Np2*3+NNp2*3-buffer(w*3+2)-px-B)*2+lsb);
+    SCMap[i++].set((N*3-NN*3+NNN-px-B)*2+lsb);
+    SCMap[i++].set(((W+NE*2-NNE)/2-px-B)*2+lsb);
+    SCMap[i++].set(((W+NE*3-NNE*3+buffer(w*3-stride))/2-px-B)*2+lsb);
+    SCMap[i++].set(((W+NE*2-NNE)/2+p1-(Wp1+NEp1*2-buffer(w*2-stride+1))/2-px-B)*2+lsb);
+    SCMap[i++].set(((W+NE*2-NNE)/2+p2-(Wp2+NEp2*2-buffer(w*2-stride+2))/2-px-B)*2+lsb);
+    SCMap[i++].set((NNE+NE-buffer(w*3-stride)-px-B)*2+lsb);
+    SCMap[i++].set((NNE+W-NN-px-B)*2+lsb);
+    SCMap[i++].set((NNW+W-NNWW-px-B)*2+lsb);
+
   }
 
   // Predict next bit
   if (x || !isPNG){
     cm.mix(m);
-    for (int i=0;i<nMaps;i++)
-      Map[i]->mix(m);
+    for (int i=0;i<NMAPS;i++)
+      Map[i].mix(m);
     for (int i=0;i<nSCMaps;i++)
-      SCMap[i]->mix(m,9);
+      SCMap[i].mix(m,9);
 
     m.add(0);
     if (++col>=stride*8) col=0;
@@ -6249,7 +6513,7 @@ public:
     for (int j=0;j<nSCMaps;j++)m.add(0);
     m.add( -2048+((filter>>(7-bpos))&1)*4096 );
     m.set(min(4,filter),6);
-    m.set(0, 256);
+  /*  m.set(0, 256);
     m.set(0, 512);
     m.set(0, 2048);
     m.set(0, 8*32);
@@ -6259,7 +6523,7 @@ public:
     m.set(0, 8192);
     m.set(0, 8192);
     m.set(0, 8192);
-    m.set(0, 8192); 
+    m.set(0, 8192); */
   }
   return 0;
 }
@@ -6277,12 +6541,7 @@ inline int sqrbuf(int i) {
  
 // Model for 8-bit image data
 
-const int im8Bcxt[57] = { 12, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                           8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                           8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                           8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                           8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
-                           8, 8, 8, 8, 8, 8, 0 };
+ 
 class im8bitModel1: public Model {
  int inpts;
  ContextMap cm;
@@ -6295,7 +6554,14 @@ class im8bitModel1: public Model {
  int& c0;
  int& bpos;
  const int nMaps  ;
- Array<StationaryMap*> Map;
+ StationaryMap Map[57] = { 12, 8, 8, 8, 8, 8, 8, 8,
+                                       8, 8, 8, 8, 8, 8, 8, 8,
+                                       8, 8, 8, 8, 8, 8, 8, 8,
+                                       8, 8, 8, 8, 8, 8, 8, 8,
+                                       8, 8, 8, 8, 8, 8, 8, 8,
+                                       8, 8, 8, 8, 8, 8, 8, 8,
+                                       8, 8, 8, 8, 8, 8, 8, 8,
+                                       0 };
  U8 px , res;// current PNG filter prediction, expected residual
  RingBuffer buffer;// internal rotating buffer for PNG unfiltered pixel data
  U8 WWW, WW, W, NWW, NW, N, NE, NEE, NNWW, NNW, NN, NNE, NNEE, NNN;//pixel neighborhood
@@ -6304,12 +6570,12 @@ class im8bitModel1: public Model {
  Array<short> jumps;
 public:
   im8bitModel1( BlockData& bd):  inpts(49),cm(CMlimit(MEM()*16), inpts),col(0),xx(bd),buf(bd.buf), ctx(0), lastWasPNG(0),line(0), x(0),
-   filter(0),gray(0),isPNG(0),jump(0), c4(bd.c4),c0(bd.c0),bpos(bd.bpos), nMaps(57),Map(nMaps), px (0),
+   filter(0),gray(0),isPNG(0),jump(0), c4(bd.c4),c0(bd.c0),bpos(bd.bpos), nMaps(57),/*Map(nMaps),*/ px (0),
    res (0),buffer(0x100000),WWW(0),WW(0),W(0),NWW(0),NW(0),N(0),NE(0),NEE(0),NNWW(0),NNW(0),
    NN(0),NNE(0),NNEE(0),NNN(0),filterOn(false),jumps(0x8000){
   
-   for(int i=0;i<nMaps;i++)  
-       Map[i] =new StationaryMap(im8Bcxt[i]);
+   //for(int i=0;i<nMaps;i++)  
+   //    Map[i] =new StationaryMap(im8Bcxt[i]);
    columns[0] =1;
    columns[1] =1;
    column[0] =1;
@@ -6329,7 +6595,7 @@ int p(Mixer& m,int w,int val2=0){
       if (gray){
         if (lastWasPNG!=isPNG){
           for (int i=0;i<nMaps;i++)
-            Map[i]->Reset();
+            Map[i].Reset();
         }
         lastWasPNG = isPNG;
       }
@@ -6507,62 +6773,63 @@ int p(Mixer& m,int w,int val2=0){
      
         cm.set(~0xde7ec7ed);
 
-        Map[0]->set( ((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<8) );
-        Map[1]->set(Clamp4(W+N-NW,W,NW,N,NE)-px);
-        Map[2]->set(Clip(W+N-NW)-px);
-        Map[3]->set(Clamp4(W+NE-N,W,NW,N,NE)-px);
-        Map[4]->set(Clip(W+NE-N)-px);
-        Map[5]->set(Clamp4(N+NW-NNW,W,NW,N,NE)-px);
-        Map[6]->set(Clip(N+NW-NNW)-px);
-        Map[7]->set(Clamp4(N+NE-NNE,W,N,NE,NEE)-px);
-        Map[8]->set(Clip(N+NE-NNE)-px);
-        Map[9]->set((W+NEE)/2-px);
-        Map[10]->set(Clip(N*3-NN*3+NNN)-px);
-        Map[11]->set(Clip(W*3-WW*3+WWW)-px);
-        Map[12]->set((W+Clip(NE*3-NNE*3+buffer(w*3-1)))/2-px);
-        Map[13]->set((W+Clip(NEE*3-buffer(w*2-3)*3+buffer(w*3-4)))/2-px);
-        Map[14]->set(Clip(NN+buffer(w*4)-buffer(w*6))-px);
-        Map[15]->set(Clip(WW+buffer(4)-buffer(6))-px);
-        Map[16]->set(Clip((buffer(w*5)-6*buffer(w*4)+15*NNN-20*NN+15*N+Clamp4(W*2-NWW,W,NW,N,NN))/6)-px);
-        Map[17]->set(Clip((-3*WW+8*W+Clamp4(NEE*3-NNEE*3+buffer(w*3-2),NE,NEE,buffer(w-3),buffer(w-4)))/6)-px);
-        Map[18]->set(Clip(NN+NW-buffer(w*3+1))-px);
-        Map[19]->set(Clip(NN+NE-buffer(w*3-1))-px);
-        Map[20]->set(Clip((W*2+NW)-(WW+2*NWW)+buffer(w+3))-px);
-        Map[21]->set(Clip(((NW+NWW)/2)*3-buffer(w*2+3)*3+(buffer(w*3+4)+buffer(w*3+5))/2)-px);
-        Map[22]->set(Clip(NEE+NE-buffer(w*2-3))-px);
-        Map[23]->set(Clip(NWW+WW-buffer(w+4))-px);
-        Map[24]->set(Clip(((W+NW)*3-NWW*6+buffer(w+3)+buffer(w*2+3))/2)-px);
-        Map[25]->set(Clip((NE*2+NNE)-(NNEE+buffer(w*3-2)*2)+buffer(w*4-3))-px);
-        Map[26]->set(buffer(w*6)-px);
-        Map[27]->set((buffer(w-4)+buffer(w-6))/2-px);
-        Map[28]->set((buffer(4)+buffer(6))/2-px);
-        Map[29]->set((W+N+buffer(w-5)+buffer(w-7))/4-px);
-        Map[30]->set(Clip(buffer(w-3)+W-NEE)-px);
-        Map[31]->set(Clip(4*NNN-3*buffer(w*4))-px);
-        Map[32]->set(Clip(N+NN-NNN)-px);
-        Map[33]->set(Clip(W+WW-WWW)-px);
-        Map[34]->set(Clip(W+NEE-NE)-px);
-        Map[35]->set(Clip(WW+NEE-N)-px);
-        Map[36]->set((Clip(W*2-NW)+Clip(W*2-NWW)+N+NE)/4-px);
-        Map[37]->set(Clamp4(N*2-NN,W,N,NE,NEE)-px);
-        Map[38]->set((N+NNN)/2-px);
-        Map[39]->set(Clip(NN+W-NNW)-px);
-        Map[40]->set(Clip(NWW+N-NNWW)-px);
-        Map[41]->set(Clip((4*WWW-15*WW+20*W+Clip(NEE*2-NNEE))/10)-px);
-        Map[42]->set(Clip((buffer(w*3-3)-4*NNEE+6*NE+Clip(W*3-NW*3+NNW))/4)-px);
-        Map[43]->set(Clip((N*2+NE)-(NN+2*NNE)+buffer(w*3-1))-px);
-        Map[44]->set(Clip((NW*2+NNW)-(NNWW+buffer(w*3+2)*2)+buffer(w*4+3))-px);
-        Map[45]->set( Clip(NNWW+W-buffer(w*2+3))-px );
-        Map[46]->set( Clip((-buffer(w*4)+5*NNN-10*NN+10*N+Clip(W*4-NWW*6+buffer(w*2+3)*4-buffer(w*3+4)))/5)-px );
-        Map[47]->set( Clip(NEE+Clip(buffer(w-3)*2-buffer(w*2-4))-buffer(w-4))-px );
-        Map[48]->set( Clip(NW+W-NWW)-px );
-        Map[49]->set( Clip((N*2+NW)-(NN+2*NNW)+buffer(w*3+1))-px );
-        Map[50]->set( Clip(NN+Clip(NEE*2-buffer(w*2-3))-NNE)-px );
-        Map[51]->set( Clip((-buffer(4)+5*WWW-10*WW+10*W+Clip(NE*2-NNE))/5)-px );
-        Map[52]->set( Clip((-buffer(5)+4*buffer(4)-5*WWW+5*W+Clip(NE*2-NNE))/4)-px);
-        Map[53]->set( Clip((WWW-4*WW+6*W+Clip(NE*3-NNE*3+buffer(w*3-1)))/4)-px );
-        Map[54]->set( Clip((-NNEE+3*NE+Clip(W*4-NW*6+NNW*4-buffer(w*3+1)))/3)-px );
-        Map[55]->set(((W+N)*3-NW*2)/4-px);
+        i=0;
+        Map[i++].set(((U8)(Clip(W+N-NW)-px))|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<8));
+        Map[i++].set(Clamp4(W+N-NW,W,NW,N,NE)-px);
+        Map[i++].set(Clip(W+N-NW)-px);
+        Map[i++].set(Clamp4(W+NE-N,W,NW,N,NE)-px);
+        Map[i++].set(Clip(W+NE-N)-px);
+        Map[i++].set(Clamp4(N+NW-NNW,W,NW,N,NE)-px);
+        Map[i++].set(Clip(N+NW-NNW)-px);
+        Map[i++].set(Clamp4(N+NE-NNE,W,N,NE,NEE)-px);
+        Map[i++].set(Clip(N+NE-NNE)-px);
+        Map[i++].set((W+NEE)/2-px);
+        Map[i++].set(Clip(N*3-NN*3+NNN)-px);
+        Map[i++].set(Clip(W*3-WW*3+WWW)-px);
+        Map[i++].set((W+Clip(NE*3-NNE*3+buffer(w*3-1)))/2-px);
+        Map[i++].set((W+Clip(NEE*3-buffer(w*2-3)*3+buffer(w*3-4)))/2-px);
+        Map[i++].set(Clip(NN+buffer(w*4)-buffer(w*6))-px);
+        Map[i++].set(Clip(WW+buffer(4)-buffer(6))-px);
+        Map[i++].set(Clip((buffer(w*5)-6*buffer(w*4)+15*NNN-20*NN+15*N+Clamp4(W*2-NWW,W,NW,N,NN))/6)-px);
+        Map[i++].set(Clip((-3*WW+8*W+Clamp4(NEE*3-NNEE*3+buffer(w*3-2),NE,NEE,buffer(w-3),buffer(w-4)))/6)-px);
+        Map[i++].set(Clip(NN+NW-buffer(w*3+1))-px);
+        Map[i++].set(Clip(NN+NE-buffer(w*3-1))-px);
+        Map[i++].set(Clip((W*2+NW)-(WW+2*NWW)+buffer(w+3))-px);
+        Map[i++].set(Clip(((NW+NWW)/2)*3-buffer(w*2+3)*3+(buffer(w*3+4)+buffer(w*3+5))/2)-px);
+        Map[i++].set(Clip(NEE+NE-buffer(w*2-3))-px);
+        Map[i++].set(Clip(NWW+WW-buffer(w+4))-px);
+        Map[i++].set(Clip(((W+NW)*3-NWW*6+buffer(w+3)+buffer(w*2+3))/2)-px);
+        Map[i++].set(Clip((NE*2+NNE)-(NNEE+buffer(w*3-2)*2)+buffer(w*4-3))-px);
+        Map[i++].set(buffer(w*6)-px);
+        Map[i++].set((buffer(w-4)+buffer(w-6))/2-px);
+        Map[i++].set((buffer(4)+buffer(6))/2-px);
+        Map[i++].set((W+N+buffer(w-5)+buffer(w-7))/4-px);
+        Map[i++].set(Clip(buffer(w-3)+W-NEE)-px);
+        Map[i++].set(Clip(4*NNN-3*buffer(w*4))-px);
+        Map[i++].set(Clip(N+NN-NNN)-px);
+        Map[i++].set(Clip(W+WW-WWW)-px);
+        Map[i++].set(Clip(W+NEE-NE)-px);
+        Map[i++].set(Clip(WW+NEE-N)-px);
+        Map[i++].set((Clip(W*2-NW)+Clip(W*2-NWW)+N+NE)/4-px);
+        Map[i++].set(Clamp4(N*2-NN,W,N,NE,NEE)-px);
+        Map[i++].set((N+NNN)/2-px);
+        Map[i++].set(Clip(NN+W-NNW)-px);
+        Map[i++].set(Clip(NWW+N-NNWW)-px);
+        Map[i++].set(Clip((4*WWW-15*WW+20*W+Clip(NEE*2-NNEE))/10)-px);
+        Map[i++].set(Clip((buffer(w*3-3)-4*NNEE+6*NE+Clip(W*3-NW*3+NNW))/4)-px);
+        Map[i++].set(Clip((N*2+NE)-(NN+2*NNE)+buffer(w*3-1))-px);
+        Map[i++].set(Clip((NW*2+NNW)-(NNWW+buffer(w*3+2)*2)+buffer(w*4+3))-px);
+        Map[i++].set(Clip(NNWW+W-buffer(w*2+3))-px);
+        Map[i++].set(Clip((-buffer(w*4)+5*NNN-10*NN+10*N+Clip(W*4-NWW*6+buffer(w*2+3)*4-buffer(w*3+4)))/5)-px);
+        Map[i++].set(Clip(NEE+Clip(buffer(w-3)*2-buffer(w*2-4))-buffer(w-4))-px);
+        Map[i++].set(Clip(NW+W-NWW)-px);
+        Map[i++].set(Clip((N*2+NW)-(NN+2*NNW)+buffer(w*3+1))-px);
+        Map[i++].set(Clip(NN+Clip(NEE*2-buffer(w*2-3))-NNE)-px);
+        Map[i++].set(Clip((-buffer(4)+5*WWW-10*WW+10*W+Clip(NE*2-NNE))/5)-px);
+        Map[i++].set(Clip((-buffer(5)+4*buffer(4)-5*WWW+5*W+Clip(NE*2-NNE))/4)-px);
+        Map[i++].set(Clip((WWW-4*WW+6*W+Clip(NE*3-NNE*3+buffer(w*3-1)))/4)-px);
+        Map[i++].set(Clip((-NNEE+3*NE+Clip(W*4-NW*6+NNW*4-buffer(w*3+1)))/3)-px);
+        Map[i++].set(((W+N)*3-NW*2)/4-px);
         if (isPNG)
           ctx = ((abs(W-N)>8)<<10)|((W>N)<<9)|((abs(N-NW)>8)<<8)|((N>NW)<<7)|((abs(N-NE)>8)<<6)|((N>NE)<<5)|((W>WW)<<4)|((N>NN)<<3)|min(5,filterOn?filter+1:0);
         else
@@ -6578,7 +6845,7 @@ int p(Mixer& m,int w,int val2=0){
     cm.mix(m);
     if (gray){
       for (int i=0;i<nMaps;i++)
-        Map[i]->mix(m);
+        Map[i].mix(m);
     }
     col=(col+1)&7;
     m.set(5+ctx, 2048+5);
@@ -6962,7 +7229,7 @@ class jpegModelx: public Model {
    Array<U8*> cp;  // context pointers
    StateMap *sm;  
    Mixer m1;
-   APM a1, a2;
+   APM<24> a1, a2;
    BlockData& x;
    Buf& buf;
    int hbcount;
@@ -6979,7 +7246,7 @@ public:
   a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0) {
   sm=new StateMap[N];
   }
-  int inputs() {return 7+N;}
+  int inputs() {return 7+N*2;}
   int p(Mixer& m,int val1=0,int val2=0){
 
  if (idx < 0){
@@ -7493,15 +7760,15 @@ public:
   int p;
  switch(hbcount)
   {
-   case 0: for (int i=0; i<N; ++i) { cp[i]=t[cxt[i]]+1, m1.add(p=stretch(sm[i].p(*cp[i],x.y))); m.add(p>>1);} break;
-   case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i) {cp[i]+=hc, m1.add(p=stretch(sm[i].p(*cp[i],x.y))); m.add(p>>1);}} break;
-   default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i) {cp[i]+=hc, m1.add(p=stretch(sm[i].p(*cp[i],x.y))); m.add(p>>1);}} break;
+   case 0: for (int i=0; i<N; ++i){ cp[i]=t[cxt[i]]+1, p=sm[i].p(*cp[i],x.y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);} break;
+   case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i){ cp[i]+=hc, p=sm[i].p(*cp[i],x.y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
+   default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i){ cp[i]+=hc, p=sm[i].p(*cp[i],x.y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
   }
 
    m1.set(firstcol, 2);
    m1.set( coef+256*min(3,huffbits), 1024 );
    m1.set( (hc&0x1FE)*2+min(3,ilog2(zu+zv)), 1024 );
-  int pr=m1.p();
+  int pr=m1.p(1,1);
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
   pr=a1.p(pr, (hc&511)|(((adv_pred[1]/16)&63)<<9), x.y,1023);
@@ -7548,8 +7815,8 @@ double F[49][49][2],L[49][49];
   Buf& buf;
   int ch;
 public:
-  wavModel1(BlockData& bd): SC(0x20000),scm1(SC), scm2(SC), scm3(SC),
-   scm4(SC), scm5(SC), scm6(SC), scm7(SC),cm(CMlimit(MEM()*4), 10+1),rlen(0),col(0),x(bd),buf(bd.buf),ch(0){
+  wavModel1(BlockData& bd): SC(0x20000),scm1(8,8), scm2(8,8), scm3(8,8),
+   scm4(8,8), scm5(8,8), scm6(8,8), scm7(8,8),cm(CMlimit(MEM()*4), 10+1),rlen(0),col(0),x(bd),buf(bd.buf),ch(0){
   /*  bits=((winfo%4)/2)*8+8;
     channels=winfo%2+1;
     w=channels*(bits>>3);
@@ -7566,7 +7833,7 @@ public:
     recModel=0;
     if (level>=4)recModel=new recordModel1(bd,CMlimit(MEM()));
 }
-int inputs() {return 11*cm.inputs()+7+(level>=4?recModel->inputs():0);}
+int inputs() {return 11*cm.inputs()+7*2+(level>=4?recModel->inputs():0);}
 int p(Mixer& m,int info,int val2=0){
     int j,k,l,i=0;
      const double a=0.996,a2=1/a;
@@ -8868,7 +9135,7 @@ class nestModel1: public Model {
   ContextMap cm;
 public:
   nestModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), ic(0), bc(0),
-   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(MEM()/2), 14-2)  {
+   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(MEM()/2), 12)  {
   }
   int inputs() {return 12*cm.inputs();}
 int p(Mixer& m,int val1=0,int val2=0){
@@ -9264,7 +9531,7 @@ public:
   sparseModelx(BlockData& bd): cm(CMlimit(MEM()*4), 31),scm1(0x10000), scm2(0x20000), scm3(0x2000),
      scm4(0x8000), scm5(0x2000),scm6(0x2000), scma(0x10000),x(bd),buf(bd.buf) {
     }
-    int inputs() {return 31*cm.inputs()+7;}
+    int inputs() {return 31*cm.inputs()+7*2;}
   int p(Mixer& m, int seenbefore, int howmany){
   if (x.bpos==0) {
     scm5.set(seenbefore);
@@ -9736,7 +10003,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     else if (opc>=0x1d && opc<=0x3f) currentOp=opc;
     else currentOp=-1,function=-1;
 
-    if (currentOp>=0 &&  opbyte==3) valid=true;
+    if (currentOp!=-1 &&  opbyte==3) valid=true;
     else valid=false;
 
     cm.set(hash(currentOp,lastOp,function,opbyte));
@@ -9896,6 +10163,7 @@ int EAPM::p1(int pr0,int pr, int r){
     pz+=trj[(x.fails>>1)&3];
     if (x.fails&1) pz+=8;
     pz=pz/2;      
+  
 
     pu=a4.p(pu,   ( (x.c0*2)^hash(x.buf(1), (x.x5>>8)&255, (x.x5>>16)&0x80ff))&0xffff,r);
     pv=a2.p(pr0,  ( (x.c0*8)^hash(29,x.failz&2047))&0xffff,1+r);
@@ -9932,7 +10200,7 @@ class Predictor: public Predictors {
   int ismatch;
   Mixer *m;
   EAPM a;
-   
+   bool Bypass;
   void setmixer();
 public:
   Predictor();
@@ -9942,7 +10210,7 @@ public:
   }
 };
 
-Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x) {
+Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x), Bypass(false) {
     if (x.clevel>=4){
         recordModel=new recordModel1(x); 
         distanceModel=new distanceModel1(x); 
@@ -9990,8 +10258,16 @@ void Predictor::update()  {
     }
 
     m->update();
+    Bypass=false;
     m->add(256);
     ismatch=matchModel->p(*m);  // Length of longest matching context
+    if (ismatch>0xFFF || matchModel->Bypass) {
+    matchModel->Bypass = Bypass = true;
+    m->reset();
+    pr= matchModel->BypassPrediction;
+    return;
+  }
+    ismatch=ilog(ismatch); // ilog of length of most recent match (0..255)
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>8) order=7;
     int rlen=0,Valid=0,xmlstate=0;
@@ -10088,10 +10364,10 @@ void PredictorDEC::update()  {
 
     m->update();
     m->add(256);
-    ismatch=matchModel->p(*m);  // Length of longest matching context
+    ismatch=ilog(matchModel->p(*m));  // Length of longest matching context
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>8) order=7;
-    int rlen=0,Valid=0;//,xmlstate=0;
+    int rlen=0,Valid=0;
     if (x.clevel>=4){        
             rlen=recordModel->p(*m,4);
             wordModel->p(*m,0,4); //col
@@ -10109,7 +10385,7 @@ void PredictorDEC::update()  {
     m->set(rlen, 1024);
     m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+128*Valid, 256);  
     U8 d=x.c0<<(8-x.bpos);
-    m->set((x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4),1024);//m->set(((xmlstate&3)>0)*1024+(x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4),2048);
+    m->set((x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4),1024);
     m->set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
     m->set(ismatch, 256);
     if (x.bpos) {
@@ -10137,9 +10413,8 @@ public:
 PredictorJPEG::PredictorJPEG(): pr(2048) ,  a(x)  {
   matchModel=new matchModel1(x); 
   jpegModel=new jpegModelx(x); 
-  dmcModel=new dmcModel1(x);
-  const int tinput=1+ matchModel->inputs() + jpegModel->inputs()+dmcModel->inputs() ;
-  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024,x, 5);
+  const int tinput=1+ matchModel->inputs() + jpegModel->inputs() ;
+  m=new Mixer(tinput, 2568+1024+1025+9-256-257+1024,x, 5);
 }
 
 void PredictorJPEG::update()  {
@@ -10147,11 +10422,10 @@ void PredictorJPEG::update()  {
     
     m->update();
     m->add(256);
-    int ismatch=matchModel->p(*m);  // Length of longest matching context
-    dmcModel->p(*m);
+    int ismatch=ilog(matchModel->p(*m));  // Length of longest matching context
     if (jpegModel->p(*m)) { 
         m->set(ismatch, 256);
-        pr=m->p();
+        pr=m->p(1,0);
     }
     else{
         U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
@@ -10225,7 +10499,7 @@ void PredictorEXE::update()  {
     }
     m->update();
     m->add(256);
-    int ismatch=matchModel->p(*m);  // Length of longest matching context
+    int ismatch=ilog(matchModel->p(*m));  // Length of longest matching context
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>8) order=7;
     int rec=0;
@@ -10321,7 +10595,7 @@ void PredictorIMG8::update()  {
   m->update();
   m->add(256);
   int ismatch=matchModel->p(*m);  // Length of longest matching context
-  m->set(ismatch, 256);
+  m->set(ilog(ismatch), 256);
   im8bitModel->p(*m,x.finfo);
   int pr0=m->p();
   pr=a.p2(pr0,pr,7);
@@ -10331,7 +10605,10 @@ void PredictorIMG8::update()  {
 class PredictorIMG24: public Predictors {
   int pr;  // next prediction
   Mixer *m;
-  EAPM a;
+  struct {
+    APM<24> APMs[4];
+    APM1 APM1s[2];
+  } Image;
 public:
   PredictorIMG24();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -10340,7 +10617,7 @@ public:
   }
 };
 
-PredictorIMG24::PredictorIMG24(): pr(2048),a(x) {
+PredictorIMG24::PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}} } {
   matchModel=new matchModel1(x); 
   im24bitModel=new im24bitModel1(x);
   const int tinput=1+matchModel->inputs() + im24bitModel->inputs() ;
@@ -10348,7 +10625,9 @@ PredictorIMG24::PredictorIMG24(): pr(2048),a(x) {
 }
 
 void PredictorIMG24::update()  {
+  int pr1, pr2, pr3;
   update0();
+  x.Misses+=x.Misses+((pr>>11)!=x.y);
   if (x.bpos==0) {
     int b1=x.buf(1);
     x.c4=(x.c4<<8)+b1;
@@ -10360,11 +10639,24 @@ void PredictorIMG24::update()  {
   m->update();
   m->add(256);
   int ismatch=matchModel->p(*m);  // Length of longest matching context
-  m->set(ismatch,256);
+  m->set(ilog(ismatch),256);
   im24bitModel->p(*m,x.finfo);
   
-  int pr0=m->p(0,1);
-  pr=a.p1(pr0,pr,7);
+  int pr0=x.filetype==IMAGE24? m->p(1,1): m->p();
+  int limit=0x3FF>>((x.blpos<0xFFF)*4);
+      pr  = Image.APMs[0].p(pr0, (x.c0<<4)|(x.Misses&0xF), x.y,limit);
+      pr1 = Image.APMs[1].p(pr0, hash(x.c0, x.Image.pixels.W, x.Image.pixels.WW)&0xFFFF,  x.y,limit);
+      pr2 = Image.APMs[2].p(pr0, hash(x.c0, x.Image.pixels.N, x.Image.pixels.NN)&0xFFFF, x.y, limit);
+      pr3 = Image.APMs[3].p(pr0, (x.c0<<8)|x.Image.ctx, x.y, limit);
+
+      pr0 = (pr0+pr1+pr2+pr3+2)>>2;
+
+      pr1 = Image.APM1s[0].p(pr, hash(x.c0, x.Image.pixels.W, x.buf(1)-x.Image.pixels.Wp1, x.Image.plane)&0xFFFF);
+      pr2 = Image.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.N, x.buf(1)-x.Image.pixels.Np1, x.Image.plane)&0xFFFF);
+
+      pr=(pr*2+pr1*3+pr2*3+4)>>3;
+      pr = (pr+pr0+1)>>1;
+
 }
 //TEXT predicor class
 class PredictorTXTWRT: public Predictors {
@@ -10374,7 +10666,11 @@ class PredictorTXTWRT: public Predictors {
   int ismatch;
   Mixer *m;
   EAPM a;
- 
+  struct {
+    APM<24> APMs[4];
+    APM1 APM1s[3];
+  } Text;
+  bool Bypass;
   void setmixer();
 public:
   PredictorTXTWRT();
@@ -10384,7 +10680,7 @@ public:
   }
 };
 
-PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0), a(x) {
+PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },Bypass(false) {
   if (x.clevel>=4){
     recordModelw=new recordModelx(x);
     sparseModel1=new sparseModelx(x);
@@ -10430,8 +10726,16 @@ void PredictorTXTWRT::update()  {
     }
 
     m->update();
+    Bypass=false;
     m->add(256);
-    ismatch=matchModel->p(*m);  // Length of longest matching context
+    ismatch= (matchModel->p(*m));  // Length of longest matching context
+    if (ismatch>0xFFF || matchModel->Bypass) {
+    matchModel->Bypass = Bypass = true;
+    m->reset();
+    pr= matchModel->BypassPrediction;
+    return;
+  }
+    ismatch=ilog(ismatch);  // Length of longest matching context
     order=normalModel->p(*m); //ord ma
     order=order-3; 
     if(order<0) order=0;
@@ -10452,7 +10756,6 @@ void PredictorTXTWRT::update()  {
         c=(x.words>>1)&63;
         m->set(x.c0, 256);// 256 +256 +512+256*8 +256*8 +256*8 +1536+ 2048
         m->set(ismatch, 256);
-        //m->set((((x.c0<<(8-x.bpos)) | (x.b2>>x.bpos))&248) +(xmlstate&3)+( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*256, 512);
         m->set((x.w4&3)*64+c+order*256, 256*8);
         m->set(256*order + (x.w4&240) + (x.b3>>4), 256*8);
         m->set((x.w4&255)+256*x.bpos, 256*8);
@@ -10466,15 +10769,13 @@ void PredictorTXTWRT::update()  {
         c3 = (x.words<<x.bpos) & 255;
         m->set(c+(c3>>x.bpos), 2048);
         pr0=m->p();
-        
-    pr=a.p1(pr0,pr,7);
+        pr=a.p2(pr0,pr,7);
 }
 
 //IMG1 predicor class
 class PredictorIMG1: public Predictors {
   int pr;  // next prediction
   Mixer *m;
-  //EAPM a;
 public:
   PredictorIMG1();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -10483,7 +10784,7 @@ public:
   }
 };
 
-PredictorIMG1::PredictorIMG1(): pr(2048)/*,a(x)*/  {
+PredictorIMG1::PredictorIMG1(): pr(2048)  {
   matchModel=new matchModel1(x); 
   im1bitModel=new im1bitModel1(x); 
   const int tinput=1+ matchModel->inputs() + im1bitModel->inputs() ;
@@ -10495,7 +10796,7 @@ void PredictorIMG1::update()  {
   m->update();
   m->add(256);
   int ismatch=matchModel->p(*m);
-  m->set(ismatch,256);
+  m->set(ilog(ismatch),256);
   im1bitModel->p(*m, x.finfo);
   pr=m->p(); 
 }
@@ -11241,6 +11542,12 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   int DECcount=0;  // number of consecutive CALL/JMPs
   U64 DECpos=0;    // offset of first CALL or JMP instruction
   U64 DEClast=0;   // offset of most recent CALL or JMP
+  
+  Array<U64> absposARM(0xff+1),  // CALL/JMP abs. addr. low byte -> last offset
+    relposARM(0xff+1);    // CALL/JMP relative addr. low byte -> last offset
+  int ARMcount=0;  // number of consecutive CALL/JMPs
+  U64 ARMpos=0;    // offset of first CALL or JMP instruction
+  U64 ARMlast=0;   // offset of most recent CALL or JMP
 
   U64 soi=0, sof=0, sos=0, app=0,eoi=0;  // For JPEG detection - position where found
   U64 wavi=0,wavlist=0;
@@ -11297,7 +11604,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 tar=0,tarn=0,tarl=0;
   TARheader tarh;
   U32 op=0;//DEC A
-  U64 nesh=0,nesp=0;
+  U64 nesh=0,nesp=0,nesc=0;
   int textbin=0; //if 1/3 is text
   dBASE dbase;
   U64 dbasei=0;
@@ -11552,14 +11859,25 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
 }
     // NES rom 
+    //The format of the header is as follows:
+    //0-3: Constant $4E $45 $53 $1A ("NES" followed by MS-DOS end-of-file)
+    //4: Size of PRG ROM in 16 KB units
+    //5: Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM)
+    //6: Flags 6
+    //7: Flags 7
+    //8: Size of PRG RAM in 8 KB units (Value 0 infers 8 KB for compatibility; see PRG RAM circuit)
+    //9: Flags 9
+    //10: Flags 10 (unofficial)
+    //11-15: Zero filled
     if (buf0==0x4E45531A && type!=MDF &&  !cdi) nesh=i,nesp=0;
     if (nesh) {
       const int p=int(i-nesh);
       if (p==1) nesp=buf0&0xff; //count of pages*0x3FFF
-      else if (p==6 && ((buf0&0xfe)!=0) )nesh=0;
+      else if (p==2) nesc=buf0&0xff; //count of CHR*0x1FFF
+      else if (p==6 && ((buf0&0xfe)!=0) )nesh=0; // flags 9
       else if (p==11 && (buf0!=0) )nesh=0;
       else if (p==12) {
-        if (nesp>1 && nesp<129) NES_DET(NESROM,nesh-3,15,nesp*0x3FFF);
+        if (nesp>0 && nesp<129) NES_DET(NESROM,nesh-3,0,nesp*0x3FFF+nesc*0x1FFF+15);
         nesh=0;
       }
     }
@@ -12268,6 +12586,39 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       memset(&absposDEC[0], 0, sizeof(absposDEC));
     }
  
+    // ARM
+    op=(buf0)>>26; 
+    //test if bl opcode and if last 3 opcodes are valid 
+    // BL(4) and (ADD(1) or MOV(4)) as previous, 64 bit
+    // ARMv8-A_Architecture_Reference_Manual_(Issue_A.a).pdf
+    if (op==0x25 && 
+    (((buf1)>>26==0x25 ||(buf2)>>26==0x25||(buf3)>>26==0x25 ) ||
+    (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) && (buf1)>>31==1)
+    )&& e8e9count==0 &&  !tar && !soi && !pgm && !rgbi && !bmp && !wavi && !tga){ 
+      int a=(buf0)&0xff;// absolute address low 8 bits
+      int r=(buf0)&0x3FFFFFF;
+      r+=(i)/4;  // relative address low 8 bits
+      r=r&0xff;
+      int rdist=int(i-relposARM[r]);
+      int adist=int(i-absposARM[a]);
+      if (adist<rdist && adist<0x3FFFFFF && absposARM[a]>16 &&  adist>16 && adist%4==0) {
+        ARMlast=i;
+        ++ARMcount;
+        if (ARMpos==0 || ARMpos>absposARM[a]) ARMpos=absposARM[a];
+      }
+      else ARMcount=0;
+      if (type==DEFAULT && ARMcount>=16 && ARMpos>16 ) 
+          return  in->setpos(start+ARMpos-ARMpos%4), ARM;
+      absposARM[a]=i;
+      relposARM[r]=i;
+    }
+    if (i-ARMlast>0x4000) {
+      if (type==ARM)
+      return  in->setpos( start+ARMlast-ARMlast%4), DEFAULT;
+      ARMcount=0,ARMpos=0,ARMlast=0;
+      memset(&relposARM[0], 0, sizeof(relposARM));
+      memset(&absposARM[0], 0, sizeof(absposARM));
+    }
     // base64 encoded data detection
     // detect base64 in html/xml container, single stream
     // ';base64,' or '![CDATA[' :image> 3a696d6167653e
@@ -12973,6 +13324,93 @@ U64 decode_dec(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
         blk[i+1]=op>>8;
         blk[i+2]=op>>16;
         blk[i+3]=op>>24;
+        }
+        dtmp1.blockwrite(&blk[0],   bytesRead  );
+    }
+    dtmp1.setpos(0);
+    dtmp.close();
+    for ( int i=0; i<size1; i++) {
+        b=dtmp1.getc();
+        if (mode==FDECOMPRESS) {
+            out->putc(b);
+        }
+        else if (mode==FCOMPARE) {
+            if (b!=out->getc() && !diffFound) diffFound=i;
+        }
+    }
+    if(count<16) diffFound=1; //fail if replaced below threshold
+    dtmp1.close();
+    return size1; 
+}
+
+// Transform DEC Alpha code
+void encode_arm(File* in, File* out, int len, int begin) {
+  const int BLOCK=0x10000;
+  Array<U8> blk(BLOCK);
+ int count=0;
+ //U32 op1=0;
+  for (int j=0; j<len; j+=BLOCK) {
+    int size=min(int(len-j), BLOCK);
+    int bytesRead=in->blockread(&blk[0], size  );
+    if (bytesRead!=size) quit("encode_arm read error");
+    // int g=begin-(begin/4)*4;
+        for (int i=0; i<bytesRead-3; i+=4) {
+        unsigned op=blk[i+3]|(blk[i+2]<<8)|(blk[i+1]<<16)|(blk[i]<<24);
+        if ((op>>26)==0x25) { //  
+        int offset=op&0x3FFFFFF;
+        offset+=(i)/4;
+        op&=~0x3FFFFFF;
+        op|=offset&0x3FFFFFF;
+        
+        count++;
+      }
+      //op=bswap(op);
+        blk[i]=op;
+        blk[i+1]=op>>8;
+        blk[i+2]=op>>16;
+        blk[i+3]=op>>24;
+    //  op1=op;
+    }
+    
+    out->blockwrite(&blk[0],  bytesRead  );
+  }
+  //printf("DEC replacement Count %d\n",count);
+}
+
+U64 decode_arm(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int s1=0, int s2=0) {
+    const int BLOCK=0x10000;  // block size
+    Array<U8> blk(BLOCK);
+    U8 c;
+    int b=0;
+    FileTmp dtmp;
+    FileTmp dtmp1;
+    U32 count=0;
+    //decompress file
+    for (int i=0; i<size1; i++) {
+        c=en.decompress(); 
+        dtmp.putc(c);    
+    }
+     
+     dtmp.setpos(0);
+    for (int j=0; j<size1; j+=BLOCK) {
+        int size=min(int(size1-j), BLOCK);
+        int bytesRead=dtmp.blockread(&blk[0],   size  );
+        if (bytesRead!=size) quit("encode_arm read error");
+        //int g=begin-(begin/4)*4;
+        for (int i=0; i<bytesRead-3; i+=4) {
+            unsigned op=blk[i]|(blk[i+1]<<8)|(blk[i+2]<<16)|(blk[i+3]<<24);
+                if ((op>>26)==0x25  ) { // bsr r26,offset
+                   int offset=op&0x3FFFFFF;
+                   offset-=(i)/4;
+                   op&=~0x3FFFFFF;
+                   op|=offset&0x3FFFFFF;
+                  
+                   count++;
+                }
+                   blk[i+3]=op;
+        blk[i+2]=op>>8;
+        blk[i+1]=op>>16;
+        blk[i]=op>>24;
         }
         dtmp1.blockwrite(&blk[0],   bytesRead  );
     }
@@ -14170,7 +14608,7 @@ void direct_encode_blockstream(Filetype type, File*in, U64 len, Encoder &en, U64
 void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U64 s2);
 
 void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
-    if (type==EXE || type==DECA || type==CD|| type==MDF || type==IMAGE24 || type==IMAGE32  ||type==MRBR ||type==EOLTEXT||
+    if (type==EXE || type==DECA || type==ARM || type==CD|| type==MDF || type==IMAGE24 || type==IMAGE32  ||type==MRBR ||type==EOLTEXT||
      (type==TEXT || type==TXTUTF8|| type==TEXT0 || type==TEXT0PDF) || type==BASE64 || type==BASE85 ||type==SZDD|| type==ZLIB|| type==GIF) {
         U64 diffFound=0;
         FileTmp* tmp;
@@ -14180,6 +14618,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==MRBR) encode_mrb(in, tmp, int(len), info,info2);
         else if (type==EXE) encode_exe(in, tmp, int(len), int(begin));
         else if (type==DECA) encode_dec(in, tmp, int(len), int(begin));
+        else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
         //else if (type==TEXT0PDF) encode_pdf(in, tmp, int(len), int(begin));
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) {
             if ( type!=TXTUTF8 ){
@@ -14223,7 +14662,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         tmp->setpos(0);
         en.setFile(tmp);
         
-        if (type==ZLIB || type==GIF || type==MRBR|| type==BASE85 ||type==BASE64 || type==DECA || (type==TEXT || type==TXTUTF8 ||type==TEXT0||type==TEXT0PDF)||type==EOLTEXT ){
+        if (type==ZLIB || type==GIF || type==MRBR|| type==BASE85 ||type==BASE64 || type==DECA || type==ARM|| (type==TEXT || type==TXTUTF8 ||type==TEXT0||type==TEXT0PDF)||type==EOLTEXT ){
         int ts=0;
          in->setpos(begin);
         if (type==BASE64 ) decode_base64(tmp, int(tmpsize), in, FCOMPARE, diffFound);
@@ -14232,6 +14671,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==GIF && !diffFound) decode_gif(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==MRBR) decode_mrb(tmp, int(tmpsize), info, in, FCOMPARE, diffFound);
         else if (type==DECA) decode_dec(en, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) decode_txt(en, int(tmpsize), in, FCOMPARE, diffFound);
         //else if (type==TEXT0PDF)  decode_pdf(en, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==EOLTEXT ) ts=decode_txtd(tmp, int(tmpsize), in, FCOMPARE, diffFound)!=len?1:0;  
@@ -14252,7 +14692,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             tmp->setpos(0);
             if (type==EXE) {
                direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2);
-            } else if (type==DECA) {
+            } else if (type==DECA || type==ARM) {
                 direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2);
             } else if (type==IMAGE24 || type==IMAGE32) {
                 direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2, info);
@@ -14502,6 +14942,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         else if (type==IMAGE32 && !(info&PNGFlag)) decode_im32(en, int(len), info, out, mode, diffFound);
         else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
+        else if (type==ARM)    len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) len=decode_txt(en, int(len), out, mode, diffFound);
         //else if (type==EOLTEXT) len=decode_txtd(en, int(len), out, mode, diffFound);
         else if (type==BASE85 ||type==BASE64 || type==SZDD || type==ZLIB || type==CD || type==MDF  || type==GIF || type==MRBR|| type==EOLTEXT) {
@@ -14926,10 +15367,19 @@ int main(int argc, char** argv) {
             pause=false;
         }
 
+
+
         // Print help message quick 
         if (argc<2) {
             printf(PROGNAME " archiver (C) 2018, Matt Mahoney et al.\n"
-            "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n\n"
+            "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n");
+#ifdef __GNUC__     
+            printf("Compiled %s, compiler gcc version %d.%d.%d\n\n",__DATE__, __GNUC__, __GNUC_MINOR__,__GNUC_PATCHLEVEL__);
+#endif
+#ifdef __clang_major__
+            printf("Compiled %s, compiler clang version %d.%d\n\n",__DATE__, __clang_major__, __clang_minor__);
+#endif
+            printf(
 #ifdef WINDOWS
             "To compress or extract, drop a file or folder on the "
             PROGNAME " icon.\n"
