@@ -1,4 +1,4 @@
-/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Mar. 4, 2018
+/* paq8pxd file compressor/archiver.  Release by Kaido Orav, Aug. 16, 2018
 
     Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
@@ -540,16 +540,12 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V50
--better detection for NES
--changes from paq8px_v155
--Estonian stemmer (minimal), mostly conflicts with French
--add compiler info for gcc, clang
--removed dmcModel from jpegModel
--detect ARM executables, do address translation
+DIFFERENCES FROM PAQ8PXD_V51
+-change default and text predictor
+
 */
 
-#define PROGNAME "paq8pxd51"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd52"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -9528,8 +9524,8 @@ class sparseModelx: public Model {
    BlockData& x;
    Buf& buf;
 public:
-  sparseModelx(BlockData& bd): cm(CMlimit(MEM()*4), 31),scm1(0x10000), scm2(0x20000), scm3(0x2000),
-     scm4(0x8000), scm5(0x2000),scm6(0x2000), scma(0x10000),x(bd),buf(bd.buf) {
+  sparseModelx(BlockData& bd): cm(CMlimit(MEM()*4), 31),scm1(7,8), scm2(8,8), scm3(4,8),
+     scm4(5,8), scm5(4,8),scm6(4,8), scma(7,8),x(bd),buf(bd.buf) {
     }
     int inputs() {return 31*cm.inputs()+7*2;}
   int p(Mixer& m, int seenbefore, int howmany){
@@ -10262,11 +10258,11 @@ void Predictor::update()  {
     m->add(256);
     ismatch=matchModel->p(*m);  // Length of longest matching context
     if (ismatch>0xFFF || matchModel->Bypass) {
-    matchModel->Bypass = Bypass = true;
-    m->reset();
-    pr= matchModel->BypassPrediction;
-    return;
-  }
+        matchModel->Bypass = Bypass = true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        return;
+    }
     ismatch=ilog(ismatch); // ilog of length of most recent match (0..255)
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>8) order=7;
@@ -10300,7 +10296,7 @@ void Predictor::update()  {
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     m->set(c, 1536);
-    pr0=m->p();
+    pr0=m->p(1,1);
     pr=a.p1(pr0,pr,7);
 }
 
@@ -10665,7 +10661,6 @@ class PredictorTXTWRT: public Predictors {
   int order;
   int ismatch;
   Mixer *m;
-  EAPM a;
   struct {
     APM<24> APMs[4];
     APM1 APM1s[3];
@@ -10680,7 +10675,7 @@ public:
   }
 };
 
-PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },Bypass(false) {
+PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0), Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },Bypass(false) {
   if (x.clevel>=4){
     recordModelw=new recordModelx(x);
     sparseModel1=new sparseModelx(x);
@@ -10696,7 +10691,7 @@ PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),T
   normalModel=new normalModel1(x);
   const int tinput=1+(x.clevel>=4?(recordModelw->inputs() + sparseModel1->inputs() +
   wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
-  ppmdModel->inputs()+ XMLModel->inputs()+ textModel->inputs()):0) + matchModel->inputs() + normalModel->inputs()  ;
+  ppmdModel->inputs()+ XMLModel->inputs()+ textModel->inputs()):0) + matchModel->inputs() + normalModel->inputs();
   m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024,x, 7 +3+1+2+1);
    
   
@@ -10726,6 +10721,7 @@ void PredictorTXTWRT::update()  {
     }
 
     m->update();
+    x.Misses+=x.Misses+((pr>>11)!=x.y);
     Bypass=false;
     m->add(256);
     ismatch= (matchModel->p(*m));  // Length of longest matching context
@@ -10754,7 +10750,7 @@ void PredictorTXTWRT::update()  {
     }    
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
-        m->set(x.c0, 256);// 256 +256 +512+256*8 +256*8 +256*8 +1536+ 2048
+        m->set(x.c0, 256);
         m->set(ismatch, 256);
         m->set((x.w4&3)*64+c+order*256, 256*8);
         m->set(256*order + (x.w4&240) + (x.b3>>4), 256*8);
@@ -10769,7 +10765,22 @@ void PredictorTXTWRT::update()  {
         c3 = (x.words<<x.bpos) & 255;
         m->set(c+(c3>>x.bpos), 2048);
         pr0=m->p();
-        pr=a.p2(pr0,pr,7);
+
+         int limit=0x3FF>>((x.blpos<0xFFF)*2);
+         int pr1, pr2, pr3;
+      pr  = Text.APMs[0].p(pr0, (x.c0<<8)|(x.Text.mask&0xF)|((x.Misses&0xF)<<4), x.y, limit);
+      pr1 = Text.APMs[1].p(pr0, hash(x.bpos, x.Misses&3, x.buf(1), x.x5&0x80ff, x.Text.mask>>4)&0xFFFF, x.y, limit);
+      pr2 = Text.APMs[2].p(pr0, hash(x.c0, x.Match.byte, min(3, ilog2(x.Match.length+1)))&0xFFFF, x.y, limit);
+      pr3 = Text.APMs[3].p(pr0, hash(x.c0, x.buf(1), x.buf(2), x.Text.firstLetter)&0xFFFF, x.y, limit);
+
+      pr0 = (pr0+pr1+pr2+pr3+2)>>2;
+
+      pr1 = Text.APM1s[0].p(pr0, hash(x.Match.byte, min(3, ilog2(x.Match.length+1)), x.buf(1))&0xFFFF);
+      pr2 = Text.APM1s[1].p(pr, hash(x.c0, x.buf(1), x.buf(2), x.buf(3))&0xFFFF, 6);
+      pr3 = Text.APM1s[2].p(pr, hash(x.c0, x.buf(2), x.buf(3), x.buf(4))&0xFFFF, 6);
+      
+      pr = (pr+pr1+pr2+pr3+2)>>2;
+      pr = (pr+pr0+1)>>1;
 }
 
 //IMG1 predicor class
