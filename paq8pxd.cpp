@@ -89,7 +89,7 @@ paq8pxd.cpp recognizes the following compiler options:
   -DWINDOWS           (to compile in Windows)
   -DUNIX              (to compile in Unix, Linux, etc)
   -DMT                (to compile with multithreading support)
-  -DDEFAULT_OPTION=N  (to change the default compression level from 5 to N).
+  -DDEFAULT_OPTION=N  (to change the default compression level from 8 to N).
 
 If you compile without -DWINDOWS or -DUNIX, you can still compress files,
 but you cannot compress directories or create them during extraction.
@@ -104,16 +104,10 @@ drag and drop on machines with less than 256 MB of memory.  Use
 Recommended compiler commands and optimizations:
 
   MINGW g++ (x86,x64):
-   with multithreading:
-    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -o paq8pxd.exe 
-   without multithreading:
-    g++ paq8pxd.cpp -DWINDOWS -msse2 -O3 -s -static -o paq8pxd.exe 
+    g++ paq8pxd.cpp -DWINDOWS -msse4 -O3 -s -static -o paq8pxd.exe 
 
   UNIX/Linux (PC x86,x64):
-   with multithreading:
-    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -o paq8pxd
-   without multithreading:
-    g++ paq8pxd.cpp -DUNIX -msse2 -O3 -s -static -lpthread -o paq8pxd
+    g++ paq8pxd.cpp -DUNIX -msse4 -O3 -s -static -lpthread -o paq8pxd
 
   Non PC (e.g. PowerPC under MacOS X)
     g++ paq8pxd.cpp -O2 -DUNIX -s -o paq8pxd
@@ -121,9 +115,11 @@ Recommended compiler commands and optimizations:
 
 ARCHIVE FILE FORMAT
 
-An archive has the following format.  
+An archive has the following format:  
 
-  paq8pxd -N 
+  compressor name
+  \0
+  level 1 byte 
   segment offset 8 bytes
   segment size  2 bytes
   compressed segment size 2 bytes
@@ -134,13 +130,9 @@ An archive has the following format.
     size TAB filename CR LF
     ...)
   compressed binary data
-  file segmentation data
+  compressed file segmentation data
   stream data sizes[11]
 
--N is the option (-0 to -15) and mode, even if a default was used.
-00LMNNNN bit M is set if fast mode, 
-         bit L is set if quick mode,
-         if L or M are not set default to slow mode.
 
 segment size is total size of file(s) 
 compressed segment size is compressed segmentation data in bytes
@@ -540,27 +532,32 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V51
--change default and text predictor
+DIFFERENCES FROM PAQ8PXD_V52
+-small fixes
 
 */
 
-#define PROGNAME "paq8pxd52"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd53"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
-//#define MT            //uncomment for multithreading, compression only
+#define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
 
-#ifdef WINDOWS                       
+#ifndef DEFAULT_OPTION
+#define DEFAULT_OPTION 8  // default compression option
+#endif
+
+#ifdef WINDOWS
 #ifdef MT
 //#define PTHREAD       //uncomment to force pthread to igore windows native threads
 #endif
 #endif
 
 #ifdef UNIX
-#ifdef MT 
+#ifdef MT
 #define PTHREAD 1
 #endif
 #endif
+
 #include <sys/stat.h>
 #include <stdio.h>
 #include <time.h>
@@ -585,9 +582,7 @@ DIFFERENCES FROM PAQ8PXD_V51
 #include <windows.h>
 #endif
 
-#ifndef DEFAULT_OPTION
-#define DEFAULT_OPTION 8
-#endif
+
 #include <stdint.h>
 #ifdef _MSC_VER
 
@@ -1953,14 +1948,17 @@ void train(short *t, short *w, int n, int err) {
     tx[nx++]=x;
   }
   void add32(U32 a){
+      assert(nx<N);
      ((U32 *) &tx[nx],a);
     nx=nx+2;
   }
   void add64(U64 a){
+      assert(nx<N);
      ((U64 *) &tx[nx],a);
     nx=nx+4;
   }
   void addXMM(XMM a){
+      assert(nx<N);
     _mm_storeu_si128 ((XMM *) &tx[nx],a);
     nx=nx+8;
   }
@@ -5324,7 +5322,7 @@ public:
   bool Bypass;
   U16 BypassPrediction; // prediction for bypass mode
   virtual ~matchModel1(){ }
-  int inputs() {return  2+NumCtxs+2+2;}
+  int inputs() {return  2+NumCtxs+2*2+2;}
   matchModel1(BlockData& bd, U32 val1=0) :
     x(bd),buffer(bd.buf),Size( CMlimit(MEM()*4)),
     Table(Size/sizeof(U32)),
@@ -15178,11 +15176,17 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                                 //#ifndef MT
                                 if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
                                 //#endif
+                                #ifndef NDEBUG 
+                                if (!(k&0xffff) && k) {
+                                    printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,k, out->curpos()-scompsize);
+                                    scompsize= out->curpos();
+                                }
+                                #endif
                                 threadencode->compress(in->getc());
                                 datasegmentsize--;
                             }
                             #ifndef NDEBUG 
-                            printf("Stream(%d) block from %0lu to %0lu bytes\n",i,datasegmentlen, out->curpos()-scompsize);
+                            printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,datasegmentlen, out->curpos()-scompsize);
                             scompsize= out->curpos();
                             #endif
                             datasegmentlen=0;
@@ -15372,7 +15376,7 @@ int main(int argc, char** argv) {
             }
 #endif
             else
-                quit("Valid options are -M0 through -M15, -d, -l where M is mode\n");
+                quit("Valid options are -s0 through -s15, -d, -l \n");
             --argc;
             ++argv;
             pause=false;
@@ -15390,26 +15394,36 @@ int main(int argc, char** argv) {
 #ifdef __clang_major__
             printf("Compiled %s, compiler clang version %d.%d\n\n",__DATE__, __clang_major__, __clang_minor__);
 #endif
+#ifdef            _MSC_VER 
+            printf("Compiled %s, compiler Visual Studio version %d\n\n",__DATE__, _MSC_VER);
+#endif
+#ifdef MT
+printf("Multithreading enabled with %s.\n\n",
+#ifdef PTHREAD
+"PTHREAD"
+#else
+"windows native threads"
+#endif
+);
+#endif
             printf(
 #ifdef WINDOWS
-            "To compress or extract, drop a file or folder on the "
-            PROGNAME " icon.\n"
+            "To compress or extract, drop a file or folder on the " PROGNAME " icon.\n"
             "The output will be put in the same folder as the input.\n"
             "\n"
             "Or from a command window: "
 #endif
             "To compress:\n"
-            "  " PROGNAME " -Mlevel file               (compresses to file." PROGNAME ")\n"
-            "  " PROGNAME " -Mlevel archive files...   (creates archive." PROGNAME ")\n"
-            "  " PROGNAME " file                       (level -%d slow mode, pause when done)\n"
-            "M: select mode s                          (s - slow)\n"
-            "level: -[s]0 = store,\n"
-            "  -[s]1...-[s]3 = faster (uses 35, 48, 59 MB)\n"
-            "  -s4...-s8  = smaller       (uses 133, 233, 435, 837, 1643 MB)\n"
-            "  -s9...-s15 = experimental  (uses 3.1, 6.0, 7.8, 9.3, 12.0, 17.8, 25.3 GB)\n"
+            "  " PROGNAME " -slevel file               (compresses to file." PROGNAME ")\n"
+            "  " PROGNAME " -slevel archive files...   (creates archive." PROGNAME ")\n"
+            "  " PROGNAME " file                       (level -%d pause when done)\n"
+            "level: -s0          store\n"
+            "  -s1...-s3         (uses 393, 398, 409 MB)\n"
+            "  -s4...-s9         (uses 1.2  1.3  1.5  1.9 2.7 4.9 GB)\n"
+            "  -s10...-s15       (uses 7.8 11.6 13.1 28.3 x.x x.x GB)\n"
 #ifdef MT 
-            "  to use multithreading -Mlevel:threads (1-9, compression only)\n"
-            "  " PROGNAME " -s4:2 file (use slow mode level 4 threads 2)\n\n"
+            "  to use multithreading -slevel:threads   (1-9, compression only)\n"
+            "  " PROGNAME " -s4:2 file (use level 4 threads 2)\n\n"
 #endif            
 #if defined(WINDOWS) || defined (UNIX)
             "You may also compress directories.\n"
