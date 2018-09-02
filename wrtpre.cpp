@@ -343,7 +343,7 @@ protected:
     int maxDynDictBuf,minWordFreq,maxDictSize;
     int tryShorterBound,spaces,fileLenMB,beforeWord;
     int spacesCodeword[256];
-    int spacesCont[256];
+    //int spacesCont[256];
     std::vector<std::string> sortedDict;
 
     ELetterType letterType;
@@ -1028,6 +1028,7 @@ private:
     inline int findShorterWord(U8* &s,int &s_size);
     inline void toLower(U8* s,int &s_size);
     inline void toUpper(U8* s,int &s_size);
+    void encodeUTF8(U8* s,int &s_size,int& c);
     inline void checkWord(U8* &s,int &s_size,int& c);
     
     inline void checkHashExactly(U8* &s,int &s_size,int& i);
@@ -1090,6 +1091,13 @@ bool is_ascii(U8 *s, int len){
         if (s[i]<127) return false;
     }
     return true;
+}
+int  ascii_len(U8 *s, int len){
+	int i=0;
+    for (  i = 0; i < len; i++){
+        if (s[i]>=127) return i;
+    }
+    return i;
 }
 // Markus Kuhn <http://www.cl.cam.ac.uk/~mgk25/> -- 1999-12-31
 // License: https://www.cl.cam.ac.uk/~mgk25/short-license.html
@@ -1303,7 +1311,39 @@ inline void XWRT_Encoder::toLower(U8* s,int &s_size){
     for (int i=0; i<s_size; i++)
     s[i]=tolower(s[i]);
 }
-
+void XWRT_Encoder::encodeUTF8(U8* s,int &s_size,int& c){
+// if not found, try to search next utf8 char and encode
+        // x - char  X - utf8 char
+        // example word: xxxXXxxX
+        int alen=ascii_len(s,s_size);
+        int utflen=0;
+        if (alen!=s_size && alen!=0){
+            //encode text
+            encodeAsText(s,alen);
+            s=s+alen;
+            s_size=s_size-alen;
+            //find utf char lenght
+            utflen=utf8_check(s);
+            // do we have utf8 char?
+            if (utflen &&s_size>1){
+                int i=-1;
+                checkHashExactly(s,utflen,i);
+                //encode char if found
+                if (i!=-1){
+                    encodeCodeWord(i);
+                    s=s+utflen;
+                    s_size=s_size-utflen;
+                    //if we have more letters then do recursion on remaining letters
+                    if (s_size!=0)
+                        encodeWord(s,s_size,VARWORD,c);
+                }else
+                    encodeAsText(s,s_size);
+            }else
+                encodeAsText(s,s_size);
+        }else
+        //  end of utf8 char search
+        encodeAsText(s,s_size);
+		}
 // encode word "s" using dictionary
 void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     if (detect) {
@@ -1321,7 +1361,9 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     int i=-1;
     int size=0;
     int flagToEncode=-1;
-    
+    /*if (s_size>0 && !(wordType==3 || wordType==5)){
+            toLower(s,s_size);
+        }*/
     if (s_size>=WORD_MIN_SIZE){
         checkHashExactly(s,s_size,i);
         PRINT_CODEWORDS(("i=%d/%d %s(%d)\n",i,sizeDynDict,s,s_size));
@@ -1395,9 +1437,37 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
                 encodeCodeWord(i);
                 s2=s2+size;
                 s_size2=s_size2-size;
-                if (s_size2>0) encodeAsText(s2,s_size2);
+                if (s_size2>0) encodeUTF8(s2,s_size2,c);//encodeAsText(s2,s_size2);
             }
-            else encodeAsText(s2,s_size2);
+            else {
+				encodeUTF8(s2,s_size2,c);
+             /*   int alen=ascii_len(s2,s_size2);
+        int utflen=0;
+        if (alen!=s_size2 && alen!=0){
+            //encode text
+            encodeAsText(s2,alen);
+            s2=s2+alen;
+            s_size2=s_size2-alen;
+            //find utf char lenght
+            utflen=utf8_check(s2);
+            // do we have utf8 char?
+            if (utflen &&s_size2>1){
+                checkHashExactly(s2,utflen,i);
+                //encode char if found
+                if (i!=-1){
+                    encodeCodeWord(i);
+                    s2=s2+utflen;
+                    s_size2=s_size2-utflen;
+                    //if we have more letters then do recursion on remaining letters
+                    if (s_size2!=0)
+                        encodeWord(s2,s_size2,VARWORD,c);
+                }else
+                    encodeAsText(s2,s_size2);
+            }else
+                encodeAsText(s2,s_size2);
+        }else
+				encodeAsText(s2,s_size2);*/
+			}
         }
     }
     else
@@ -1407,7 +1477,37 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
         else if (wordType==UPPERWORD)
         toUpper(s,s_size);
         encodeSpaces();
-        encodeAsText(s,s_size);
+        // if not found, try to search next utf8 char and encode
+        // x - char  X - utf8 char
+        // example word: xxxXXxxX
+		 encodeUTF8(s,s_size,c);
+        /*int alen=ascii_len(s,s_size);
+        int utflen=0;
+        if (alen!=s_size && alen!=0){
+            //encode text
+            encodeAsText(s,alen);
+            s=s+alen;
+            s_size=s_size-alen;
+            //find utf char lenght
+            utflen=utf8_check(s);
+            // do we have utf8 char?
+            if (utflen &&s_size>1){
+                checkHashExactly(s,utflen,i);
+                //encode char if found
+                if (i!=-1){
+                    encodeCodeWord(i);
+                    s=s+utflen;
+                    s_size=s_size-utflen;
+                    //if we have more letters then do recursion on remaining letters
+                    if (s_size!=0)
+                        encodeWord(s,s_size,VARWORD,c);
+                }else
+                    encodeAsText(s,s_size);
+            }else
+                encodeAsText(s,s_size);
+        }else
+        //  end of utf8 char search
+        encodeAsText(s,s_size);*/
     }
     return;
 }
@@ -1426,7 +1526,9 @@ void XWRT_Encoder::WRT_encode(int filelen){
     while (true) 
     {
         if (c==EOF || filelento>=filelen) break;
-    
+  /* if (filelento== 495660) {
+   printf("%d", filelento);
+   }*/
         PRINT_CHARS(("c=%c (%d) last=%c \n",c,c,last_c));
        
         if (detect){
@@ -1720,7 +1822,7 @@ int XWRT_Encoder::WRT_detectFileType(int filelen){
     s_size=0;
     memset(addSymbols,0,sizeof(addSymbols));
     memset(reservedSet,0,sizeof(reservedSet));
-    memset(spacesCont,0,sizeof(spacesCont));
+    //memset(spacesCont,0,sizeof(spacesCont));
     spaces=0;
     firstWarn=true;
     sizeDict=1;
@@ -1768,8 +1870,7 @@ int compare_freq( const void *arg1, const void *arg2 ){
 void XWRT_Encoder::sortDict(int size){
     int i,add;
     size--;
-    if (size<20)
-    return;
+    if (size<10) return; // fail if word count is below - no transform
     initializeCodeWords(size,false);
     add=0;
     dict1size-=add;
@@ -1810,8 +1911,10 @@ void XWRT_Encoder::WRT_detectFinish(){
     minWordFreq2=minWordFreq-2;
     for (i=1; i<sizeDict-1; i++){
         num=dictfreq[i];
+        
         if (num>=minWordFreq || (num>=minWordFreq2 && (dictlen[i]>=7)) /*|| (lowerfq && num>=6 && utf8_check(dict[i]))*/ )  
-         ;
+        //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
+        ;
         else
         dictfreq[i]=0;
     }
