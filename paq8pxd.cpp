@@ -540,25 +540,12 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V54
--revert distance model back
--detect 4 bit mrb images, recompress only first image
--add SparseMatchModel from paq8px_162, use on default/text/exe stream
--add array class from paq8px_162
--matchModel changes form paq8px_162 
--use text detection form paq8px_162, change to detext EOLTEXT,TEXT0,TEXTUTF8
--contextMap2 form paq8px_162, use in normalModel, textModel,exeModel
--use textModel, xmlModel in PredictorEXE
--fix jpeg detection
--in wrt try to find utf8 char if word not found in dict
--in wrt change minimum words needed to 10 in final dict
--tweak ARM, DEC, etc detection
--brute force tar detection (non ustar)
--other small changes and small changes from paq8px_162
+DIFFERENCES FROM PAQ8PXD_V55
+-fix textModel mixer inputs
  
 */
 
-#define PROGNAME "paq8pxd55"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd56"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -2904,7 +2891,7 @@ class ContextMap2 {
 public:
   // Construct using Size bytes of memory for Count contexts
   ContextMap2(const U64 Size, const U32 Count) : C(Count), Table(Size>>6), BitState(Count), BitState0(Count), ByteHistory(Count), Contexts(Count), HasHistory(Count){
-    assert(Size>=64 && ispowerof2(Size));
+   // assert(Size>=64 && ispowerof2(Size));
     assert(sizeof(Bucket)==64);
     Maps6b = new StateMap*[C];
     Maps8b = new StateMap*[C];
@@ -4925,7 +4912,7 @@ private:
   void Update(Buf& buffer,Mixer& mixer);
   void SetContexts(Buf& buffer,Mixer& mixer);
 public:
-  TextModel(BlockData& bd, U64 Size) : N(21+3+1+1+5+5+1),buffer(bd.buf),  Map(CMlimit(MEM()*Size), N), Stemmers(Language::Count-1), Languages(Language::Count-1),
+  TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),  Map(CMlimit(MEM()*Size), N), Stemmers(Language::Count-1), Languages(Language::Count-1),
    WordPos(0x10000), State(Parse::Unknown), pState(State), Lang{ 0, 0, Language::Unknown, Language::Unknown }, Info{ 0 }, ParseCtx(0),doXML(false) {
     Stemmers[Language::English-1] = new EnglishStemmer();
     Stemmers[Language::French-1] = new FrenchStemmer();
@@ -4947,7 +4934,7 @@ public:
       delete Languages[i];
     }
   }
-   int inputs() {return N*6;}
+   int inputs() {return N*Map.inputs();}
   int p(Mixer& mixer,int val1=0, int val2=0) {
     if (mixer.x.bpos==0) {
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
