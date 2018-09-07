@@ -540,12 +540,12 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V55
--fix textModel mixer inputs
+DIFFERENCES FROM PAQ8PXD_V56
+-fix memory errors
  
 */
 
-#define PROGNAME "paq8pxd56"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd57"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -749,7 +749,10 @@ template<class T, const int Align> void Array<T,Align>::create(U64 requested_siz
   }
   U64 bytes_to_allocate=allocated_bytes();
   ptr=(char*)calloc(bytes_to_allocate,1);
-  if(!ptr)quit("Out of memory.");
+  if(!ptr){
+      printf("Requested size %0lu MB\n",((bytes_to_allocate)/1024)/1024);
+      quit("Out of memory.");
+  }
   U64 pad=padding();
   data=(T*)(((uintptr_t)ptr+pad) & ~(uintptr_t)pad);
   assert(ptr<=(char*)data && (char*)data<=ptr+Align);
@@ -2203,14 +2206,14 @@ inline U32 combine(U32 seed, const U32 x) {
 //   element is replaced.
 
 // 2 byte checksum with LRU replacement (except last 2 by priority)
-template <int B> class BH {
+template <U32 B> class BH {
   enum {M=8};  // search limit
   Array<U8, 64> t; // elements
   //Array<U8> tmp;
   U8 tmp[B];
   U32 n; // size-1
 public:
-  BH(int i): t(i*B), n(i-1) {
+  BH(U32 i): t(i*B), n(i-1) {
     //printf("BH %0.0f, i %d B %d power %d\n",(i*B)+0.0,i,B,(i&(i-1))==0);
     assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2?
     
@@ -2218,7 +2221,7 @@ public:
   U8* operator[](U32 i);
 };
 
-template <int B>
+template <U32 B>
 inline  U8* BH<B>::operator[](U32 i) {
   U16 chk=(i>>16^i)&0xffff;
   i=i*M&n;
@@ -2605,7 +2608,7 @@ ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
     runp[i]=cp[i]+3;
   }
   #ifndef NDEBUG 
-  printf("ContextMap t %0.2f mbytes\n",((m+0.0)/1024)/1024);
+  printf("ContextMap t %0.2f mbytes\n",(((t.size()*sizeof(E)) +0.0)/1024)/1024);
   #endif
 }
 
@@ -2906,6 +2909,9 @@ public:
     index = 0;
     lastByte = lastBit = 0;
     bits = 1;  bitPos = 0;
+    #ifndef NDEBUG 
+  printf("ContextMap2 t %0.2f mbytes\n",(((Table.size()*sizeof(Bucket)) +0.0)/1024)/1024);
+  #endif
   }
   ~ContextMap2() {
     for (U32 i=0; i<C; i++) {
@@ -5354,7 +5360,7 @@ class matchModel1: public Model {
 private:
     BlockData& x;
     Buf& buffer;
-    const int Size;
+    const U64 Size;
   enum Parameters : U32{
       MaxLen = 0xFFFF, // longest allowed match
     MaxExtend = 0,   // longest match expansion allowed // warning: larger value -> slowdown
@@ -9383,7 +9389,7 @@ public:
   }
 
 public: 
-  dmcNode(U32 mem, U32 th,BlockData& bd) : top(0),threshold(th),t(mem),  sm(),x(bd) {resetstategraph();}
+  dmcNode(U32 mem, U32 th,BlockData& bd) : top(0),threshold(th),t(mem),  sm(),x(bd) {resetstategraph();  }
 
   bool isfull() {return x.bpos==1 && top==t.size();}
   bool isalmostfull() {return x.bpos==1 && top>=t.size()*15 >>4;} // *15/16
@@ -9442,7 +9448,7 @@ private:
   BlockData& x;
 public:
   dmcModel1(BlockData& bd, U32 val=0):
-  mem(CMlimit((MEM()/(level<11?1:2))/9)),
+  mem(CMlimit(( (level<11?(0x10000UL<<level):((0x10000UL<<11))))/9)),
   dmcmodel1a(mem,240,bd),
   dmcmodel1b(mem,240,bd),
   dmcmodel2a(mem,480,bd),
