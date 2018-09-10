@@ -540,12 +540,13 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V56
--fix memory errors
+DIFFERENCES FROM PAQ8PXD_V57
+-change PredictorJpeg
+-add chartModel from paq8k
  
 */
 
-#define PROGNAME "paq8pxd57"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd58"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -10428,6 +10429,105 @@ int p(Mixer& m,int val1=0,int val2=0){
   virtual ~ppmdModel1(){ }
 };
 
+
+
+///////////////////////////// chartModel ////////////////////////////
+class chartModel: public Model {
+  BlockData& x;
+  Buf& buf;
+  ContextMap cm,cn;
+  Array<U32> chart;
+  Array<U8> indirect;
+  Array<U8> indirect2;
+  Array<U8> indirect3;
+public:
+  chartModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()*4),64),cn(CMlimit(MEM()),23), chart(21), indirect(1088), indirect2(256), indirect3(256*256){
+   
+ }
+ int inputs() {return 64*cm.inputs()+23*cn.inputs();}
+
+
+int p(Mixer& m,int val1=0,int val2=0){
+   if (!x.bpos){
+       U32 c4=x.c4;
+    const
+      U32 w = c4&65535,
+      w0 = c4&16777215,
+      w1 = c4&255,
+      w2 = c4<<8&65280,
+      w3 = c4<<8&16711680,
+      w4 = c4<<8&4278190080,
+      a[3]={c4>>5&460551,    c4>>2&460551,   c4&197379},
+      b[3]={c4>>23&448|      c4>>18&56|      c4>>13&7,
+            c4>>20&448|      c4>>15&56|      c4>>10&7,
+            c4>>18&48 |      c4>>12&12|      c4>>8&3},
+      d[3]={c4>>15&448|      c4>>10&56|      c4>>5&7,
+            c4>>12&448|      c4>>7&56 |      c4>>2&7,
+            c4>>10&48 |      c4>>4&12 |      c4&3},
+      c[3]={c4&255,          c4>>8&255,      c4>>16&255};
+
+    for (
+      int i=0,
+      j=0,
+      f=b[0],
+      e=a[0];
+
+    i<3;
+    j=++i<<9,
+      f=j|b[i],
+      e=a[i]
+    ){
+      indirect[f]=w1; // <--Update indirect
+      const int g =indirect[j|d[i]];
+      chart[i<<3|e>>16&255]=w0; // <--Fix chart
+      chart[i<<3|e>>8&255]=w<<8; // <--Update chart
+      cn.set(e); // <--Model previous/current/next slot
+      cn.set(g); // <--Guesses next "c4&0xFF"
+      cn.set(w2|g); // <--Guesses next "c4&0xFFFF"
+      cn.set(w3|g); // <--Guesses next "c4&0xFF00FF"
+      cn.set(w4|g); // <--Guesses next "c4&0xFF0000FF"
+      cm.set(c[i]); // <--Models buf(1,2,3)
+    }
+
+    indirect2[buf(2)]=buf(1);
+    int g=indirect2[buf(1)];
+    cn.set(g); // <--Guesses next "c4&0xFF"
+    cn.set(w2|g); // <--Guesses next "c4&0xFFFF"
+    cn.set(w3|g); // <--Guesses next "c4&0xFF00FF"
+    cn.set(w4|g); // <--Guesses next "c4&0xFF0000FF"
+
+    indirect3[buf(3)<<8|buf(2)]=buf(1);
+    g=indirect3[buf(2)<<8|buf(1)];
+    cn.set(g); // <--Guesses next "c4&0xFF"
+    cn.set(w2|g); // <--Guesses next "c4&0xFFFF"
+    cn.set(w3|g); // <--Guesses next "c4&0xFF00FF"
+    cn.set(w4|g); // <--Guesses next "c4&0xFF0000FF"
+
+
+    for (
+      int
+      i=0,
+      s=0,
+      e=a[0],
+      k=chart[0];
+
+    i<20;
+    s=++i>>3,
+      e=a[s],
+      k=chart[i]
+    ){ // k e
+      cm.set(k<<s); // 111 000
+      cm.set(hash(e,k,s)); // 111 111
+      cm.set((hash(e&255,k>>16)^(k&255))<<s); // 101 001
+    }
+    cm.set(0);
+  }
+  cn.mix(m);
+  cm.mix(m);
+  return 0;
+}
+  virtual ~chartModel(){ }
+};
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
@@ -10461,6 +10561,7 @@ public:
   im4bitModel1* im4bitModel;
   TextModel *textModel;
   decModel1 *decModel;
+  chartModel *chartModel1;
 virtual ~Predictors(){
   if (jpegModel!=0) delete jpegModel;
   if (sparseModel1!=0) delete sparseModel1;
@@ -10483,6 +10584,7 @@ virtual ~Predictors(){
   if (im4bitModel!=0) delete im4bitModel;
   if (textModel!=0) delete textModel;
   if (decModel!=0) delete decModel;
+  if (chartModel1!=0) delete chartModel1;
  
    };
 Predictors(){
@@ -10508,6 +10610,7 @@ Predictors(){
   im4bitModel=0;
   textModel=0;
   decModel=0;
+  chartModel1=0;
 }
   virtual int p() const =0;
   virtual void update()=0;
@@ -10615,12 +10718,13 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false)
         XMLModel=new XMLModel1(x);
         exeModel=new exeModel1(x); 
         textModel =new TextModel(x,16) ;
+        chartModel1 =new chartModel(x) ;
    }
    matchModel=new matchModel1(x);
    normalModel=new normalModel1(x);
    const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
    sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-   nestModel->inputs()+ppmdModel->inputs()+XMLModel->inputs()+exeModel->inputs()+textModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
+   nestModel->inputs()+ppmdModel->inputs()+XMLModel->inputs()+exeModel->inputs()+textModel->inputs()+chartModel1->inputs() ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
    m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*5+2048+2048+2048+1024*3+8192+8192+8192+1024,x, 21+1);
 }
 
@@ -10676,6 +10780,7 @@ void Predictor::update()  {
             xmlstate=XMLModel->p(*m);
             Valid=exeModel->p(*m);
             textModel->p(*m);
+             chartModel1->p(*m);
     } 
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
@@ -10800,9 +10905,16 @@ public:
 PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256}  {
   matchModel=new matchModel1(x); 
   jpegModel=new jpegModelx(x); 
- 
-  const int tinput=1+ matchModel->inputs() + jpegModel->inputs()+2 ;
-  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024,x, 5);
+  dmcModel=new dmcModel1(x);  
+  normalModel=new normalModel1(x);
+  distanceModel=new distanceModel1(x); 
+  indirectModel=new indirectModel1(x); 
+  sparseModel=new sparseModely(x); 
+  recordModel=new recordModel1(x); 
+  const int tinput=1+ matchModel->inputs() + jpegModel->inputs()+2+dmcModel->inputs()+
+  normalModel->inputs()+distanceModel->inputs()+indirectModel->inputs() +
+  sparseModel->inputs()+recordModel->inputs();
+  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024+256+256,x, 5+1+1);
 }
 
 void update()  {
@@ -10813,15 +10925,24 @@ void update()  {
     int ismatch=matchModel->p(*m);  // Length of longest matching context
     m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
     m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
+    dmcModel->p(*m);
+    
     if (jpegModel->p(*m)) {
         m->set(ismatch, 256);
         pr=m->p(1,0);
     }
     else{
+        int order =normalModel->p(*m);
+        distanceModel->p(*m);
+        indirectModel->p(*m);
+        sparseModel->p(*m,ismatch,order);
+        recordModel->p(*m);
         U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
          m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
         m->set(x.c0, 256);
+        m->set(order | ((x.c4>>6)&3)<<3 | (x.bpos==0)<<5 | (c1==c2)<<6 | (1)<<7, 256);
         m->set(c2, 256);
+        m->set(c3, 256);
         m->set(ismatch, 256);
         U8 d=x.c0<<(8-x.bpos);
         if (x.bpos) {
@@ -10860,11 +10981,12 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x) {
     nestModel=new nestModel1(x); // ?
      textModel =new TextModel(x,16) ; 
      XMLModel=new XMLModel1(x);
+      chartModel1 =new chartModel(x) ;
   }
   matchModel=new matchModel1(x); 
   normalModel=new normalModel1(x);
   const int tinput=1+(level>=4?(recordModel->inputs()+distanceModel->inputs()+sparseModel->inputs()+
-  wordModel->inputs()+  exeModel->inputs() + indirectModel->inputs() +XMLModel->inputs()+ dmcModel->inputs()+ nestModel->inputs()+textModel->inputs()+sparseMatch.inputs()  ):0)+
+  wordModel->inputs()+  exeModel->inputs() + indirectModel->inputs() +XMLModel->inputs()+ dmcModel->inputs()+ nestModel->inputs()+textModel->inputs()+sparseMatch.inputs()+chartModel1->inputs()  ):0)+
   matchModel->inputs() + normalModel->inputs();
   m=new Mixer(tinput, 6920+1024+512+8192+8192+8192+ 1024+2048+2048+2048+2048+2048+4096,x, 10+1+1+2+1+7);
 
@@ -10908,6 +11030,7 @@ void PredictorEXE::update()  {
         exeModel->p(*m,1); //1024*2
          XMLModel->p(*m);
         textModel->p(*m);
+         chartModel1->p(*m);
     }
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
@@ -11125,12 +11248,13 @@ PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),Text{ {
     ppmdModel=new ppmdModel1(x);
     XMLModel=new XMLModel1(x);
     textModel =new TextModel(x,16) ;
+      chartModel1 =new chartModel(x) ;
   }
   matchModel=new matchModel1(x);
   normalModel=new normalModel1(x);
   const int tinput=1+(level>=4?(recordModelw->inputs() + sparseModel1->inputs() +
   wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
-  ppmdModel->inputs()+ XMLModel->inputs()+ textModel->inputs()):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() ;
+  ppmdModel->inputs()+ XMLModel->inputs()+ textModel->inputs()+chartModel1->inputs() ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() ;
   m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024,x, 7 +3+1+2+1);
   m->setText(true);
 }
@@ -11175,7 +11299,7 @@ void PredictorTXTWRT::update()  {
         recordModelw->p(*m);
         ppmdModel->p(*m);
         textModel->p(*m,state&7);
-        
+        chartModel1->p(*m);
     }    
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
