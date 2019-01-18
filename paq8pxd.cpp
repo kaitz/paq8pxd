@@ -541,13 +541,11 @@ which computes 8 elements at a time, is not any faster).
 
 
 DIFFERENCES FROM PAQ8PXD_V61
-- recordmodel change from paq8px_v175
-- change recordmodel, wordmodel and textmodel
-- tga rle,tif lzw recompression from paq8px_v177
+- bugfix
 
 */
 
-#define PROGNAME "paq8pxd61"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd62"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -2447,7 +2445,7 @@ public:
     B+=(m.x.y && B>0);
     cp=&Data[Context+B];
     const U8 state = *cp;
-    const int p1 = Map.p(state, Limit);
+    const int p1 = Map.p(state,m.x.y, Limit);
     m.add((stretch(p1)*Multiplier)/Divisor);
     m.add(((p1-2048)*Multiplier)/(Divisor*2));
     bCount++; B+=B+1;
@@ -7511,7 +7509,7 @@ class im4bitModel1: public Model {
     U8 WW, W, NWW, NW, N, NE, NEE, NNWW, NNW, NN, NNE, NNEE;
     int col, line, run, prevColor, px;
     public:
- im4bitModel1( BlockData& bd,U32 val=0 ): x(bd),buf(bd.buf),t(CMlimit(MEM()/4)),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
+ im4bitModel1( BlockData& bd,U32 val=0 ): x(bd),buf(bd.buf),t(CMlimit(MEM()/16)),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
   NEE(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0),col(0), line(0), run(0), prevColor(0), px(0) {
    sm=new StateMap[S];
    for (int i=0;i<S;i++)
@@ -7548,10 +7546,10 @@ int p(Mixer& m,int w=0,int val2=0)  {
       cp[i++]=t[hash(NE, min(0x3FF, (col+line)/max(1,w*8)))]+1;
       cp[i++]=t[hash(NW, (col-line)/max(1,w*8))]+1;
       cp[i++]=t[hash(WW*16+W,NN*16+N,NNWW*16+NW)]+1;
-      cp[i++]=t[hash(i,N,NN)];
-      cp[i++]=t[hash(i,W,WW)];
-      cp[i++]=t[hash(i,W,NE)];
-      cp[i++]=t[hash(i,WW,NN,NEE)];
+      cp[i++]=t[hash(i,N,NN)]+1;
+      cp[i++]=t[hash(i,W,WW)]+1;
+      cp[i++]=t[hash(i,W,NE)]+1;
+      cp[i++]=t[hash(i,WW,NN,NEE)]+1;
       cp[i++]=t[-1]+1;
       
       col++;
