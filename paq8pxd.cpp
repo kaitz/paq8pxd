@@ -468,6 +468,10 @@ The following transforms are used:
   in the transformed data than the original and within 4KB 4 times in
   a row.  The block ends when this does not happen for 4KB.
 
+- DEC Alpha: Swap byte order, do call transform
+
+- ARM: do call transform
+
 - JPEG: detected by SOI and SOF and ending with EOI or any nondecodable
   data.  No transform is applied.  The purpose is to separate images
   embedded in execuables to block the EXE transform, and for a future
@@ -480,6 +484,8 @@ The following transforms are used:
   up to level 5. Input can be full stream or end-of-line coded.
   Supports: https://en.wikipedia.org/wiki/Ascii85#Adobe_version
 
+- UUENCODE: Decodes UUENCODE encoded data.
+
 - 24-bit images: 24-bit image data uses simple color transform
   (b, g, r) -> (g, g-r, g-b)
   
@@ -490,7 +496,7 @@ The following transforms are used:
   
 - CD: mode 1 and mode 2 form 1+2 - 2352 bytes
 
-- MDF: wraped around CD, re-arranges subchannel  and CD data
+- MDF: wraped around CD, re-arranges subchannel and CD data
 
 - TEXT: All detected text blocks are transformed using dynamic dictionary
   preprocessing (based on XWRT). If transformed block is larger from original
@@ -498,9 +504,9 @@ The following transforms are used:
   
 - LZSS: (Haruhiko Okumura's LZSS): Decompresses Microsoft compress.exe archives.
 
-- TTA: audio filter 
+- MRB: 8, 4 bit images with RLE compression in hlp files
 
-- MRB: 8 bit images with RLE compression
+- RLE: TGA, TIFF images
 
 - EOL: 
 
@@ -540,14 +546,15 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V61
-- bugfix
-
+DIFFERENCES FROM PAQ8PXD_V62
+- jpeg model +1 context, use bhmap
+- change wordmodel, textmodel
+- 
 */
 
-#define PROGNAME "paq8pxd62"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd63"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
-#define MT            //uncomment for multithreading, compression only
+//#define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
 
 #ifdef WINDOWS                       
@@ -2225,7 +2232,7 @@ inline U32 combine(U32 seed, const U32 x) {
 
 // 2 byte checksum with LRU replacement (except last 2 by priority)
 template <U32 B> class BH {
-  enum {M=8};  // search limit
+  enum {M=4};  // search limit
   Array<U8, 64> t; // elements
   //Array<U8> tmp;
   U8 tmp[B];
@@ -5149,6 +5156,8 @@ private:
     U32 lastNest;     // distance to last nesting character
     U32 linespace;
     U8  islink;
+    U8 istemplate;
+    U8 isqoute;
     U32 nl;
     U32 nl1;
     U32 nl2;
@@ -5209,7 +5218,8 @@ public:
       ((Info.lastUpper<Info.lastLetter+Info.wordLength[1])<<1)|
       ((Info.lastPunct<Info.wordLength[0]+Info.wordGap)<<2)|
       ((Info.lastUpper<Info.wordLength[0])<<3)|
-      ((Info.islink)<<4)
+      ((Info.islink)<<4)|
+      ((Info.istemplate)<<5)
     )&0x7FF, 2048);
     mixer.set(hash(Info.masks[1]&0x3FF, mixer.x.grp, Info.lastUpper<Info.wordLength[0], Info.lastUpper<Info.lastLetter+Info.wordLength[1])&0xFFF, 4096);
         mixer.set(hash(Info.spaces&0x1FF, mixer.x.grp,
@@ -5255,6 +5265,17 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
         Info.islink=1;
        
     }
+    if (Info.istemplate && (mixer.x.c4&0xffff)==0x7d7d) Info.istemplate=0; //'}}'
+     if ((mixer.x.c4&0xffff)==0x7b7b) {//'{{'
+        Info.istemplate=1;
+       
+    }
+   /*  if (Info.isqoute && (mixer.x.c4&0xff)==0x22) Info.isqoute=0; //'"'
+     if ((mixer.x.c4&0xffff)==0x1022 || (mixer.x.c4&0xffff)==0x0522 || (mixer.x.c4&0xffff)==0x2022) {//' "'
+        Info.isqoute=1;
+       
+    }*/
+    
   pC = buffer(2);
   ParseCtx = hash(State=Parse::Unknown, pWord->Hash[0], c, (ilog2(Info.lastNewLine)+1)*(Info.lastNewLine*3>Info.prevNewLine), Info.masks[1]&0xFC);
 
@@ -5519,7 +5540,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
   Map.set(hash(i++, cWord->Hash[1], Words[Lang.pId](2).Hash[1], min(10,ilog2((U32)Info.numbers[0])),
     (Info.lastUpper<Info.lastLetter+Info.wordLength[1])|
     ((Info.lastLetter>3)<<1)|
-    ((Info.lastLetter>0 && Info.wordLength[1]<3)<<2)
+    ((Info.lastLetter>0 && Info.wordLength[1]<3)<<2) 
   ));
    Map.set(hash(i++,min(10,ilog2((U32)Info.numbers[2])),Info.numHashes[2],(cSentence->VerbIndex<cSentence->WordCount)?cSentence->lastVerb.Hash[1]:0));//
 
@@ -5532,7 +5553,8 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
   Map.set(hash(i++, cWord->Hash[0], Info.masks[1]&0x3FF, Words[Lang.pId](3).Hash[1],
     (Info.lastDigit<Info.wordLength[0]+Info.wordGap)|
     ((Info.lastUpper<Info.lastLetter+Info.wordLength[1])<<1)|
-    ((Info.spaces&0x7F)<<2)
+    ((Info.spaces&0x7F)<<2)|
+     ((Info.linespace>4 && (doXML==false))<<3 )
   ));
   Map.set(hash(++i, cWord->Hash[0], pWord->Hash[1]));
   Map.set(hash(i++, cWord->Hash[0], pWord->Hash[1], Words[Lang.pId](2).Hash[1]));
@@ -5951,7 +5973,7 @@ class wordModel1: public Model {
     U32 number0, number1;  // hashes
     U32 text0,N,data0,type0;  // hash stream of letters
     ContextMap cm;
-    int nl2,nl1, nl;  // previous, current newline position
+    int nl3,nl2,nl1, nl;  // previous, current newline position
     U32 mask,mask2;
     Array<int> wpos;  // last position of word
     int w;
@@ -5961,12 +5983,12 @@ class wordModel1: public Model {
     Word *cWord, *pWord;
     EnglishStemmer StemmerEN;
     int StemIndex,same,linespace;
-    int islink;
+    int islink,istemplate;
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),number0(0),
-  number1(0),text0(0),N(57+1+3+1+1-1+2),data0(0),type0(0),cm(CMlimit(MEM()*16), N),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
-  lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0){
+  number1(0),text0(0),N(57+1+3+1+1-1+2),data0(0),type0(0),cm(CMlimit(MEM()*16), N),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
+  lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0){
       cWord=&StemWords[0], pWord=&StemWords[3];
    }
    int inputs() {return N*cm.inputs();}
@@ -5994,7 +6016,7 @@ public:
            memset(cWord, 0, sizeof(Word));
         }
         if (islink && (c==SPACE || c==']' || c==10  )) islink=0; //disable if not in link
-        //if (islink && (c=='.' || c=='/'   )) c=32;
+        if (istemplate && (x.c4&0xffff)==0x7d7d) istemplate=0; //'}}'
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
         if ((c>='a' && c<='z') || (c>=128 &&(x.b3!=3) || (c>0 && c<4 ))) {
@@ -6064,7 +6086,7 @@ public:
                if (c==10 && linespace==0 && x.frstchar==0x5B /* && buf(2)==0x5B*/ ){
                    xword1=xword2=xword3=0;
                }
-               if (c==10 || c==5) /*x.spafdo=0,*/linespace=0,nl2=nl1,nl1=nl, nl=buf.pos-1;
+               if (c==10 || c==5) /*x.spafdo=0,*/linespace=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;
             }
             else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') x.spafdo=0,ccword=c,mask2+=3;//,type0 = (type0<<2);
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
@@ -6073,6 +6095,11 @@ public:
         islink=1;
        
     }
+     if ((x.c4&0xffff)==0x7b7b) { //'{{'
+        istemplate=1;
+       
+    }
+     
         if (doXML==true){
             if ((x.c4&0xFFFF)==0x3D3D && x.frstchar==0x3d) xword1=word1; // ,xword2=word2; // == wiki
             if ((x.c4&0xFFFF)==0x2727) xword2=word1;                     //,xword2=word2; // '' wiki
@@ -6100,6 +6127,7 @@ public:
         x.col=min(255, buf.pos-nl);
         int above=buf[nl1+x.col];  // text column context, first
         int above1=buf[nl2+x.col]; // text column context, second
+        int above2=buf[nl3+x.col]; // text column context, second
         if (val2) x.col=val2,above=buf[buf.pos-x.col],above1=buf[buf.pos-x.col*2];;
         if (x.col<=2) x.frstchar=(x.col==2?min(c,126):0);
         if (x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
@@ -6113,14 +6141,7 @@ public:
             cm.set(hash(515,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
             cm.set(hash(516,x.spaces, (x.words&255)));
         
-            cm.set(x.spaces&0x7fff);
-            cm.set(x.spaces&0xff);
-       // } 
-
-       // if (x.filetype==DEFAULT|| x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK) {
-       //     for(int i=0;i<5;i++) cm.set(0);
-       // }
-      //  else{
+            cm.set(x.spaces&0x7ff);
             cm.set(hash(257,number0, word1,wordGap, word6));
             cm.set(hash(258,number1, c,ccword));  
             cm.set(hash(259,number0, number1,wordGap));  
@@ -6217,6 +6238,7 @@ public:
             cm.set(hash(531,mask,buf(2),buf(3))); 
             cm.set(hash(532,mask&0x1ff,x.f4&0x00fff0)); 
             cm.set(hash(h, llog(wordGap), mask&0x1FF, 
+             ((istemplate)<<9)|  
              ((islink)<<8)|
              ((linespace > 4)<<7)|
              ((x.wordlen1 > 3)<<6)|
@@ -6231,7 +6253,9 @@ public:
         
         if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(0); //wordlist
         if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
+         cm.set(hash(x.col,above^above1,above2,x.c4&0xfF));  //wordlist
         cm.set(hash((*pWord).Hash[2], h));
+
     }
     cm.mix(m);
     return 0;
@@ -6449,7 +6473,7 @@ public:
   cn.mix(m);
   co.mix(m);
   cp.mix(m);
-  if (x.filetype==DICTTXT || x.filetype==BIGTEXT  || x.filetype==TEXT || x.filetype==TEXT0  ||x.filetype==EXE|| x.filetype==DECA ) {
+  if (x.filetype==DICTTXT || x.filetype==BIGTEXT  || x.filetype==TEXT || x.filetype==TEXT0  ||x.filetype==EXE|| x.filetype==DECA || x.filetype==DBASE) {
   }else{
   
   for (int i=0;i<nMaps;i++)
@@ -7785,6 +7809,81 @@ struct JPEGImage{
   U8 qtab[256]; // table
   int qmap[10]; // block -> table number
 };
+
+
+ class BHMap {
+  enum {M=4};  // search limit
+  Array<U8> t; // elements
+  const U32 n; // size-1
+  int replaced;
+int B;
+ int ncontext;
+ Array<U8*> cp;
+  BlockData& x;
+ StateMap **sm;
+ U8* find(U32 i) {
+    int chk=(i>>24^i>>12^i)&255;
+    i&=n;
+    int bi=i, b=1024;  // best replacement so far
+    U8 *p;
+    for (int j=0; j<M; ++j) {
+      p=&t[(i^j)*B];
+      if (p[0]==chk) return p;  // match
+      else if (p[1]==0) return p[0]=chk, p;  // empty
+      else if (p[1]<b) b=p[1], bi=i^j;  // best replacement so far
+    }
+    ++replaced;
+    p=&t[bi*B];  // replacement element
+    memset(p, 0, B);
+    p[0]=chk;
+    return p;
+  }
+public:
+  BHMap(int i,int b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(N), x(bd), replaced(0) {
+    assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2?
+    sm = new StateMap*[ncontext];
+     
+    for (U32 i=0; i<ncontext; i++) {
+      sm[i] = new StateMap(1<<8);
+    }
+  }
+  
+  void update(){
+      if (cp[ncontext-1]) {
+    for (int i=0; i<ncontext; ++i)
+      *cp[i]=nex(*cp[i],x.y);
+   }
+  }
+   void set(int i,U32 a){
+      assert(i<ncontext);
+      cp[i]=find(a)+1;
+  }
+   void add(int i, int a ){
+      assert(i<ncontext);
+      cp[i]+=a;
+  }
+ inline int p(int i){
+      assert(i<ncontext);
+      return sm[i]->p(*cp[i],x.y);
+  }
+  ~BHMap() {
+      for (U32 i=0; i<ncontext; i++) {
+      delete sm[i];
+    }
+    delete[] sm;
+      // Show memory usage for debugging
+
+  int empty=0, once=0;
+  for (int i=1; i<t.size(); i+=B) {
+    if (t[i]==0) ++empty;
+    else if (t[i]<2) ++once;
+  }
+  printf("BH<%d> %d empty, %d once, %d replaced of %d\n", B,
+    empty, once, replaced, t.size()/B);
+
+}
+};
+ 
 class jpegModelx: public Model {
      int MaxEmbeddedLevel ;
    JPEGImage  images[3];
@@ -7851,13 +7950,7 @@ class jpegModelx: public Model {
 
    // Context model
    const int N; // size of t, number of contexts
-   BH<9> t;  // context hash -> bit history
-    // As a cache optimization, the context does not include the last 1-2
-    // bits of huffcode if the length (huffbits) is not a multiple of 3.
-    // The 7 mapped values are for context+{"", 0, 00, 01, 1, 10, 11}.
    Array<U32> cxt;  // context hashes
-   Array<U8*> cp;  // context pointers
-   StateMap *sm;  
    Mixer m1;
    APM a1, a2;
    BlockData& x;
@@ -7865,16 +7958,19 @@ class jpegModelx: public Model {
    int hbcount;
    int prev_coef,prev_coef2, prev_coef_rs;
    int rstpos,rstlen; // reset position
+   BHMap hmap; // context hash -> bit history   
+    // As a cache optimization, the context does not include the last 1-2
+    // bits of huffcode if the length (huffbits) is not a multiple of 3.
+    // The 7 mapped values are for context+{"", 0, 00, 01, 1, 10, 11}.
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
-  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10), /*nBlocks(4),*/ SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
-  qtab(256),qmap(10),N(33),t(level>11?0x10000000:(CMlimit(MEM()*2))),cxt(N),cp(N),m1(32+32,2050+3 /*770*/,bd, 3),
-  a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0) {
-  sm=new StateMap[N];
+  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
+  qtab(256),qmap(10),N(34),cxt(N),m1(32+32+3,2050+3 /*770*/,bd, 3), a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),
+  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,34,bd) {
   }
   int inputs() {return 7+N*2+1;}
   int p(Mixer& m,int val1=0,int val2=0){
@@ -8334,10 +8430,7 @@ public:
     return 1;
   }
   // Update model
-  if (cp[N-1]) {
-    for (int i=0; i<N; ++i)
-      *cp[i]=nex(*cp[i],x.y);
-  }
+  hmap.update();
   m1.update();
 
   // Update context
@@ -8383,6 +8476,7 @@ public:
     cxt[30]=hash(++n, coef, adv_pred[1]/17, hash(lcp[(zu<zv)]/24,lcp[2]/20,lcp[3]/24));
     cxt[31]=hash(++n, coef, adv_pred[3]/11, hash(lcp[(zu<zv)]/50,lcp[2+3*(zu*zv>1)]/50,lcp[3+3*(zu*zv>1)]/50));
     cxt[32]=hash(++n, hash(coef, adv_pred[2]/17),hash(coef, adv_pred[1]/11), ssum>>2,run_pred[0]);
+    cxt[33]=hash(++n, hash(zv, run_pred[2]/2),hash(coef, run_pred[5]/2), min(7,zu+zv),adv_pred[0]/12);
   }
 
   // Predict next bit
@@ -8391,9 +8485,9 @@ public:
   int p;
  switch(hbcount)
   {
-   case 0: for (int i=0; i<N; ++i){ cp[i]=t[cxt[i]]+1, p=sm[i].p(*cp[i],x.y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);} break;
-   case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i){ cp[i]+=hc, p=sm[i].p(*cp[i],x.y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
-   default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i){ cp[i]+=hc, p=sm[i].p(*cp[i],x.y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
+   case 0: for (int i=0; i<N; ++i){ hmap.set(i,cxt[i]) , p=hmap.p(i); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);} break;
+   case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i){ hmap.add(i,hc) , p=hmap.p(i); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
+   default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i){ hmap.add(i,hc), p=hmap.p(i); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
   }
 
 
@@ -8416,7 +8510,6 @@ public:
   return 1;
   }
   virtual ~jpegModelx(){
-  delete[] sm;
    }
  
 };
@@ -8442,7 +8535,6 @@ double F[49][49][2],L[49][49];
   int col;
   int S,D;
   int wmode;
-  //recordModel1* recModel;
   BlockData& x;
   Buf& buf;
   int ch;
@@ -8590,7 +8682,6 @@ int p(Mixer& m,int info,int val2=0){
   scm6.mix(m);
   scm7.mix(m);
   cm.mix(m);
-  //if (level>=4 &&  (rlen>1)) recModel->p(m,rlen);
   if (++col>=w*8) col=0;
   //m.set(3, 8);
   m.set( ch+4*ilog2(col&(bits-1)), 4*8 );
@@ -8632,7 +8723,6 @@ inline int X2(int i) {
   }
 }
   virtual ~wavModel1(){
- // if (recModel!=0)delete recModel;
    }
  
 };
@@ -9970,6 +10060,7 @@ int p(Mixer& m,int val1=0,int val2=0){
       case '|': pc += 223; break;
       case '"': pc += 0x40; break;
       case '\'': pc += 0x42; if (c!=(U8)(x.c4>>8)) sense2^=1; else ac+=(2*sense2-1); break;
+      case 5: 
       case '\n': pc = qc = 0; break;
       case '.': pc = 0; break;
       case '!': pc = 0; break;
@@ -11246,7 +11337,7 @@ PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x) {
    const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
    sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
    ppmdModel->inputs()+decModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs();
-   m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*4+2048+2048+2048-1024+11*32,x, 7 +2+1+1+1+4+2+1);
+   m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*4+2048+2048+2048-1024+512+11*32,x, 7 +2+1+1+1+4+2+1);
 }
 
 void PredictorDEC::update()  {
@@ -11327,7 +11418,7 @@ PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256}  {
   const int tinput=1+ matchModel->inputs() + jpegModel->inputs()+2+dmcModel->inputs()+
   normalModel->inputs()+distanceModel->inputs()+indirectModel->inputs() +
   sparseModel->inputs()+recordModel->inputs();
-  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024+256+256+11*32,x, 8);
+  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024+256+256+11*32+512,x, 8+1);
 }
 
 void update()  {
@@ -12538,6 +12629,8 @@ U64 gif,
   gray  ; 
 };  
 
+//U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
+// Detect EXE or JPEG data
 //U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
 // Detect EXE or JPEG data
 Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,int s1=0) {
