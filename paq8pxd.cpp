@@ -13999,8 +13999,8 @@ typedef enum {FDECOMPRESS, FCOMPARE, FDISCARD} FMode;
 
 // Print progress: n is the number of bytes compressed or decompressed
 void printStatus(U64 n, U64 size,int tid=-1) {
-if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
-else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+if (level>0 && tid>=0)  fprintf(stderr,"\r%2d %6.2f%%",tid, float(100)*n/(size+1)), fflush(stdout), fflush(stderr);
+else if (level>0)  fprintf(stderr,"\r%6.2f%%", float(100)*n/(size+1)), fflush(stdout), fflush(stderr);
 }
 
 void encode_cd(File* in, File* out, int len, int info) {
@@ -16247,7 +16247,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             in->setpos(savedpos);
             if (tarend((char*)&tarh)) {
                 tarn=512+pad;
-                printf(" %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[HDR],tarn,savedpos,savedpos+tarn-1);
+                printf("\n %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[HDR],tarn,savedpos,savedpos+tarn-1);
                 typenamess[HDR][it+1]+=tarn,  typenamesc[HDR][it+1]++; 
                 direct_encode_blockstream(HDR, in, tarn, en,0,0);
                }
@@ -16262,7 +16262,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 sprintf(blstr,"%s%d",b2,blnum++);
                 int tarover=512+pad;
                 //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                printf(" %-11s | %-9s |%10.0I64i [%0lu - %0lu]\n",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
+                printf("\n %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
                 typenamess[HDR][it+1]+=tarover,  typenamesc[HDR][it+1]++; 
                 if (it==itcount)    itcount=it+1;
                 direct_encode_blockstream(HDR, in, tarover, en,0,0);
