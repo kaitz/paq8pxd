@@ -19,7 +19,7 @@
 #endif
 
 //#define VMJIT  // Comment to compile without x86 JIT
-//#define VMMSG  // prints error messages and x86 asm to console
+#define VMMSG  // prints error messages and x86 asm to console
 
 #ifdef WINDOWS
 #define PROT_NONE       0
@@ -40,12 +40,7 @@ void*   mmap(void *addr, size_t len, int prot, int flags, int fildes, off_t off)
 #else
 #include <sys/mman.h>
 #endif
-void* vmmalloc(size_t i){
-  programChecker.alloc(U64(i));
-  void *ptr =malloc(i);
-  memset(ptr,  0, i);
-  return ptr;//malloc(i);
-}
+
  int absolute(int value) {
   if (value < 0) {
     return -value;
@@ -62,7 +57,7 @@ enum {  Num = 128, Fun, Sys, Glo, Loc, Id,
 // opcodes
 enum { LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI ,LS ,LC  ,SI ,SS ,SC  ,PSH ,
        OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,VTHIS,
-        PRTF,ABS,SMP,SMN,APM,VMS,VMI,VMX,MXP,MXC,MXA,MXS,GCR,BUF,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,H2,H3,H4,H5,EXIT };
+        PRTF,ABS,SMP,SMN,APM,VMS,VMI,VMX,MXP,MXC,MXA,MXS,GCR,BUF,BUFR,MALC,MSET,MCMP,MCPY,STRE,SQUA,ILOG,H2,H3,H4,H5,EXIT };
 // types (unsigned)
 enum { rCHAR, sSHORT, iINT, PTR };
 // identifier offsets (since we can't create an ident struct)
@@ -90,9 +85,7 @@ int *e, *le, *text,  // current position in emitted code
     ival,     // current token value
     ty,       // current expression type
     loc,      // local variable offset
-    line,     // current line number
-    //src,      // print source and assembly flag
-    debug;    // print executed instructions
+    line;     // current line number
     int fd, bt,   poolsz, *idmain,*idp,*idupdate;
     int *pc, *sp,*sp0, *bp, cycle; // vm registers
     int i, *t,*pc0,tmp; // temps
@@ -100,21 +93,25 @@ int *e, *le, *text,  // current position in emitted code
     int  initvm( ) ; 
 char *mod;
 public:
-	BlockData& x;
-	int smc, apm1,  apm2,  rcm,  scm,  mcm,  cm,mc,  mx;
+    int fix;
+    int debug;    // print executed instructions
+    BlockData& x;
+    int smc, apm1,  apm2,  rcm,  scm,  mcm,  cm,mc,  mx;
     StateMapContext **smC;
     APM1 **apm1C;
     APM2 **apm2C;
     RunContextMap **rcmC;
-	SmallStationaryContextMap **scmC;
-	MContextMap **mcmC;
-	ContextMap **cmC;
-	MatchContext **mcC;
-	Mixer **mxC; 
+    SmallStationaryContextMap **scmC;
+    ContextMap2 **mcmC;
+    ContextMap **cmC;
+    MatchContext **mcC;
+    Mixer **mxC; 
     int totalc;  //total number of components
     int currentc; //current component, used in vmi
     int *mcomp;  //component list set in vmi
-	int initdone; //set to 1 after main exits
+    int initdone; //set to 1 after main exits
+    Array<char*> mem;
+    int mindex;
 VM(char* m,BlockData& bd);
 ~VM() ;
 void next();
@@ -128,6 +125,14 @@ int block(int info1,int info2);
 int doupdate(int y, int c0, int bpos,U32 c4,int pos);
 void  killvm( );
 };
+char* vmmalloc(VM* v,size_t i){
+  programChecker.alloc(U64(i));
+  
+  char*ptr= (char*)calloc(i,1);
+  v->mem[v->mindex++]=ptr;
+  if (ptr==0) perror("mem error "),printf("%d ",i),quit("VM mem alloc fail");
+  return ptr;//malloc(i);
+}
 void VM::killvm( ){
 if ( smc>0 ) delete[]  smC;
   if ( apm1>0 ) delete[]  apm1C;
@@ -139,32 +144,38 @@ if ( smc>0 ) delete[]  smC;
   if ( mx>0 ) delete[]  mxC;
   if ( mc>0 ) delete[]  mcC;
  if ( totalc>0 ) free(  mcomp);
+  for (int i=0;i<mindex;i++){
+     free(mem[i]);
+ }
  }
 //vms - set number of components
 void components(VM* v,int a,int b,int c,int d,int e,int f,int g,int h,int i){
-	if (v->initdone==1) printf("VM vms error: vms allowed only in main\n "),quit();
-	if (v->totalc>0) printf("VM vms error: vms allready called\n "),quit();
-	v->smc=a, v->apm1=b, v->apm2=c, v->rcm=d, v->scm=e, v->mcm=f, v->cm=g, v->mx=h,v->mc=i;
-	v->totalc= a+d+e+f+g+i;
-	if (v->totalc>0 && h==0) quit("No mixer defined VM\n");
-	if (v->totalc==0 && h>0) quit("No inputs for mixer defined VM\n");
-	if (a>0 ) v->smC = new StateMapContext*[a]; //uses mixer if set
-	if (b>0 ) v->apm1C = new APM1*[b];
+    if (v->initdone==1) printf("VM vms error: vms allowed only in main\n "),quit();
+    if (v->totalc>0) printf("VM vms error: vms allready called\n "),quit();
+    v->smc=a, v->apm1=b, v->apm2=c, v->rcm=d, v->scm=e, v->mcm=f, v->cm=g, v->mx=h,v->mc=i;
+    v->totalc= a+d+e+f+g+i;
+    if (v->totalc>0 && h==0) quit("No mixer defined VM\n");
+    if (v->totalc==0 && h>0) quit("No inputs for mixer defined VM\n");
+    if (a>0 ) v->smC = new StateMapContext*[a]; //uses mixer if set
+    if (b>0 ) v->apm1C = new APM1*[b];
     if (c>0 ) v->apm2C = new APM2*[c];
     
     if (v->totalc>0 ) v->mcomp=(int*)calloc(v->totalc*sizeof(int),1); //alloc memory for component list array
     //uses mixer
     if (d>0 ) v->rcmC = new RunContextMap*[d];
-	if (e>0 ) v->scmC = new SmallStationaryContextMap*[e];
-	if (f>0 ) v->mcmC = new MContextMap*[f];
-	if (g>0 ) v->cmC = new ContextMap*[g];
-	if (h>0 ) v->mxC = new Mixer*[h];
-	if (i>0 ) v->mcC = new MatchContext*[i];
+    if (e>0 ) v->scmC = new SmallStationaryContextMap*[e];
+    if (f>0 ) v->mcmC = new ContextMap2*[f];
+    if (g>0 ) v->cmC = new ContextMap*[g];
+    if (h>0 ) v->mxC = new Mixer*[h];
+    if (i>0 ) v->mcC = new MatchContext*[i];
 }
 //vmi - init components
 enum {vmSMC=1,vmAPM1,vmAPM2,vmRCM,vmSCM,vmMCM,vmCM,vmMX,vmMC};
 void initcomponent(VM* v,int c,int i, int f,int d, int e){
-	assert(f!=0);
+    assert(f!=0); //mem
+    assert(i>=0); //component index
+    assert(d>=0); //component context
+    assert(e>=0 || e==-1); //component mixer
     if (v->initdone==1) printf("VM vmi error: vmi allowed only in main\n "),quit();
     if (v->currentc>  v->totalc) printf("VM vmi error: component %d not set %d - %d\n ",c,v->currentc, v->totalc),quit();
     //  v->smc=a, v->apm1=b, v->apm2=c, v->rcm=d, v->scm=e, v->mcm=f, v->cm=g, v->mx=h;
@@ -191,7 +202,7 @@ void initcomponent(VM* v,int c,int i, int f,int d, int e){
         break; 
     default: quit("VM vmi error\n");
     }
-	// if e is -1 then no mixer is needed
+    // if e is -1 then no mixer is needed
     if ((c>  vmAPM2 && c< vmMX) || (c==vmSMC  && e!=-1)|| (c==vmMC))   v->mcomp[v->currentc++] =e+(i<<16)+(c<<8); // 0x00iiccmm index,component, mixer
     switch (c) {
     case vmSMC: v->smC[i] = new StateMapContext(f,  v->x);
@@ -204,9 +215,9 @@ void initcomponent(VM* v,int c,int i, int f,int d, int e){
         break;
     case vmSCM: v->scmC[i] = new SmallStationaryContextMap(f );
         break;
-    case vmMCM: v->mcmC[i] = new MContextMap(CMlimit(f<0?MEM()/(!f+1):MEM()*f), d);
+    case vmMCM: v->mcmC[i] = new ContextMap2(CMlimit(f<0?MEM()/(!f+1):MEM()*f), d); //??
         break;
-    case vmCM: v->cmC[i] = new ContextMap(CMlimit(f<0?MEM()/(!f+1):MEM()*f),d);
+    case vmCM: v->cmC[i] = new ContextMap(CMlimit(f<0?MEM()/(!f+1):MEM()*(U64)f),d);
         break;
     case vmMX: v->mxC[i] = new Mixer(f,d,  v->x,e);
         break;
@@ -249,12 +260,15 @@ int ap(VM* v,int a,int pr,int cx,int limit){ //APM1 predict
     return v->apm1C[a]->p(pr,cx,limit);
 }
 int bf(VM* v,int bufa){ // get buf
-    assert(bufa>=0) ;
+    //assert(bufa>=0) ;
+    if (bufa<0){
+       return v->x.buf(0);
+    }
     return v->x.buf(bufa);
 }
 int bfr(VM* v,int bufra){ // get bufr
     //assert(bufra>=0) ;
-	if (bufra<=0) bufra=0;
+    if (bufra<=0) bufra=0;
     return v->x.buf[bufra];
 }
 void mxa(VM* v,int i,int a){ // mixer add
@@ -275,6 +289,7 @@ int mxc(VM* v,int a){
         int mi=v->mcomp[i] &0xff ;    // mixer  
         if (a==mi) { //if user called mixer found
             int j=v->mcomp[i]>>16;    // component index
+            assert (j>=0 && j<v->totalc);
             //printf("%d %d ",(v->mcomp[i]>>8)&0xff,v->mcomp[i]);
             switch ((v->mcomp[i]>>8)&0xff) { // select component and mix
             case vmSMC: v->smC[j]->mix(*v->mxC[mi]);
@@ -300,6 +315,7 @@ int mxc(VM* v,int a){
 //predict from mixer
 int mxp(VM* v,int a){  
     assert(a>=0 && a < v->mx);
+    assert(v->fix==0);
     return v->mxC[a]->p();
 }
 //get component result value
@@ -328,49 +344,26 @@ int gcr(VM* v,int a,int b,int c){  //this,mixer,index,component type
     }
     return 0;
 }
-VM::VM(char* m,BlockData& bd):x(bd) {
-	/*#ifdef VMJIT
-		printf("VM using x86 JIT.\n");
-		#else
-		printf("VM using emulation.\n");
-	#endif*/
-mod=m;
-	smc=apm1=apm2=rcm=scm=mcm=cm=mx=mc=currentc=totalc=initdone=0;
+VM::VM(char* m,BlockData& bd):x(bd),mem(20) {
+    mod=m;
+    smc=apm1=apm2=rcm=scm=mcm=cm=mx=mc=currentc=totalc=initdone=mindex=0;
+    debug=0;
+    fix=0;
     if (initvm()==-1) 
-	exit(1);  //load cfg file, if error then exit
+    exit(1);  //load cfg file, if error then exit
     initdone=1;
     totalc=currentc; //update total count to current count 
 }
 
 VM::~VM() {
-  /*if (smc>0 ) delete[] smC;
-  if (apm1>0 ) delete[] apm1C;
-  if (apm2>0 ) delete[] apm2C;
-  if (rcm>0 ) delete[] rcmC;
-  if (scm>0 ) delete[] scmC;
-  if (mcm>0 ) delete[] mcmC;
-  if (cm>0 ) delete[] cmC;
-  if (mx>0 ) delete[] mxC;
-  if (mc>0 ) delete[] mcC;
- if (totalc>0 ) free( mcomp);*/
 }
- 
+
 void VM::next(){
   char *pp;
   int n;
   while (tk = *p) {
     ++p;
     if (tk == '\n') {
-      /*if (src) {
-        kprintf("%d: %.*s", line, p - lp, lp);
-        lp = p;
-        while (le < e) {
-          kprintf("%8.4s", &"LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,"
-                           "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,    "
-                           "PRTF,SMP ,SMN , APM,MALC,MSET,MCMP,MCPY,EXIT,"[*++le * 5]);
-          if (*le <= ADJ) kprintf(" %d\n", *++le); else kprintf("\n");
-        }
-      }*/
       ++line;
     }
     else if (tk == '#') {
@@ -475,17 +468,17 @@ void VM::expr(int lev){
   else if (tk == Id) {
     d = id; next();
     if (tk == '(') {      
-	  if (d[Val]>ABS &&  d[Val]<MALC){//for special functions in vm
-    		*++e = VTHIS;
-			next();
-			t = 1; //adjust stack
-	  }
-	  else{
-	      next();
-	      t=0;
-	  }
-	  fc=0;
-	    if (d[Val] == ABS ) {fc=1 ;} //args count
+      if (d[Val]>ABS &&  d[Val]<MALC ||  d[Val]==MALC){//for special functions in vm
+            *++e = VTHIS;
+            next();
+            t = 1; //adjust stack
+      }
+      else{
+          next();
+          t=0;
+      }
+      fc=0;
+    if (d[Val] == ABS ) {fc=1 ;} //args count
     else if (d[Val] == SMP  ) {fc=4 ;}
     else if (d[Val] == SMN  ) {fc=2 ;}
     else if (d[Val] == APM  ) {fc=5 ;}
@@ -511,7 +504,7 @@ void VM::expr(int lev){
       if (d[Class] == Sys) {*++e = d[Val];
       
     if (t!=fc && fc!=0){ kprintf("%d: wrong number of arguments\n", line); exit(-1);}
-	  }
+      }
       else if (d[Class] == Fun) { *++e = JSR; *++e = d[Val]; }
       else { kprintf("%d: bad function call\n", line); exit(-1); }
       if (t) { *++e = ADJ; *++e = t; }
@@ -562,7 +555,7 @@ void VM::expr(int lev){
     t = tk; next(); expr(Inc);
     if (*e == LC) { *e = PSH; *++e = LC; }
     else if (*e == LI) { *e = PSH; *++e = LI; }
-	else if (*e == LS) { *e = PSH; *++e = LS; }
+    else if (*e == LS) { *e = PSH; *++e = LS; }
     else { kprintf("%d: bad lvalue in pre-increment\n", line); exit(-1); }
     *++e = PSH;
     *++e = IMM; *++e = (ty > PTR) ? sizeof(int) : (ty > iINT) ?  sizeof(short) : sizeof(char);;
@@ -621,7 +614,7 @@ void VM::expr(int lev){
     else if (tk == Inc || tk == Dec) {
       if (*e == LC) { *e = PSH; *++e = LC; }
       else if (*e == LI) { *e = PSH; *++e = LI; }
-	  else if (*e == LS) { *e = PSH; *++e = LS; }
+      else if (*e == LS) { *e = PSH; *++e = LS; }
       else { kprintf("%d: bad lvalue in post-increment\n", line); exit(-1); }
       *++e = PSH; *++e = IMM; *++e = (ty > PTR) ?  sizeof(int) : (ty > iINT) ?  sizeof(short) : sizeof(char);;
       *++e = (tk == Inc) ? ADD : SUB;
@@ -633,7 +626,7 @@ void VM::expr(int lev){
     else if (tk == Brak) {
       next(); *++e = PSH; expr(Assign);
       if (tk == ']') next(); else { kprintf("%d: close bracket expected\n", line); exit(-1); }
-      if (t > PTR) { *++e = PSH; *++e = IMM; *++e = sizeof(int); *++e = MUL;  }
+      if (t > PTR) { *++e = PSH; *++e = IMM; *++e = sizeof(int); *++e = MUL;  } //fixed to int !!!
       else if (t < PTR) { kprintf("%d: pointer type expected\n", line); exit(-1); }
       *++e = ADD;
       *++e = ((ty = t - PTR) == rCHAR) ? LC : ((ty = t - PTR) == sSHORT) ? LS : LI;;
@@ -729,14 +722,14 @@ int VM::dovm(int *ttt){
   cycle = 0;
   while (1) {
     i = *pc++; ++cycle;
-   /* if (debug) {
+ if (debug) {
       kprintf("%d>%x  %.4s", cycle,pc-pc0,
         &"LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LS  ,LC  ,SI  ,SS  ,SC  ,PSH ,"
          "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,THIS,ABS ,"
-         "PRTF,SMP ,SMN ,APM ,VMS ,VMI ,VMX ,MXP ,MXA ,MXS ,BUF ,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,H2  ,H3  ,H4  ,H5  ,EXIT,"[i * 5]);
+         "PRTF,SMP ,SMN ,APM ,VMS ,VMI ,VMX ,MXP ,MXA ,MXS ,BUF ,BUFR,MALC,MSET,MCMP,MCPY,STRE,SQUA,ILOG,H2  ,H3  ,H4  ,H5  ,EXIT,"[i * 5]);
     if (i < JMP) kprintf(" %d\n",*pc); //? +1
-     else if (i <= ADJ) kprintf(" %x\n",(int *)*pc-pc0+1); else kprintf("\n");*/
-    //}
+     else if (i <= ADJ) kprintf(" %x\n",(int *)*pc-pc0+1); else kprintf("\n");
+    }
     if      (i == LEA) a = (int)(bp + *pc++);                             // load local address
     else if (i == IMM) a = *pc++;                                         // load global address or immediate
     else if (i == JMP) pc = (int *)*pc;                                   // jump
@@ -747,11 +740,11 @@ int VM::dovm(int *ttt){
     else if (i == ADJ) sp = sp + *pc++;                                   // stack adjust
     else if (i == LEV) { sp = bp; bp = (int *)*sp++; pc = (int *)*sp++; } // leave subroutine
     else if (i == LI)  a = *(int *)a;                                     // load int
-	else if (i == LS)  a = *(short *)a;                                     // load short
+    else if (i == LS)  a = *(short *)a;                                     // load short
     else if (i == LC)  a = *(char *)a;                                    // load char
     else if (i == SI)  *(int *)*sp++ = a;                                 // store int
     else if (i == SC)  a = *(char *)*sp++ = a;                            // store char
-	else if (i == SS)  a = *(short *)*sp++ = a;                            // store short
+    else if (i == SS)  a = *(short *)*sp++ = a;                            // store short
     else if (i == PSH) *--sp = a;                                         // push
 
     else if (i == OR)  a = (unsigned int)*sp++ |  a;
@@ -775,31 +768,31 @@ int VM::dovm(int *ttt){
     //else if (i == READ) a = fread( (char *)sp[1],sp[2],1, *sp);
     //else if (i == CLOS) a = fclose(*sp);
     else if (i == PRTF) { t = sp + pc[1]; a = printf((char *)t[-1], t[-2], t[-3], t[-4], t[-5], t[-6]); }
-    else if (i == MALC) a = (int)vmmalloc(*sp);
-   // else if (i == MSET) a = (int)memset((char *)sp[2], sp[1], *sp);
+    else if (i == MALC) a = (int)vmmalloc(this,*sp);
+    else if (i == MSET) a = (int)memset((char *)sp[2], sp[1], *sp);
     else if (i == MCMP) a = memcmp((char *)sp[2], (char *)sp[1], *sp);
     else if (i == MCPY) a = (int)memcpy((char *)sp[2], (char *)sp[1], *sp);
     else if (i == SMP) a = (int)smp(this, sp[2], sp[1],*sp );
-	else if (i == SMN) a =  (int)smn(this, *sp );
-	else if (i == APM) a = (int)ap(this, sp[3],sp[2], sp[1],*sp );
-	else if (i == VMS) a=0, components(this,sp[8],sp[7],sp[6], sp[5], sp[4], sp[3],sp[2], sp[1],*sp);   
-	else if (i == VMI) a=0, initcomponent(this, sp[4], sp[3],sp[2], sp[1],*sp);  
-	else if (i == VMX) a=0, setcomponent(this,   sp[2], sp[1],*sp);  
-	else if (i == MXP) a = (int)mxp(this, *sp);  
-	else if (i == MXC) a = (int)mxc(this, *sp);  
-	else if (i == GCR) a = (int)gcr(this,   sp[2], sp[1],*sp);  
-	else if (i == STRE) a = (int)stretch( *sp);  
-	else if (i == SQUA) a = (int)squash(  *sp);  
-	else if (i == BUF) { a = (int)bf(this,  *sp);  }
-	else if (i == BUFR) { a = (int)bfr(this,  *sp);  }
+    else if (i == SMN) a =  (int)smn(this, *sp );
+    else if (i == APM) a = (int)ap(this, sp[3],sp[2], sp[1],*sp );
+    else if (i == VMS) a=0, components(this,sp[8],sp[7],sp[6], sp[5], sp[4], sp[3],sp[2], sp[1],*sp);   
+    else if (i == VMI) a=0, initcomponent(this, sp[4], sp[3],sp[2], sp[1],*sp);  
+    else if (i == VMX) a=0, setcomponent(this,   sp[2], sp[1],*sp);  
+    else if (i == MXP) a = (int)mxp(this, *sp);  
+    else if (i == MXC) a = (int)mxc(this, *sp);  
+    else if (i == GCR) a = (int)gcr(this,   sp[2], sp[1],*sp);  
+    else if (i == STRE) a = (int)stretch( *sp);  
+    else if (i == SQUA) a = (int)squash(  *sp);  
+    else if (i == BUF) { a = (int)bf(this,  *sp);  }
+    else if (i == BUFR) { a = (int)bfr(this,  *sp);  }
     else if (i == ILOG) { a = (int)il(  *sp);  }
     else if (i == MXA) {a=0,  mxa(this, sp[1], *sp);  }
     else if (i == MXS) {a=0,  mxs(this,sp[2], sp[1],*sp);  }
     else if (i == H2)  a = h2((U32)sp[1], (U32)*sp);  
-	else if (i == H3)  a = h3((U32)sp[2], (U32)sp[1],(U32)*sp);  
-	else if (i == H4)  a = h4((U32)sp[3],(U32)sp[2], (U32)sp[1],(U32)*sp);   
-	else if (i == H5)  a = h5((U32)sp[4],(U32)sp[3],(U32)sp[2], (U32)sp[1],(U32)*sp);   
-	else if (i == ABS)  a = (U32)absolute((int)*sp);   
+    else if (i == H3)  a = h3((U32)sp[2], (U32)sp[1],(U32)*sp);  
+    else if (i == H4)  a = h4((U32)sp[3],(U32)sp[2], (U32)sp[1],(U32)*sp);   
+    else if (i == H5)  a = h5((U32)sp[4],(U32)sp[3],(U32)sp[2], (U32)sp[1],(U32)*sp);   
+    else if (i == ABS)  a = (U32)absolute((int)*sp);   
     else if (i == VTHIS)  *--sp;  //ignore
     else if (i == EXIT) { /*printf("exit(%d) cycle = %d\n", *sp, cycle);*/ return *sp; }
     else { kprintf("unknown instruction = %d! cycle = %d\n", i, cycle); return -1; }
@@ -819,20 +812,6 @@ int VM::dojit(){
   pc = text + 1; je = jitmem; line = 0;
   while (pc <= e) {
     i = *pc;
- 
-   /* if (src) {
-        while (line < srcmap[pc - text]) {
-            line++; printf("% 4d | %.*s", line, linemap[line + 1] - linemap[line], linemap[line]);
-        }
-        
-        
-        printf("0x%05x (%p):\t%8.4s", pc - text, je,
-                        &"LEA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LS  ,LC  ,SI  ,SS  ,SC  ,PSH ,"
-                         "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,VTHIS" 
-                         "PRTF,ABS ,SMP ,SMN ,APM ,VMS ,VMI ,VMX ,MXP ,MXC ,MXA ,MXS ,GCR ,BUF ,BUFR,MALC,MCMP,MCPY,STRE,SQUA,ILOG,H2  ,H3  ,H4  ,H5  ,EXIT,"[i * 5]);
-        if (i < JMP) printf(" 0x%x\n", *(pc + 1)); 
-        else if (i <= ADJ) printf(" 0x%x\n", (int *)*(pc + 1)-text); else printf("\n");*/
-    //}
     *pc++ = ((int)je << 8) | i; // for later relocation of JMP/JSR/BZ/BNZ
  
     if (i == LEA) {
@@ -854,9 +833,9 @@ int VM::dojit(){
     else if (i == LI)  { *(int *)je = 0x008b;     je = je + 2; dprintf("\tmov eax,DWORD PTR [eax]\n");} 
     else if (i == LC)  { *(int *)je = 0x00b60f;   je = je + 3; dprintf("\tmovzx eax,BYTE PTR [eax]\n"); } 
     else if (i == LS)  { *(int *)je = 0x00B70F;   je = je + 3; dprintf("\tmovzx eax,WORD PTR [eax]\n"); } 
-    else if (i == SI)  { *(int *)je = 0x018959;   je = je + 3; dprintf("\tpop ecx\n\tmov DWORD PTR [ecx],eax	\n");}	
-    else if (i == SC)  { *(int *)je = 0x018859;   je = je + 3; dprintf("\tpop ecx\n\tmov BYTE PTR [ecx],al	\n"); }
-    else if (i == SS)  { *(int *)je = 0x01896659; je = je + 4; dprintf("\tpop ecx\n\tmov WORD PTR [ecx],ax	\n"); }
+    else if (i == SI)  { *(int *)je = 0x018959;   je = je + 3; dprintf("\tpop ecx\n\tmov DWORD PTR [ecx],eax    \n");}    
+    else if (i == SC)  { *(int *)je = 0x018859;   je = je + 3; dprintf("\tpop ecx\n\tmov BYTE PTR [ecx],al    \n"); }
+    else if (i == SS)  { *(int *)je = 0x01896659; je = je + 4; dprintf("\tpop ecx\n\tmov WORD PTR [ecx],ax    \n"); }
     else if (i == OR)  { *(int *)je = 0xc80959;   je = je + 3; dprintf("\tpop ecx\n\tor eax, ecx\n"); }
     else if (i == XOR) { *(int *)je = 0xc83159;   je = je + 3; dprintf("\tpop ecx\n\txor eax, ecx\n"); }
     else if (i == AND) { *(int *)je = 0xc82159;   je = je + 3; dprintf("\tpop ecx\n\tand eax, ecx\n"); }
@@ -920,17 +899,17 @@ int VM::dojit(){
       else if (u == MALC) {  dprintf("malloc\n"); }// else if (u == MSET) { dprintf("memset\n"); }
       else if (u == MCMP) {  dprintf("memcmp\n"); } else if (u == MCPY) {  dprintf("memcpy\n"); }
      else if (u == EXIT) {  dprintf("exit\n"); }else if (u == SMP) {  dprintf("smp\n"); }
-	 else if (u == SMN) {  dprintf("smn\n"); }else if (u == APM) {  dprintf("apm\n"); }
-	 else if (u == VMS) {  dprintf("vms\n"); }else if (u == VMI) {  dprintf("vmi\n"); }
-	 else if (u == VMX) {  dprintf("vmx\n"); }else if (u == MXP) {  dprintf("mxp\n"); }
-	 else if (u == STRE) { dprintf("stretch\n");   }else if (u == SQUA) {  dprintf("squash\n");  }
-	 else if (u == BUF) {  dprintf("buf\n");  } else if (u == BUFR) {  dprintf("bufr\n");  }
-	 else if (u == ILOG) {  dprintf("ilog\n");  }
-	 else if (u == MXA) {  dprintf("mxa\n");  } else if (u == MXS) {  dprintf("mxs\n");  }
-	 else if (u == MXC) {  dprintf("mxc\n");  } else if (u == GCR) {  dprintf("gcr\n");  }
-	  else if (u == H2) {  dprintf("h1\n");  } else if (u == H3) {  dprintf("h2\n");  }
-	   else if (u == H4) {  dprintf("h3\n");  }  else if (u == ABS) {  dprintf("abs\n");  }  
-	   else if (u == H5) {  dprintf("h3\n");  }
+     else if (u == SMN) {  dprintf("smn\n"); }else if (u == APM) {  dprintf("apm\n"); }
+     else if (u == VMS) {  dprintf("vms\n"); }else if (u == VMI) {  dprintf("vmi\n"); }
+     else if (u == VMX) {  dprintf("vmx\n"); }else if (u == MXP) {  dprintf("mxp\n"); }
+     else if (u == STRE) { dprintf("stretch\n");   }else if (u == SQUA) {  dprintf("squash\n");  }
+     else if (u == BUF) {  dprintf("buf\n");  } else if (u == BUFR) {  dprintf("bufr\n");  }
+     else if (u == ILOG) {  dprintf("ilog\n");  }
+     else if (u == MXA) {  dprintf("mxa\n");  } else if (u == MXS) {  dprintf("mxs\n");  }
+     else if (u == MXC) {  dprintf("mxc\n");  } else if (u == GCR) {  dprintf("gcr\n");  }
+      else if (u == H2) {  dprintf("h1\n");  } else if (u == H3) {  dprintf("h2\n");  }
+       else if (u == H4) {  dprintf("h3\n");  }  else if (u == ABS) {  dprintf("abs\n");  }  
+       else if (u == H5) {  dprintf("h3\n");  }
        *(int*)je = tmp - (int)(je + 4); je = je + 4; // <*tmp offset>;
       *(int*)je = 0xf487; je += 2;     // xchg %esi, %esp  -- ADJ, back to old stack without arguments
       dprintf("\txchg esp,esi\n");
@@ -948,16 +927,7 @@ int VM::dojit(){
         else if (i == BZ  || i == BNZ) { je += 4; *(int*)je = tmp - (int)(je + 4); }
     }
     else if (i < LEV) { ++pc; }
-  } /*
-FILE *in=fopen("c.bin", "wb");
- char f;
-u=je-jitmem;
-  for(i=0;i<u;i++){
-    f = jitmem[i] & 0xff;
-putc(f, in);
-         
   }
-fclose(in); */
  return 0;
 }
 #endif
@@ -970,7 +940,7 @@ int  VM::block(int info1,int info2){
 #else
   // setup stack
   data =data0;
-  sp = (int *)((int)sp0 + poolsz);
+  bp=sp = (int *)((int)sp0 + poolsz);
   *--sp = EXIT; // call exit if main returns
   *--sp = PSH; t = sp;
   *--sp = info1;
@@ -981,8 +951,8 @@ int  VM::block(int info1,int info2){
 }
 
 int  VM::doupdate(int y,int c0, int bpos,U32 c4,int pos){
-	
-if (mx>0 && totalc>0)	for (int i=0;i< mx;i++) mxC[i]->update(); //update all mixers
+    
+if (mx>0 && totalc>0)    for (int i=0;i< mx;i++) mxC[i]->update(); //update all mixers
 #ifdef VMJIT
   int (*jitmain)(int,U32,int,int,int); // c4 vm pushes first argument first, unlike cdecl
   jitmain = reinterpret_cast< int(*)(int,U32,int,int,int) >(*(unsigned*)( idupdate[Val]) >> 8 | ((unsigned)jitmem & 0xff000000));
@@ -990,7 +960,7 @@ if (mx>0 && totalc>0)	for (int i=0;i< mx;i++) mxC[i]->update(); //update all mix
 #else
   // setup stack
   data =data0;
-  sp = (int *)((int)sp0 + poolsz);
+  bp=sp = (int *)((int)sp0 + poolsz);
   *--sp = EXIT; // call exit if main returns
   *--sp = PSH; t = sp;
   *--sp = y;
@@ -1004,10 +974,7 @@ if (mx>0 && totalc>0)	for (int i=0;i< mx;i++) mxC[i]->update(); //update all mix
 }
 
 int VM::initvm() { 
-  debug = 1;
-  //FILE *in=fopen(file, "rb");
- // if (!in) { kprintf("could not open(%s)\n", file); return -1; }
-  poolsz = 512*1024; // arbitrary size
+  poolsz = 1024*1024; // arbitrary size
 
   if (!(sym = (int *)malloc(poolsz))) { kprintf("could not malloc(%d) symbol area\n", poolsz); return -1; }
   if (!(text = le = e = (int *)malloc(poolsz))) { kprintf("could not malloc(%d) text area\n", poolsz); return -1; }
@@ -1018,18 +985,14 @@ int VM::initvm() {
   memset(e,    0, poolsz);
   memset(data, 0, poolsz);
 
-   p = "char else enum if int short return for sizeof while printf abs smp smn apm vms vmi vmx mxp mxc mxa mxs gcr buf bufr malloc memcmp memcpy stretch squash ilog h2 h3 h4 h5 exit void block update main";
+   p = "char else enum if int short return for sizeof while printf abs smp smn apm vms vmi vmx mxp mxc mxa mxs gcr buf bufr malloc memset memcmp memcpy stretch squash ilog h2 h3 h4 h5 exit void block update main";
   i = Char; while (i <= While) { next(); id[Tk] = i++; } // add keywords to symbol table
   i = PRTF; while (i <= EXIT) { next(); id[Class] = Sys; id[Type] = iINT; id[Val] = i++; } // add library to symbol table
   next(); id[Tk] = Char; // handle void type  
   next(); idp = id;      // keep track of block
   next(); idupdate = id; // keep track of updater
   next(); idmain = id;   // keep track of main
-  //if (!(lp = p = (char *)malloc(poolsz))) { kprintf("could not malloc(%d) source area\n", poolsz); return -1; }
-  //if ((i = fread( p, 1,poolsz-1,in)) <= 0) { kprintf("read() returned %d\n", i); return -1; }
- // p[i] = 0;
- // fclose(in);
-p=mod; //contains model
+  p=mod; //contains model
   // parse declarations
   line = 1;
   next();
@@ -1037,7 +1000,7 @@ p=mod; //contains model
     bt = iINT; // basetype
     if (tk == Int) next();
     else if (tk == Char) { next(); bt = rCHAR; }
-	else if (tk == Short) { next(); bt = sSHORT; }
+    else if (tk == Short) { next(); bt = sSHORT; }
     else if (tk == Enum) {
       next();
       if (tk != '{') next();
@@ -1074,7 +1037,7 @@ p=mod; //contains model
           ty = iINT;
           if (tk == Int) next();
           else if (tk == Char) { next(); ty = rCHAR; }
-		  else if (tk == Short) { next(); ty = sSHORT; }
+          else if (tk == Short) { next(); ty = sSHORT; }
           while (tk == Mul) { next(); ty = ty + PTR; }
           if (tk != Id) { kprintf("%d: bad parameter declaration\n", line); return -1; }
           if (id[Class] == Loc) { kprintf("%d: duplicate parameter definition\n", line); return -1; }
@@ -1135,12 +1098,10 @@ if (dojit()!=0) return -1;
 
 #else
  // setup stack
-  sp = (int *)((int)sp0 + poolsz);
+  bp=sp = (int *)((int)sp0 + poolsz);
   *--sp = EXIT; // call exit if main returns
   *--sp = PSH; 
   t = sp;
-  //*--sp = argc;
-  //*--sp = (int)argv;
   *--sp = (int)t;
 return dovm((int *)idmain[Val]);
 #endif
