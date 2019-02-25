@@ -546,15 +546,15 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V62
-- jpeg model +1 context, use bhmap
-- change wordmodel, textmodel
+DIFFERENCES FROM PAQ8PXD_V63
+- jpeg model fix 
+- 
 - 
 */
 
-#define PROGNAME "paq8pxd63"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd64"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
-//#define MT            //uncomment for multithreading, compression only
+#define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
 
 #ifdef WINDOWS                       
@@ -1967,6 +1967,7 @@ void train(short *t, short *w, int n, int err) {
     nx=base=ncxt=0;
   }
   void update2() {
+      if (nx==0) return;
       if (x.filetype==EXE || x.filetype==IMAGE24 || x.filetype==DECA )update1();
     else     if(doText==true) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), reset();
     else             update();
@@ -7839,7 +7840,7 @@ int B;
     return p;
   }
 public:
-  BHMap(int i,int b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(N), x(bd), replaced(0) {
+  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(N), x(bd), replaced(0) {
     assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2?
     sm = new StateMap*[ncontext];
      
@@ -7854,17 +7855,11 @@ public:
       *cp[i]=nex(*cp[i],x.y);
    }
   }
-   void set(int i,U32 a){
+ inline int p(int i,U32 a,bool setcontext){
       assert(i<ncontext);
-      cp[i]=find(a)+1;
-  }
-   void add(int i, int a ){
-      assert(i<ncontext);
-      cp[i]+=a;
-  }
- inline int p(int i){
-      assert(i<ncontext);
-      return sm[i]->p(*cp[i],x.y);
+      if (setcontext)  cp[i]=&t[a&(t.size()-1)];//cp[i]=find(a)+1; //set
+      else cp[i]+=a;                    //add
+      return sm[i]->p(*cp[i],x.y);      //predict
   }
   ~BHMap() {
       for (U32 i=0; i<ncontext; i++) {
@@ -8412,7 +8407,9 @@ public:
       }
     }
   }
-
+  // Update model
+  
+  m1.update();
   // Estimate next bit probability
   if (!images[idx].jpeg || !images[idx].data) return images[idx].next_jpeg;//return 0;
   if (buf(1+(!x.bpos))==FF) {
@@ -8429,14 +8426,12 @@ public:
     m.set(buf(1), 1024);
     return 1;
   }
-  // Update model
-  hmap.update();
-  m1.update();
+hmap.update();
 
   // Update context
   const int comp=color[mcupos>>6];
   const int coef=(mcupos&63)|comp<<6;
-  const int hc=(huffcode*4+((mcupos&63)==0)*2+(comp==0))|1<<(huffbits+2);
+  const int hc=( huffcode*4+((mcupos&63)==0)*2+(comp==0))|1<<(huffbits+2);
   const bool firstcol=column==0 && blockW[mcupos>>6]>mcupos;
   if (++hbcount>2 || huffbits==0) hbcount=0;
   jassert(coef>=0 && coef<256);
@@ -8485,9 +8480,9 @@ public:
   int p;
  switch(hbcount)
   {
-   case 0: for (int i=0; i<N; ++i){ hmap.set(i,cxt[i]) , p=hmap.p(i); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);} break;
-   case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i){ hmap.add(i,hc) , p=hmap.p(i); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
-   default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i){ hmap.add(i,hc), p=hmap.p(i); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
+   case 0: for (int i=0; i<N; ++i){  p=hmap.p(i,cxt[i],true); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);} break;
+   case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i){ p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
+   default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i){  p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
   }
 
 
@@ -17462,4 +17457,6 @@ printf("\n");
     }
     return 0;
 }
+
+
 
