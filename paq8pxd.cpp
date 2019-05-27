@@ -546,13 +546,13 @@ and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
 
-DIFFERENCES FROM PAQ8PXD_V63
-- jpeg model fix 
-- 
+DIFFERENCES FROM PAQ8PXD_V64
+- SIMD change for a bit more speed, add also to ContextMap2
+- drop ppm and chartmodel
 - 
 */
 
-#define PROGNAME "paq8pxd64"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd65"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1776,6 +1776,7 @@ inline U32 SQR(U32 x) {
   return x*x;
 }
 typedef __m128i XMM;
+typedef __m256i YMM;
 #define DEFAULT_LEARNING_RATE 7
 class Mixer {
 private: 
@@ -1991,6 +1992,11 @@ void train(short *t, short *w, int n, int err) {
     assert(nx+8<N);
     _mm_storeu_si128 ((XMM *) &tx[nx],a);
     nx=nx+8;
+  }
+    void addYMM(YMM a){
+    assert(nx+16<N);
+    _mm256_storeu_si256 ((YMM *) &tx[nx],a);
+    nx=nx+16;
   }
   // Set a context (call S times, sum of ranges <= M)
   void set(int cx, int range) {
@@ -2501,7 +2507,11 @@ public:
 // contexts with 2-7 bits) are not updated until a context is seen for
 // a second time.  This is indicated by <count,d> = <1,0> (2).  After update,
 // <count,d> is updated to <2,0> or <1,1> (4 or 3).
-
+#if defined(__AVX2__)
+#define MALIGN 32
+#else
+#define MALIGN 16
+#endif
 inline U64 CMlimit(U64 size){
     //if (size>(0x100000000UL)) return (0x100000000UL); //limit to 4GB, using this will consume lots of memory above level 11
     if (size>(0x80000000UL)) return (0x80000000UL); //limit to 2GB
@@ -2526,10 +2536,10 @@ class ContextMap {
   Array<U8*> cp0;  // First element of 7 element array containing cp[i]
   Array<U32> cxt;  // C whole byte contexts (hashes)
   Array<U8*> runp; // C [0..3] = count, value, unused, unused
-  Array<short, 16>  r0;   //for rle 
-  Array<short, 16>  r1;
-  Array<short, 16>  r0i;
-  Array<short, 16>  rmask; // mask for skiped context
+  Array<short, MALIGN>  r0;   //for rle 
+  Array<short, MALIGN>  r1;
+  Array<short, MALIGN>  r0i;
+  Array<short, MALIGN>  rmask; // mask for skiped context
   StateMap *sm;    // C maps of state -> p
   int cn;          // Next context to set by set()
   //void update(U32 cx, int c);  // train model that context cx predicts c
@@ -2594,14 +2604,15 @@ inline U8* ContextMap::E::get(U16 ch) {
 //reverse order and compare 7 chk values to ch
 //get mask is set get first index and return value  
   XMM tmp=_mm_load_si128 ((XMM *) &chk[0]); //load 8 values (8th will be discarded)
-#if defined(__SSE2__) 
+#if defined(__SSSE3__)
+#include <immintrin.h>
+ // const XMM vm=;// initialise vector mask 
+  tmp=_mm_shuffle_epi8(tmp,_mm_setr_epi8(14,15,12,13,10,11,8,9,6,7,4,5,2,3,0,1));   
+#elif   defined(__SSE2__) 
   tmp=_mm_shufflelo_epi16(tmp,0x1B); //swap order for mask  (0,1,2,3)
   tmp=_mm_shufflehi_epi16(tmp,0x1B);                      //(0,1,2,3)
   tmp=_mm_shuffle_epi32(tmp,0x4E);                        //(1,0,3,2)   
-#elif defined(__SSSE3__)
-#include <immintrin.h>
-  const XMM vm=_mm_setr_epi8(14,15,12,13,10,11,8,9,6,7,4,5,2,3,0,1);// initialise vector mask 
-  tmp=_mm_shuffle_epi8(tmp,vm);        
+     
 #endif
   tmp=_mm_cmpeq_epi16 (tmp,xmmch); //compare ch values
   tmp=_mm_packs_epi16(tmp,xmmzero); //pack result
@@ -2790,29 +2801,67 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
          r1[i]=b;
          r0i[i]=ilog(a+1);
      }
-
-#if defined(SIMD_CM_R ) && defined(__SSE2__) 
-    int cnc=(cn/8)*8;
-    for (int i=0; i<(cnc); i=i+8) {
-        XMM  x0=_mm_setzero_si128();
-        XMM  x1=_mm_set1_epi16(1);
-        const int bsh=(8-bp);
-        XMM   b=_mm_load_si128 ((XMM  *) &r1[i]);
-        XMM xcc=_mm_set1_epi16(cc);
+ 
+#if defined(SIMD_CM_R ) && defined(__AVX2__)
+    const int bsh=(8-bp);
+    const int bsh1=(7-bp);
+    int cnc=(cn/16)*16;
+    int i;
+    
+    for ( i=0; i<(cnc); i=i+16) {
+        YMM b1=_mm256_set1_epi16(1<<bsh1);
+        YMM x0=_mm256_setzero_si256();
+        YMM x1=_mm256_set1_epi16(1);
+        YMM b256=_mm256_set1_epi16(256);
+        YMM runm=_mm256_load_si256 ((YMM  *) &rmask[i]);
+        YMM b=_mm256_load_si256 ((YMM  *) &r1[i]);
+        YMM xcc=_mm256_set1_epi16(cc);
         //(r1[i  ]+256)>>(8-bp)==cc
-        XMM   lasth=_mm_set1_epi16(256);
-        XMM  xr1=_mm_add_epi16 (b, lasth);
+        
+        YMM  xr1=_mm256_add_epi16 (b, b256);
+        xr1=_mm256_srli_epi16 (xr1, bsh);
+        xr1=_mm256_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
+        //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
+       
+        YMM xb=_mm256_and_si256 (b, b1); //test if bit set                   //>>(7-bp)&1)*2
+        xb=_mm256_cmpeq_epi16(xb,x0);//compare and if eq set to -1, else 0   //
+        xb= _mm256_or_si256(xb,x1); // or with 1                              // -1
+        //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
+        YMM xr0i=_mm256_load_si256 ((YMM  *) &r0i[i]);//, x0);           //r0i[i]
+        YMM  c=_mm256_load_si256 ((YMM  *) &r0[i]);//, x0);              //~r0[i]&1
+        YMM xc=_mm256_andnot_si256 (c,x1);  
+        YMM r0ia= _mm256_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
+        xc=_mm256_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
+        xc=_mm256_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
+        //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
+        YMM xr=_mm256_mullo_epi16(xc,xb); 
+        YMM xresult=_mm256_and_si256(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
+        xresult=_mm256_and_si256(xresult,runm); //mask out skiped context
+        //store result
+        m.addYMM(xresult);
+    }
+     int cnc1=((cn-cnc)/8)*8;
+        if (cnc1){
+        i=cnc;
+        cnc=cnc+8;
+        XMM x0=_mm_setzero_si128();
+        XMM x1=_mm_set1_epi16(1);
+        XMM b1=_mm_set1_epi16(1<<bsh1);
+        XMM xcc=_mm_set1_epi16(cc);
+        XMM b256=_mm_set1_epi16(256);
+        XMM runm=_mm_load_si128 ((XMM  *) &rmask[i]);
+        XMM b=_mm_load_si128 ((XMM  *) &r1[i]);
+        //(r1[i  ]+256)>>(8-bp)==cc
+        XMM  xr1=_mm_add_epi16 (b, b256);
         xr1=_mm_srli_epi16 (xr1, bsh);
         xr1=_mm_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
         //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
-        const int bsh1=(7-bp);
-        XMM xb=_mm_srli_epi16 (b, bsh1); //>>(7-bp)
-        xb=_mm_and_si128(xb,x1);         //&1
-        xb=_mm_slli_epi16(xb, 1);        //<<1
-        xb= _mm_sub_epi16(xb,x1);        //-1
-        //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
-        XMM xr0i=_mm_add_epi16 (*(XMM  *) &r0i[i], x0);           //r0i[i]
-        XMM  c=_mm_add_epi16 (*(XMM  *) &r0[i], x0);              //~r0[i]&1
+        XMM xb=_mm_and_si128 (b, b1); //test if bit set                   //>>(7-bp)&1)*2
+        xb=_mm_cmpeq_epi16(xb,x0);//compare and if eq set to -1, else 0   //
+        xb= _mm_or_si128(xb,x1); // or with 1                              // -1
+         //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
+        XMM xr0i=_mm_load_si128 ((XMM  *) &r0i[i]);           //r0i[i]
+        XMM  c=_mm_load_si128 ((XMM  *) &r0[i]);              //~r0[i]&1
         XMM xc=_mm_andnot_si128 (c,x1);  
         XMM r0ia= _mm_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
         xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
@@ -2820,7 +2869,6 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
         //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
         XMM xr=_mm_mullo_epi16(xc,xb); 
         XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
-        XMM   runm=_mm_load_si128 ((XMM  *) &rmask[i]);
         xresult=_mm_and_si128(xresult,runm); //mask out skiped context
         //store result
         m.addXMM(xresult);
@@ -2829,6 +2877,48 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
     for (int i=cnc; i<cn; ++i) {
         if (rmask[i] &&( (r1[i  ]+256)>>(8-bp)==cc)) {
             m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
+        else   m.add(0);
+    }
+#elif defined(SIMD_CM_R ) && defined(__SSE2__) 
+    int cnc=(cn/8)*8;
+    const int bsh=(8-bp);
+     const int bsh1=(7-bp);
+     XMM  x0=_mm_setzero_si128();
+     XMM  x1=_mm_set1_epi16(1);
+     XMM  b1=_mm_set1_epi16(1<<bsh1);
+     XMM xcc=_mm_set1_epi16(cc);
+     XMM   b256=_mm_set1_epi16(256);
+    for (int i=0; i<(cnc); i=i+8) {
+        
+        XMM   runm=_mm_load_si128 ((XMM  *) &rmask[i]);
+        XMM   b=_mm_load_si128 ((XMM  *) &r1[i]);
+        //(r1[i  ]+256)>>(8-bp)==cc
+        XMM  xr1=_mm_add_epi16 (b, b256);
+        //XMM  xr1=_mm_add_epi16 (*(XMM  *) &r1[i], _mm_set1_epi16(256));
+        xr1=_mm_srli_epi16 (xr1, bsh);
+        xr1=_mm_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
+        //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
+        XMM xb=_mm_and_si128 (b, b1); //test if bit set                   //>>(7-bp)&1)*2
+        xb=_mm_cmpeq_epi16(xb,x0);//compare and if eq set to -1, else 0   //
+        xb= _mm_or_si128(xb,x1); // or with 1                              // -1
+        //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
+        XMM xr0i=_mm_load_si128 ((XMM  *) &r0i[i]);           //r0i[i]
+        XMM  c=_mm_load_si128 ((XMM  *) &r0[i]);              //~r0[i]&1
+        XMM xc=_mm_andnot_si128 (c,x1);  
+        XMM r0ia= _mm_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
+        xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
+        xc=_mm_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
+        //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
+        XMM xr=_mm_mullo_epi16(xc,xb); 
+        XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
+        xresult=_mm_and_si128(xresult,runm); //mask out skiped context
+        //store result
+        m.addXMM(xresult);
+    }
+    //do remaining 
+    for (int i=cnc; i<cn; ++i) {
+        if (rmask[i] &&( (r1[i  ]+256)>>bsh==cc)) {
+            m.add(((r1[i  ]>>bsh1&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
         else   m.add(0);
     }
 #else          
@@ -2874,7 +2964,7 @@ class ContextMap2 {
                        // BitState[][0] is also a replacement priority, 0 = empty
     inline U8* Find(U16 Checksum) { // Find or create hash element matching checksum.
                                     // If not found, insert or replace lowest priority (skipping 2 most recent).
-      if (Checksums[MRU&15]==Checksum)
+  /*    if (Checksums[MRU&15]==Checksum)
         return &BitState[MRU&15][0];
       int worst=0xFFFF, idx=0;
       for (int i=0; i<7; ++i) {
@@ -2888,6 +2978,57 @@ class ContextMap2 {
       MRU = 0xF0|idx;
       Checksums[idx] = Checksum;
       return (U8*)memset(&BitState[idx][0], 0, 7);
+      */
+       if (Checksums[MRU&15]==Checksum) return &BitState[MRU&15][0];
+  int b=0xffff, bi=0;
+//#if defined(SIMD_GET_SSE)   
+  const XMM xmmch=_mm_set1_epi16 (short(Checksum)); //fill 8 ch values
+//load 8 values, discard last one as only 7 are needed.
+//reverse order and compare 7 chk values to ch
+//get mask is set get first index and return value  
+  XMM tmp=_mm_load_si128 ((XMM *) &Checksums[0]); //load 8 values (8th will be discarded)
+#if defined(__SSSE3__)
+#include <immintrin.h>
+ // const XMM vm=;// initialise vector mask 
+  tmp=_mm_shuffle_epi8(tmp,_mm_setr_epi8(14,15,12,13,10,11,8,9,6,7,4,5,2,3,0,1));   
+#elif   defined(__SSE2__) 
+  tmp=_mm_shufflelo_epi16(tmp,0x1B); //swap order for mask  (0,1,2,3)
+  tmp=_mm_shufflehi_epi16(tmp,0x1B);                      //(0,1,2,3)
+  tmp=_mm_shuffle_epi32(tmp,0x4E);                        //(1,0,3,2)   
+     
+#endif
+  tmp=_mm_cmpeq_epi16 (tmp,xmmch); //compare ch values
+  tmp=_mm_packs_epi16(tmp,xmmzero); //pack result
+  U32 t=(_mm_movemask_epi8(tmp))>>1; //get mask of comparsion, bit is set if eq, discard 8th bit
+  U32 a;    //index into bh or 7 if not found
+  if(t){
+      a=(clz(t)-1)&7;
+      return MRU=MRU<<4|a, (U8*)&BitState[a][0];
+  }
+ XMM   lastl=_mm_set1_epi8((MRU&15));
+ XMM   lasth=_mm_set1_epi8((MRU>>4));
+ XMM   one1  =_mm_set1_epi8(1);
+ XMM   vm=_mm_setr_epi8(0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7);
+ XMM   lastx=_mm_unpacklo_epi64(lastl,lasth); //last&15 last>>4
+ XMM   eq0  =_mm_cmpeq_epi8 (lastx,vm); //compare   values
+ eq0=_mm_or_si128(eq0,_mm_srli_si128 (eq0, 8));    //or low values with high
+ lastx = _mm_and_si128(one1, eq0);                //set to 1 if eq
+ XMM sum1 = _mm_sad_epu8(lastx,xmmzero);        //cout values, abs(a0 - b0) + abs(a1 - b1) .... up to b8
+ const U32 pcount=_mm_cvtsi128_si32(sum1); //population count
+
+ U32 t0=(~_mm_movemask_epi8(eq0));
+for (int i=pcount; i<7; ++i) {
+    int bitt =ctz(t0);     //get index 
+//#if ((__GNUC__ >= 4) || ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 4)))    
+//asm("btr %1,%0" : "+r"(t0) : "r"(bitt)); // clear bit set and test again https://gcc.gnu.org/bugzilla/show_bug.cgi?id=47769
+//#else
+    t0 &= ~(1 << bitt); // clear bit set and test again
+//#endif 
+   int pri=BitState[bitt][0];
+    if (pri<b  ) b=pri, bi=bitt;
+  }  
+
+  return MRU=0xf0|bi, Checksums[bi]=Checksum, (U8*)memset(&BitState[bi][0], 0, 7);
     }
   };
   Array<Bucket, 64> Table; // bit histories for bits 0-1, 2-4, 5-7
@@ -5554,8 +5695,8 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
   Map.set(hash(i++, cWord->Hash[0], Info.masks[1]&0x3FF, Words[Lang.pId](3).Hash[1],
     (Info.lastDigit<Info.wordLength[0]+Info.wordGap)|
     ((Info.lastUpper<Info.lastLetter+Info.wordLength[1])<<1)|
-    ((Info.spaces&0x7F)<<2)|
-     ((Info.linespace>4 && (doXML==false))<<3 )
+    ((Info.spaces&0x7F)<<2)/*|
+     ((Info.linespace>4 && (doXML==false))<<3 )*/
   ));
   Map.set(hash(++i, cWord->Hash[0], pWord->Hash[1]));
   Map.set(hash(i++, cWord->Hash[0], pWord->Hash[1], Words[Lang.pId](2).Hash[1]));
@@ -6087,7 +6228,7 @@ public:
                if (c==10 && linespace==0 && x.frstchar==0x5B /* && buf(2)==0x5B*/ ){
                    xword1=xword2=xword3=0;
                }
-               if (c==10 || c==5) /*x.spafdo=0,*/linespace=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;
+               if (c==10 || c==5) /*x.spafdo=0,*/linespace=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;//,type0 = (type0<<2);
             }
             else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') x.spafdo=0,ccword=c,mask2+=3;//,type0 = (type0<<2);
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
@@ -6249,7 +6390,7 @@ public:
              ((x.spafdo >= lastLetter + x.wordlen1 + wordGap)<<2)|
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
              (lastUpper < x.wordlen + x.wordlen1 + wordGap)
-             ),type0&0xFFF);
+             ));
       
         
         if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(0); //wordlist
@@ -10898,7 +11039,7 @@ int p(Mixer& m,int val1=0,int val2=0){
  virtual ~decModel1(){}
 };
 
-
+/*
 #include "mod_ppmd.inc"
 class ppmdModel1: public Model {
   BlockData& x;
@@ -10916,117 +11057,7 @@ int p(Mixer& m,int val1=0,int val2=0){
 }
   virtual ~ppmdModel1(){ }
 };
-
-
-
-///////////////////////////// chartModel ////////////////////////////
-class chartModel: public Model {
-  BlockData& x;
-  Buf& buf;
-  ContextMap cm,cn;
-  Array<U32> chart;
-  Array<U8> indirect;
-  Array<U8> indirect2;
-  Array<U8> indirect3;
-  StationaryMap Maps[3+3];
-public:
-  chartModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()*4),60),cn(CMlimit(MEM()),17), 
-  chart(32), indirect(2048), indirect2(256), indirect3(0x10000),Maps{ 
-  {9, 8}, {8, 8}, 
-  {9, 8}, {8, 8}, 
-  {9, 8},{8, 8}  }   
- 
- {   
- }
- int inputs() {return 60*cm.inputs()+17*cn.inputs()+6*2;}
-
-int p(Mixer& m,int val1=0,int val2=0){
-   if (!x.bpos){
-       U32 c4=x.c4;
-    const
-      U32 w = c4&65535,
-      w0 = c4&16777215,
-      w1 = c4&255,
-      w2 = c4<<8&65280,
-      w3 = c4<<8&16711680,
-      w4 = c4<<8&4278190080,
-      a[3]={c4>>5&460551,    c4>>2&460551,   c4&197379},
-      b[3]={c4>>23&448|      c4>>18&56|      c4>>13&7,
-            c4>>20&448|      c4>>15&56|      c4>>10&7,
-            c4>>18&48 |      c4>>12&12|      c4>>8&3},
-      d[3]={c4>>15&448|      c4>>10&56|      c4>>5&7,
-            c4>>12&448|      c4>>7&56 |      c4>>2&7,
-            c4>>10&48 |      c4>>4&12 |      c4&3},
-      c[3]={c4&255,          c4>>8&255,      c4>>16&255};
-U32 p=0;
-    for (
-      int i=0,
-      j=0,
-      f=b[0],
-      e=a[0];
-
-    i<3;
-    ++i
-      
-    ){
-         j=(i<<9);
-      f=j|b[i];
-      
-      e=a[i];
-      indirect[f&0x7FF]=w1; // <--Update indirect
-      const int g =indirect[(j|d[i])&0x7FF];
-      chart[(i<<3|e>>16&255)&31]=w0; // <--Fix chart
-      chart[(i<<3|e>>8&255)&31]=w<<8; // <--Update chart
-      Maps[p++].set(e&7|(((e>>8)&7)<<3)|(((e>>16)&7)<<6));// low 3 bits of last 3 bytes
-      Maps[p++].set(g);
-      //cn.set(e); // <--Model previous/current/next slot
-      //cn.set(g); // <--Guesses next "c4&0xFF"
-      cn.set(w2|g); // <--Guesses next "c4&0xFFFF"
-      cn.set(w3|g); // <--Guesses next "c4&0xFF00FF"
-      cn.set(w4|g); // <--Guesses next "c4&0xFF0000FF"
-      //cm.set(c[i]); // <--Models buf(1,2,3)
-    }
-
-    indirect2[buf(2)]=buf(1);
-    int g=indirect2[buf(1)];
-    cn.set(g); // <--Guesses next "c4&0xFF"
-    cn.set(w2|g); // <--Guesses next "c4&0xFFFF"
-    cn.set(w3|g); // <--Guesses next "c4&0xFF00FF"
-    cn.set(w4|g); // <--Guesses next "c4&0xFF0000FF"
-
-    indirect3[buf(3)<<8|buf(2)]=buf(1);
-    g=indirect3[buf(2)<<8|buf(1)];
-    cn.set(g); // <--Guesses next "c4&0xFF"
-    cn.set(w2|g); // <--Guesses next "c4&0xFFFF"
-    cn.set(w3|g); // <--Guesses next "c4&0xFF00FF"
-    cn.set(w4|g); // <--Guesses next "c4&0xFF0000FF"
-
-
-    for (
-      int
-      i=0,
-      s=0,
-      e=a[0],
-      k=chart[0];
-
-    i<20;
-    s=++i>>3,
-      e=a[s],
-      k=chart[i]
-    ){ // k e
-      cm.set(k<<s); // 111 000
-      cm.set(hash(e,k,s)); // 111 111
-      cm.set((hash(e&255,k>>16)^(k&255))<<s); // 101 001
-    }
-  }
-  for (int i=0;i<6;i++)
-        Maps[i].mix(m);
-  cn.mix(m);
-  cm.mix(m);
-  return 0;
-}
-  virtual ~chartModel(){ }
-};
+*/
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
@@ -11055,11 +11086,10 @@ public:
   normalModel1* normalModel;
   im1bitModel1* im1bitModel;
   XMLModel1* XMLModel;
-  ppmdModel1* ppmdModel;
+ // ppmdModel1* ppmdModel;
   im4bitModel1* im4bitModel;
   TextModel *textModel;
   decModel1 *decModel;
-  chartModel *chartModel1;
 virtual ~Predictors(){
   if (jpegModel!=0) delete jpegModel;
   if (sparseModel1!=0) delete sparseModel1;
@@ -11076,12 +11106,11 @@ virtual ~Predictors(){
   if (matchModel!=0) delete matchModel;
   if (normalModel!=0) delete normalModel;
   if (im1bitModel!=0) delete im1bitModel; 
-  if (ppmdModel!=0) delete ppmdModel; 
+ // if (ppmdModel!=0) delete ppmdModel; 
   if (XMLModel!=0) delete XMLModel; 
   if (im4bitModel!=0) delete im4bitModel;
   if (textModel!=0) delete textModel;
   if (decModel!=0) delete decModel;
-  if (chartModel1!=0) delete chartModel1;
  
    };
 Predictors(){
@@ -11101,12 +11130,11 @@ Predictors(){
   nestModel=0;
   normalModel=0;
   im1bitModel=0;
-  ppmdModel=0;
+ // ppmdModel=0;
   XMLModel=0;
   im4bitModel=0;
   textModel=0;
   decModel=0;
-  chartModel1=0;
 }
   virtual int p() const =0;
   virtual void update()=0;
@@ -11211,18 +11239,17 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false)
         indirectModel=new indirectModel1(x); 
         dmcModel=new dmcModel1(x);
         nestModel=new nestModel1(x); 
-        ppmdModel=new ppmdModel1(x,1);
+        //ppmdModel=new ppmdModel1(x,1);
         XMLModel=new XMLModel1(x);
         exeModel=new exeModel1(x); 
         textModel =new TextModel(x,16) ;
-        chartModel1 =new chartModel(x) ;
    }
    matchModel=new matchModel1(x);
    normalModel=new normalModel1(x);
    const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
    sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-   nestModel->inputs()+ppmdModel->inputs()+XMLModel->inputs()+exeModel->inputs()+
-   textModel->inputs()+chartModel1->inputs() ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
+   nestModel->inputs()+XMLModel->inputs()+exeModel->inputs()+
+   textModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
    m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*5+2048+2048+2048+1024*3+8192+8192+8192+1024+256+64+4096+4096+4096+11*32,x, 26);
 }
 
@@ -11274,11 +11301,10 @@ void Predictor::update()  {
             indirectModel->p(*m);
             nestModel->p(*m);
             dmcModel->p(*m);
-            ppmdModel->p(*m);
+            //ppmdModel->p(*m);
             xmlstate=XMLModel->p(*m);
             Valid=exeModel->p(*m);
             textModel->p(*m);
-             chartModel1->p(*m);
     } 
     m->set((order<<3)|x.bpos, 64);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
@@ -11324,14 +11350,14 @@ PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x) {
         wordModel=new wordModel1(x); 
         indirectModel=new indirectModel1(x); 
         dmcModel=new dmcModel1(x);
-        ppmdModel=new ppmdModel1(x,1);
+        //ppmdModel=new ppmdModel1(x,1);
         decModel=new decModel1(x);
    }
    matchModel=new matchModel1(x);
    normalModel=new normalModel1(x);
    const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
    sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-   ppmdModel->inputs()+decModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs();
+  decModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs();
    m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*4+2048+2048+2048-1024+512+11*32,x, 7 +2+1+1+1+4+2+1);
 }
 
@@ -11369,7 +11395,6 @@ void PredictorDEC::update()  {
             distanceModel->p(*m);
             indirectModel->p(*m);
             dmcModel->p(*m);
-            ppmdModel->p(*m);
             Valid=decModel->p(*m);
      
     } 
@@ -11480,12 +11505,11 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x) {
     nestModel=new nestModel1(x); // ?
      textModel =new TextModel(x,16) ; 
      XMLModel=new XMLModel1(x);
-      chartModel1 =new chartModel(x) ;
   }
   matchModel=new matchModel1(x); 
   normalModel=new normalModel1(x);
   const int tinput=1+(level>=4?(recordModel->inputs()+distanceModel->inputs()+sparseModel->inputs()+
-  wordModel->inputs()+  exeModel->inputs() + indirectModel->inputs() +XMLModel->inputs()+ dmcModel->inputs()+ nestModel->inputs()+textModel->inputs()+sparseMatch.inputs()+chartModel1->inputs()  ):0)+
+  wordModel->inputs()+  exeModel->inputs() + indirectModel->inputs() +XMLModel->inputs()+ dmcModel->inputs()+ nestModel->inputs()+textModel->inputs()+sparseMatch.inputs() ):0)+
   matchModel->inputs() + normalModel->inputs();
   m=new Mixer(tinput, 6920+1024+512+8192+8192+8192+ 1024+2048+2048+2048+2048+2048+4096+256+4096+4096+4096+11*32,x, 25);
 
@@ -11529,7 +11553,6 @@ void PredictorEXE::update()  {
         exeModel->p(*m,1); //1024*2
          XMLModel->p(*m);
         textModel->p(*m);
-         chartModel1->p(*m);
     }
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
@@ -11747,16 +11770,15 @@ PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),Text{ {
     indirectModel=new indirectModel1(x);
     dmcModel=new dmcModel1(x);
     nestModel=new nestModel1(x);
-    ppmdModel=new ppmdModel1(x);
+    //ppmdModel=new ppmdModel1(x);
     XMLModel=new XMLModel1(x);
     textModel =new TextModel(x,16) ;
-      chartModel1 =new chartModel(x) ;
   }
   matchModel=new matchModel1(x);
   normalModel=new normalModel1(x);
   const int tinput=1+(level>=4?(recordModel->inputs() + sparseModel1->inputs() +
   wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
-  ppmdModel->inputs()+ XMLModel->inputs()+ textModel->inputs()+chartModel1->inputs() ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() ;
+   XMLModel->inputs()+ textModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() ;
   m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024+256+512+4096+4096+4096+11*32,x, 18);
   m->setText(true);
 }
@@ -11799,9 +11821,8 @@ void PredictorTXTWRT::update()  {
         indirectModel->p(*m);
         dmcModel->p(*m);
         recordModel->p(*m);
-        ppmdModel->p(*m);
+        //ppmdModel->p(*m);
         textModel->p(*m,state&7);
-        chartModel1->p(*m);
     }    
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
@@ -13890,7 +13911,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         }
         
         else if ( (buf0&0xff)==0x7E)  { //if padding '~' or '=='
-            base85end=i-1;
+            base85end=i-2;
             b85s=0;
             if (((base85end-base85start)>60) && ((base85end-base85start)<base85max))
             B85_DET(BASE85,b85h,b85slen,base85end -base85start);
