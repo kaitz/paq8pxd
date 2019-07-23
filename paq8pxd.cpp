@@ -545,14 +545,9 @@ at a time.  Using assembler is 8 times faster than C++ for this code
 and 1/3 faster overall.  (However I found that SSE2 code on an AMD-64,
 which computes 8 elements at a time, is not any faster).
 
-
-DIFFERENCES FROM PAQ8PXD_V64
-- SIMD change for a bit more speed, add also to ContextMap2
-- drop ppm and chartmodel
-- 
 */
 
-#define PROGNAME "paq8pxd65"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd66"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1368,9 +1363,9 @@ BlockData():y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
         bufn.setsize(0x10000);
         if (level>=9) buf.setsize(0x10000000); //limit 256mb
         else buf.setsize(MEM()*8);
-        #ifndef NDEBUG 
+       /* #ifndef NDEBUG 
         printf("\n Buf size %d bytes\n", buf.poswr);
-        #endif
+        #endif */
     }
     ~BlockData(){ }
 };
@@ -1775,8 +1770,13 @@ struct ErrorInfo {
 inline U32 SQR(U32 x) {
   return x*x;
 }
+
+#if defined(__MMX__)
 typedef __m128i XMM;
+#endif
+#if defined(__AVX2__)
 typedef __m256i YMM;
+#endif
 #define DEFAULT_LEARNING_RATE 7
 class Mixer {
 private: 
@@ -1969,7 +1969,7 @@ void train(short *t, short *w, int n, int err) {
   }
   void update2() {
       if (nx==0) return;
-      if (x.filetype==EXE || x.filetype==IMAGE24 || x.filetype==DECA )update1();
+      if (x.filetype==EXE || x.filetype==IMAGE24 || x.filetype==DECA)update1();
     else     if(doText==true) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), reset();
     else             update();
   }
@@ -1988,16 +1988,20 @@ void train(short *t, short *w, int n, int err) {
      ((U64 *) &tx[nx],a);
     nx=nx+4;
   }
+      #if defined(__MMX__)
   void addXMM(XMM a){
     assert(nx+8<N);
     _mm_storeu_si128 ((XMM *) &tx[nx],a);
     nx=nx+8;
   }
+    #endif
+  #if defined(__AVX2__)
     void addYMM(YMM a){
     assert(nx+16<N);
     _mm256_storeu_si256 ((YMM *) &tx[nx],a);
     nx=nx+16;
   }
+    #endif
   // Set a context (call S times, sum of ranges <= M)
   void set(int cx, int range) {
     assert(range>=0);
@@ -2680,9 +2684,9 @@ ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
     cp0[i]=cp[i]=&t[0].bh[0][0];
     runp[i]=cp[i]+3;
   }
-  #ifndef NDEBUG 
-  printf("ContextMap t %0.2f mbytes\n",(((t.size()*sizeof(E)) +0.0)/1024)/1024);
-  #endif
+ // #ifndef NDEBUG 
+ // printf("ContextMap t %0.2f mbytes\n",(((t.size()*sizeof(E)) +0.0)/1024)/1024);
+ // #endif
 }
 
 ContextMap::~ContextMap() {
@@ -2691,6 +2695,7 @@ ContextMap::~ContextMap() {
 
 // Set the i'th context to cx
 inline void ContextMap::set(U32 cx, int next) {
+    if (cn==C) cn=0; // model bypass FIXME
   int i=cn++;
   i&=next;
   assert(i>=0 && i<C);
@@ -2707,16 +2712,21 @@ inline void ContextMap::set(U32 cx, int next) {
 
 inline int mix2(Mixer& m, int s, StateMap& sm) {
   int p1=sm.p(s,m.x.y);
-  int n0=-!nex(s,2);
-  int n1=-!nex(s,3);
-  int st=stretch(p1)>>2;
-  m.add(st);
-  p1>>=4;
-  int p0=255-p1;
-  if (m.x.rm1)  m.add(p1-p0); else m.add(0);
-  m.add(st*(n1-n0));
-  m.add((p1&n0)-(p0&n1));
-  m.add((p1&n1)-(p0&n0));
+  if(s>0){
+    int n0=-!nex(s,2);
+    int n1=-!nex(s,3);
+    int st=stretch(p1)>>2;
+    m.add(st);
+    p1>>=4;
+    int p0=255-p1;
+    if (m.x.rm1)  m.add(p1-p0); else m.add(0);
+    m.add(st*(n1-n0));
+    m.add((p1&n0)-(p0&n1));
+    m.add((p1&n1)-(p0&n0));
+  }else{
+    m.add64(0);
+    m.add(0);
+  }
   return s>0;
 }
 
@@ -2834,7 +2844,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
         xc=_mm256_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
         xc=_mm256_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
         //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
-        YMM xr=_mm256_mullo_epi16(xc,xb); 
+        YMM xr=_mm256_sign_epi16(xc,xb);//_mm256_mullo_epi16(xc,xb); 
         YMM xresult=_mm256_and_si256(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
         xresult=_mm256_and_si256(xresult,runm); //mask out skiped context
         //store result
@@ -2867,7 +2877,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
         xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
         xc=_mm_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
         //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
-        XMM xr=_mm_mullo_epi16(xc,xb); 
+        XMM xr=_mm_sign_epi16(xc,xb);//_mm_mullo_epi16(xc,xb); 
         XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
         xresult=_mm_and_si128(xresult,runm); //mask out skiped context
         //store result
@@ -2879,7 +2889,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
             m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
         else   m.add(0);
     }
-#elif defined(SIMD_CM_R ) && defined(__SSE2__) 
+#elif defined(SIMD_CM_R ) && defined(__SSSE3__) 
     int cnc=(cn/8)*8;
     const int bsh=(8-bp);
      const int bsh1=(7-bp);
@@ -2909,7 +2919,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
         xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
         xc=_mm_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
         //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
-        XMM xr=_mm_mullo_epi16(xc,xb); 
+        XMM xr=_mm_sign_epi16(xc,xb);//_mm_mullo_epi16(xc,xb); 
         XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
         xresult=_mm_and_si128(xresult,runm); //mask out skiped context
         //store result
@@ -3112,9 +3122,6 @@ public:
     index = 0;
     lastByte = lastBit = 0;
     bits = 1;  bitPos = 0;
-    #ifndef NDEBUG 
-  printf("ContextMap2 t %0.2f mbytes\n",(((Table.size()*sizeof(Bucket)) +0.0)/1024)/1024);
-  #endif
   }
   ~ContextMap2() {
     for (U32 i=0; i<C; i++) {
@@ -3127,11 +3134,14 @@ public:
     delete[] Maps12b;
   }
   inline void set(U32 ctx) { // set next whole byte context to ctx
+  assert(index>0 && index<=C); // fail if assert on
+  if (index==C) index=0;     // model bypass, FIXME
     ctx = ctx*987654323+index; // permute (don't hash) ctx to spread the distribution
     ctx = ctx<<16|ctx>>16;
     Contexts[index] = ctx*123456791+index;
     index++;
-    assert(index>0 && index<=C);
+    
+    
   }
   int mix(Mixer& m) {
     int result = 0;
@@ -3169,13 +3179,11 @@ public:
       else
         m.add(0);
 
-      int st=(stretch(p1)+(1<<1))>>2;
-      m.add(st);
-      m.add((p1-2047)>>3);
       if (state == 0) {
-        m.add(0);
-        m.add(0);
-      } else {
+        m.add64(0);
+      } else {int st=(stretch(p1)+(1<<1))>>2;
+        m.add(st);
+        m.add((p1-2047)>>3);
         m.add(st*abs(n1-n0));
         const int p0=4095-p1;
         m.add(((p1&n0)-(p0&n1)+(1<<3))>>4);
@@ -5379,6 +5387,7 @@ public:
       (Info.nestHash>0)?Info.nestHash&0xFF:0x100|(Info.firstLetter*(Info.wordLength[0]>0 && Info.wordLength[0]<4))
     )&0xFFF, 4096);
     mixer.set(hash(mixer.x.grp, Info.masks[4]&0x1F, (Info.masks[4]>>5)&0x1F)&0x1FFF, 8192);
+    
     return 0;
   }
 };
@@ -5481,7 +5490,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
         Words[i]++;
       }
       Words[Language::Unknown]++;
-    #ifndef NDEBUG
+  /*  #ifndef NDEBUG
       if (Lang.Id!=Lang.pId) {
         switch (Lang.Id) {
           case Language::Unknown: { printf("[Language: Unknown, blpos: %d]\n",mixer.x.blpos); break; };
@@ -5490,7 +5499,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
           case Language::German : { printf("[Language: German,  blpos: %d]\n",mixer.x.blpos); break; };
         }
       }
-    #endif
+    #endif */
       Lang.pId = Lang.Id;
       pWord = &Words[Lang.Id](1), cWord = &Words[Lang.Id](0);
       memset(cWord, 0, sizeof(Word));
@@ -6112,7 +6121,7 @@ class wordModel1: public Model {
     U32 word0, word1, word2, word3, word4, word5,word6;  // hashes
     U32 wrdhsh;
     U32 xword0,xword1,xword2,xword3,cword0,ccword;
-    U32 number0, number1;  // hashes
+    U32 number0, number1,hq;  // hashes
     U32 text0,N,data0,type0;  // hash stream of letters
     ContextMap cm;
     int nl3,nl2,nl1, nl;  // previous, current newline position
@@ -6128,14 +6137,13 @@ class wordModel1: public Model {
     int islink,istemplate;
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
-  word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),number0(0),
-  number1(0),text0(0),N(57+1+3+1+1-1+2),data0(0),type0(0),cm(CMlimit(MEM()*16), N),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
+  word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),number0(0),number1(0),
+  hq(0),text0(0),N(64),data0(0),type0(0),cm(CMlimit(MEM()*16), N),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0){
       cWord=&StemWords[0], pWord=&StemWords[3];
    }
    int inputs() {return N*cm.inputs();}
    int p(Mixer& m,int val1=0,int val2=0)  {
- 
     // Update word hashes
     if (x.bpos==0) {
         int c=x.c4&255,pC=(U8)(x.c4>>8),f=0;
@@ -6146,6 +6154,7 @@ public:
         lastUpper=min(lastUpper+1,255);
         lastLetter=min(lastLetter+1,255);
         mask2<<=2;
+        
         if (pC>='A' && pC<='Z') pC+='a'-'A';
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
         if ((c>='a' && c<='z') || c=='\'' || c=='-')
@@ -6395,12 +6404,22 @@ public:
         
         if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(0); //wordlist
         if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
-         cm.set(hash(x.col,above^above1,above2,x.c4&0xfF));  //wordlist
+        hq=hash(x.col,above^above1,above2,x.c4&0xfF);
+         cm.set(hash(x.col,above^above1,above2,((istemplate)<<9)|  
+             ((islink)<<8)|
+             ((linespace > 4)<<7)|
+             ((x.wordlen1 > 3)<<6)|
+             ((x.wordlen > 0)<<5)|
+             ((x.spafdo == x.wordlen + 2)<<4)|
+             ((x.spafdo == x.wordlen + x.wordlen1 + 3)<<3)|
+             ((x.spafdo >= lastLetter + x.wordlen1 + wordGap)<<2)|
+             ((lastUpper < lastLetter + x.wordlen1)<<1)|
+             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));  //wordlist
         cm.set(hash((*pWord).Hash[2], h));
 
     }
     cm.mix(m);
-    return 0;
+    return hq;
 }
  virtual ~wordModel1(){ }
 };
@@ -6582,7 +6601,7 @@ public:
     cp.set(hash(++i, iCtx[1]()&0xFF, iCtx[3]()&0xFF));
 
     cp.set(hash(++i, N, (WxNW=c^buf(rlen[0]+1))));
-    cp.set(hash(++i, (x.Match.length>0)?x.Match.byte:0x100|U8(iCtx[1]()), N, WxNW));
+    cp.set(hash(++i, (x.Match.length>0)?x.Match.byte:0x100|U8(iCtx[1]()), N, WxNW));//cp.set(hash(++i, (min(ilog2(x.Match.length),3)!=0)<<8 |x.Match.byte,U8(iCtx[1]()), N, WxNW));
     int k=0x300;
     if (MayBeImg24b)
       i = (col%3)<<8, Maps[0].set(Clip(((U8)(x.c4>>16))+c-(x.c4>>24))|k);
@@ -6924,6 +6943,7 @@ public:
       NNNNNN=buffer(w*6);
       WWp1=buffer(stride*2+1), Wp1=buffer(stride+1), p1=buffer(1), NWp1=buffer(w+stride+1), Np1=buffer(w+1), NEp1=buffer(w-stride+1), NNp1=buffer(w*2+1);
       WWp2=buffer(stride*2+2), Wp2=buffer(stride+2), p2=buffer(2), NWp2=buffer(w+stride+2), Np2=buffer(w+2), NEp2=buffer(w-stride+2), NNp2=buffer(w*2+2);
+       
       int j = 0;
       MapCtxs[j++] = Clamp4(N+p1-Np1, W, NW, N, NE);
       MapCtxs[j++] = Clamp4(N+p2-Np2, W, NW, N, NE);
@@ -7065,6 +7085,8 @@ public:
         pOLS[j] = Clip(floor(ols[j][color].Predict(ols_ctxs[j])));
         ols[j][k].Update(p1);
       }
+      if (val2==1) {if (++col>=stride*8) col=0;return 1;
+      }
       if (!isPNG){
          
         int mean=W+NW+N+NE;
@@ -7197,6 +7219,7 @@ public:
       
     }
   }
+  if (val2==1) {if (++col>=stride*8) col=0;return 1;      }
   if (x>0 || !isPNG) {
     U8 B=(c0<<(8-bpos));
     int i=5;
@@ -7506,6 +7529,7 @@ int p(Mixer& m,int w,int val2=0){
         ols[j].Update(W);
         pOLS[j] = Clip(int(floor(ols[j].Predict(ols_ctxs[j]))));
       }
+      
       for (j=0; j<nPltMaps; j++)
         iCtx[j]+=W;
       iCtx[0]=W|(NE<<8);
@@ -7513,6 +7537,7 @@ int p(Mixer& m,int w,int val2=0){
       iCtx[2]=W|(WW<<8);
       iCtx[3]=N|(NN<<8);
       jump = jumps[min(x,(int)jumps.size()-1)];
+      if (val2==1)  {col=(col+1)&7;return 1;      }
       U64 i= (filterOn ? (filter+1)*64 : 0) + (gray*1024);
       cm.set(hash(++i, (jump!=0)?(0x100|buffer(abs(jump)))*(1-2*(jump<0)):N, line&3));
       if (!gray){
@@ -7612,6 +7637,7 @@ int p(Mixer& m,int w,int val2=0){
         xx.Image.ctx = ctx>>gray;
     }
   }
+   if (val2==1)  {col=(col+1)&7;return 1;      }
   U8 B=(c0<<(8-bpos));
   if (gray && (x || !isPNG)){
     int i=1;
@@ -7957,7 +7983,7 @@ struct JPEGImage{
   enum {M=4};  // search limit
   Array<U8> t; // elements
   const U32 n; // size-1
-  int replaced;
+ // int replaced;
 int B;
  int ncontext;
  Array<U8*> cp;
@@ -7974,14 +8000,14 @@ int B;
       else if (p[1]==0) return p[0]=chk, p;  // empty
       else if (p[1]<b) b=p[1], bi=i^j;  // best replacement so far
     }
-    ++replaced;
+    //++replaced;
     p=&t[bi*B];  // replacement element
     memset(p, 0, B);
     p[0]=chk;
     return p;
   }
 public:
-  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(N), x(bd), replaced(0) {
+  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(N), x(bd) {
     assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2?
     sm = new StateMap*[ncontext];
      
@@ -7998,9 +8024,9 @@ public:
   }
  inline int p(int i,U32 a,bool setcontext){
       assert(i<ncontext);
-      if (setcontext)  cp[i]=&t[a&(t.size()-1)];//cp[i]=find(a)+1; //set
-      else cp[i]+=a;                    //add
-      return sm[i]->p(*cp[i],x.y);      //predict
+      if (setcontext) cp[i]=find(a)+1;  // set
+      else cp[i]+=a;                    // add
+      return sm[i]->p(*cp[i],x.y);      // predict
   }
   ~BHMap() {
       for (U32 i=0; i<ncontext; i++) {
@@ -8009,14 +8035,14 @@ public:
     delete[] sm;
       // Show memory usage for debugging
 
-  int empty=0, once=0;
+ /* int empty=0, once=0;
   for (int i=1; i<t.size(); i+=B) {
     if (t[i]==0) ++empty;
     else if (t[i]<2) ++once;
   }
   printf("BH<%d> %d empty, %d once, %d replaced of %d\n", B,
     empty, once, replaced, t.size()/B);
-
+*/
 }
 };
  
@@ -8098,6 +8124,7 @@ class jpegModelx: public Model {
     // As a cache optimization, the context does not include the last 1-2
     // bits of huffcode if the length (huffbits) is not a multiple of 3.
     // The 7 mapped values are for context+{"", 0, 00, 01, 1, 10, 11}.
+    U32 skip;
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
@@ -8105,8 +8132,8 @@ public:
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
-  qtab(256),qmap(10),N(34),cxt(N),m1(32+32+3,2050+3 /*770*/,bd, 3), a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),
-  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,34,bd) {
+  qtab(256),qmap(10),N(35),cxt(N),m1(32+32+3+4,2050+3 /*770*/,bd, 3), a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),
+  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0) {
   }
   int inputs() {return 7+N*2+1;}
   int p(Mixer& m,int val1=0,int val2=0){
@@ -8549,8 +8576,7 @@ public:
     }
   }
   // Update model
-  
-  m1.update();
+
   // Estimate next bit probability
   if (!images[idx].jpeg || !images[idx].data) return images[idx].next_jpeg;//return 0;
   if (buf(1+(!x.bpos))==FF) {
@@ -8567,7 +8593,9 @@ public:
     m.set(buf(1), 1024);
     return 1;
   }
-hmap.update();
+  if (val1==1) {if (++hbcount>2 ) hbcount=0;return /*skip++,*/ 1;  }
+  m1.update();
+  hmap.update();
 
   // Update context
   const int comp=color[mcupos>>6];
@@ -8578,7 +8606,7 @@ hmap.update();
   jassert(coef>=0 && coef<256);
   const int zu=zzu[mcupos&63], zv=zzv[mcupos&63];
     if (hbcount==0) {
-    int n=hc*32;
+    U32 n=hc*32;
     cxt[0]=hash(++n, coef, adv_pred[2]/12+(run_pred[2]<<8), ssum2>>6, prev_coef/72);
     cxt[1]=hash(++n, coef, adv_pred[0]/12+(run_pred[0]<<8), ssum2>>6, prev_coef/72);
     cxt[2]=hash(++n, coef, adv_pred[1]/11+(run_pred[1]<<8), ssum2>>6);
@@ -8613,6 +8641,7 @@ hmap.update();
     cxt[31]=hash(++n, coef, adv_pred[3]/11, hash(lcp[(zu<zv)]/50,lcp[2+3*(zu*zv>1)]/50,lcp[3+3*(zu*zv>1)]/50));
     cxt[32]=hash(++n, hash(coef, adv_pred[2]/17),hash(coef, adv_pred[1]/11), ssum>>2,run_pred[0]);
     cxt[33]=hash(++n, hash(zv, run_pred[2]/2),hash(coef, run_pred[5]/2), min(7,zu+zv),adv_pred[0]/12);
+    cxt[34]=(!hbcount)?hash(mcupos, column, row, hc>>2):0; // MJPEG
   }
 
   // Predict next bit
@@ -8625,7 +8654,6 @@ hmap.update();
    case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i){ p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
    default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i){  p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
   }
-
 
    m1.set(firstcol, 2);
    m1.set( coef+256*min(3,huffbits), 1024 );
@@ -8646,6 +8674,7 @@ hmap.update();
   return 1;
   }
   virtual ~jpegModelx(){
+      //printf("Skip jpeg %d bytes",(skip/8));
    }
  
 };
@@ -10022,7 +10051,7 @@ public:
   }
 
 public: 
-  dmcNode(U32 mem, U32 th,BlockData& bd) : top(0),threshold(th),t(mem),  sm(),x(bd) {resetstategraph();  }
+  dmcNode(U32 mem, U32 th,BlockData& bd) : top(0),threshold(th),t(mem+(255*256)),  sm(),x(bd) {resetstategraph();  }//min(mem+(255*256),((U64(1)<<31)/sizeof(DMCNode)))
 
   bool isfull() {return x.bpos==1 && top==t.size();}
   bool isalmostfull() {return x.bpos==1 && top>=t.size()*15 >>4;} // *15/16
@@ -11039,25 +11068,6 @@ int p(Mixer& m,int val1=0,int val2=0){
  virtual ~decModel1(){}
 };
 
-/*
-#include "mod_ppmd.inc"
-class ppmdModel1: public Model {
-  BlockData& x;
-  Buf& buf;
-  ppmd_Model ppmd_12_256_1;
-public:
-  ppmdModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){
-    int ppmdmem=(210<<(level>8))<<(level>13);
-    ppmd_12_256_1.Init(12+(level>8),ppmdmem,1,0);
- }
- int inputs() {return 1;}
-int p(Mixer& m,int val1=0,int val2=0){
-  m.add(stretch(4096-ppmd_12_256_1.ppmd_Predict(4096,x.y)));
-  return 0;
-}
-  virtual ~ppmdModel1(){ }
-};
-*/
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
@@ -11086,7 +11096,6 @@ public:
   normalModel1* normalModel;
   im1bitModel1* im1bitModel;
   XMLModel1* XMLModel;
- // ppmdModel1* ppmdModel;
   im4bitModel1* im4bitModel;
   TextModel *textModel;
   decModel1 *decModel;
@@ -11106,7 +11115,6 @@ virtual ~Predictors(){
   if (matchModel!=0) delete matchModel;
   if (normalModel!=0) delete normalModel;
   if (im1bitModel!=0) delete im1bitModel; 
- // if (ppmdModel!=0) delete ppmdModel; 
   if (XMLModel!=0) delete XMLModel; 
   if (im4bitModel!=0) delete im4bitModel;
   if (textModel!=0) delete textModel;
@@ -11130,7 +11138,6 @@ Predictors(){
   nestModel=0;
   normalModel=0;
   im1bitModel=0;
- // ppmdModel=0;
   XMLModel=0;
   im4bitModel=0;
   textModel=0;
@@ -11145,6 +11152,7 @@ Predictors(){
         x.buf[x.buf.pos++]=x.c0;
         x.c0=1;
         ++x.blpos;
+        
       x.buf.pos=x.buf.pos&x.buf.poswr; //wrap
       x.c8=(x.c8<<8)|x.buf(5);
     }
@@ -11166,7 +11174,7 @@ public:
   }
 };
 
-EAPM::EAPM(BlockData& bd):x(bd),a(256,x), a1(0x10000,x), a2(0x10000,x),
+EAPM::EAPM(BlockData& bd):x(bd),a(0x2000,x), a1(0x10000,x), a2(0x10000,x),
  a3(0x10000,x), a4(0x10000,x), a5(0x10000,x), a6(0x10000,x) {
 }
 
@@ -11196,14 +11204,14 @@ int EAPM::p1(int pr0,int pr, int r){
 }
 int EAPM::p2(int pr0,int pr8, int r){
 
-  int pr=a.p(pr0, x.c0);
+  int pr=a.p(pr0,(min(ilog2(x.Match.length),3))<<11 |(x.c0<<3)|(x.Misses&0x7));
 
   int pr1=a1.p(pr0, x.c0+256*x.buf(1));
   int pr2=a2.p(pr0, (x.c0^hash(x.buf(1), x.buf(2)))&0xffff);
   int pr3=a3.p(pr0, (x.c0^hash(x.buf(1), x.buf(2), x.buf(3)))&0xffff);
   pr0=(pr0+pr1+pr2+pr3+2)>>2;
 
-  pr1=a4.p(pr, x.c0+256*x.buf(1));
+  pr1=a4.p(pr, x.Match.byte+256*x.buf(1));
   pr2=a5.p(pr, (x.c0^hash(x.buf(1), x.buf(2)>>1))&0xffff);
   pr3=a6.p(pr, (x.c0^hash(x.buf(1), x.buf(2)>>1, x.buf(3)>>2))&0xffff);
   pr=(pr+pr1+pr2+pr3+2)>>2;
@@ -11255,6 +11263,7 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false)
 
 void Predictor::update()  {
     update0();
+    x.Misses+=x.Misses+((pr>>11)!=x.y);
     if (x.bpos==0) {
         int b1=x.buf(1);
         x.c4=(x.c4<<8)+b1;
@@ -11301,7 +11310,6 @@ void Predictor::update()  {
             indirectModel->p(*m);
             nestModel->p(*m);
             dmcModel->p(*m);
-            //ppmdModel->p(*m);
             xmlstate=XMLModel->p(*m);
             Valid=exeModel->p(*m);
             textModel->p(*m);
@@ -11323,7 +11331,7 @@ void Predictor::update()  {
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     m->set(c, 1536);
     pr0=m->p(1,1);
-    pr=a.p1(pr0,pr,7);
+    pr=a.p2(pr0,pr,7);
 }
 
 //general predicor class
@@ -11334,6 +11342,7 @@ class PredictorDEC: public Predictors {
   int ismatch;
   Mixer *m;
   EAPM a;   
+   bool Bypass; 
 public:
   PredictorDEC();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -11342,7 +11351,7 @@ public:
   }
 };
 
-PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x) {
+PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false) {
     if (level>=4){
         recordModel=new recordModel1(x); 
         distanceModel=new distanceModel1(x); 
@@ -11350,7 +11359,6 @@ PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x) {
         wordModel=new wordModel1(x); 
         indirectModel=new indirectModel1(x); 
         dmcModel=new dmcModel1(x);
-        //ppmdModel=new ppmdModel1(x,1);
         decModel=new decModel1(x);
    }
    matchModel=new matchModel1(x);
@@ -11384,7 +11392,14 @@ void PredictorDEC::update()  {
 
     m->update();
     m->add(256);
+    Bypass=false;
     ismatch=matchModel->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFFF || matchModel->Bypass) {
+        matchModel->Bypass =  Bypass =   true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        return;
+    }
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     int rlen=0,Valid=0;
@@ -11422,11 +11437,12 @@ class PredictorJPEG: public Predictors {
   Mixer *m;
   EAPM a;
   StateMap StateMaps[2];
+   bool Bypass; 
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
   ~PredictorJPEG(){  
  }
-PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256}  {
+PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false) {
   matchModel=new matchModel1(x); 
   jpegModel=new jpegModelx(x); 
   dmcModel=new dmcModel1(x);  
@@ -11443,10 +11459,18 @@ PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256}  {
 
 void update()  {
     update0();
-    
+    x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
     m->add(256);
+    Bypass=false;
     int ismatch=matchModel->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFF || matchModel->Bypass) {//512b
+        matchModel->Bypass =   Bypass =    true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        jpegModel->p(*m,1);//we found long repeating match. update, do not predict. artificial images
+        return;
+    }
     m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
     m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
     dmcModel->p(*m);
@@ -11486,6 +11510,7 @@ class PredictorEXE: public Predictors {
   Mixer *m;
   EAPM a;
   SparseMatchModel sparseMatch;
+   bool Bypass; 
 public:
   PredictorEXE();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -11493,7 +11518,7 @@ public:
     ~PredictorEXE(){ }
 };
 
-PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x) {
+PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x),Bypass(false) {
   if (level>=4){
     recordModel=new recordModel1(x); 
     distanceModel=new distanceModel1(x); 
@@ -11517,6 +11542,7 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x) {
 
 void PredictorEXE::update()  {
     update0();
+    x.Misses+=x.Misses+((pr>>11)!=x.y);
     if (x.bpos==0) {
         int b1=x.buf(1);
         x.c4=(x.c4<<8)+b1;
@@ -11537,7 +11563,14 @@ void PredictorEXE::update()  {
     }
     m->update();
     m->add(256);
+    Bypass=false;
     int ismatch=matchModel->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFFF || matchModel->Bypass) {
+        matchModel->Bypass = Bypass =    true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        return;
+    }
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     int rec=0;
@@ -11582,12 +11615,13 @@ class PredictorIMG4: public Predictors {
       APM APMs[4];
       APM1 APM1s[2];
   } Image;
+   bool Bypass; 
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG4(){ }
 
 PredictorIMG4(): pr(2048), StateMaps{ 256, 256*256}, Image
-     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}} {
+     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}},Bypass(false) {
   matchModel=new matchModel1(x);   
   im4bitModel=new im4bitModel1(x); 
   const int tinput=1+ matchModel->inputs()+im4bitModel->inputs()+2;
@@ -11602,7 +11636,14 @@ void update()  {
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
+  Bypass=false;
   matchModel->p(*m);  // Length of longest matching context
+  if (x.Match.length>0xFFF || matchModel->Bypass) {
+        matchModel->Bypass =  Bypass =   true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        return;
+    }
   im4bitModel->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
@@ -11635,13 +11676,14 @@ class PredictorIMG8: public Predictors {
     } Gray;
   } Image;
   StateMap StateMaps[2];
+   bool Bypass; 
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG8(){ }
 
 PredictorIMG8(): pr(2048),  Image{
      {{0x1000, 0x10000, 0x10000, 0x10000},  {{0x10000,x}, {0x10000,x}}},
-     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256}{
+     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256},Bypass(false){
   matchModel=new matchModel1(x);   
   im8bitModel=new im8bitModel1(x); 
   
@@ -11658,7 +11700,15 @@ void update()  {
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
+  Bypass=false;
   int ismatch=matchModel->p(*m);  // Length of longest matching context
+  if (x.Match.length>(x.finfo) || matchModel->Bypass) {
+        matchModel->Bypass =  Bypass =   true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        im8bitModel->p(*m,x.finfo,1);
+        return;
+    }
   m->set(ismatch, 256);
   normalModel->p(*m);
   im8bitModel->p(*m,x.finfo);
@@ -11699,11 +11749,12 @@ class PredictorIMG24: public Predictors {
     APM1 APM1s[2];
   } Image;
   StateMap StateMaps[2];
+   bool Bypass; 
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG24(){ }
 
-PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}} },StateMaps{ 256, 256*256}{
+PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}} },StateMaps{ 256, 256*256},Bypass(false){
   matchModel=new matchModel1(x); 
   im24bitModel=new im24bitModel1(x);
   const int tinput=1+matchModel->inputs() + im24bitModel->inputs()+2 ;
@@ -11722,7 +11773,15 @@ void update()  {
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
+  Bypass=false;
   int ismatch=matchModel->p(*m);  // Length of longest matching context
+  if (x.Match.length>(x.finfo) || matchModel->Bypass) {
+        matchModel->Bypass =  Bypass =   true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+         im24bitModel->p(*m,x.finfo,1);
+        return;
+    }
   m->set(ismatch,256);
   im24bitModel->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
@@ -11747,7 +11806,9 @@ class PredictorTXTWRT: public Predictors {
   int pr;  // next prediction
   int pr0;
   int order;
+  int rlen;
   int ismatch;
+  bool Bypass; 
   Mixer *m;
   struct {
     APM APMs[4];
@@ -11762,7 +11823,8 @@ public:
   }
 };
 
-PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },sparseMatch(x) {
+PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),Bypass(false),
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },sparseMatch(x) {
   if (level>=4){
     recordModel=new recordModel1(x);
     sparseModel1=new sparseModelx(x);
@@ -11770,7 +11832,6 @@ PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),Text{ {
     indirectModel=new indirectModel1(x);
     dmcModel=new dmcModel1(x);
     nestModel=new nestModel1(x);
-    //ppmdModel=new ppmdModel1(x);
     XMLModel=new XMLModel1(x);
     textModel =new TextModel(x,16) ;
   }
@@ -11779,7 +11840,7 @@ PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),ismatch(0),Text{ {
   const int tinput=1+(level>=4?(recordModel->inputs() + sparseModel1->inputs() +
   wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
    XMLModel->inputs()+ textModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() ;
-  m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024+256+512+4096+4096+4096+11*32,x, 18);
+  m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024+256+512+4096+4096+4096+11*32+4096+1024,x, 18+1+1);
   m->setText(true);
 }
 
@@ -11807,7 +11868,14 @@ void PredictorTXTWRT::update()  {
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
     m->add(256);
+    Bypass=false;
     ismatch=matchModel->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFFF || matchModel->Bypass) {
+        matchModel->Bypass = Bypass = true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        return;
+    }
     sparseMatch.p(*m);
     order=normalModel->p(*m); //ord ma
     order=order-3; 
@@ -11815,14 +11883,13 @@ void PredictorTXTWRT::update()  {
     if(order>7) order=7;
     if (level>=4){   
         int state=XMLModel->p(*m);
-        wordModel->p(*m,state&7);     
+        m->set(wordModel->p(*m,state&7)&0xfff, 4096);    
         sparseModel1->p(*m,ismatch,order);
         nestModel->p(*m);
         indirectModel->p(*m);
         dmcModel->p(*m);
-        recordModel->p(*m);
-        //ppmdModel->p(*m);
-        textModel->p(*m,state&7);
+        rlen=recordModel->p(*m);
+        textModel->p(*m,(state&7));
     }    
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
@@ -11859,12 +11926,13 @@ void PredictorTXTWRT::update()  {
 //IMG1 predicor class
 class PredictorIMG1: public Predictors {
   int pr;  // next prediction
+   bool Bypass; 
   Mixer *m;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG1(){ }
 
-PredictorIMG1(): pr(2048)  {
+PredictorIMG1(): pr(2048),Bypass(false)  {
   matchModel=new matchModel1(x); 
   im1bitModel=new im1bitModel1(x); 
   const int tinput=1+ matchModel->inputs() + im1bitModel->inputs() ;
@@ -11874,8 +11942,15 @@ PredictorIMG1(): pr(2048)  {
 void update()  {
   update0();
   m->update();
-  m->add(256);
+  m->add(256); 
+  Bypass=false;
   int ismatch=matchModel->p(*m);
+  if (x.Match.length>0xFFF || matchModel->Bypass) {
+        matchModel->Bypass =  Bypass =   true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        return;
+    }
   m->set(ismatch,256);
   im1bitModel->p(*m, x.finfo);
   pr=m->p(); 
@@ -11886,12 +11961,13 @@ class PredictorAUDIO2: public Predictors {
   int pr;
   Mixer *m;
   EAPM a;
+   bool Bypass; 
   void setmixer();
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorAUDIO2(){  }
 
-PredictorAUDIO2(): pr(2048),a(x) {
+PredictorAUDIO2(): pr(2048),a(x),Bypass(false) {
   wavModel=new wavModel1(x); 
   matchModel=new matchModel1(x);
   const int tinput=1+wavModel->inputs()+ matchModel->inputs() ;
@@ -11902,7 +11978,14 @@ void update()  {
   update0();
   m->update();
   m->add(256);
+  Bypass=false;
   matchModel->p(*m);  
+  if (x.Match.length>0xFFF || matchModel->Bypass) {
+        matchModel->Bypass = Bypass =    true;
+        m->reset();
+        pr= matchModel->BypassPrediction;
+        return;
+    }
   wavModel->p(*m,x.finfo);
   pr=a.p1(m->p(0,1),pr,7);
 }
@@ -16633,10 +16716,10 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                                 threadencode->compress(in->getc());
                                 datasegmentsize--;
                             }
-                            #ifndef NDEBUG 
+                           /* #ifndef NDEBUG 
                             printf("Stream(%d) block from %0lu to %0lu bytes\n",i,datasegmentlen, out->curpos()-scompsize);
                             scompsize= out->curpos();
-                            #endif
+                            #endif */
                             datasegmentlen=0;
                         }
                         threadencode->flush();
