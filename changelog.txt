@@ -1,0 +1,142 @@
+v66
+    -some arch compiler fixes for mmx,ssse3,avx2
+    -contextMap SIMD change, more speed :D
+    -matchModel bypass in all streams
+    -add MJPEG context in jpegModel, use min 256 byte match for bypass
+    -change BHMap in jpegModel, now does actual compression
+    -min bypass in image8/24 models is width
+    -in textstream add another mixer context from wordModel
+    -dmcModel min mem fix
+    -change APM in EAPM p2
+
+v65
+    -SIMD change for a bit more speed, add also to ContextMap2
+    -drop ppm and chartmodel
+
+v64
+    -jpeg model fix
+
+v63
+    -jpeg model +1 context, use bhmap
+    -change wordmodel, textmodel
+
+v62
+    -bugfix
+
+v61
+    -recordmodel change from paq8px_v175
+    -change recordmodel, wordmodel and textmodel
+    -tga rle,tif lzw recompression from paq8px_v177
+
+v60
+    -indirect,record,sparesematch,textmodel model change from paq8px_v173
+    -change chartmodel
+    -uuencode
+
+v59
+    -8 and 24 bit image model,matchModel, SparseMatchModel,recordModel
+     changes from paq8px_v166
+    -AVX2 mixer fix
+    -chartModel memorys error fix
+    -fix decModel
+
+v58
+    -change PredictorJpeg
+    -add chartModel from paq8k
+
+v57
+    -fix memory errors
+
+v56
+    -fix textModel mixer inputs
+
+v55
+    -revert distance model back
+    -detect 4 bit mrb images, recompress only first image
+    -add SparseMatchModel from paq8px_162, use on default/text/exe stream
+    -add array class from paq8px_162
+    -matchModel changes form paq8px_162
+    -use text detection form paq8px_162, change to detext EOLTEXT,TEXT0,TEXTUTF8
+    -contextMap2 form paq8px_162, use in normalModel, textModel,exeModel
+    -use textModel, xmlModel in PredictorEXE
+    -fix jpeg detection
+    -in wrt try to find utf8 char if word not found in dict
+    -in wrt change minimum words needed to 10 in final dict
+    -tweak ARM, DEC, etc detection
+    -brute force tar detection (non ustar)
+    -other small changes and small changes from paq8px_162
+
+v54
+    -model changes
+    -add back dmc model from v48
+
+v53
+    -small fixes
+
+v52
+    -change default and text predictor
+
+v51
+    -better detection for NES
+    -changes from paq8px_v155
+    -Estonian stemmer (minimal), mostly conflicts with French
+    -add compiler info for gcc, clang
+    -removed dmcModel from jpegModel
+    -detect ARM executables, do address translation
+
+v50
+    -small fixes
+    -add back SIMD implemetation of ContextMap byterun
+
+v49
+    -im24 model changes from paq8px_v146
+    -revert to old dmcModel
+    -use adaptive mixer for IMAGE24
+
+v48
+    -model changes from paq8px_v145
+    -minor changes
+
+v47
+    -UNIX fix (vnx)
+    -TextModel changes from paq8px_v140
+    -TextModel change
+    -DEC stream, model (minor gain)
+    -TIFF detect changes
+
+v46
+    -AVX dotproduct change
+    -UNIX includes change (vnx)
+    -new TextModel from paq8px_v138
+    -minor changes
+
+v45
+    -revert tar header to  HDR
+
+v44
+    -tar header as TEXT
+    -wordmodel change
+    -avoid setting useless context in xml and word model (set 0)
+    -indirect and sparse model context hashed
+    -other small changes
+
+v43
+    -change DEC Alpha detection
+    -change tar detection
+    -im8/im24 changes, fixes from paq8px_v129
+    -wordmodel change
+
+v42
+    -small tweak
+
+v41
+    -file class, image model, wordmodel changes from paq8px_c128
+    -removed option -q -f
+    -small gain on heavily segmented files.
+    -tweak tar parsing, fixes samba compression
+    -another change to wordmodel
+    -tweak jpeg class
+
+v40
+    -resolve conflict in WRT vs EOLencode
+    -modify wordmodel
