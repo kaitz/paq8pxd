@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd67"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd68"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1252,9 +1252,11 @@ U64 MEM(){
 }
 
 Segment segment; //for file segments type size info(if not -1)
-const int streamc=12;
+const int streamc=13;
 File * filestreams[streamc];
-const int datatypecount=39+1+1+1+1;
+typedef enum {STR_NONE=-1,STR_DEFAULT=0,STR_JPEG, STR_IMAGE1, STR_IMAGE4, STR_IMAGE8, STR_IMAGE24, STR_AUDIO, STR_EXE, STR_TEXT0,STR_TEXT,STR_BIGTEXT,STR_DECA,STR_CMP} Streamtype;
+              
+const int datatypecount=43;
 typedef enum {DEFAULT=0,BINTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,
               ZLIB,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,PNG24, PNG32,TYPELAST} Filetype;
@@ -1264,49 +1266,49 @@ const char* typenames[datatypecount]={"default","bintext","dBase", "jpeg", "hdr"
                                 "","","","tar","PNG8","PNG8G","PNG24","PNG32"};
 static const int typet[TYPELAST][3]={
  // info, stream, recursive
-  { 0, 0, 0},// DEFAULT, 
-  { 1, 0, 0},// BINTEXT, 
-  { 1, 0, 0},// DBASE, 
-  { 0, 1, 0},// JPEG,
-  { 0, 0, 0},// HDR,  
-  { 0, 0, 0},// CMP, 
-  { 1, 0, 0},// IMGUNK
-  { 1, 2, 0},// IMAGE1,  
-  { 1, 3, 0},// IMAGE4, 
-  { 1, 4, 0},// IMAGE8,    
-  { 1, 4, 0},// IMAGE8GRAY,
-  { 1, 5, 0},// IMAGE24,
-  { 1, 5, 0},// IMAGE32,
-  { 1, 6, 0},// AUDIO, 
-  { 0, 7, 0},// EXE,
-  { 0, 11, 0},// DECA, 
-  { 0, 0,  0},// ARM, 
-  { 0,-1, 1},//  CD,
-  { 0, 9, 0},// TEXT,  
-  { 0, 8, 0},// TEXT0,
-  { 0, 9, 0},// TXTUTF8,  
-  { 0, 0, 0},// NESROM,  
-  { 0,-1, 1},// BASE64, 
-  { 0,-1, 1},// BASE85,   
-  { 0,-1, 1},// UUENC, 
-  { 0,-1, 0},// GIF,    
-  { 1,-1, 1},// SZDD,  
-  { 0,-1, 0},// MRBR, 
-  { 0,-1, 0},// MRBR4,
-  { 0,-1, 0},// RLE,
-  { 0,-1, 0},// LZW,
-  { 1,-1, 1},// ZLIB, 
-  { 0,-1, 1},// MDF, 
-  { 0, 0, 0},// MSZIP,   
-  { 0,-1, 1},// EOLTEXT,
-  { 0, 9, 0},// DICTTXT,
-  { 0,10, 0},// BIGTEXT,
-  { 0,10, 0},// NOWRT, 
-  { 0,-1, 0},// TAR,  
-  { 1, 4, 0},// PNG8,
-  { 1, 4, 0},// PNG8GRAY,
-  { 1, 5, 0},// PNG24,
-  { 1, 5, 0}// PNG32,
+  { 0, STR_DEFAULT, 0},// DEFAULT, 
+  { 1, STR_DEFAULT, 0},// BINTEXT, 
+  { 1, STR_DEFAULT, 0},// DBASE, 
+  { 0, STR_JPEG,    0},// JPEG,
+  { 0, STR_DEFAULT, 0},// HDR,  
+  { 0, STR_CMP,     0},// CMP, compressed data
+  { 1, STR_DEFAULT, 0},// IMGUNK
+  { 1, STR_IMAGE1,  0},// IMAGE1,  
+  { 1, STR_IMAGE4,  0},// IMAGE4, 
+  { 1, STR_IMAGE8,  0},// IMAGE8,    
+  { 1, STR_IMAGE8,  0},// IMAGE8GRAY,
+  { 1, STR_IMAGE24, 0},// IMAGE24,
+  { 1, STR_IMAGE24, 0},// IMAGE32,
+  { 1, STR_AUDIO,   0},// AUDIO, 
+  { 0, STR_EXE,     0},// EXE,
+  { 0, STR_DECA,    0},// DECA, 
+  { 0, STR_DEFAULT, 0},// ARM, 
+  { 0, STR_NONE,    1},//  CD,
+  { 0, STR_TEXT,    0},// TEXT,  
+  { 0, STR_TEXT0,   0},// TEXT0,
+  { 0, STR_TEXT,    0},// TXTUTF8,  
+  { 0, STR_DEFAULT, 0},// NESROM,  
+  { 0, STR_NONE,    1},// BASE64, 
+  { 0, STR_NONE,    1},// BASE85,   
+  { 0, STR_NONE,    1},// UUENC, 
+  { 0, STR_NONE,    0},// GIF,    
+  { 1, STR_NONE,    1},// SZDD,  
+  { 0, STR_NONE,    0},// MRBR, 
+  { 0, STR_NONE,    0},// MRBR4,
+  { 0, STR_NONE,    0},// RLE,
+  { 0, STR_NONE,    0},// LZW,
+  { 1, STR_NONE,    1},// ZLIB, 
+  { 0, STR_NONE,    1},// MDF, 
+  { 0, STR_CMP,     0},// MSZIP,   
+  { 0, STR_NONE,    1},// EOLTEXT,
+  { 0, STR_TEXT,    0},// DICTTXT,
+  { 0, STR_BIGTEXT, 0},// BIGTEXT,
+  { 0, STR_BIGTEXT, 0},// NOWRT, 
+  { 0, STR_NONE,    0},// TAR,  
+  { 1, STR_IMAGE8,  0},// PNG8,
+  { 1, STR_IMAGE8,  0},// PNG8GRAY,
+  { 1, STR_IMAGE24, 0},// PNG24,
+  { 1, STR_IMAGE24, 0}// PNG32,
   };
 const U32 WRT_mpw[16]= { 4, 4, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0 };
 const U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 7, 7, 7, 7 };
@@ -3140,7 +3142,7 @@ public:
     
     
   }
-  int mix(Mixer& m) {
+  int mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4) {
     int result = 0;
     lastBit = m.x.y;
     bitPos = m.x.bpos;
@@ -3153,7 +3155,7 @@ public:
     for (U32 i=0; i<index; i++) {
       // predict from bit context
       int state = (BitState[i])?*BitState[i]:0;
-      result+=(state>0);
+      //result+=(state>0);
       int p1 = Maps8b[i]->p(state,m.x.y);
       int n0=nex(state, 2), n1=nex(state, 3), k=-~n1;
       k = (k*64)/(k-~n0);
@@ -3177,16 +3179,17 @@ public:
         m.add(0);
 
       
-      int st=(stretch(p1)+(1<<1))>>2;
+      int st=(stretch(p1)*Multiplier)/Divisor;
       m.add(st);
-      m.add((p1-2047)>>3);
+      m.add(((p1-2047)*Multiplier)/(2*Divisor));
       if (state == 0) {
         m.add(0);
         m.add(0);
       } else {
         m.add(st*abs(n1-n0));
         const int p0=4095-p1;
-        m.add(((p1&n0)-(p0&n1)+(1<<3))>>4);
+        m.add((((p1&n0)-(p0&n1))*Multiplier)/(4*Divisor));
+        result++;
       }
 
       if (HasHistory[i]) {
@@ -5406,7 +5409,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
   U8 c = buffer(1), pC=tolower(c), g = (c<0x80)?AsciiGroup[c]:31;
   if (g>4 || g!=(Info.masks[4]&0x1F))
     Info.masks[4]<<=5, Info.masks[4]|=g;
-  BytePos[c] = mixer.x.buf.pos;
+  BytePos[c] = mixer.x.blpos;
   if (c!=pC) {
     c = pC;
     Info.lastUpper = 0, Info.maskUpper|=1;
@@ -5503,7 +5506,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
       Lang.pId = Lang.Id;
       pWord = &Words[Lang.Id](1), cWord = &Words[Lang.Id](0);
       memset(cWord, 0, sizeof(Word));
-      WordPos[pWord->Hash[0]&(WordPos.size()-1)] = mixer.x.buf.pos;
+      WordPos[pWord->Hash[0]&(WordPos.size()-1)] = mixer.x.blpos;
       if (cSegment->WordCount==0)
         memcpy(&cSegment->FirstWord, pWord, sizeof(Word));
       cSegment->WordCount++;
@@ -5716,7 +5719,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
   Map.set(hash(i++, cWord->Hash[0], c, Segments(1).FirstWord.Hash[1]));
   Map.set(hash(i++, max(31,lc), Info.masks[1]&0xFFC, (Info.spaces&0xFE)|(Info.lastPunct<Info.lastLetter), (Info.maskUpper&0xFF)|(((0x100|Info.firstLetter)*(Info.wordLength[0]>1))<<8)));
   Map.set(hash(i++, column, min(7,ilog2(Info.lastUpper+1)), ilog2(Info.lastPunct+1)));
-  Map.set(
+  Map.set(hash(++i,
     (column&0xF8)|(Info.masks[1]&3)|((Info.prevNewLine-Info.lastNewLine>63)<<2)|
     (min(3, Info.lastLetter)<<8)|
     (Info.firstChar<<10)|
@@ -5728,7 +5731,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
     ((Info.lastDigit<column)<<23)|
     ((column<Info.prevNewLine-Info.lastNewLine)<<24)|
     ((Info.linespace>4)<<25)
-  );
+  ));
   Map.set(hash(
     (2*column)/3,
     min(13, Info.lastPunct)+(Info.lastPunct>16)+(Info.lastPunct>32)+Info.maskPunct*16,
@@ -5756,7 +5759,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
   Map.set(hash(i++,Info.numHashes[4],    min((max(Info.wordLength[0],3)-2)*(Info.wordLength[0]<8),3),(Info.lastLetter>0)?c:0x100));//
   
   Map.set(hash(i++, w, c, Info.numHashes[1]));
-  Map.set(hash(i++, w, c, llog(mixer.x.buf.pos-WordPos[w&(WordPos.size()-1)])>>1));
+  Map.set(hash(i++, w, c, llog(mixer.x.blpos-WordPos[w&(WordPos.size()-1)])>>1));
   Map.set(hash(i++, w, c, Info.TopicDescriptor.Hash[0]));
   
     if (doXML==true){
@@ -6124,6 +6127,7 @@ class wordModel1: public Model {
     U32 number0, number1,hq;  // hashes
     U32 text0,N,data0,type0;  // hash stream of letters
     ContextMap cm;
+    ContextMap cm1;
     int nl3,nl2,nl1, nl;  // previous, current newline position
     U32 mask,mask2;
     Array<int> wpos;  // last position of word
@@ -6136,14 +6140,16 @@ class wordModel1: public Model {
     int StemIndex,same,linespace;
     int islink,istemplate;
     U32 numbers,numbercount;
+    U64 g_ascii_lo=0, g_ascii_hi=0; // group identifiers of 8+8 last characters
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),number0(0),number1(0),
-  hq(0),text0(0),N(64),data0(0),type0(0),cm(CMlimit(MEM()*16), N),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
-  lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0),numbers(0),numbercount(0){
+  hq(0),text0(0),N(64),data0(0),type0(0),cm(CMlimit(MEM()*16), N),cm1(CMlimit(MEM()/2), 7),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
+  lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0),numbers(0),numbercount(0),
+  g_ascii_lo(0), g_ascii_hi(0){
       cWord=&StemWords[0], pWord=&StemWords[3];
    }
-   int inputs() {return N*cm.inputs();}
+   int inputs() {return N*cm.inputs()+7*cm.inputs();}
    int p(Mixer& m,int val1=0,int val2=0)  {
     // Update word hashes
     if (x.bpos==0) {
@@ -6271,6 +6277,7 @@ public:
             type0 = (type0<<2)|2;
             number1=number0;
             number0=0,ccword=0;
+
         }
         
         if (!((c>='a' && c<='z') ||(c>='0' && c<='9') || (c>=128 ))){
@@ -6287,6 +6294,7 @@ public:
         if (val2) x.col=val2,above=buf[buf.pos-x.col],above1=buf[buf.pos-x.col*2];;
         if (x.col<=2) x.frstchar=(x.col==2?min(c,126):0);
         if (x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
+
         //256+ hash 513+ none
         if (x.filetype==DEFAULT || x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK){
             for(int i=0;i<11;i++) cm.set(0);
@@ -6311,7 +6319,7 @@ public:
             //U32 h=x.wordcount*64+x.spacecount+x.numbercount*128;
             cm.set(hash(520,c,h,ccword));
             cm.set(hash(517,x.frstchar,h,lastLetter));
-            cm.set(hash(data0,word1, number1,type0&0xFFF));//fword
+            cm.set(hash(data0,word1, number1,type0&0xFFF));
             cm.set(h);
             cm.set(hash(521,h,x.spafdo)); 
             U32 d=x.c4&0xf0ff;
@@ -6354,7 +6362,7 @@ public:
         cm.set(buf(2)|buf(4)<<8|buf(6)<<16);  
         cm.set(buf(1)|buf(4)<<8|buf(7)<<16);  
         cm.set(x.f4&0x00000fff);
-    cm.set(x.f4); 
+        cm.set(x.f4); 
         if (f) {
             word5=word4;//*29;
             word4=word3;//*31;
@@ -6395,7 +6403,7 @@ public:
             cm.set(hash(530,mask&0xff,x.col)); 
             cm.set(hash(531,mask,buf(2),buf(3))); 
             cm.set(hash(532,mask&0x1ff,x.f4&0x00fff0)); 
-            cm.set(hash(h, llog(wordGap), mask&0x1FF, 
+            cm.set(hash(h, llog(wordGap), mask&0x1FF, /////
              ((istemplate)<<9)|  
              ((islink)<<8)|
              ((linespace > 4)<<7)|
@@ -6410,7 +6418,7 @@ public:
       
         
         if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(0); //wordlist
-        if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);
+        if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
         hq=hash(x.col,above^above1,numbers&127,x.filetype==DECA?x.c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
          cm.set(hash(x.col,above^above1,above2 , ((islink)<<8)|
              ((linespace > 4)<<7)|
@@ -6420,12 +6428,41 @@ public:
              ((x.spafdo == x.wordlen + x.wordlen1 + 3)<<3)|
              ((x.spafdo >= lastLetter + x.wordlen1 + wordGap)<<2)|
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
-             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));
+             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));  //wordlist((istemplate)<<9)|  
         cm.set(hash((*pWord).Hash[2], h));
 
     }
     if (val2==-1) return 1;
     cm.mix(m);
+    if(x.bpos==0) {
+
+    U32 g=x.c4&0xff; // group identifier
+         if('0'<=g && g<='9') g='0'; //all digits are in one group
+    else if('A'<=g && g<='Z') g='A'; //all uppercase letters are in one group
+    else if('a'<=g && g<='z') g='a'; //all lowercase letters are in one group
+    else if(g>=128) g=128;
+
+    const bool to_be_collapsed = (g=='0' || g=='A' || g=='a') && g == (g_ascii_lo&0xff);
+    if(!to_be_collapsed) {
+      g_ascii_hi <<= 8;
+      g_ascii_hi  |= g_ascii_lo>>(64-8);
+      g_ascii_lo <<= 8;
+      g_ascii_lo  |= g;
+    }
+ if( linespace>0) { 
+    U64 i = to_be_collapsed*8;
+    cm1.set(hash( (++i), g_ascii_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
+    cm1.set(hash( (++i), g_ascii_lo ));                                 // last 8 groups
+    cm1.set(hash( (++i), g_ascii_lo&0x0000ffffffffffff));               // last 6 groups
+    cm1.set(hash( (++i), g_ascii_lo&0x00000000ffffffff));               // last 4 groups
+    cm1.set(hash( (++i), g_ascii_lo&0x000000000000ffff));               // last 2 groups
+
+    cm1.set(hash( (++i), g_ascii_lo&0x00ffffffffffffff, x.c4&0x0000ffff )); // last 7 groups + last 2 chars
+    cm1.set(hash( (++i), g_ascii_lo&0x000000ffffffffff, x.c4&0x00ffffff )); // last 5 groups + last 3 chars
+ } else for(int i=0;i<7;i++) cm1.set(0);
+    //Stats->charGroup = g_ascii_lo; //group identifiers of the last 8 characters
+  }
+  cm1.mix(m);
     return hq;
 }
  virtual ~wordModel1(){ }
@@ -6571,6 +6608,7 @@ public:
       nTransition+=(nTransition<31);
       padding = (U8)d;
     }
+
     U64 i=0;
     // Set 2 dimensional contexts
     cm.set(hash(++i,c<<8| (min(255, buf.pos-cpos1[c])/4)));
@@ -6636,7 +6674,7 @@ public:
   sMap[0].set(ctx);
   sMap[1].set(iCtx[nIndCtxs-1]());
   sMap[2].set((ctx<<8)|WxNW);
-  if (val2==-1) return rlen[0];
+if (val2==-1) return rlen[0];
   cm.mix(m);
   cn.mix(m);
   co.mix(m);
@@ -6659,6 +6697,42 @@ public:
  virtual ~recordModel1(){ }
 };
 
+class linearPredictionModel: public Model {
+  BlockData& x;
+  Buf& buf;
+   int nOLS, nLnrPrd;
+SmallStationaryContextMap sMap[3+2]{ {11,1},{11,1},{11,1},{11,1},{11,1} };
+  OLS<double, U8> ols[3]{ {32, 4, 0.995}, {32, 4, 0.995}, {32, 4, 0.995} };
+  U8 prd[5]{ 0 };
+public:
+  linearPredictionModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),nOLS(3),nLnrPrd(3+2)  {
+  }
+  int inputs() {return nLnrPrd*2;}
+  int p(Mixer& m,int val1=0,int val2=0){
+  if (x.bpos==0) {
+    const U8 W=buf(1), WW=buf(2), WWW=buf(3);
+    int i=0;
+    for (; i<nOLS; i++)
+      ols[i].Update(W);
+    for (i=1; i<=32; i++) {
+      ols[0].Add(buf(i));
+      ols[1].Add(buf(i*2-1));
+      ols[2].Add(buf(i*2));
+    }
+    for (i=0; i<nOLS; i++)
+      prd[i]=Clip(floor(ols[i].Predict()));
+    prd[i++]=Clip(W*2-WW);
+    prd[i  ]=Clip(W*3-WW*3+WWW);
+  }
+  const U8 B=x.c0<<(8-x.bpos);
+  for (int i=0; i<nLnrPrd; i++) {
+    sMap[i].set((prd[i]-B)*8+x.bpos);
+    sMap[i].mix(m, 6, 1, 2);
+  }
+  return 0;
+}
+virtual ~linearPredictionModel(){ }
+};
 //////////////////////////// sparseModel ///////////////////////
 
 // Model order 1-2 contexts with gaps.
@@ -7100,6 +7174,8 @@ public:
         pOLS[j] = Clip(floor(ols[j][color].Predict(ols_ctxs[j])));
         ols[j][k].Update(p1);
       }
+      //if (val2==1) {if (++col>=stride*8) col=0;return 1;
+      //}
       if (!isPNG){
          
         int mean=W+NW+N+NE;
@@ -7107,53 +7183,53 @@ public:
         mean>>=2;
         const int logvar=ilog(var);
 
-        cm.set(hash((N+1)>>1, LogMeanDiffQt(N,Clip(NN*2-NNN))));
-        cm.set(hash((W+1)>>1, LogMeanDiffQt(W,Clip(WW*2-WWW))));
-        cm.set(hash(Clamp4(W+N-NW,W,NW,N,NE), LogMeanDiffQt(Clip(N+NE-NNE), Clip(N+NW-NNW))));
-        cm.set(hash((NNN+N+4)/8, Clip(N*3-NN*3+NNN)>>1 ));
-        cm.set(hash((WWW+W+4)/8, Clip(W*3-WW*3+WWW)>>1 ));
-        cm.set(hash(++i, (W+Clip(NE*3-NNE*3+NNNE))/4, LogMeanDiffQt(N,(NW+NE)/2)));
-        cm.set(hash(++i, Clip((-WWWW+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+NNNE*4-NNNNE,N,NE,NEE, NEEE))/5)/4));
-        cm.set(hash(Clip(NEE+N-NNEE), LogMeanDiffQt(W,Clip(NW+NE-NNE))));
-        cm.set(hash(Clip(NN+W-NNW), LogMeanDiffQt(W,Clip(NNW+WW-NNWW))));
-        cm.set(hash(++i, p1));
-        cm.set(hash(++i, p2));
-        cm.set(hash(++i, Clip(W+N-NW)/2, Clip(W+p1-Wp1)/2));
-        cm.set(hash(Clip(N*2-NN)/2, LogMeanDiffQt(N,Clip(NN*2-NNN))));
-        cm.set(hash(Clip(W*2-WW)/2, LogMeanDiffQt(W,Clip(WW*2-WWW))));
-        cm.set(Clamp4(N*3-NN*3+NNN,W,NW,N,NE)/2);
-        cm.set(Clamp4(W*3-WW*3+WWW,W,N,NE,NEE)/2);
-        cm.set(hash(++i, LogMeanDiffQt(W,Wp1), Clamp4((p1*W)/(Wp1<1?1:Wp1),W,N,NE,NEE))); //using max(1,Wp1) results in division by zero in VC2015
-        cm.set(hash(++i, Clamp4(N+p2-Np2,W,NW,N,NE)));
-        cm.set(hash(++i, Clip(W+N-NW), column[0]));
-        cm.set(hash(++i, Clip(N*2-NN), LogMeanDiffQt(W,Clip(NW*2-NNW))));
-        cm.set(hash(++i, Clip(W*2-WW), LogMeanDiffQt(N,Clip(NW*2-NWW))));
-        cm.set(hash( (W+NEE)/2, LogMeanDiffQt(W,(WW+NE)/2) ));
-        cm.set(Clamp4(Clip(W*2-WW) + Clip(N*2-NN) - Clip(NW*2-NNWW), W, NW, N, NE));
-        cm.set(hash(++i, W, p2 ));
-        cm.set(hash( N, NN&0x1F, NNN&0x1F ));
-        cm.set(hash( W, WW&0x1F, WWW&0x1F ));
-        cm.set(hash(++i, N, column[0] ));
-        cm.set(hash(++i, Clip(W+NEE-NE), LogMeanDiffQt(W,Clip(WW+NE-N))));
-        cm.set(hash(NN, NNNN&0x1F, NNNNNN&0x1F, column[1]));
-        cm.set(hash(WW, WWWW&0x1F, WWWWWW&0x1F, column[1]));
-        cm.set(hash(NNN, NNNNNN&0x1F, buffer(w*9)&0x1F, column[1]));
-        cm.set(hash(++i, column[1]));
+        cm.set(hash(++i,(N+1)>>1, LogMeanDiffQt(N,Clip(NN*2-NNN))));
+        cm.set(hash(++i,(W+1)>>1, LogMeanDiffQt(W,Clip(WW*2-WWW))));
+        cm.set(hash(++i,Clamp4(W+N-NW,W,NW,N,NE), LogMeanDiffQt(Clip(N+NE-NNE), Clip(N+NW-NNW))));
+        cm.set(hash(++i,(NNN+N+4)/8, Clip(N*3-NN*3+NNN)>>1 ));
+        cm.set(hash(++i,(WWW+W+4)/8, Clip(W*3-WW*3+WWW)>>1 ));
+        cm.set(hash(++i,color, (W+Clip(NE*3-NNE*3+NNNE))/4, LogMeanDiffQt(N,(NW+NE)/2)));
+        cm.set(hash(++i,color, Clip((-WWWW+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+NNNE*4-NNNNE,N,NE,NEE, NEEE))/5)/4));
+        cm.set(hash(++i,Clip(NEE+N-NNEE), LogMeanDiffQt(W,Clip(NW+NE-NNE))));
+        cm.set(hash(++i,Clip(NN+W-NNW), LogMeanDiffQt(W,Clip(NNW+WW-NNWW))));
+        cm.set(hash(++i,color, p1));
+        cm.set(hash(++i,color, p2));
+        cm.set(hash(++i,color, Clip(W+N-NW)/2, Clip(W+p1-Wp1)/2));
+        cm.set(hash(++i,Clip(N*2-NN)/2, LogMeanDiffQt(N,Clip(NN*2-NNN))));
+        cm.set(hash(++i,Clip(W*2-WW)/2, LogMeanDiffQt(W,Clip(WW*2-WWW))));
+        cm.set(hash(++i,        Clamp4(N*3-NN*3+NNN, W, NW, N, NE)/2));
+        cm.set(hash(++i,        Clamp4(W*3-WW*3+WWW, W, N, NE, NEE)/2));
+        cm.set(hash(++i, color, LogMeanDiffQt(W,Wp1), Clamp4((p1*W)/(Wp1<1?1:Wp1),W,N,NE,NEE))); //using max(1,Wp1) results in division by zero in VC2015
+        cm.set(hash(++i, color, Clamp4(N+p2-Np2,W,NW,N,NE)));
+        cm.set(hash(++i, color, Clip(W+N-NW), column[0]));
+        cm.set(hash(++i, color, Clip(N*2-NN), LogMeanDiffQt(W,Clip(NW*2-NNW))));
+        cm.set(hash(++i, color, Clip(W*2-WW), LogMeanDiffQt(N,Clip(NW*2-NWW))));
+        cm.set(hash(++i, (W+NEE)/2, LogMeanDiffQt(W,(WW+NE)/2) ));
+        cm.set(hash(++i,        (Clamp4(Clip(W*2-WW)+Clip(N*2-NN)-Clip(NW*2-NNWW), W, NW, N, NE))));
+        cm.set(hash(++i, color, W, p2 ));
+        cm.set(hash(++i, N, NN&0x1F, NNN&0x1F ));
+        cm.set(hash(++i, W, WW&0x1F, WWW&0x1F ));
+        cm.set(hash(++i, color, N, column[0] ));
+        cm.set(hash(++i, color, Clip(W+NEE-NE), LogMeanDiffQt(W,Clip(WW+NE-N))));
+        cm.set(hash(++i,NN, NNNN&0x1F, NNNNNN&0x1F, column[1]));
+        cm.set(hash(++i,WW, WWWW&0x1F, WWWWWW&0x1F, column[1]));
+        cm.set(hash(++i,NNN, NNNNNN&0x1F, buffer(w*9)&0x1F, column[1]));
+        cm.set(hash(++i,  color,column[1]));
         
-        cm.set(hash(++i, W, LogMeanDiffQt(W,WW)));
-        cm.set(hash(++i, W, p1));
-        cm.set(hash(++i, W/4, LogMeanDiffQt(W,p1), LogMeanDiffQt(W,p2) ));
-        cm.set(hash(++i, N, LogMeanDiffQt(N,NN)));
-        cm.set(hash(++i, N, p1));
-        cm.set(hash(++i, N/4, LogMeanDiffQt(N,p1), LogMeanDiffQt(N,p2) ));
-        cm.set(hash(++i, (W+N)>>3, p1>>4, p2>>4));
-        cm.set(hash(++i, p1/2, p2/2));
-        cm.set(hash(++i, W, p1-Wp1));
-        cm.set(hash(++i, W+p1-Wp1));
-        cm.set(hash(++i, N, p1-Np1));
-        cm.set(hash(++i, N+p1-Np1));
-        cm.set(hash(++i, buf(w*3-stride), buf(w*3-stride*2)));
-        cm.set(hash(++i, buf(w*3+stride), buf(w*3+stride*2)));
+        cm.set(hash(++i, color, W, LogMeanDiffQt(W,WW)));
+        cm.set(hash(++i, color, W, p1));
+        cm.set(hash(++i, color, W/4, LogMeanDiffQt(W,p1), LogMeanDiffQt(W,p2) ));
+        cm.set(hash(++i, color, N, LogMeanDiffQt(N,NN)));
+        cm.set(hash(++i, color, N, p1));
+        cm.set(hash(++i, color, N/4, LogMeanDiffQt(N,p1), LogMeanDiffQt(N,p2) ));
+        cm.set(hash(++i, color, (W+N)>>3, p1>>4, p2>>4));
+        cm.set(hash(++i, color, p1/2, p2/2));
+        cm.set(hash(++i, color, W, p1-Wp1));
+        cm.set(hash(++i, color, W+p1-Wp1));
+        cm.set(hash(++i, color, N, p1-Np1));
+        cm.set(hash(++i, color, N+p1-Np1));
+        cm.set(hash(++i, color, buf(w*3-stride), buf(w*3-stride*2)));
+        cm.set(hash(++i, color, buf(w*3+stride), buf(w*3+stride*2)));
 
         cm.set(hash(++i, mean, logvar>>4));
 
@@ -7315,7 +7391,8 @@ class im8bitModel1: public Model {
  int col;
  BlockData& xx;
  Buf& buf;
- int ctx,  lastWasPNG, line, x, filter, gray,isPNG,jump;
+ int ctx, lastPos, lastWasPNG, line, x, filter, gray,isPNG,jump;
+ int framePos, prevFramePos, frameWidth, prevFrameWidth;
  U32& c4;
  int& c0;
  int& bpos;
@@ -7329,8 +7406,9 @@ class im8bitModel1: public Model {
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1} };
                                      
  SmallStationaryContextMap pltMap[nPltMaps] = { {11,1},{11,1},{11,1},{11,1} };
+ IndirectMap sceneMap[5]{ {8}, {8}, {22,1}, {11,1}, {11,1} };
  IndirectContext<U8> iCtx[nPltMaps] = { 16, 16, 16, 16 };
- U8 px , res;// current PNG filter prediction, expected residual
+ U8 px , res,prvFrmPx , prvFrmPred ;// current PNG filter prediction, expected residual
  RingBuffer buffer;// internal rotating buffer for PNG unfiltered pixel data
  bool filterOn;
  int columns[2] ={ 1,1 }  , column[2]={ 1,1 } ;
@@ -7353,6 +7431,7 @@ class im8bitModel1: public Model {
     {num[3], 1, lambda[3]},
     {num[4], 1, lambda[4]}
   };
+  OLS<double, U8> sceneOls;
     const U8 *ols_ctx1[32] = { &WWWWWW, &WWWWW, &WWWW, &WWW, &WW, &W, &NWWWW, &NWWW, &NWW, &NW, &N, &NE, &NEE, &NEEE, &NEEEE, &NNWWW, &NNWW, &NNW, &NN, &NNE, &NNEE, &NNEEE, &NNNWW, &NNNW, &NNN, &NNNE, &NNNEE, &NNNNW, &NNNN, &NNNNE, &NNNNN, &NNNNNN };
     const U8 *ols_ctx2[12] = { &WWW, &WW, &W, &NWW, &NW, &N, &NE, &NEE, &NNW, &NN, &NNE, &NNN }; 
     const U8 *ols_ctx3[15] = { &N, &NE, &NEE, &NEEE, &NEEEE, &NN, &NNE, &NNEE, &NNEEE, &NNN, &NNNE, &NNNEE, &NNNN, &NNNNE, &NNNNN };
@@ -7361,13 +7440,13 @@ class im8bitModel1: public Model {
     const U8 **ols_ctxs[nOLS] = { &ols_ctx1[0], &ols_ctx2[0], &ols_ctx3[0], &ols_ctx4[0], &ols_ctx5[0] };
   
 public:
-  im8bitModel1( BlockData& bd):  inpts(49+nPltMaps),cm(CMlimit(MEM()*4), inpts),col(0),xx(bd),buf(bd.buf), ctx(0), lastWasPNG(0),line(0), x(0),
-   filter(0),gray(0),isPNG(0),jump(0), c4(bd.c4),c0(bd.c0),bpos(bd.bpos), px(0),
+  im8bitModel1( BlockData& bd):  inpts(49+nPltMaps),cm(CMlimit(MEM()*4), inpts),col(0),xx(bd),buf(bd.buf), ctx(0),lastPos(0), lastWasPNG(0),line(0), x(0),
+   filter(0),gray(0),isPNG(0),jump(0), framePos(0), prevFramePos(0), frameWidth(0), prevFrameWidth(0), c4(bd.c4),c0(bd.c0),bpos(bd.bpos), px(0),prvFrmPx(0), prvFrmPred(0),
    res (0),buffer(0x100000),filterOn(false),jumps(0x8000),WWWWWW(0), WWWWW(0), WWWW(0), WWW(0), WW(0), W(0),
       NWWWW(0), NWWW(0), NWW(0), NW(0), N(0), NE(0), NEE(0), NEEE(0), NEEEE(0),
       NNWWW(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0), NNEEE(0),
       NNNWW(0), NNNW(0), NNN(0), NNNE(0), NNNEE(0),
-      NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1),   pOLS(nOLS){
+      NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1),   pOLS(nOLS),sceneOls(13, 1, 0.994){
 
   }
   int inputs() {return inpts*cm.inputs()+nMaps*2+nPltMaps*2;}
@@ -7382,19 +7461,23 @@ int p(Mixer& m,int w,int val2=0){
       columns[0] = max(1,w/max(1,ilog2(w)*2));
       columns[1] = max(1,columns[0]/max(1,ilog2(columns[0])));
       if (gray){
-        if (lastWasPNG!=isPNG){
+        if (lastPos && lastWasPNG!=isPNG){
           for (int i=0;i<nMaps;i++)
             Map[i].Reset();
         }
         lastWasPNG = isPNG;
       }
       buffer.Fill(0x7F);
+      prevFramePos = framePos;
+      framePos = xx.blpos;
+      prevFrameWidth = frameWidth;
+      frameWidth = w;
     }
     else{
       x++;
       if(x>=w+isPNG){x=0;line++;}
     }
-
+//lastPos = xx.blpos;
     if (isPNG){
       if (x==1)
         filter = (U8)c4;
@@ -7482,8 +7565,95 @@ int p(Mixer& m,int w,int val2=0){
       NNNNW=buffer(w*4+1), NNNN=buffer(w*4), NNNNE=buffer(w*4-1);
       NNNNN=buffer(w*5);
       NNNNNN=buffer(w*6);
+      if (prevFramePos>0 && prevFrameWidth==w){
+        int offset = prevFramePos+line*w+x;
+        prvFrmPx = buf[offset];
+        if (gray) {
+          sceneOls.Update(W);
+          sceneOls.Add(W); sceneOls.Add(NW); sceneOls.Add(N); sceneOls.Add(NE);
+          for (int i=-1; i<2; i++) {
+            for (int j=-1; j<2; j++)
+              sceneOls.Add(buf[offset+i*w+j]);
+          }
+          prvFrmPred = Clip(int(floor(sceneOls.Predict())));
+        }
+        else
+          prvFrmPred = W;
+      }
+      else
+        prvFrmPx = prvFrmPred = W;
+      sceneMap[0].set_direct(prvFrmPx);
+      sceneMap[1].set_direct(prvFrmPred);
 
       int j = 0;
+      jump = jumps[min(x,(int)jumps.size()-1)];
+
+      U64 i= (filterOn ? (filter+1)*64 : 0) + (gray*1024);
+      cm.set(hash(++i, (jump!=0)?(0x100|buffer(abs(jump)))*(1-2*(jump<0)):N, line&3));
+      
+      
+      if (!gray){
+       for (j=0; j<nPltMaps; j++)
+        iCtx[j]+=W;
+      iCtx[0]=W|(NE<<8);
+      iCtx[1]=W|(N<<8);
+      iCtx[2]=W|(WW<<8);
+      iCtx[3]=N|(NN<<8);
+      
+        cm.set(hash(++i, W, px));
+        cm.set(hash(++i, W, px, column[0]));
+        cm.set(hash(++i, N, px));
+        cm.set(hash(++i, N, px, column[0]));
+        cm.set(hash(++i, NW, px));
+        cm.set(hash(++i, NW, px, column[0]));
+        cm.set(hash(++i, NE, px));
+        cm.set(hash(++i, NE, px, column[0]));
+        cm.set(hash(++i, NWW, px));
+        cm.set(hash(++i, NEE, px));
+        cm.set(hash(++i, WW, px));
+        cm.set(hash(++i, NN, px));
+        cm.set(hash(++i, W, N, px));
+        cm.set(hash(++i, W, NW, px));
+        cm.set(hash(++i, W, NE, px));
+        cm.set(hash(++i, W, NEE, px));
+        cm.set(hash(++i, W, NWW, px));
+        cm.set(hash(++i, N, NW, px));
+        cm.set(hash(++i, N, NE, px));
+        cm.set(hash(++i, NW, NE, px));
+        cm.set(hash(++i, W, WW, px));
+        cm.set(hash(++i, N, NN, px));
+        cm.set(hash(++i, NW, NNWW, px));
+        cm.set(hash(++i, NE, NNEE, px));
+        cm.set(hash(++i, NW, NWW, px));
+        cm.set(hash(++i, NW, NNW, px));
+        cm.set(hash(++i, NE, NEE, px));
+        cm.set(hash(++i, NE, NNE, px));
+        cm.set(hash(++i, N, NNW, px));
+        cm.set(hash(++i, N, NNE, px));
+        cm.set(hash(++i, N, NNN, px));
+        cm.set(hash(++i, W, WWW, px));
+        cm.set(hash(++i, WW, NEE, px));
+        cm.set(hash(++i, WW, NN, px));
+        cm.set(hash(++i, W, buffer(w-3), px));
+        cm.set(hash(++i, W, buffer(w-4), px));
+        cm.set(hash(++i, W, N,NW, px));
+        cm.set(hash(++i, N, NN,NNN, px));
+        cm.set(hash(++i, W, NE,NEE, px));
+        cm.set(hash(++i, hash( W,NW,N,NE), px));
+        cm.set(hash(++i,  hash(N,NE,NN,NNE), px));
+        cm.set(hash(++i,  hash(N,NW,NNW,NN), px));
+        cm.set(hash(++i,  hash(W,WW,NWW,NW), px));
+        cm.set(hash(++i, W, NW<<8 | N, WW<<8 | NWW, px));
+        cm.set(hash(++i, px, column[0]));
+        cm.set(hash(++i, px));
+        cm.set(hash(++i, N, px, column[1] ));
+        cm.set(hash(++i, W, px, column[1] ));
+        for (int j=0; j<nPltMaps; j++)
+          cm.set(hash(++i, iCtx[j](), px));
+        ctx = min(0x1F,(x-isPNG)/min(0x20,columns[0]));
+        res = W;
+      }
+      else{
       MapCtxs[j++] = Clamp4(W+N-NW,W,NW,N,NE);
       MapCtxs[j++] = Clip(W+N-NW);
       MapCtxs[j++] = Clamp4(W+NE-N,W,NW,N,NE);
@@ -7544,70 +7714,7 @@ int p(Mixer& m,int w,int val2=0){
         pOLS[j] = Clip(int(floor(ols[j].Predict(ols_ctxs[j]))));
       }
       
-      for (j=0; j<nPltMaps; j++)
-        iCtx[j]+=W;
-      iCtx[0]=W|(NE<<8);
-      iCtx[1]=W|(N<<8);
-      iCtx[2]=W|(WW<<8);
-      iCtx[3]=N|(NN<<8);
-      jump = jumps[min(x,(int)jumps.size()-1)];
-      U64 i= (filterOn ? (filter+1)*64 : 0) + (gray*1024);
-      cm.set(hash(++i, (jump!=0)?(0x100|buffer(abs(jump)))*(1-2*(jump<0)):N, line&3));
-      if (!gray){
-        cm.set(hash(++i, W, px));
-        cm.set(hash(++i, W, px, column[0]));
-        cm.set(hash(++i, N, px));
-        cm.set(hash(++i, N, px, column[0]));
-        cm.set(hash(++i, NW, px));
-        cm.set(hash(++i, NW, px, column[0]));
-        cm.set(hash(++i, NE, px));
-        cm.set(hash(++i, NE, px, column[0]));
-        cm.set(hash(++i, NWW, px));
-        cm.set(hash(++i, NEE, px));
-        cm.set(hash(++i, WW, px));
-        cm.set(hash(++i, NN, px));
-        cm.set(hash(++i, W, N, px));
-        cm.set(hash(++i, W, NW, px));
-        cm.set(hash(++i, W, NE, px));
-        cm.set(hash(++i, W, NEE, px));
-        cm.set(hash(++i, W, NWW, px));
-        cm.set(hash(++i, N, NW, px));
-        cm.set(hash(++i, N, NE, px));
-        cm.set(hash(++i, NW, NE, px));
-        cm.set(hash(++i, W, WW, px));
-        cm.set(hash(++i, N, NN, px));
-        cm.set(hash(++i, NW, NNWW, px));
-        cm.set(hash(++i, NE, NNEE, px));
-        cm.set(hash(++i, NW, NWW, px));
-        cm.set(hash(++i, NW, NNW, px));
-        cm.set(hash(++i, NE, NEE, px));
-        cm.set(hash(++i, NE, NNE, px));
-        cm.set(hash(++i, N, NNW, px));
-        cm.set(hash(++i, N, NNE, px));
-        cm.set(hash(++i, N, NNN, px));
-        cm.set(hash(++i, W, WWW, px));
-        cm.set(hash(++i, WW, NEE, px));
-        cm.set(hash(++i, WW, NN, px));
-        cm.set(hash(++i, W, buffer(w-3), px));
-        cm.set(hash(++i, W, buffer(w-4), px));
-        cm.set(hash(++i, W, N,NW, px));
-        cm.set(hash(++i, N, NN,NNN, px));
-        cm.set(hash(++i, W, NE,NEE, px));
-        cm.set(hash(++i, W, hash(NW,N,NE)&0x7FF, px));
-        cm.set(hash(++i, N, hash(NE,NN,NNE)&0x7FF, px));
-        cm.set(hash(++i, N, hash(NW,NNW,NN)&0x7FF, px));
-        cm.set(hash(++i, W, hash(WW,NWW,NW)&0x7FF, px));
-        cm.set(hash(++i, W, hash(NW,N)&0xFF, hash(WW,NWW)&0xFF, px));
-        cm.set(hash(++i, px, column[0]));
-        cm.set(hash(++i, px));
-        cm.set(hash(++i, N, px, column[1] ));
-        cm.set(hash(++i, W, px, column[1] ));
-        for (int j=0; j<nPltMaps; j++)
-          cm.set(hash(++i, iCtx[j](), px));
-        ctx = min(0x1F,(x-isPNG)/min(0x20,columns[0]));
-        res = W;
-      }
-      else{
+     
         cm.set(0);
         cm.set(hash(++i, N, px));
         cm.set(hash(++i, N-px));
@@ -7661,7 +7768,9 @@ int p(Mixer& m,int w,int val2=0){
     for (int j=0; i<nMaps; i++, j++)
       Map[i].set((pOLS[j]-px-B)*8+bpos);
   }
-
+sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
+    sceneMap[3].set_direct((prvFrmPx-B)*8+bpos);
+    sceneMap[4].set_direct((prvFrmPred-B)*8+bpos);
   // Predict next bit
   if (x || !isPNG){
   col=(col+1)&7;
@@ -7676,7 +7785,9 @@ int p(Mixer& m,int w,int val2=0){
         pltMap[i].mix(m);
       }
     }
-    
+    for (int i=0; i<5; i++)
+      sceneMap[i].mix(m, (prevFramePos>0 && prevFrameWidth==w), 4, 255);
+
     m.set(5+ctx, 2048+5);
     m.set(col*2+(isPNG && c0==((0x100|res)>>(8-bpos))) + min(5,filterOn?filter+1:0)*16, 6*16);
     m.set(((isPNG?px:N+W)>>4) + min(5,filterOn?filter+1:0)*32, 6*32);
@@ -9855,7 +9966,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     }
   }
   if (Valid || val1){
-    cm.mix(m);
+    cm.mix(m, 1, 4>>val1);
     iMap.set(hash(BrkCtx, x.bpos));
     if(x.filetype==EXE ) iMap.mix(m,1,4); 
     else m.add(0),m.add(0);
@@ -9954,8 +10065,8 @@ int p(Mixer& m,int val1=0,int val2=0){
   }
   if ((x.bpos)%2==0 ){
       if (x.bpos==0) iCtx8+=x.buf(3)&3;else iCtx8+=(x.buf(4)>>x.bpos)&3;
-      iCtx8=((x.buf(2)>>x.bpos)&3)<<8|(t1[x.buf(1)]&0xff);
-       Maps.set((((x.buf(2)>>(x.filetype==DICTTXT?2:0))&3)<<8)|iCtx8());
+      iCtx8=((x.buf(2)>>x.bpos)&3)<<8|(t1[x.buf(1)]&0xff);//((x.bpos>>1)<<8)
+       Maps.set(((x.buf(2)&3)<<8)|iCtx8());
   }
   if (val2==-1) return 1;
   Maps.mix(m);
@@ -11103,7 +11214,6 @@ int p(Mixer& m,int val1=0,int val2=0){
  virtual ~decModel1(){}
 };
 
-
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
@@ -11268,6 +11378,7 @@ class Predictor: public Predictors {
   SparseMatchModel sparseMatch;
   U32 count;
   U32 lastmiss;
+  linearPredictionModel linearPredictionModel1;
 public:
   Predictor();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -11277,7 +11388,7 @@ public:
   }
 };
 
-Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),sparseMatch(x),count(0),lastmiss(0){
+Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),sparseMatch(x),count(0),lastmiss(0),linearPredictionModel1(x){
     if (level>=4){
         recordModel=new recordModel1(x); 
         distanceModel=new distanceModel1(x); 
@@ -11295,7 +11406,7 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false)
    const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
    sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
    nestModel->inputs()+XMLModel->inputs()+exeModel->inputs()+
-   textModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
+   textModel->inputs()+linearPredictionModel1.inputs()+2+1 ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
    m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*5+2048+2048+2048+1024*3+8192+8192+8192+1024+256+64+4096+4096+4096+11*32+3*256+1024+8192,x, 26+3+1+1);
 }
 
@@ -11332,7 +11443,7 @@ void Predictor::update()  {
     Bypass=false;int rlen=0,Valid=0,xmlstate=0;
     ismatch=matchModel->p(*m);  // Length of longest matching context
     if ((x.Match.length>0xfff || matchModel->Bypass) && x.Misses==0 && (max(x.blpos-lastmiss,0x2000)>0x2000)) {// 
-        //count++;
+      //count++;
         matchModel->Bypass = Bypass = true;
         sparseMatch.p(*m);
         normalModel->p(*m,0,-1); 
@@ -11352,7 +11463,7 @@ void Predictor::update()  {
     order=normalModel->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     
-    if (level>=4 && (x.filetype!=CMP)){        
+    if (level>=4 && (x.filetype!=CMP || x.filetype!=MSZIP)){        
             int dataRecordLen=(x.filetype==DBASE)?x.finfo:(x.filetype==IMGUNK)?x.finfo:0; //force record length 
             rlen=recordModel->p(*m,dataRecordLen);
             wordModel->p(*m,0,x.finfo>0?x.finfo:0); //col
@@ -11364,6 +11475,7 @@ void Predictor::update()  {
             xmlstate=XMLModel->p(*m);
             Valid=exeModel->p(*m);
             textModel->p(*m);
+            if (x.filetype!=DBASE||x.filetype!=BINTEXT||x.filetype!=HDR)linearPredictionModel1.p(*m);
     } 
     m->set((order<<3)|x.bpos, 64);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
@@ -11494,7 +11606,7 @@ class PredictorJPEG: public Predictors {
      U32 count;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
-  ~PredictorJPEG(){  // printf("\n JPEG Count of skipped bytes %d\n",count/8);
+  ~PredictorJPEG(){   //printf("\n JPEG Count of skipped bytes %d\n",count/8);
  }
 PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),count(0) {
   matchModel=new matchModel1(x); 
@@ -11519,7 +11631,7 @@ void update()  {
     Bypass=false;
     int ismatch=matchModel->p(*m);  // Length of longest matching context
     if (x.Match.length>0xFF || matchModel->Bypass) {//256b
-        //count++;
+    count++;
         matchModel->Bypass =   Bypass =    true;
         m->reset();
         pr= matchModel->BypassPrediction;
@@ -11583,9 +11695,9 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x),Bypass(false
     exeModel=new exeModel1(x); 
     indirectModel=new indirectModel1(x);
     dmcModel=new dmcModel1(x);  
-    nestModel=new nestModel1(x);
-    textModel =new TextModel(x,16) ; 
-    XMLModel=new XMLModel1(x);
+    nestModel=new nestModel1(x); // ?
+     textModel =new TextModel(x,16) ; 
+     XMLModel=new XMLModel1(x);
   }
   matchModel=new matchModel1(x); 
   normalModel=new normalModel1(x);
@@ -11622,7 +11734,7 @@ void PredictorEXE::update()  {
     Bypass=false;
     int ismatch=matchModel->p(*m);  // Length of longest matching context
     if (x.Match.length>0xFFF || matchModel->Bypass) {
-       // count++;
+      //  count++;
         matchModel->Bypass = Bypass =    true;
         m->reset();
         pr= matchModel->BypassPrediction;
@@ -11880,12 +11992,12 @@ public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
   void update() ;
    ~PredictorTXTWRT(){
-      // printf("\n TXTWRT Count of skipped bytes %d\n",count/8);
+       //printf("\n TXTWRT Count of skipped bytes %d\n",count/8);
   }
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),Bypass(false),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },sparseMatch(x),count(0),blenght(1024) {
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },sparseMatch(x),count(0),blenght(1024){
   if (level>=4){
     recordModel=new recordModel1(x);
     sparseModel1=new sparseModelx(x);
@@ -11900,7 +12012,7 @@ Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,
   normalModel=new normalModel1(x);
   const int tinput=1+(level>=4?(recordModel->inputs() + sparseModel1->inputs() +
   wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
-   XMLModel->inputs()+ textModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() ;
+   XMLModel->inputs()+ textModel->inputs()+1 ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() +2;
   m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024+256+512+4096+4096+4096+11*32+4096+1024+3*256+1024+8192,x, 18+1+1+3+1+1);
   m->setText(true);
 }
@@ -11931,9 +12043,10 @@ void PredictorTXTWRT::update()  {
     m->add(256);
     Bypass=false;
     ismatch=matchModel->p(*m);  // Length of longest matching context
-    if ((x.Match.length>blenght ) || matchModel->Bypass) {
-        //count++;
+    if ((x.Match.length>blenght ) || matchModel->Bypass) {//0xFFF
+    //count++;
         matchModel->Bypass = Bypass = true;
+        
         sparseMatch.p(*m);
         normalModel->p(*m,0,-1); 
         int state=XMLModel->p(*m,0,-1);
@@ -13459,7 +13572,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
             else mrb=0;
          }
         if (p==8) {         // 0=uncomp 1=RunLen 2=LZ77 3=both
-           if(c==1||c==2||c==0) mrbPackingMethod=c;
+           if(c==1||c==2||c==3||c==0) mrbPackingMethod=c;
            else mrb=0;
         }
         if (p==10){
@@ -13482,13 +13595,18 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         CompressedOffset=bswap(CompressedOffset);
         HotspotOffset=bswap(HotspotOffset);
         mrbsize=mrbcsize+ in->curpos()-mrbTell+10+(1<<BitCount)*4; // ignore HotspotSize
-        if (!(BitCount==8 || BitCount==4)|| mrbw<4 || mrbw>1024 || mrbPackingMethod==2|| mrbPackingMethod==0) {
+        if (!(BitCount==8 || BitCount==4)|| mrbw<4 || mrbw>1024 || mrbPackingMethod==2|| mrbPackingMethod==3|| mrbPackingMethod==0) {
+            if ((type==CMP ) &&   (mrbPackingMethod==2|| mrbPackingMethod==2) && mrbsize){
+               return  in->setpos(start+mrbsize),DEFAULT;
+            }      
+            if( mrbPackingMethod==2 || mrbPackingMethod==2) MRBRLE_DET(CMP,mrb-1, mrbsize-mrbcsize, mrbcsize, mrbw, mrbh);
             mrbPictureType=mrb=mrbsize=mrbmulti=0;
             mrbTell=mrbTell+2;
-             in->setpos(mrbTell);
+            in->setpos(mrbTell);
         }
-       } else mrbPictureType=mrb=mrbsize=0;;
+       } else mrbPictureType=mrb=mrbsize=0;
        }
+       
        if ((type==MRBR || type==MRBR4 ) &&   (mrbPictureType==6 || mrbPictureType==8) && mrbsize){
         return  in->setpos(start+mrbsize),DEFAULT;
        }
@@ -16267,9 +16385,12 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         if (tfail) {
             printf(" Transform fails at %0lu, skipping...\n", diffFound-1);
              in->setpos(begin);
-            direct_encode_blockstream(DEFAULT, in, len, en, s1, s2);
+             Filetype type2;
+             if (type==ZLIB)  type2=CMP; else type2=DEFAULT;
+              
+            direct_encode_blockstream(type2, in, len, en, s1, s2);
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
-            typenamess[DEFAULT][it]+=len,  typenamesc[DEFAULT][it]++; // default info
+            typenamess[type2][it]+=len,  typenamesc[type2][it]++; // default info
         } else {
             tmp->setpos(0);
             if (type==EXE) {
@@ -16765,10 +16886,11 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                         case 9: 
                         case 10: { threadpredict=new PredictorTXTWRT(); break;}
                         case 11: { threadpredict=new PredictorDEC(); break;}
+                        case 12: { threadpredict=new Predictor(); break;}
                     }
                      }
                     threadencode=new Encoder (COMPRESS, out,*threadpredict); 
-                     if ((i>=0 && i<=7) || i==10|| i==11){
+                     if ((i>=0 && i<=7) || i==10|| i==11|| i==12){
                         while (datasegmentsize>0) {
                             while (datasegmentlen==0){
                                 datasegmenttype=(Filetype)segment(datasegmentpos++);
@@ -17290,6 +17412,8 @@ printf("\n");
                             printf("%stext wrt stream(%d). Total %0lu\n",i==10?"big":"",i,datasegmentsize); break;}   
                         case 11: {
                             printf("dec       stream(11). Total %0lu\n",datasegmentsize); break;}
+                             case 12: {
+                            printf("compressed stream(12). Total %0lu\n",datasegmentsize); break;}
                     }
 #ifdef MT
                                                               // add streams to job list
@@ -17551,10 +17675,12 @@ printf("\n");
                             predictord=new PredictorTXTWRT(); break;}
                         case 11: {
                             predictord=new PredictorDEC(); break;}
+                            case 12: {
+                            predictord=new Predictor(); break;}
                     }
                     }
                      defaultencoder=new Encoder (mode, archive,*predictord); 
-                     if ((i>=0 && i<=7)||i==10||i==11){
+                     if ((i>=0 && i<=7)||i==10||i==11||i==12){
                         while (datasegmentsize>0) {
                             while (datasegmentlen==0){
                                 datasegmenttype=(Filetype)segment(datasegmentpos++);
