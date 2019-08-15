@@ -1,3 +1,19 @@
+v68
+    -update im8Mode,im24model,exemodel from paq8px_179
+    -compressed stream /MZIP,EOL,ZLIB fail/
+    -linearPredictionModel from paq8px_179
+    -add charModel into wordModel paq8px_179
+
+v67
+    -revert ContextMap mix
+    -change wordModel
+    -in bypass update models
+    -change distanceModel, indirectModel, exeModel
+    -in default predictor resume bypass after 0x2000 bytes if predict miss found
+     insted default bypass match lenght of 0xfff bytes
+    -compressed data stream, still compressed but faster (eol data for now)
+    -memory usage tweak to the same level as v64
+
 v66
     -some arch compiler fixes for mmx,ssse3,avx2
     -contextMap SIMD change, more speed :D
