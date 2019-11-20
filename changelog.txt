@@ -1,3 +1,17 @@
+v69
+    -Online wrt is present and fixed, now actually decodes word if code
+      is larger then 1 byte.
+    -WordModel form paq8px_v182
+      this one is not active in any models, you have to manually add it
+      in source. Replaced in model array with blankmodel for now.
+      Online wrt is needed so one can detect presence of BT and ET 
+      for pdf mode in new WordModel.
+    -Combined models into arrays to ease mixer inputs/sets/context clutter,
+      let models to return usage.
+    -Colored console (Windows only!), based on type stream.
+    -JPEG compress improvment (APM), small gain.
+    -Detect LZW in PDF and ad to CMP stream.
+
 v68
     -update im8Mode,im24model,exemodel from paq8px_179
     -compressed stream /MZIP,EOL,ZLIB fail/

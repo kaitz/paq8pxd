@@ -1,6 +1,6 @@
     /* paq8pxd file compressor/archiver.  Release by Kaido Orav
 
-    Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
+    Copyright (C) 2008-2019 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
     Jan Ondrus, Andreas Morphis, Pavel L. Holoborodko, Kaido Orav, Simon Berger,
     Neill Corlett
@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd68"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd69"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -682,8 +682,17 @@ public:
     assert(sizeof(int)==4);  
   }
   void print() const {  // print time and memory used
+#if defined(WINDOWS)  
+    HANDLE  hConsole;
+    int k;
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetConsoleTextAttribute(hConsole, 10);
+#endif
     printf("Time %1.2f sec, used %0lu MB (%0lu bytes) of memory\n",
       double(clock()-start_time)/CLOCKS_PER_SEC, ((maxmem)/1024)/1024,(maxmem));
+#if defined(WINDOWS)
+    SetConsoleTextAttribute(hConsole, 7);
+#endif
   }
 } programChecker;
 
@@ -1348,6 +1357,8 @@ public:
   struct {
     U32 length;
     U8 byte;
+    bool bypass;
+    U16 bypassprediction;
   } Match;
   struct {
     struct {
@@ -1971,7 +1982,7 @@ void train(short *t, short *w, int n, int err) {
     nx=base=ncxt=0;
   }
   void update2() {
-      if (nx==0) return;
+      if (nx==0) {reset();return;}
       if (x.filetype==EXE || x.filetype==IMAGE24 || x.filetype==DECA)update1();
     else     if(doText==true) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), reset();
     else             update();
@@ -2028,7 +2039,7 @@ void train(short *t, short *w, int n, int err) {
           mp->add(dp);
       }
      if(doText==false) mp->set(0, 1);
-      return mp->p(shift0, shift1);
+     return mp->p(shift0, shift1);
     }
     else {  // S=1 context
     if(doText==false)  
@@ -2052,7 +2063,7 @@ Mixer::~Mixer() {
 
 Mixer::Mixer(int n, int m, BlockData& bd, int s, int w):
     N((n+15)&-16), M(m), S(s), wx(N*M),
-    cxt(S), ncxt(0), base(0), pr(S), mp(0),tx(N),nx(0),x(bd),doText(false), info(S), rates(S) {
+    cxt(S), ncxt(0), base(0), pr(S), mp(0),tx(N),nx(0),x(bd),doText(false), info(S), rates(S){
   assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
   for (i=0; i<S; ++i){
@@ -2115,7 +2126,7 @@ APM1::APM1(int n,BlockData& bd): index(0), N(n), t(n*33),x(bd) {
 //     prediction.  Larger values are better for stationary sources.
 
 static int dt[1024];  // i -> 16K/(i+i+3)
-
+//Array<int,32> dt(1024);
 class StateMap {
 protected:
   const int N;  // Number of contexts
@@ -5246,8 +5257,11 @@ const U8 AsciiGroup[128] = {
 };
 class Model {
 public:
-  virtual  int p(Mixer& m,int val1,int val2)=0;
+  virtual  int p(Mixer& m,int val1=0,int val2=0)=0;
   virtual  int inputs()=0;
+  virtual  int nets()=0;
+  virtual  int netcount()=0;
+  virtual ~Model(){};
 };
 
 class TextModel: public Model {
@@ -5356,6 +5370,8 @@ public:
     }
   }
    int inputs() {return N*Map.inputs();}
+   int nets() {return  1024+2048+4096+ 4096+2048+ 2048+ 4096+ 8192;}
+  int netcount() {return 8;}
   int p(Mixer& mixer,int val1=0, int val2=0) {
     if (mixer.x.bpos==0) {
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
@@ -5830,8 +5846,8 @@ private:
   
   void Update() {
         delta = false;
-    if (length==0 && Bypass)
-      Bypass = false; // can quit bypass mode on byte boundary only
+    if (length==0 && x.Match.bypass)
+      x.Match.bypass = false; // can quit bypass mode on byte boundary only
     // update hashes
     for (U32 i=0, minLen=MinLen+(NumHashes-1)*StepSize; i<NumHashes; i++, minLen-=StepSize) {
       hashes[i] = hash(minLen);
@@ -5882,10 +5898,12 @@ private:
   }
 public:
   bool canBypass;
-  bool Bypass;
-  U16 BypassPrediction; // prediction for bypass mode
+  //bool Bypass;
+  //U16 BypassPrediction; // prediction for bypass mode
   virtual ~matchModel1(){ }
   int inputs() {return  2+NumCtxs+3*2+3*2+2;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   matchModel1(BlockData& bd, U32 val1=0) :
     x(bd),buffer(bd.buf),Size( CMlimit(MEM()*4)),
     Table(Size/sizeof(U32)),
@@ -5899,10 +5917,12 @@ public:
     mask(Size/sizeof(U32)-1),
     expectedByte(0),
     delta(false),
-    canBypass(true),
+    canBypass(true)/*,
     Bypass(false),
-    BypassPrediction(2048)
+    BypassPrediction(2048)*/
   {
+      x.Match.bypass=false;
+      x.Match.bypassprediction=2048;
     assert((Size&(Size-1))==0);
   }
   int p(Mixer& m,int val1=0,int val2=0) {
@@ -5925,7 +5945,7 @@ public:
       }
     }
 
-    if (!(canBypass && Bypass)) {
+    if (!(canBypass && x.Match.bypass)) {
       for (U32 i=0; i<NumCtxs; i++)
         ctx[i] = 0;
       if (length>0) {
@@ -5963,14 +5983,14 @@ public:
       Maps[1].mix(m);
       Maps[2].mix(m);
     }
-    BypassPrediction = length==0 ? 2048 : (expectedBit==0 ? 1 : 4095);
+    x.Match.bypassprediction = length==0 ? 2048 : (expectedBit==0 ? 1 : 4095);
     x.Match.length = length;
     return ilog(length);
   }
   };
   
   
-class SparseMatchModel {
+class SparseMatchModel: public Model {
 private:
     BlockData& x;
     Buf& buffer;
@@ -6068,6 +6088,8 @@ public:
     //assert(ispowerof2(Size));
   }
   int inputs() {return  4*2+3;}
+   int nets() {return NumHashes*64+NumHashes*2048;}
+  int netcount() {return 2;}
   int p(Mixer& m,int val1=0,int val2=0) {
     const U8 B = x.c0<<(8-x.bpos);
     if (x.bpos==0)
@@ -6109,14 +6131,21 @@ public:
     return length;
   }
 };
-//#include "wrton.cpp"
+//Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
+#include "wrton.cpp"
+//#include "wrtpre.cpp" // zlib fails if included here :D
 //////////////////////////// wordModel /////////////////////////
 #define bswap(x) \
 +   ((((x) & 0xff000000) >> 24) | \
 +    (((x) & 0x00ff0000) >>  8) | \
 +    (((x) & 0x0000ff00) <<  8) | \
 +    (((x) & 0x000000ff) << 24))
+#define TAB 0x09
+#define NEW_LINE 0x0A
+#define CARRIAGE_RETURN 0x0D
 #define SPACE 0x20
+#define QUOTE 0x22
+#define APOSTROPHE 0x27
 // Model English text (words and columns/end of line)
 class wordModel1: public Model {
    BlockData& x;
@@ -6141,19 +6170,87 @@ class wordModel1: public Model {
     int islink,istemplate;
     U32 numbers,numbercount;
     U64 g_ascii_lo=0, g_ascii_hi=0; // group identifiers of 8+8 last characters
+    U8 c, pC, ppC;           // last char, previous char, char before the previous char (converted to lowearcase)
+    U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
+    wrtDecoder wr;
+    bool wrtLoaded;
+    U8 wrtText[STRING_MAX_SIZE];
+    int wrtTextSize,wrtstatus,wrtbytesize;
+    U32 wrtc4,ccount;
 public:
   wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),number0(0),number1(0),
   hq(0),text0(0),N(64),data0(0),type0(0),cm(CMlimit(MEM()*16), N),cm1(CMlimit(MEM()/2), 7),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0),numbers(0),numbercount(0),
-  g_ascii_lo(0), g_ascii_hi(0){
+  g_ascii_lo(0), g_ascii_hi(0), wrtpos(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtstatus(0),wrtLoaded(false),wrtTextSize(0),wrtbytesize(0),wrtc4(0),ccount(0){
       cWord=&StemWords[0], pWord=&StemWords[3];
+
+       c=pC=ppC=0;
    }
    int inputs() {return N*cm.inputs()+7*cm.inputs();}
+   int nets() {return 0;}
+  int netcount() {return 0;}
    int p(Mixer& m,int val1=0,int val2=0)  {
     // Update word hashes
     if (x.bpos==0) {
-        int c=x.c4&255,pC=(U8)(x.c4>>8),f=0;
+        //load wrt dictionary from faile
+        //detect header//'!Pq8'
+        if (x.c4==0x21507138 && x.blpos<16){ 
+          wrtpos=x.blpos;
+          }
+          
+          if (wrtpos>0 && wrtpos+4==x.blpos){ 
+           wrtfile=bswap(x.c4) ;
+          }
+          //load size
+          if (wrtpos>0 && wrtpos+4+3==x.blpos)  { 
+          wrtsize=(x.c4&0xffffff);
+          if (wrtsize<4) wrtpos=0;
+          }
+          //load count
+          if (wrtpos>0 && wrtpos+4+3+3==x.blpos)  { 
+          wrtcount=(x.c4&0xffffff);
+          wrtcount=(wrtcount>>16)+((wrtcount&0xff)<<16)+(wrtcount&0xff00);
+          printf("WRT dict count %d words.\n",wrtcount);
+          if (wrtcount==0) wrtpos=0;
+          }
+          if (wrtpos>0 && wrtsize>0 && wrtpos+4+3+3+wrtsize+3==x.blpos && wrtdata==0)  { 
+          if (buf(6)==5){
+          wrtdata=x.blpos+5;
+          }
+          else wrtLoaded==false,wrtpos=0;
+          }
+         
+          if (wrtpos>0 && wrtdata>0 && x.blpos>=wrtdata &&wrtLoaded==false)  { 
+          wr.WRT_start_decoding(wrtcount,wrtsize,&x.buf[buf.pos-5-3-wrtsize]);
+          wrtLoaded=true;
+          printf("WRT dict online.\n");
+          }
+       if (wrtLoaded==true) {
+           // Returned wrtstatus values
+           // codeword size   1-3
+           // D_REGULAR_CHAR    0
+           // D_WORD_DECODED   -1     
+           // D_FIRSTUPPER     -2
+           // D_UPPERWORD      -3
+           // D_ESCAPE         -4
+           // D_UTFUPPER       -5
+          wrtstatus=wr.WRT_decode(buf(1),&wrtText[0],&wrtTextSize);
+          if (wrtstatus==-1){
+          wrtbytesize++;
+          // print decoded word
+          // for (int p=0;p<wrtTextSize;p++)printf("%c",wrtText[p]);
+          wrtbytesize=0;
+          word6=0;
+          }else if (wrtstatus>0){
+              wrtbytesize++;
+          }
+      }
+        ppC=pC; pC=c;
+         c=x.c4&255;
+         if (wrtstatus==0 && wrtLoaded==true){ wrtc4=(wrtc4<<8)|c;}
+         int f=0,i=0;
+         
         if (x.spaces&0x80000000) --x.spacecount;
         if (x.words&0x80000000) --x.wordcount;
         if (numbers&0x80000000) --numbercount;
@@ -6163,7 +6260,6 @@ public:
         lastUpper=min(lastUpper+1,255);
         lastLetter=min(lastLetter+1,255);
         mask2<<=2;
-        
         if (pC>='A' && pC<='Z') pC+='a'-'A';
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
         if ((c>='a' && c<='z') || c=='\'' || c=='-')
@@ -6179,7 +6275,7 @@ public:
         if (istemplate && (x.c4&0xffff)==0x7d7d) istemplate=0; //'}}'
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
-        if ((c>='a' && c<='z') || (c>=128 &&(x.b3!=3) || (c>0 && c<4 ))) {
+        if ((c>='a' && c<='z') || (c>=128 &&(x.b3!=3)|| (c>0 && c<4 ))) {
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
                 if ((lastLetter=3 && (x.c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
@@ -6196,8 +6292,8 @@ public:
                        cWord=pWord;
                        pWord=&StemWords[(StemIndex-1)&3];
                        memset(cWord, 0, sizeof(Word));
-                       for (U32 i=0;i<=x.wordlen;i++)
-                           (*cWord)+=tolower(buf(x.wordlen-i+1+2*(i!=x.wordlen)));
+                       for (U32 j=0;j<=x.wordlen;j++)
+                           (*cWord)+=tolower(buf(x.wordlen-j+1+2*(j!=x.wordlen)));
                     }
                 }else{
                       wordGap = lastLetter;
@@ -6207,8 +6303,7 @@ public:
             }
             lastLetter=0;
             ++x.words, ++x.wordcount;
-             if (c>4  )word0^=hash(word0, c,0);
-             
+             if (c>4  ) word0^=hash(word0, c,0);
             text0=text0*997*16+c;
             x.wordlen++;
             x.wordlen=min(x.wordlen,45);
@@ -6234,8 +6329,7 @@ public:
                 x.wordlen1=x.wordlen;
                 wpos[w]=x.blpos;
                 if (c==':'|| c=='=') cword0=word0;
-                //if (c==']'&& (x.frstchar!=':' || x.frstchar!='*')) xword0=word0;
-                if (c==']'&& (x.frstchar!=':') && /*linespace!=0 &&*/ doXML==true) xword0=word0; // wiki 
+                if (c==']'&& (x.frstchar!=':') &&  doXML==true) xword0=word0; // wiki 
                 ccword=0;
                 word0=x.wordlen=0;                
                 if((c=='.'||c=='!'||c=='?' ||c=='}' ||c==')') && buf(2)!=10 && x.filetype!=EXE) f=1; 
@@ -6244,15 +6338,16 @@ public:
             if (c==SPACE &&  buf(2)!=SPACE) linespace++; // count spaces in one line, skip repeats
             if (c==SPACE || c==10 || c==5) { 
                ++x.spaces, ++x.spacecount; 
-               if (c==10 && linespace==0 && x.frstchar==0x5B /* && buf(2)==0x5B*/ ){
+               if (c==10 && linespace==0 && x.frstchar==0x5B ){
                    xword1=xword2=xword3=0;
                }
-               if (c==10 || c==5) /*x.spafdo=0,*/fword=linespace=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;//,type0 = (type0<<2);
+               if (c==10 || c==5) fword=linespace=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;
             }
-            else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') x.spafdo=0,ccword=c,mask2+=3;//,type0 = (type0<<2);
+            else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':' || c=='|') x.spafdo=0,ccword=c,mask2+=3;
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
+
         }
-        if ((x.c4&0xffffff)==0x3A2F2F) {
+        if ((x.c4&0xffffff)==0x3A2F2F) { // ://
         islink=1;
        
     }
@@ -6294,69 +6389,80 @@ public:
         if (val2) x.col=val2,above=buf[buf.pos-x.col],above1=buf[buf.pos-x.col*2];;
         if (x.col<=2) x.frstchar=(x.col==2?min(c,126):0);
         if (x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
-
+         int fl = 0;
+        if ((x.c4&0xff) != 0) {
+            if (isalpha(x.c4&0xff)) fl = 1;
+            else if (ispunct(x.c4&0xff)) fl = 2;
+            else if (isspace(x.c4&0xff)) fl = 3;
+            else if ((x.c4&0xff) == 0xff) fl = 4;
+            else if ((x.c4&0xff) < 16) fl = 5;
+            else if ((x.c4&0xff) < 64) fl = 6;
+            else fl = 7;
+        }
+        mask = (mask<<3)|fl;
+    
+ if (val2!=-1){
         //256+ hash 513+ none
         if (x.filetype==DEFAULT || x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK){
-            for(int i=0;i<11;i++) cm.set(0);
+            for(int j=0;j<10;j++)  {cm.set(0);++i;}
         }
         else {
-            cm.set(hash(513,x.spafdo, x.spaces,ccword));
-            cm.set(hash(514,x.frstchar, c));
-            cm.set(hash(515,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
-            cm.set(hash(516,x.spaces, (x.words&255), (numbers&255)));
+            cm.set(hash(++i,x.spafdo, x.spaces,ccword));
+            cm.set(hash(++i,x.frstchar, c));
+            cm.set(hash(++i,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
+            cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255)));
         
             cm.set(x.spaces&0x7ff);
-            cm.set(hash(257,number0, word1,wordGap, word6));
-            cm.set(hash(258,number1, c,ccword));  
-            cm.set(hash(259,number0, number1,wordGap));  
-            cm.set(hash(260,word0, number1, lastDigit<wordGap+x.wordlen));
-            cm.set(hash(274,number0, cword0));
+            cm.set(hash(++i,number0, word1,wordGap, word6));
+            cm.set(hash(++i,number1, c,ccword));  
+            cm.set(hash(++i,number0, number1,wordGap));  
+            cm.set(hash(++i,word0, word6, lastDigit<wordGap+x.wordlen));
+            cm.set(hash(++i,number0, cword0));
         }
         U32 h=x.wordcount*64+x.spacecount+numbercount*128;
         if (x.filetype!=DECA){
-            cm.set(hash(518,x.wordlen1,x.col));
-            cm.set(hash(519,c,x.spacecount/2,wordGap));
-            //U32 h=x.wordcount*64+x.spacecount+x.numbercount*128;
-            cm.set(hash(520,c,h,ccword));
-            cm.set(hash(517,x.frstchar,h,lastLetter));
+            cm.set(hash(++i,x.wordlen1,x.col));
+            cm.set(hash(++i,c,x.spacecount/2,wordGap));
+           // U32 h=x.wordcount*64+x.spacecount+x.numbercount*128;
+            cm.set(hash(++i,c,h,ccword));
+            cm.set(hash(++i,x.frstchar,h,lastLetter));
             cm.set(hash(data0,word1, number1,type0&0xFFF));
             cm.set(h);
-            cm.set(hash(521,h,x.spafdo)); 
+            cm.set(hash(++i,h,x.spafdo)); 
             U32 d=x.c4&0xf0ff;
-            cm.set(hash(522,d,x.frstchar,ccword));
+            cm.set(hash(++i,d,x.frstchar,ccword));
         }else {
-            for(int i=0;i<8;i++) cm.set(0);
+            for(int j=0;j<8;j++)  {cm.set(0);++i;}
         }
         h=word0*271;
         h=h+buf(1);
-     
-        cm.set(hash(262,h, 0));
-        cm.set(hash( number0*271+buf(1), 0));
-        cm.set(hash(263,word0, 0)); 
-        if (wrdhsh) cm.set(hash(wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); else cm.set(0);
-        cm.set(hash(264,h, word1)); 
-        cm.set(hash(265,word0, word1));
-        cm.set(hash(266,h, word1,word2,lastUpper<x.wordlen));
-        cm.set(hash(267,text0&0xffffff,0));
+        cm.set(hash(++i,h));
+        cm.set(hash(++i,word0,word6)); 
+        cm.set(hash(++i,data0)); 
+        if (wrdhsh) cm.set(hash(++i,wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); else  {cm.set(0);++i;}
+        cm.set(hash(++i,h, word1)); 
+        cm.set(hash(++i,word0, word1));
+        cm.set(hash(++i,h, word1,word2,lastUpper<x.wordlen));
+        cm.set(hash(++i,text0&0xffffff));
         cm.set(text0&0xfffff);
         U32 isfword=x.filetype==DECA?-1:fword;
         if (doXML==true){
-            cm.set(hash(269,word0,number0, xword0));
-            cm.set(hash(270,word0,number0, xword1));  //wiki 
-            cm.set(hash(271,word0,number0, xword2));  //
-            cm.set(hash(268,word0,number0, xword3));  //
-            cm.set(hash(272,x.frstchar, xword2));
+            cm.set(hash(++i,word0,number0, xword0));
+            cm.set(hash(++i,word0,number0, xword1));  //wiki 
+            cm.set(hash(++i,word0,number0, xword2));  //
+            cm.set(hash(++i,word0,number0, xword3));  //
+            cm.set(hash(++i,x.frstchar, xword2));
         }else{
-            for(int i=0;i<5;i++) cm.set(0);
+            for(int j=0;j<5;j++)  {cm.set(0);++i;}
         }
         
-        cm.set(hash(273,word0, cword0,isfword));
-        cm.set(hash(275,h, word2,isfword));
-        cm.set(hash(276,h, word3));
-        cm.set(hash(277,h, word4));
-        cm.set(hash(278,h, word5));
-        cm.set(hash(279,h, word1,word3));
-        cm.set(hash(280,h, word2,word3));
+        cm.set(hash(++i,word0, cword0,isfword));
+        cm.set(hash(++i,h, word2,isfword));
+        cm.set(hash(++i,h, word3));
+        cm.set(hash(++i,h, word4));
+        cm.set(hash(++i,h, word5));
+        cm.set(hash(++i,h, word1,word3));
+        cm.set(hash(++i,h, word2,word3));
 
         cm.set(buf(1)|buf(3)<<8|buf(5)<<16); 
         cm.set(buf(2)|buf(4)<<8|buf(6)<<16);  
@@ -6371,39 +6477,29 @@ public:
             word1='.';
         }
         if (x.col<((U32)max(255,val2))&& x.filetype!=DECA){
-            cm.set(hash(523,x.col,buf(1),above));  
-            cm.set(hash(524,buf(1),above,above^above1 )); 
-            cm.set(hash(525,x.col,buf(1))); 
-            cm.set(hash(526,x.col,c==32));  
+            cm.set(hash(++i,x.col,buf(1),above));  
+            cm.set(hash(++i,buf(1),above,above^above1 )); 
+            cm.set(hash(++i,x.col,buf(1))); 
+            cm.set(hash(++i,x.col,c==32));  
         } 
         else {
-          cm.set(0); cm.set(0); cm.set(0); cm.set(0); 
+          for(int j=0;j<4;j++)  {cm.set(0);++i;}
         }
  
-        if (x.wordlen) cm.set(hash(281, word0, llog(x.blpos-wpos[word0&(wpos.size()-1)])>>4));    
-        else cm.set(0);
-        if (x.wordlen)cm.set(hash(282,buf(1),llog(x.blpos-wpos[word0&(wpos.size()-1)])>>2));   
-        else cm.set(0);
-        cm.set(hash(283,buf(1),word0,llog(x.blpos-wpos[word2&(wpos.size()-1)])>>2));
+        if (x.wordlen) cm.set(hash(++i, word0, llog(x.blpos-wpos[word0&(wpos.size()-1)])>>4));    
+        else  {cm.set(0);++i;}
+        if (x.wordlen)cm.set(hash(++i,buf(1),llog(x.blpos-wpos[word0&(wpos.size()-1)])>>2));   
+        else {cm.set(0);++i;}
+        cm.set(hash(++i,buf(1),word0,llog(x.blpos-wpos[word2&(wpos.size()-1)])>>2));
         
 
-        int fl = 0;
-        if ((x.c4&0xff) != 0) {
-            if (isalpha(x.c4&0xff)) fl = 1;
-            else if (ispunct(x.c4&0xff)) fl = 2;
-            else if (isspace(x.c4&0xff)) fl = 3;
-            else if ((x.c4&0xff) == 0xff) fl = 4;
-            else if ((x.c4&0xff) < 16) fl = 5;
-            else if ((x.c4&0xff) < 64) fl = 6;
-            else fl = 7;
-        }
-        mask = (mask<<3)|fl;
-            cm.set(hash(528,mask,0)); 
-            cm.set(hash(529,mask,buf(1))); 
-            cm.set(hash(530,mask&0xff,x.col)); 
-            cm.set(hash(531,mask,buf(2),buf(3))); 
-            cm.set(hash(532,mask&0x1ff,x.f4&0x00fff0)); 
-            cm.set(hash(h, llog(wordGap), mask&0x1FF, /////
+       
+            cm.set(hash(++i,mask,0)); 
+            cm.set(hash(++i,mask,buf(1))); 
+            cm.set(hash(++i,mask&0xff,x.col)); 
+            cm.set(hash(++i,mask,buf(2),buf(3))); 
+            cm.set(hash(++i,mask&0x1ff,x.f4&0x00fff0)); 
+            cm.set(hash(++i,h, llog(wordGap), mask&0x1FF, /////
              ((istemplate)<<9)|  
              ((islink)<<8)|
              ((linespace > 4)<<7)|
@@ -6418,9 +6514,9 @@ public:
       
         
         if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(0); //wordlist
-        if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
+        if (wrdhsh)  cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
         hq=hash(x.col,above^above1,numbers&127,x.filetype==DECA?x.c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
-         cm.set(hash(x.col,above^above1,above2 , ((islink)<<8)|
+         cm.set(hash(++i,x.col,above^above1,above2 , ((islink)<<8)|
              ((linespace > 4)<<7)|
              ((x.wordlen1 > 3)<<6)|
              ((x.wordlen > 0)<<5)|
@@ -6430,7 +6526,7 @@ public:
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
              (lastUpper < x.wordlen + x.wordlen1 + wordGap)));  //wordlist((istemplate)<<9)|  
         cm.set(hash((*pWord).Hash[2], h));
-
+ }
     }
     if (val2==-1) return 1;
     cm.mix(m);
@@ -6465,10 +6561,452 @@ public:
   cm1.mix(m);
     return hq;
 }
- virtual ~wordModel1(){ }
+ virtual ~wordModel1(){/*printf("skip wrt %d ",ccount);*/ }
 };
 
 
+class WordModel: public Model {
+ 
+private:
+  static constexpr int nCM1=17; // pdf / non_pdf contexts
+  static constexpr int nCM2=35; // common contexts
+  static constexpr int nCM = nCM1+nCM2; // 52
+public:
+   BlockData& x;
+   Buf& buf;  
+private:
+  ContextMap cm;
+  static constexpr int wposbits=16;
+  static constexpr int maxwordlen=45;
+  static constexpr int maxlinematch=16;
+  static constexpr int maxlastUpper=63;
+  static constexpr int maxlastLetter=16;
+ class Info {
+   BlockData& x;
+   Buf& buf;
+    ContextMap &cm;
+    Array<U32> wpos{1<<wposbits};  // last positions of whole words
+    Array<U16> wchk{1<<wposbits};  // checksums for whole words
+    U32 c4;                      // last 4 processed characters
+    U8 c, pC, ppC;           // last char, previous char, char before the previous char (converted to lowearcase)
+    bool is_letter, is_letter_pC, is_letter_ppC;
+    U8 opened;     // "(", "[", "{", "<", opening QUOTE, opening APOSTROPHE (or 0 when none of them)
+    U8 wordlen0, wordlen1;     // length of word0 and word1
+    U64 line0, frstword;       // hash of line content, hash of first word on line
+    U64 word0, word1, word2, word3, word4;  // wordtoken hashes, word0 is the partally processed ("current") word
+    U64 expr0, expr1, expr2, expr3, expr4;  // wordtoken hashes for expressions
+    U64 keyword0, gaptoken0, gaptoken1;         // hashes
+    U16 w, chk; // finalized hash and checksum of last partially processed word
+    int frstchar;  // category of first character of the current line (or -1 when in first column)
+    int linematch; // the length of match of the current line vs the previos line
+    int nl1, nl2;  // current newline position, previous newline position
+    U64 groups; // 8 last character categories
+    U64 text0;  // uninterrupted stream of letters
+    U32 lastLetter, lastUpper, wordGap;
+    U32 mask, word0chars, mask2, f4;
+  public:
+   
+    Info(BlockData& bd,U32 val, ContextMap &contextmap):x(bd),buf(bd.buf), cm(contextmap) {
+      reset();
+    }
+    void reset() {
+      //zero contents
+      memset(&wpos[0], 0, (1<<wposbits)*sizeof(U32));
+      memset(&wchk[0], 0, (1<<wposbits)*sizeof(U16));
+      c4=0;c=pC=ppC=0;
+      is_letter=is_letter_pC=is_letter_ppC=false;
+      opened=wordlen0=wordlen1=0;
+      line0=frstword=0;
+      word0=word1=word2=word3=word4=0;
+      expr0=expr1=expr2=expr3=expr4=0;
+      keyword0=gaptoken0=gaptoken1=0;
+      w=chk=0;
+      frstchar=linematch=nl1=nl2=0;
+      groups=text0=0;
+      lastLetter=lastUpper=wordGap=0;
+      mask=word0chars=mask2=f4=0;
+      //---
+      lastUpper=maxlastUpper;
+      lastLetter=wordGap=maxlastLetter;
+      frstchar=linematch=-1;
+    }
+    void shiftwords() {
+      word4=word3;
+      word3=word2;
+      word2=word1;
+      word1=word0;
+      wordlen1=wordlen0;
+    }
+    void killwords() {
+      word4=word3=word2=word1=0;
+    }
+    void process_char(const bool is_extended_char,U8 inC) {
+      //note: the pdf model uses this function, therefore only c1 may be referenced, c4, c8, etc. should not
+
+      //shift history
+      ppC=pC; pC=c;
+      is_letter_ppC=is_letter_pC; is_letter_pC=is_letter;
+
+      c4=c4<<8|inC;
+      c=inC;
+      if(c>='A' && c<='Z') {c+='a'-'A'; lastUpper=0;}
+
+                 is_letter = (c>='a' && c<='z') || is_extended_char  ;
+      const bool is_number = (c>='0' && c<='9') || (pC>='0' && pC<='9' && c=='.' );// decimal point (english) or thousand separator (misc) 
+
+      lastUpper=min(lastUpper+1,maxlastUpper);
+      lastLetter=min(lastLetter+1,maxlastLetter);
+      mask2<<=3;
+
+      if (is_letter || is_number ) {
+        if (wordlen0==0){ // the beginning of a new word
+          if (pC==NEW_LINE && lastLetter==3 && ppC=='+') { 
+            // correct hyphenation with "+" (book1 from Calgary)
+            // (undo some of the recent context changes)
+            word0=word1; word1=word2; word2=word3; 
+            word3=word4=0;
+            wordlen0=wordlen1; 
+          } else {
+            wordGap = lastLetter;
+          }
+          gaptoken1=gaptoken0;
+          gaptoken0=0;
+          if (pC==QUOTE || (pC==APOSTROPHE && !is_letter_ppC)) opened=pC;
+        }
+        lastLetter=0;
+        if (c>4  )word0=hash(word0, c);
+        w=U16(finalize64(word0,wposbits));
+        chk=U16(checksum64(word0,wposbits,16));
+        word0chars = is_number ? 0 : word0chars<<8|c; // last 4 consecutive letters
+        text0=(text0<<8|c)&0xffffffffff; // last 5 alphanumeric chars (other chars are ignored)
+        wordlen0=min(wordlen0+1,maxwordlen);
+        if ((c=='a' || c=='e' || c=='i' || c=='o' || c=='u') || (c=='y' && (wordlen0>0 && pC!='a' && pC!='e' && pC!='i' && pC!='o' && pC!='u')))
+          mask2++;
+        else if (c>='b' && c<='z')
+          mask2+=c=='q'?2:3;
+      }
+      else { //it's not a letter/number 
+        gaptoken0=hash(gaptoken0,x.buf(1)==NEW_LINE?' ':x.buf(1));
+        if(x.buf(1)==NEW_LINE && pC=='+' && is_letter_ppC) {} //calgary/book1 hyphenation - don't shift again
+        else if(c=='?' || pC=='!' || pC=='.') killwords(); //end of sentence
+        else if(c==pC) {} //don't shift when anything repeats
+        else if((c==SPACE || c==NEW_LINE) && (pC==SPACE || pC==NEW_LINE)) {} //ignore repeating whitespace
+        else shiftwords();
+        if (wordlen0!=0) { //beginning of a new non-word token
+          //INJECT_SHARED_pos
+          wpos[w]=x.buf.pos;
+          wchk[w]=chk;
+          w=0;
+          chk=0;
+
+          if (x.buf(1)==':'||x.buf(1)=='=') keyword0 = word0; // enwik, world95.txt, html/xml
+          if(frstword==0)frstword=word0;
+
+          word0=0;
+          wordlen0=0;
+          word0chars=0;
+        }
+
+             if (x.buf(1)=='.' || x.buf(1)=='!' || x.buf(1)=='?') mask2+=4;
+        else if (x.buf(1)==',' || x.buf(1)==';' || x.buf(1)==':') mask2+=5;
+        else if (x.buf(1)=='(' || x.buf(1)=='{' || x.buf(1)=='[' || x.buf(1)=='<') {mask2+=6;opened=x.buf(1);}
+        else if (x.buf(1)==')' || x.buf(1)=='}' || x.buf(1)==']' || x.buf(1)=='>' || x.buf(1)==QUOTE || x.buf(1)==APOSTROPHE) {mask2+=7;opened=0;}
+      }
+      
+      //const U8 chargrp = stats->Text.chargrp;
+      U8 g=inC;
+      if(g>=128){
+        //utf8 code points (weak context)
+        if((g&0xf8)==0xf0)g=0xf0;
+        else if((g&0xf0)==0xe0)g=0xe0;
+        else if((g&0xe0)==0xc0)g=0xc0;
+        else if((g&0xc0)==0x80)g=0x80;
+        else if (g!=0xff)g=0xfe;
+      }
+      else if(g>='0' && g<='9')g='0';
+      else if(g>='a' && g<='z')g='a';
+      else if(g>='A' && g<='Z')g='A';
+      else if(g<32 && g!=0 && g!=NEW_LINE)g=1;
+      groups=groups<<8|g;
+
+      // Expressions (words separated by single spaces)
+      //
+      // Remarks: (1) formatted text files may contain SPACE+NEW_LINE (dickens) or NEW_LINE+SPACE (world95.txt)
+      // or just a NEW_LINE instead of a SPACE. (2) quotes and apostrophes are ignored during processing
+      if(is_letter) {// || is_number
+        expr0=hash(expr0,c);
+      } else if((c==SPACE || c==NEW_LINE) && (is_letter_pC || pC==APOSTROPHE || pC==QUOTE)) {
+        expr4=expr3;
+        expr3=expr2;
+        expr2=expr1;
+        expr1=expr0;
+        expr0=0;
+      } else if(c==APOSTROPHE || c==QUOTE || (c==NEW_LINE && pC==SPACE) || (c==SPACE && pC==NEW_LINE)) {
+        //ignore
+      } else {
+        expr4=expr3=expr2=expr1=expr0=0;
+      }
+    }
+    void line_model_predict(U8 in_pdf_text_block) {
+      U64 i = 2048;
+      if (x.buf(1)==NEW_LINE || x.buf(1)==0 ||x.buf(1)==5) {  // a new line has just started (or: zero in asciiz or in binary data)
+        nl2=nl1; nl1=x.blpos; 
+        frstchar=-1; frstword=0; line0=0;
+      }
+      line0=hash(line0,x.buf(1));
+      cm.set(hash(++i,line0));
+
+      int col = x.blpos-nl1;
+      if (col==1) frstchar = groups&0xff;
+
+      const U8  c_above = x.buf[nl2+col];
+      const U8 pC_above = x.buf[nl2+col-1];
+
+      const bool is_new_line_start = col==0 && nl2>0;
+      const bool is_prev_char_match_above = x.buf(1)==pC_above && col!=0 && nl2!=0;
+      const U32 above_ctx = c_above<<1|is_prev_char_match_above;
+      if(is_new_line_start) linematch=0; //first char not yet known = nothing to match
+      else if(linematch>=0 && is_prev_char_match_above) linematch=min(linematch+1,maxlinematch); //match continues
+      else linematch=-1; //match does not continue
+
+      // context: matches with the previous line
+      if(linematch>=0) cm.set(hash(++i,c_above,linematch));
+      else {cm.set(0);i++;}
+      cm.set(hash(++i,       above_ctx,x.buf(1)));
+      cm.set(hash(++i,col<<9|above_ctx,x.buf(1)));
+      const int line_length = nl1-nl2;
+      cm.set(hash(++i,nl1-nl2, col, above_ctx, groups&0xff)); // english_mc
+      cm.set(hash(++i,nl1-nl2, col, above_ctx, x.buf(1))); // english_mc
+
+      // modeling line content per column (and NEW_LINE is some extent)
+      cm.set(hash(++i,col,x.buf(1)==SPACE)); // after space vs after other char in this column // world95.txt
+      cm.set(hash(++i,col,x.buf(1)));
+      cm.set(hash(++i,col,mask&0x1ff));
+      cm.set(hash(++i,col,line_length)); // the lenght of the previous line may foretell the content of columns
+
+      cm.set(hash(++i,col, frstchar, ((int)lastUpper<col)<<8 | (groups&0xff))); // book1 book2 news
+
+      // content of lines, paragraphs
+      cm.set(hash(++i,nl1,in_pdf_text_block));    //chars occurring in this paragraph (order 0)
+      cm.set(hash(++i,nl1,in_pdf_text_block,c));  //chars occurring in this paragraph (order 1)
+      cm.set(hash(++i,frstchar));   //chars occurring in a paragraph that began with frstchar (order 0)
+      cm.set(hash(++i,frstchar,c)); //chars occurring in a paragraph that began with frstchar (order 1)
+      cm.set(hash(++i,frstword));   //chars occurring in a paragraph that began with frstword (order 0)
+      cm.set(hash(++i,frstword,c)); //chars occurring in a paragraph that began with frstword (order 1)
+      assert(i==2048+nCM1);
+    }
+    void line_model_skip(ContextMap &cm) {
+      for(int i=0;i<nCM1;i++)
+        cm.set(0);
+    }
+    void predict(U8 in_pdf_text_block) {
+      U64 i = 1024;
+      cm.set(hash(++i,text0));
+//cm.set(text0&0xfffff);
+      // expressions in normal text
+      cm.set(hash(++i,expr0,expr1,expr2,hash(expr3,expr4)));
+      cm.set(hash(++i,expr0,expr1,expr2));
+
+      // sections introduced by keywords (enwik world95.txt html/xml)
+      cm.set(hash(++i,gaptoken0,keyword0)); // chars occurring in a section introduced by "keyword:" or "keyword=" (order 0 and variable order for the gap)
+      cm.set(hash(++i,word0, c, keyword0)); // tokens occurring in a section introduced by "keyword:" or "keyword=" (order 1 and variable order for a word)
+
+      // Simple word morphology (order 1-3)
+      //
+      if(is_letter)
+        if(is_letter_pC)
+          if(is_letter_ppC) cm.set(hash(++i,c,pC,ppC)); //order 3 word token
+          else cm.set(hash(++i,c,pC)); //order 2 word token
+        else cm.set(hash(++i,c)); //order 1 word token
+      else {cm.set(0); i++;} //not applicable
+
+      cm.set(hash(++i,word0));
+      cm.set(hash(++i,gaptoken0));
+
+      cm.set(hash(++i,word0, c, gaptoken1)); // 
+      cm.set(hash(++i,gaptoken0, c, word1)); // stronger //french texts need that "c"
+      cm.set(hash(++i,word0, word1));        // stronger
+      cm.set(hash(++i,word0, word1, word2)); // weaker
+      cm.set(hash(++i,gaptoken0,gaptoken1,word1,word2)); //stronger
+      cm.set(hash(++i,word0    ,gaptoken1,word1,word2)); //weaker
+
+      const U8 c1=c4&0xff;
+      cm.set(hash(++i,word0, c1, word2));
+      cm.set(hash(++i,word0, c1, word3));
+      cm.set(hash(++i,word0, c1, word4));
+      cm.set(hash(++i,word0, c1, word1, word3));
+      cm.set(hash(++i,word0, c1, word2, word3));
+
+      //INJECT_SHARED_pos
+      const U32 lastpos = wchk[w]!=chk ? 0 : wpos[w];
+      const U32 dist = lastpos==0 ? 0 : min(llog(x.buf.pos-lastpos+120)>>4,20);
+
+      cm.set(hash(++i,word0, dist));
+      cm.set(hash(++i,word1, gaptoken0, dist));
+
+      cm.set(hash(++i,x.blpos>>10, word0)); //word tokens occurring in this 1K block (variable order)
+
+      cm.set(hash(++i,opened,groups&0xff,in_pdf_text_block));
+      cm.set(hash(++i,opened,c,dist!=0,in_pdf_text_block));
+
+      cm.set(hash(++i,groups));
+      cm.set(hash(++i,groups,c));
+      cm.set(hash(++i,groups,c4&0xffff));
+
+      if(c1=='.' || c1=='!' || c1=='?' || c1=='/'|| c1==')'|| c1=='}') f4=(f4&0xfffffff0)+2;
+      f4=(f4<<4) | (c1==' ' ? 0 : c1>>4);
+
+      cm.set(hash(++i,f4&0xfff));
+      cm.set(hash(++i,f4));
+
+      int fl = 0;
+      if (c1 != 0) {
+        if (isalpha(c1)) fl = 1;
+        else if (ispunct(c1)) fl = 2;
+        else if (isspace(c1)) fl = 3;
+        else if ((c1) == 0xff) fl = 4;
+        else if ((c1) < 16) fl = 5;
+        else if ((c1) < 64) fl = 6;
+        else fl = 7;
+      }
+      mask = (mask<<3)|fl;
+
+      cm.set(hash(++i,mask));
+      cm.set(hash(++i,mask,c1));
+      cm.set(hash(++i,mask,c4&0x00ffff00));
+      cm.set(hash(++i,mask&0x1ff,f4&0x00fff0));
+
+      cm.set(hash(++i, word0, c1, llog(wordGap),hash( mask&0x1FF,
+        ((wordlen1 > 3)<<6)|
+        ((wordlen0 > 0)<<5)|
+        ((lastUpper < lastLetter + wordlen1)<<1)|
+        (lastUpper < wordlen0 + wordlen1 + wordGap)
+      ))); //weak
+      cm.set(hash(++i, mask2&0x1FF, word0chars&0xffff, min(wordlen0,6)));
+      assert(i==1024+nCM2);
+    }
+  };
+  U8 pdf_text_parser_state; // 0,1,2,3
+  Info info_normal;
+  Info info_pdf;
+      U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
+    wrtDecoder wr;
+    bool wrtLoaded;
+    U8 wrtText[STRING_MAX_SIZE];
+    int wrtTextSize,wrtstatus,wrtbytesize;
+    U64 wrtc4;
+public:
+  WordModel (BlockData& bd,U32 val=0) : 
+    x(bd),buf(bd.buf), cm(CMlimit(MEM()*16), nCM+1),pdf_text_parser_state(0), info_normal(bd,0,cm), info_pdf(bd,0,cm),
+     wrtpos(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtstatus(0),wrtLoaded(false),wrtTextSize(0),wrtbytesize(0),wrtc4(0) {}
+  int inputs() {return nCM*cm.inputs()+7*cm.inputs();}
+  int nets() {return 0;}
+  int netcount() {return 0;}
+  void reset() {
+    info_normal.reset();
+    info_pdf.reset();
+  }
+  int p(Mixer& m,int val1=0,int val2=0)  {
+    //INJECT_SHARED_bpos 
+    if (x.bpos==0) {
+           //load wrt dictionary from faile
+        //detect header//'!Pq8'
+        if (x.c4==0x21507138 && x.blpos<16){ 
+          wrtpos=x.blpos;
+          }
+          
+          if (wrtpos>0 && wrtpos+4==x.blpos){ 
+           wrtfile=bswap(x.c4) ;
+          }
+          //load size
+          if (wrtpos>0 && wrtpos+4+3==x.blpos)  { 
+          wrtsize=(x.c4&0xffffff);
+          if (wrtsize<4) wrtpos=0;
+          }
+          //load count
+          if (wrtpos>0 && wrtpos+4+3+3==x.blpos)  { 
+          wrtcount=(x.c4&0xffffff);
+          wrtcount=(wrtcount>>16)+((wrtcount&0xff)<<16)+(wrtcount&0xff00);
+          printf("WRT dict count %d words.\n",wrtcount);
+          if (wrtcount==0) wrtpos=0;
+          }
+          if (wrtpos>0 && wrtsize>0 && wrtpos+4+3+3+wrtsize+3==x.blpos && wrtdata==0)  { 
+          if (buf(6)==5){
+          
+          wrtdata=x.blpos+5;
+          }
+          else wrtLoaded==false,wrtpos=0;
+          }
+         
+          if (wrtpos>0 && wrtdata>0 && x.blpos>=wrtdata &&wrtLoaded==false)  { 
+           
+          wr.WRT_start_decoding(wrtcount,wrtsize,&x.buf[buf.pos-5-3-wrtsize]);
+          wrtLoaded=true;
+          printf("WRT dict online.\n");
+          }
+       if (wrtLoaded==true)
+      {
+          wrtstatus=wr.WRT_decode(buf(1),&wrtText[0],&wrtTextSize);
+          if (wrtstatus==-1){
+          wrtbytesize++;
+          wrtbytesize=0;
+          for (int p=0;p<wrtTextSize;p++){
+          U8 wc=wrtText[p];
+          wrtc4=(wrtc4<<8)|wc;
+
+          }
+          }else if (wrtstatus>0){
+              wrtbytesize++;
+          }
+      }
+         U8 c=x.c4&255;
+         if (wrtstatus==0 && wrtLoaded==true){ wrtc4=(wrtc4<<8)|c;}
+         if (wrtc4==0x0262740A){// lower case BT\n 
+             
+         }
+      //extract text from pdf
+      const U8 c1=x.c4;
+      
+      if((wrtc4&0xffffffffff)==0x0A0262740A&& wrtstatus==0 && wrtLoaded==true||x.c4==0x0a42540a) {// 0x0a42540a "\nBT\n" 
+      pdf_text_parser_state=1;
+      } // Begin Text
+      else if ((wrtc4&0xffffffffff)==0x0A0265740A && wrtstatus==0 && wrtLoaded==true||x.c4==0x0a45540a) {// 0x0a45540a"\nET\n" 
+      pdf_text_parser_state=0;
+      } // End Text
+      bool do_pdf_process=true;
+      if(pdf_text_parser_state!=0) {
+        const U8 pC=x.c4>>8;
+        if(pC!='\\') {
+             if(c1=='[') {pdf_text_parser_state|=2;} //array begins
+        else if(c1==']') {pdf_text_parser_state&=(255-2);}
+        else if(c1=='(') {pdf_text_parser_state|=4; do_pdf_process=false;} //signal: start text extraction
+        else if(c1==')') {pdf_text_parser_state&=(255-4);} //signal: start pdf gap processing
+        }
+      }
+
+      const bool is_pdftext = (pdf_text_parser_state&4)!=0;
+      if(is_pdftext) {
+        if(do_pdf_process) {
+          //printf("%c",c1); //debug: print the extracted pdf text
+          const bool is_extended_char = c1=='\\' ||wrtstatus==-1|| (c1 <4 && c1>0 && wrtLoaded==true && wrtstatus==0) ;//|| wrtstatus!=0;
+          info_pdf.process_char(is_extended_char,x.c4);
+        }
+        info_pdf.predict(pdf_text_parser_state);
+        info_pdf.line_model_skip(cm);
+      } else {
+        const bool is_textblock = (x.filetype==TEXT||x.filetype==TEXT0|| x.filetype==TXTUTF8||x.filetype==EOLTEXT||x.filetype==DICTTXT||x.filetype==BIGTEXT||x.filetype==NOWRT|| x.filetype==IMGUNK);
+        const bool is_extended_char = is_textblock && (wrtstatus==-1 ||(c1 <4 && c1>0 && wrtLoaded==true && wrtstatus==0)|| c1>=128 );
+        info_normal.process_char(is_extended_char,x.c4);
+        info_normal.predict(pdf_text_parser_state);
+        info_normal.line_model_predict(pdf_text_parser_state);
+      }
+      
+    }
+    cm.mix(m);
+    return 0;
+  }
+  virtual ~WordModel(){}
+};
 
 //////////////////////////// recordModel ///////////////////////
 
@@ -6515,6 +7053,8 @@ public:
         rcount[1] = 0; 
    }
   int inputs() {return (3+3+3+16)*cm.inputs()+nMaps*2+2+3*2+3*2;}
+  int nets() {return 512+11*32;}
+  int netcount() {return 2;}
   int p(Mixer& m,int rrlen=0,int val2=0) {
    // Find record length
   if (!x.bpos) {
@@ -6610,6 +7150,8 @@ public:
     }
 
     U64 i=0;
+    if (val2!=-1) {
+   
     // Set 2 dimensional contexts
     cm.set(hash(++i,c<<8| (min(255, buf.pos-cpos1[c])/4)));
     cm.set(hash(++i,w<<9| llog(buf.pos-wpos1[w])>>2));
@@ -6659,6 +7201,7 @@ public:
     iMap[0].set(N+NN-NNN);
     iMap[1].set(N*2-NN);
     iMap[2].set(N*3-NN*3+NNN);
+     }
     // update last context positions
     cpos4[c]=cpos3[c];
     cpos3[c]=cpos2[c];
@@ -6708,6 +7251,8 @@ public:
   linearPredictionModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),nOLS(3),nLnrPrd(3+2)  {
   }
   int inputs() {return nLnrPrd*2;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m,int val1=0,int val2=0){
   if (x.bpos==0) {
     const U8 W=buf(1), WW=buf(2), WWW=buf(3);
@@ -6746,6 +7291,8 @@ public:
   sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(40),cm(CMlimit(MEM()*2), N) {
   }
   int inputs() {return N*cm.inputs();}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m,int seenbefore,int howmany){//match order
   int j=0;
   if (x.bpos==0) {
@@ -6796,6 +7343,8 @@ public:
   distanceModel1(BlockData& bd):  pos00(0),pos20(0),posnl(0), x(bd),buf(bd.buf),Maps{ {8}, {8}, {8} } {
     }
   int inputs() {return 3*2;}
+  int nets() {return 256*3;}
+  int netcount() {return 3;}
   int p(Mixer& m,int val1=0,int val2=0){
   if (x.bpos == 0) {
     int c=x.c4&0xff;
@@ -6942,6 +7491,9 @@ public:
     }
    
   int inputs() {return inpts*cm.inputs()+nSCMaps*2+100*2+1;}
+  int nets() {return 6+   256+   512+   2048+   8*32+   6*64+   256*2+   1024+   8192+   8192+   8192+   8192+  256;}
+  int netcount() {return 13;}
+   
   int p(Mixer& m,int info,int val2=0){
   if (!bpos) {
     if (xx.blpos==1  ){
@@ -7449,7 +8001,10 @@ public:
       NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1),   pOLS(nOLS),sceneOls(13, 1, 0.994){
 
   }
-  int inputs() {return inpts*cm.inputs()+nMaps*2+nPltMaps*2;}
+  int inputs() {return inpts*cm.inputs()+nMaps*2+nPltMaps*2+5*2;}
+  int nets() {return ( 2048+5)+    6*16+    6*32+    256+    1024+    64+    128+    256;}
+  int netcount() {return 8;}
+  
 int p(Mixer& m,int w,int val2=0){
   assert(w>3); 
   if (!bpos) {
@@ -7735,7 +8290,7 @@ int p(Mixer& m,int w,int val2=0){
         cm.set(hash(++i, Clip(W+N-NW)-px, column[0]));
         cm.set(hash(++i, Clamp4(N*3-NN*3+NNN,W,N,NN,NE), px, LogMeanDiffQt(W,Clip(NW*2-NNW))));
         cm.set(hash(++i, Clamp4(W*3-WW*3+WWW,W,N,NE,NEE), px, LogMeanDiffQt(N,Clip(NW*2-NWW))));
-        cm.set(hash(++i, (W+Clamp4(NE*3-NNE*3+(isPNG?buffer(w*3-1):buf(w*3-1)),W,N,NE,NEE))/2, px, LogMeanDiffQt(N,(NW+NE)/2)));
+        cm.set(hash(++i, (W+Clamp4(NE*3-NNE*3+NNNE,W,N,NE,NEE))/2, px, LogMeanDiffQt(N,(NW+NE)/2)));
         cm.set(hash(++i, (N+NNN)/8, Clip(N*3-NN*3+NNN)/4, px));
         cm.set(hash(++i, (W+WWW)/8, Clip(W*3-WW*3+WWW)/4, px));
         cm.set(hash(++i, Clip((-buffer(4)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buffer(w*3-1)*4-buffer(w*4-1),N,NE,buffer(w-2),buffer(w-3)))/5)-px));
@@ -7768,7 +8323,7 @@ int p(Mixer& m,int w,int val2=0){
     for (int j=0; i<nMaps; i++, j++)
       Map[i].set((pOLS[j]-px-B)*8+bpos);
   }
-sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
+    sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
     sceneMap[3].set_direct((prvFrmPx-B)*8+bpos);
     sceneMap[4].set_direct((prvFrmPred-B)*8+bpos);
   // Predict next bit
@@ -7826,13 +8381,16 @@ class im4bitModel1: public Model {
     U8 WW, W, NWW, NW, N, NE, NEE, NNWW, NNW, NN, NNE, NNEE;
     int col, line, run, prevColor, px;
     public:
- im4bitModel1( BlockData& bd,U32 val=0 ): x(bd),buf(bd.buf),t(CMlimit(MEM()/8)),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
+ im4bitModel1( BlockData& bd,U32 val=0 ): x(bd),buf(bd.buf),t( CMlimit((level>14?MEM()/2:MEM())/8) ),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
   NEE(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0),col(0), line(0), run(0), prevColor(0), px(0) {
    sm=new StateMap[S];
    for (int i=0;i<S;i++)
       cp[i]=t[263*i]+1;
    }
   int inputs() {return S*3+2;}
+  int nets() {return 256+   512+   512+  1024+   16+  1;}
+  int netcount() {return 6;}
+   
 int p(Mixer& m,int w=0,int val2=0)  {
   int i;
   if (x.blpos==1){//helps only on bigger files+1024kb
@@ -7926,6 +8484,8 @@ public:
    cp=t1[0]+1;
    }
   int inputs() {return N+2;}
+  int nets() {return 256+256+256+256+256;}
+  int netcount() {return 5;}
 int p(Mixer& m,int w=0,int val2=0)  {
   // update the model
   int i;
@@ -8243,6 +8803,7 @@ class jpegModelx: public Model {
    BlockData& x;
    Buf& buf;
    int hbcount;
+   int pr0;
    int prev_coef,prev_coef2, prev_coef_rs;
    int rstpos,rstlen; // reset position
    BHMap hmap; // context hash -> bit history   
@@ -8256,11 +8817,13 @@ public:
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
-  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
-  qtab(256),qmap(10),N(35),cxt(N),m1(32+32+3+4,2050+3 /*770*/,bd, 3), a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),
+  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
+  qtab(256),qmap(10),N(35),cxt(N),m1(32+32+3+4,2050+3 /*770*/,bd, 3), a1(0x20000),a2(0x20000),x(bd),buf(bd.buf),
   hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0) {
   }
   int inputs() {return 7+N*2+1;}
+  int nets() {return 9+1025+1024;}
+  int netcount() {return 3;}
   int p(Mixer& m,int val1=0,int val2=0){
 
  if (idx < 0){
@@ -8784,9 +9347,11 @@ public:
    m1.set( coef+256*min(3,huffbits), 1024 );
    m1.set( (hc&0x1FE)*2+min(3,ilog2(zu+zv)), 1024 );
   int pr=m1.p(1,1);
+   x.Misses+=x.Misses+((pr0>>11)!=x.y);
+  pr0=pr;
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
-  pr=a1.p(pr, (hc&511)|(((adv_pred[1]/16)&63)<<9), x.y,1023);
+  pr=a1.p(pr, ((hc&511)|(((adv_pred[1]/16)&63)<<9)<<2)|(x.Misses&3), x.y,1023);
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
   pr=a2.p(pr, (hc&511)|(coef<<9),x.y, 1023);
@@ -8848,6 +9413,8 @@ public:
     //if (level>=4)recModel=new recordModel1(bd,CMlimit(MEM()));
 }
 int inputs() {return 11*cm.inputs()+7*2/*+(level>=4?recModel->inputs():0)*/;}
+int nets() {return  4*8+  2+ 16+ 4*8+256;} //FIXME
+  int netcount() {return 5;}
 int p(Mixer& m,int info,int val2=0){
     int j,k,l,i=0;
      const double a=0.996,a2=1/a;
@@ -9714,6 +10281,8 @@ public:
       memset(&StateBH, 0, sizeof(StateBH));
   }
   int inputs() {return 2+(N1+N2)*cm.inputs();}
+  int nets() {return  1024+ 1024+ 1024+ 8192+ 8192+ 8192;}
+  int netcount() {return 6;}
 int p(Mixer& m,int val1=0,int val2=0){
     if (x.filetype==DBASE ||x.filetype==HDR || x.filetype==ARM|| x.filetype==IMGUNK /*|| x.filetype==BINTEXT*/){
         for (int i=0; i<inputs(); i++)
@@ -10015,6 +10584,11 @@ public:
    t2(0x10000), t3(0x8000),t4(0x8000),iCtx{16 },iCtx8{10,2},Maps{ 10, 2 }{
   }
   int inputs() {return 15*cm.inputs()+2;}
+  int nets() {return 1024;}
+  int netcount() {return 1;}
+  void setContexts(){
+      
+  }
 int p(Mixer& m,int val1=0,int val2=0){
     int j=0;
   if (!x.bpos) {
@@ -10040,6 +10614,7 @@ int p(Mixer& m,int val1=0,int val2=0){
                                ((U8(t1[c])==U8(t3[d2]))<<1)|
                                ((U8(t1[c])==U8(t4[d3]))<<2)|
                                ((U8(t1[c])==U8(ctx0))<<3);
+    if (val2!=-1) {
     cm.set(hash(j++,t));
     cm.set(hash(j++,t0));
     cm.set(hash(j++,ta));  
@@ -10062,11 +10637,12 @@ int p(Mixer& m,int val1=0,int val2=0){
     cm.set(hash(j++, ctx0&0x7f7fff));
     
      }
+     }
   }
   if ((x.bpos)%2==0 ){
       if (x.bpos==0) iCtx8+=x.buf(3)&3;else iCtx8+=(x.buf(4)>>x.bpos)&3;
       iCtx8=((x.buf(2)>>x.bpos)&3)<<8|(t1[x.buf(1)]&0xff);//((x.bpos>>1)<<8)
-       Maps.set(((x.buf(2)&3)<<8)|iCtx8());
+      if (val2!=-1) Maps.set(((x.buf(2)&3)<<8)|iCtx8());
   }
   if (val2==-1) return 1;
   Maps.mix(m);
@@ -10262,6 +10838,8 @@ public:
   dmcmodel3b(mem,720,bd),
   x(bd){}
   int inputs() {return 2;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m,int val1=0,int val2=0){
 
     switch(model1_state) {
@@ -10332,6 +10910,8 @@ public:
    pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(MEM()/2), 12)  {
   }
   int inputs() {return 12*cm.inputs();}
+  int nets() {return 0;}
+  int netcount() {return 0;}
 int p(Mixer& m,int val1=0,int val2=0){
     if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM|| x.filetype==IMGUNK){
         if (val2==-1) return 1;
@@ -10393,7 +10973,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     else if (x.c4==0x2667743B) uc-=(uc>0);
     if (matched) bc = 0; else bc += 1;
     if (bc > 300) bc = ic = pc = qc = uc = 0;
-
+if (val2==-1) return 1;
     cm.set(hash( (vv>0 && vv<3)?0:(lc|0x100), ic&0x3FF, ec&0x7, ac&0x7, uc ));
     cm.set(hash(ic, w, ilog2(bc+1)));
     cm.set((3*vc+77*pc+373*ic+qc)&0xffff);
@@ -10407,7 +10987,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     cm.set(((3*pc)&0xffff)|((x.f4&0xf)<<16));
     cm.set((ic&0xffff)|((x.f4&0xf)<<16));
   }
-    if (val2==-1) return 1;
+    
     cm.mix(m);
   
   return 0;
@@ -10518,26 +11098,29 @@ class XMLModel1: public Model {
   XMLState State, pState;
   U32 c8, WhiteSpaceRun, pWSRun, IndentTab, IndentStep, LineEnding,lastState;
   ContextMap cm;
-  U32 StateBH[8];
+  U32 StateBH[8],stateContext;
+  XMLTag *pTag,*Tag;
+    XMLAttribute *Attribute;
+    XMLContent *Content ;
 public:
   XMLModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
    WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(CMlimit(MEM()/4), 4) {
        memset(&Cache, 0, sizeof(XMLTagCache));
-       memset(&StateBH, 0, sizeof(StateBH));        
+       memset(&StateBH, 0, sizeof(StateBH));  
+        
   }
   int inputs() {return 4*cm.inputs();}
-int p(Mixer& m,int val1=0,int val2=0){
-    if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM  || x.filetype==IMGUNK/*|| x.filetype==BINTEXT*/){
-        if (val2==-1) return 1;
-        for (int i=0; i<inputs(); ++i)
-        m.add(0);
-        return 0;
-    }
-    if (x.bpos==0) {
-    U8 B = (U8)x.c4;
-    XMLTag *pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], *Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
-    XMLAttribute *Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
-    XMLContent *Content = &(*Tag).Content;
+  int nets() {return 0;}
+  int netcount() {return 0;}
+  void setContexts(){
+      stateContext=0;
+      U8 B = (U8)x.c4;
+       pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
+     Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
+     Content = &(*Tag).Content;     
+    //XMLTag *pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], *Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
+    //XMLAttribute *Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
+    //XMLContent *Content = &(*Tag).Content;
     pState = State;
     c8 = (c8<<8)|buf(5);
     if ((B==0x09 || B==0x20) && (B==(U8)(x.c4>>8) || !WhiteSpaceRun)){
@@ -10564,7 +11147,7 @@ int p(Mixer& m,int val1=0,int val2=0){
         if ((*Tag).Level>1)
           DetectContent();
         
-        cm.set(hash(pState, State, ((*pTag).Level+1)*IndentStep - WhiteSpaceRun));
+        stateContext=(hash(pState, State, ((*pTag).Level+1)*IndentStep - WhiteSpaceRun));
         break;
       }
       case ReadTagName : {
@@ -10613,7 +11196,7 @@ int p(Mixer& m,int val1=0,int val2=0){
         }
         while ( i<CacheSize && ((*pTag).EndTag || (*pTag).Empty) );
 
-        cm.set(hash(pState*8+State, (*Tag).Name, (*Tag).Level, (*pTag).Name, (*pTag).Level!=(*Tag).Level ));
+        stateContext=(hash(pState*8+State, (*Tag).Name, (*Tag).Level, (*pTag).Name, (*pTag).Level!=(*Tag).Level ));
         break;
       }
       case ReadTag : {
@@ -10631,7 +11214,7 @@ int p(Mixer& m,int val1=0,int val2=0){
           State = ReadAttributeName;
           (*Attribute).Name = B&0xDF;
         }
-        cm.set(hash(pState, State, (*Tag).Name, B, (*Tag).Attributes.Index ));
+        stateContext=(hash(pState, State, (*Tag).Name, B, (*Tag).Attributes.Index ));
         break;
       }
       case ReadAttributeName : {
@@ -10643,7 +11226,7 @@ int p(Mixer& m,int val1=0,int val2=0){
         else if (B!=0x22 && B!=0x27 && B!=0x3D)
           (*Attribute).Name = (*Attribute).Name * 263 * 32 + (B&0xDF);
 
-        cm.set(hash(pState*8+State, (*Attribute).Name, (*Tag).Attributes.Index, (*Tag).Name, (*Content).Type ));
+        stateContext=(hash(pState*8+State, (*Attribute).Name, (*Tag).Attributes.Index, (*Tag).Name, (*Content).Type ));
         break;
       }
       case ReadAttributeValue : {
@@ -10657,7 +11240,7 @@ int p(Mixer& m,int val1=0,int val2=0){
           if ((c8&0xDFDFDFDF)==0x48545450 && ((x.c4>>8)==0x3A2F2F || x.c4==0x733A2F2F)) // HTTP :// s://
             (*Content).Type |= URL;
         }
-        cm.set(hash(pState, State, (*Attribute).Name, (*Content).Type ));
+        stateContext=(hash(pState, State, (*Attribute).Name, (*Content).Type ));
         break;
       }
       case ReadContent : {
@@ -10673,7 +11256,7 @@ int p(Mixer& m,int val1=0,int val2=0){
 
           DetectContent();
         }
-        cm.set(hash(pState, State, (*Tag).Name, x.c4&0xC0FF ));
+        stateContext=(hash(pState, State, (*Tag).Name, x.c4&0xC0FF ));
         break;
       }
       case ReadCDATA : {
@@ -10681,7 +11264,7 @@ int p(Mixer& m,int val1=0,int val2=0){
           State = None;
           Cache.Index++;
         }
-        cm.set(hash(pState, State));
+        stateContext=(hash(pState, State));
         break;
       }
       case ReadComment : {
@@ -10689,12 +11272,28 @@ int p(Mixer& m,int val1=0,int val2=0){
           State = None;
           Cache.Index++;
         }
-        cm.set(hash(pState, State));
+        stateContext=(hash(pState, State));
         break;
       }
     }
     StateBH[pState] = (StateBH[pState]<<8)|B;
     pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ];
+  }
+int p(Mixer& m,int val1=0,int val2=0){
+    if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM  || x.filetype==IMGUNK/*|| x.filetype==BINTEXT*/){
+        if (val2==-1) return 1;
+        for (int i=0; i<inputs(); ++i)
+        m.add(0);
+        return 0;
+    }
+    
+    if (x.bpos==0) {
+    setContexts();
+    if (val2==-1) return 1;
+     pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
+     //*Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
+    // *Content = &(*Tag).Content;     
+    cm.set(stateContext);
     // set context if last state was less then 256 bytes ago
     if ((buf.pos-lastState)<256){ 
         cm.set(hash(State, (*Tag).Level, pState*2+(*Tag).EndTag, (*Tag).Name));
@@ -10729,6 +11328,8 @@ public:
      scm4(8,8), scm5(8,8),scm6(8,8), scma(8,8),x(bd),buf(bd.buf) {
     }
     int inputs() {return 31*cm.inputs()+7*2;}
+    int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m, int seenbefore, int howmany){
   if (x.bpos==0) {
     scm5.set(seenbefore);
@@ -10813,16 +11414,31 @@ public:
   rcm9(CMlimit(MEM()/4),bd), rcm10(CMlimit(MEM()/2),bd), cxt(16){
  }
  int inputs() {return 10*cm.inputs() +3+2;}
-int p(Mixer& m,int val1=0,int val2=0){  
-  if (x.bpos==0) {
-    int i;
+ int nets() {return 0;}
+  int netcount() {return 0;}
+  void setContexts(){
+      int i;
     if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && buf(3)!=10 && buf(3)!=5 && 
     (x.filetype==DICTTXT || x.filetype==BIGTEXT)) for (i=14; i>0; --i) 
       cxt[i]=cxt[i-1]*primes[i];
     cxt[15]=(isalpha(buf(1)))?(cxt[15]*primes[15]+ tolower(buf(1))):0;
-    if (val2==0) cm.set(cxt[15]);  
+    // (val2==0) cm.set(cxt[15]);  
     for (i=14; i>0; --i)  // update order 0-11 context hashes
       cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
+  }
+  
+int p(Mixer& m,int val1=0,int val2=0){  
+  if (x.bpos==0) {
+      setContexts();
+      if (val2==-1) return 1;
+    int i;
+    //if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && buf(3)!=10 && buf(3)!=5 && 
+    //(x.filetype==DICTTXT || x.filetype==BIGTEXT)) for (i=14; i>0; --i) 
+    //  cxt[i]=cxt[i-1]*primes[i];
+    //cxt[15]=(isalpha(buf(1)))?(cxt[15]*primes[15]+ tolower(buf(1))):0;
+    if (val2==0) cm.set(cxt[15]);  
+   // for (i=14; i>0; --i)  // update order 0-11 context hashes
+   //   cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
     for (i=0; i<7; ++i)
       cm.set(cxt[i]);
 
@@ -10833,7 +11449,7 @@ int p(Mixer& m,int val1=0,int val2=0){
     rcm10.set(cxt[12]);
     cm.set(cxt[14]);
   }
-  if (val2==-1) return 1;
+  
   rcm7.mix(m);
   rcm9.mix(m);
   rcm10.mix(m);
@@ -10841,7 +11457,9 @@ int p(Mixer& m,int val1=0,int val2=0){
   m.add((stretch(StateMaps[1].p(x.c0|(buf(1)<<8),x.y))+1)>>1);
   return cm.mix(m);
 }
- virtual ~normalModel1(){}
+  virtual ~normalModel1(){
+
+ }
 };
 class decModel1: public Model {
   BlockData& x;
@@ -10856,6 +11474,8 @@ public:
   decModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()), 4) ,currentOp(-1),currentFunc(-1), lastOp(-1),lastFunc(-1),valid(false),pvalid(false),opbyte(0){
  }
  int inputs() {return 4*cm.inputs();}
+ int nets() {return 0;}
+  int netcount() {return 0;}
 int p(Mixer& m,int val1=0,int val2=0){  
  if (x.bpos==0) {
     U32 function=-1;
@@ -11214,80 +11834,56 @@ int p(Mixer& m,int val1=0,int val2=0){
  virtual ~decModel1(){}
 };
 
+class blankModel1: public Model {
+  BlockData& x;
+  Buf& buf;
+public:
+  blankModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){ }
+  int inputs() {return 0;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
+  inline int p(Mixer& m,int val1=0,int val2=0){  
+    return 0;
+  }
+  virtual ~blankModel1(){}
+};
+/*
+#include <psapi.h>
+size_t getPeakMemory(){
+#if defined(_WIN32)
+	PROCESS_MEMORY_COUNTERS info;
+	GetProcessMemoryInfo( GetCurrentProcess( ), &info, sizeof(info) );
+	return (size_t)info.PeakPagefileUsage; // recuested peak memory /PeakWorkingSetSize used memory
+#elif defined(UNIX) 
+	return (size_t)0L; //not tested
+#else
+	return (size_t)0L;
+#endif
+}*/
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
 // p() returns P(1) as a 12 bit number (0-4095).
 // update(y) trains the predictor with the actual bit (0 or 1).
-
+typedef enum {M_RECORD=0,M_IM8,M_IM24,M_SPARSE,M_JPEG,M_WAV,M_MATCH,M_DISTANCE,
+              M_EXE,M_INDIRECT,M_DMC,M_NEST,M_NORMAL,M_IM1,M_XML,M_IM4,M_TEXT,
+              M_WORD,M_WORD2,M_DEC,M_LINEAR,M_SPARSEMATCH,M_SPARSE_Y,M_MODEL_COUNT} ModelTypes;
 //base class
 class Predictors {
 public:
   BlockData x; //maintains current global data block between models
-  //list of all models
-  recordModel1* recordModel;
-  im8bitModel1* im8bitModel;
-  im24bitModel1* im24bitModel;
-  sparseModelx* sparseModel1;
-  jpegModelx* jpegModel;
-  wavModel1* wavModel;
-  matchModel1* matchModel;
-  distanceModel1* distanceModel;
-  sparseModely* sparseModel;
-  wordModel1* wordModel;
-  exeModel1* exeModel;
-  indirectModel1* indirectModel;
-  dmcModel1* dmcModel;
-  nestModel1* nestModel;
-  normalModel1* normalModel;
-  im1bitModel1* im1bitModel;
-  XMLModel1* XMLModel;
-  im4bitModel1* im4bitModel;
-  TextModel *textModel;
-  decModel1 *decModel;
+  Model **models;
+
 virtual ~Predictors(){
-  if (jpegModel!=0) delete jpegModel;
-  if (sparseModel1!=0) delete sparseModel1;
-  if (im8bitModel!=0) delete im8bitModel;
-  if (im24bitModel!=0) delete im24bitModel;
-  if (exeModel!=0) delete exeModel;
-  if (recordModel!=0) delete recordModel; 
-  if (distanceModel!=0) delete distanceModel; 
-  if (sparseModel!=0) delete sparseModel; 
-  if (wordModel!=0) delete wordModel; 
-  if (indirectModel!=0) delete indirectModel; 
-  if (dmcModel!=0) delete dmcModel; 
-  if (nestModel!=0) delete nestModel; 
-  if (matchModel!=0) delete matchModel;
-  if (normalModel!=0) delete normalModel;
-  if (im1bitModel!=0) delete im1bitModel; 
-  if (XMLModel!=0) delete XMLModel; 
-  if (im4bitModel!=0) delete im4bitModel;
-  if (textModel!=0) delete textModel;
-  if (decModel!=0) delete decModel;
- 
+    //printf("Models peak memory %d mb\n",(getPeakMemory()/1024)/1024);
+    for (int i=0;i<M_MODEL_COUNT;i++) {
+        delete models[i];
+    }
+    delete[] models;
+    
    };
 Predictors(){
-  recordModel=0;
-  im8bitModel=0;
-  im24bitModel=0;
-  recordModel=0;
-  sparseModel1=0;
-  jpegModel=0;
-  matchModel=0;
-  distanceModel=0;
-  sparseModel=0;
-  wordModel=0;
-  exeModel=0;
-  indirectModel=0;
-  dmcModel=0;
-  nestModel=0;
-  normalModel=0;
-  im1bitModel=0;
-  XMLModel=0;
-  im4bitModel=0;
-  textModel=0;
-  decModel=0;
+ 
 }
   virtual int p() const =0;
   virtual void update()=0;
@@ -11374,40 +11970,60 @@ class Predictor: public Predictors {
   int ismatch;
   Mixer *m;
   EAPM a;
-  bool Bypass; 
-  SparseMatchModel sparseMatch;
+  bool Bypass,isCompressed; 
   U32 count;
   U32 lastmiss;
-  linearPredictionModel linearPredictionModel1;
+  int mixerInputs,mixerNets,mixerNetsCount;
 public:
   Predictor();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
   void update() ;
    ~Predictor(){
-       // printf("\n Default Count of skipped bytes %d\n",count/8);
+
+delete m;
   }
 };
 
-Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),sparseMatch(x),count(0),lastmiss(0),linearPredictionModel1(x){
-    if (level>=4){
-        recordModel=new recordModel1(x); 
-        distanceModel=new distanceModel1(x); 
-        sparseModel=new sparseModely(x); 
-        wordModel=new wordModel1(x); 
-        indirectModel=new indirectModel1(x); 
-        dmcModel=new dmcModel1(x);
-        nestModel=new nestModel1(x); 
-        XMLModel=new XMLModel1(x);
-        exeModel=new exeModel1(x); 
-        textModel =new TextModel(x,16) ;
+Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),isCompressed(false),count(0),lastmiss(0),
+ mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] =      new recordModel1(x);
+  models[M_MATCH] =       new matchModel1(x);
+  models[M_DISTANCE] =    new distanceModel1(x);
+  models[M_EXE] =         new exeModel1(x);
+  models[M_INDIRECT] =    new indirectModel1(x);
+  models[M_DMC] =         new dmcModel1(x);
+  models[M_NEST] =        new nestModel1(x);
+  models[M_NORMAL] =      new normalModel1(x);
+  models[M_XML] =         new XMLModel1(x);
+  models[M_TEXT] =        new TextModel(x,16);
+  models[M_WORD] =        new wordModel1(x);
+  models[M_LINEAR] =      new linearPredictionModel(x);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  models[M_SPARSE_Y] =    new sparseModely(x);
+  // blanks
+  models[M_DEC] =         new blankModel1(x);
+  models[M_IM8] =         new blankModel1(x);
+  models[M_IM24] =        new blankModel1(x);
+  models[M_SPARSE] =      new blankModel1(x);
+  models[M_JPEG] =        new blankModel1(x);
+  models[M_WAV] =         new blankModel1(x);
+  models[M_IM4] =         new blankModel1(x); 
+  models[M_IM1] =         new blankModel1(x);
+  models[M_WORD2] =       new blankModel1(x);//WordModel(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
    }
-   matchModel=new matchModel1(x);
-   normalModel=new normalModel1(x);
-   const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
-   sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-   nestModel->inputs()+XMLModel->inputs()+exeModel->inputs()+
-   textModel->inputs()+linearPredictionModel1.inputs()+2+1 ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
-   m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*5+2048+2048+2048+1024*3+8192+8192+8192+1024+256+64+4096+4096+4096+11*32+3*256+1024+8192,x, 26+3+1+1);
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=64+    (8+1024)+    256+    1024+    256+   2048+   2048+    256+    1536;
+   mixerNetsCount+=9;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void Predictor::update()  {
@@ -11435,47 +12051,37 @@ void Predictor::update()  {
         if(x.blpos==1) {
             m->setText(false);
            if (x.filetype==DBASE) m->setText(true);
+            isCompressed=(x.filetype==CMP || x.filetype==MSZIP)?true:false;
          }
     }
-
     m->update();
     m->add(256);
     Bypass=false;int rlen=0,Valid=0,xmlstate=0;
-    ismatch=matchModel->p(*m);  // Length of longest matching context
-    if ((x.Match.length>0xfff || matchModel->Bypass) && x.Misses==0 && (max(x.blpos-lastmiss,0x2000)>0x2000)) {// 
+    ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if ((x.Match.length>0xfff || x.Match.bypass) && x.Misses==0 && (max(x.blpos-lastmiss,0x2000)>0x2000)) {// 
       //count++;
-        matchModel->Bypass = Bypass = true;
-        sparseMatch.p(*m);
-        normalModel->p(*m,0,-1); 
-        xmlstate=XMLModel->p(*m,0,-1);
-        wordModel->p(*m,xmlstate&7,-1);
-        //sparseModel->p(*m,ismatch,-1);
-        nestModel->p(*m,0,-1);
-        indirectModel->p(*m,0,-1);
-        dmcModel->p(*m);
-        recordModel->p(*m,0,-1);
-        textModel->p(*m,xmlstate&7,-1);
+        x.Match.bypass = Bypass = true;
         m->reset();
-        pr= matchModel->BypassPrediction;
+        pr=x.Match.bypassprediction;
         return;
     }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m);
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     
-    if (level>=4 && (x.filetype!=CMP || x.filetype!=MSZIP)){        
+    if ( isCompressed==false){        
             int dataRecordLen=(x.filetype==DBASE)?x.finfo:(x.filetype==IMGUNK)?x.finfo:0; //force record length 
-            rlen=recordModel->p(*m,dataRecordLen);
-            wordModel->p(*m,0,x.finfo>0?x.finfo:0); //col
-            sparseModel->p(*m,ismatch,order);
-            distanceModel->p(*m);
-            indirectModel->p(*m);
-            nestModel->p(*m);
-            dmcModel->p(*m);
-            xmlstate=XMLModel->p(*m);
-            Valid=exeModel->p(*m);
-            textModel->p(*m);
-            if (x.filetype!=DBASE||x.filetype!=BINTEXT||x.filetype!=HDR)linearPredictionModel1.p(*m);
+            rlen=models[M_RECORD]->p(*m,dataRecordLen);
+            models[M_WORD]->p(*m,0,x.finfo>0?x.finfo:0); //colmodels[M_WORD2]->p(*m);
+            models[M_SPARSE_Y]->p(*m,ismatch,order);
+            models[M_DISTANCE]->p(*m);
+            models[M_INDIRECT]->p(*m);
+            models[M_NEST]->p(*m);
+            models[M_DMC]->p(*m);
+            xmlstate=models[M_XML]->p(*m);
+            Valid=models[M_EXE]->p(*m);
+            models[M_TEXT]->p(*m);
+            if (x.filetype!=DBASE||x.filetype!=BINTEXT||x.filetype!=HDR) models[M_LINEAR]->p(*m);
     } 
     m->set((order<<3)|x.bpos, 64);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
@@ -11505,8 +12111,8 @@ class PredictorDEC: public Predictors {
   int ismatch;
   Mixer *m;
   EAPM a;   
-   bool Bypass;
-   SparseMatchModel sparseMatch; 
+  bool Bypass;
+  int mixerInputs,mixerNets,mixerNetsCount;
 public:
   PredictorDEC();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -11515,22 +12121,44 @@ public:
   }
 };
 
-PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),sparseMatch(x) {
-    if (level>=4){
-        recordModel=new recordModel1(x); 
-        distanceModel=new distanceModel1(x); 
-        sparseModel=new sparseModely(x); 
-        wordModel=new wordModel1(x); 
-        indirectModel=new indirectModel1(x); 
-        dmcModel=new dmcModel1(x);
-        decModel=new decModel1(x);
+PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new distanceModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new dmcModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new wordModel1(x);
+  models[M_DEC] = new decModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  models[M_SPARSE_Y] = new sparseModely(x);
+  models[M_WORD2] =       new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
    }
-   matchModel=new matchModel1(x);
-   normalModel=new normalModel1(x);
-   const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
-   sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-  decModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
-   m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*4+2048+2048+2048-1024+512+11*32+3*256+1024+8192+256,x, 7 +2+1+1+1+4+2+1+3+1+1+1);
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+= (8+1024)+    256+    1024+    256+   1024+   2048+    256+    1536;
+   mixerNetsCount+=8;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void PredictorDEC::update()  {
@@ -11557,27 +12185,25 @@ void PredictorDEC::update()  {
     m->update();
     m->add(256);
     Bypass=false;
-    ismatch=matchModel->p(*m);  // Length of longest matching context
-    if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
+    ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFFF || x.Match.bypass) {
+        x.Match.bypass =  Bypass =   true;
         m->reset();
-        pr= matchModel->BypassPrediction;
+        pr= x.Match.bypassprediction;
         return;
     }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m);
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     int rlen=0,Valid=0;
-    if (level>=4){        
-            rlen=recordModel->p(*m,4);
-            wordModel->p(*m,0,4); //col
-            sparseModel->p(*m,ismatch,order);
-            distanceModel->p(*m);
-            indirectModel->p(*m);
-            dmcModel->p(*m);
-            Valid=decModel->p(*m);
-     
-    } 
+    rlen=models[M_RECORD]->p(*m,4);
+    models[M_WORD]->p(*m,0,4); //col
+    models[M_SPARSE_Y]->p(*m,ismatch,order);
+    models[M_DISTANCE]->p(*m);
+    models[M_INDIRECT]->p(*m);
+    models[M_DMC]->p(*m);
+    Valid=models[M_DEC]->p(*m);
+ 
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
@@ -11604,23 +12230,51 @@ class PredictorJPEG: public Predictors {
   StateMap StateMaps[2];
    bool Bypass; 
      U32 count;
+      int mixerInputs,mixerNets,mixerNetsCount;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
   ~PredictorJPEG(){   //printf("\n JPEG Count of skipped bytes %d\n",count/8);
+      
  }
-PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),count(0) {
-  matchModel=new matchModel1(x); 
-  jpegModel=new jpegModelx(x); 
-  dmcModel=new dmcModel1(x);  
-  normalModel=new normalModel1(x);
-  distanceModel=new distanceModel1(x); 
-  indirectModel=new indirectModel1(x); 
-  sparseModel=new sparseModely(x); 
-  recordModel=new recordModel1(x); 
-  const int tinput=1+ matchModel->inputs() + jpegModel->inputs()+2+dmcModel->inputs()+
-  normalModel->inputs()+distanceModel->inputs()+indirectModel->inputs() +
-  sparseModel->inputs()+recordModel->inputs();
-  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024+256+256+11*32+512+3*256+1024+8192+256,x, 8+1+3+1+1+1);
+PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),count(0) ,mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+  
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new jpegModelx(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new distanceModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new dmcModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new sparseModely(x);
+  models[M_WORD2] =       new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=3;
+   mixerNets+=  256+      (8+1024)+       256+       256+       256+       256+       1536;
+      
+   mixerNetsCount+=7;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -11629,35 +12283,35 @@ void update()  {
     m->update();
     m->add(256);
     Bypass=false;
-    int ismatch=matchModel->p(*m);  // Length of longest matching context
-    if (x.Match.length>0xFF || matchModel->Bypass) {//256b
+    int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFF || x.Match.bypass) {//256b
     count++;
-        matchModel->Bypass =   Bypass =    true;
+        x.Match.bypass =   Bypass =    true;
         m->reset();
-        pr= matchModel->BypassPrediction;
-        jpegModel->p(*m,1);//we found long repeating match. update, do not predict. artificial images, same partial content
+        pr= x.Match.bypassprediction;
+        models[M_JPEG]->p(*m,1);//we found long repeating match. update, do not predict. artificial images, same partial content
         return;
     }
     m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
     m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
-    dmcModel->p(*m);
-    if (jpegModel->p(*m)) {
+    models[M_DMC]->p(*m);
+    if (models[M_JPEG]->p(*m)) {
         m->set(ismatch, 256);
         pr=m->p(1,0);
     }
     else{
-        int order =normalModel->p(*m);
-        distanceModel->p(*m);
-        indirectModel->p(*m);
-        sparseModel->p(*m,ismatch,order);
-        recordModel->p(*m);
+        int order =models[M_NORMAL]->p(*m);
+        models[M_DISTANCE]->p(*m);
+        models[M_INDIRECT]->p(*m);
+        models[M_SPARSE_Y]->p(*m,ismatch,order);
+        models[M_RECORD]->p(*m);
         U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-         m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
+        m->set(ismatch, 256);
+        m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
         m->set(x.c0, 256);
         m->set(order | ((x.c4>>6)&3)<<3 | (x.bpos==0)<<5 | (c1==c2)<<6 | (1)<<7, 256);
         m->set(c2, 256);
         m->set(c3, 256);
-        m->set(ismatch, 256);
         U8 d=x.c0<<(8-x.bpos);
         if (x.bpos) {
             c=d; if (x.bpos==1)c+=c3/2;
@@ -11675,9 +12329,9 @@ class PredictorEXE: public Predictors {
   int order;
   Mixer *m;
   EAPM a;
-  SparseMatchModel sparseMatch;
-   bool Bypass; 
-   U32 count;
+  bool Bypass; 
+  U32 count;
+  int mixerInputs,mixerNets,mixerNetsCount;
 public:
   PredictorEXE();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -11686,26 +12340,46 @@ public:
     }
 };
 
-PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x),Bypass(false),count(0) {
-  if (level>=4){
-    recordModel=new recordModel1(x); 
-    distanceModel=new distanceModel1(x); 
-    sparseModel=new sparseModely(x); 
-    wordModel=new wordModel1(x); 
-    exeModel=new exeModel1(x); 
-    indirectModel=new indirectModel1(x);
-    dmcModel=new dmcModel1(x);  
-    nestModel=new nestModel1(x); // ?
-     textModel =new TextModel(x,16) ; 
-     XMLModel=new XMLModel1(x);
-  }
-  matchModel=new matchModel1(x); 
-  normalModel=new normalModel1(x);
-  const int tinput=1+(level>=4?(recordModel->inputs()+distanceModel->inputs()+sparseModel->inputs()+
-  wordModel->inputs()+  exeModel->inputs() + indirectModel->inputs() +XMLModel->inputs()+ dmcModel->inputs()+ nestModel->inputs()+textModel->inputs() ):0)+
-  matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
-  m=new Mixer(tinput, 6920+1024+512+8192+8192+8192+ 1024+2048+2048+2048+2048+2048+4096+256+4096+4096+4096+11*32+3*256+1024+8192,x, 25+3+1+1);
-
+PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),Bypass(false),count(0), mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+ 
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new distanceModel1(x);
+  models[M_EXE] = new exeModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new dmcModel1(x);
+  models[M_NEST] = new nestModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new XMLModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new TextModel(x,16);
+  models[M_WORD] = new wordModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  models[M_SPARSE_Y] = new sparseModely(x);
+  models[M_WORD2] =       new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=( 8+1024)+     256+     256+     1024+     256+     256+     256+     1536;
+   mixerNetsCount+=8;
+    
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void PredictorEXE::update()  {
@@ -11732,31 +12406,30 @@ void PredictorEXE::update()  {
     m->update();
     m->add(256);
     Bypass=false;
-    int ismatch=matchModel->p(*m);  // Length of longest matching context
-    if (x.Match.length>0xFFF || matchModel->Bypass) {
+     
+    int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFFF || x.Match.bypass) {
       //  count++;
-        matchModel->Bypass = Bypass =    true;
+        x.Match.bypass = Bypass =    true;
         m->reset();
-        pr= matchModel->BypassPrediction;
+        pr= x.Match.bypassprediction;
         return;
     }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m);
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     int rec=0;
-    if (level>=4 ){
-        
-        rec=recordModel->p(*m);
-        wordModel->p(*m,order);
-        nestModel->p(*m);
-        sparseModel->p(*m,ismatch,order);
-        distanceModel->p(*m);
-        indirectModel->p(*m);
-        dmcModel->p(*m);
-        exeModel->p(*m,1); //1024*2
-         XMLModel->p(*m);
-        textModel->p(*m);
-    }
+    rec=models[M_RECORD]->p(*m);
+    models[M_WORD]->p(*m,order);
+    models[M_NEST]->p(*m);
+    models[M_SPARSE_Y]->p(*m,ismatch,order);
+    models[M_DISTANCE]->p(*m);
+    models[M_INDIRECT]->p(*m);
+    models[M_DMC]->p(*m);
+    models[M_EXE] ->p(*m,1); //1024*2
+    models[M_XML]->p(*m);
+    models[M_TEXT]->p(*m);
+
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
@@ -11786,16 +12459,51 @@ class PredictorIMG4: public Predictors {
       APM1 APM1s[2];
   } Image;
    bool Bypass; 
+   
+    int mixerInputs,mixerNets,mixerNetsCount;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG4(){ }
 
 PredictorIMG4(): pr(2048), StateMaps{ 256, 256*256}, Image
-     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}},Bypass(false) {
-  matchModel=new matchModel1(x);   
-  im4bitModel=new im4bitModel1(x); 
-  const int tinput=1+ matchModel->inputs()+im4bitModel->inputs()+2;
-  m=new Mixer(tinput,2576-256+1,x, 6 );
+     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}},Bypass(false), mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8]    = new blankModel1(x);
+  models[M_IM24]   = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG]   = new blankModel1(x);
+  models[M_WAV]    = new blankModel1(x);
+  models[M_MATCH]  = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC]    = new blankModel1(x);
+  models[M_NEST]   = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_IM1]    = new blankModel1(x);
+  models[M_XML]    = new blankModel1(x);
+  models[M_IM4]    = new im4bitModel1(x);
+  models[M_TEXT]   = new blankModel1(x);
+  models[M_WORD]   = new blankModel1(x);
+  models[M_DEC]    = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_WORD2]  = new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1+2;
+   mixerNets+=0;
+   mixerNetsCount+=0;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -11807,14 +12515,14 @@ void update()  {
   m->update();
   m->add(256);
   Bypass=false;
-  matchModel->p(*m);  // Length of longest matching context
-  if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
+  models[M_MATCH]->p(*m);  // Length of longest matching context
+  if (x.Match.length>0xFFF ||x.Match.bypass) {
+        x.Match.bypass =  Bypass =   true;
         m->reset();
-        pr= matchModel->BypassPrediction;
+        pr= x.Match.bypassprediction;
         return;
     }
-  im4bitModel->p(*m,x.finfo);
+  models[M_IM4]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
   int pr0=m->p();
@@ -11847,19 +12555,51 @@ class PredictorIMG8: public Predictors {
   } Image;
   StateMap StateMaps[2];
    bool Bypass; 
+    int mixerInputs,mixerNets,mixerNetsCount;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG8(){ }
 
 PredictorIMG8(): pr(2048),  Image{
      {{0x1000, 0x10000, 0x10000, 0x10000},  {{0x10000,x}, {0x10000,x}}},
-     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256},Bypass(false){
-  matchModel=new matchModel1(x);   
-  im8bitModel=new im8bitModel1(x); 
-  
-  normalModel=new normalModel1(x);
-  const int tinput=1+ matchModel->inputs() + im8bitModel->inputs()+ normalModel->inputs()+2;
-  m=new Mixer(tinput, 3877+64+128 +256,x, 8+1 );
+     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256},Bypass(false), mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8] = new im8bitModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC] = new blankModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_WORD2] =       new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1+2;
+   mixerNets+=   256;
+   mixerNetsCount+=1;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -11871,17 +12611,17 @@ void update()  {
   m->update();
   m->add(256);
   Bypass=false;
-  int ismatch=matchModel->p(*m);  // Length of longest matching context
-  if (x.Match.length>(x.finfo) || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
+  int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+  if (x.Match.length>(x.finfo) || x.Match.bypass) {
+        x.Match.bypass =  Bypass =   true;
         m->reset();
-        pr= matchModel->BypassPrediction;
-        im8bitModel->p(*m,x.finfo,1);
+        pr= x.Match.bypassprediction;
+        models[M_IM8]->p(*m,x.finfo,1);
         return;
     }
   m->set(ismatch, 256);
-  normalModel->p(*m);
-  im8bitModel->p(*m,x.finfo);
+  models[M_NORMAL]->p(*m);
+  models[M_IM8]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
   int pr0=m->p();
@@ -11920,15 +12660,51 @@ class PredictorIMG24: public Predictors {
   } Image;
   StateMap StateMaps[2];
    bool Bypass; 
+    int mixerInputs,mixerNets,mixerNetsCount;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG24(){ }
 
-PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}} },StateMaps{ 256, 256*256},Bypass(false){
-  matchModel=new matchModel1(x); 
-  im24bitModel=new im24bitModel1(x);
-  const int tinput=1+matchModel->inputs() + im24bitModel->inputs()+2 ;
-  m=new Mixer(tinput, 5254+4*8192+256,x,9+4+1);
+PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}} },
+                  StateMaps{ 256, 256*256},Bypass(false), mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+   
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new im24bitModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC] = new blankModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_WORD2] =       new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1+2;
+   mixerNets+=  256;
+   mixerNetsCount+=1;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -11944,16 +12720,16 @@ void update()  {
   m->update();
   m->add(256);
   Bypass=false;
-  int ismatch=matchModel->p(*m);  // Length of longest matching context
-  if (x.Match.length>(x.finfo) || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
+  int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+  if (x.Match.length>(x.finfo) || x.Match.bypass) {
+        x.Match.bypass =  Bypass =   true;
         m->reset();
-        pr= matchModel->BypassPrediction;
-         im24bitModel->p(*m,x.finfo,1);
+        pr= x.Match.bypassprediction;
+         models[M_IM24]->p(*m,x.finfo,1);
         return;
     }
   m->set(ismatch,256);
-  im24bitModel->p(*m,x.finfo);
+  models[M_IM24]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
   int pr1, pr2, pr3;
@@ -11984,37 +12760,60 @@ class PredictorTXTWRT: public Predictors {
     APM APMs[4];
     APM1 APM1s[3];
   } Text;
-  SparseMatchModel sparseMatch;
   U32 count;
   U32 blenght;
+   int mixerInputs,mixerNets,mixerNetsCount;
 public:
   PredictorTXTWRT();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
   void update() ;
    ~PredictorTXTWRT(){
-       //printf("\n TXTWRT Count of skipped bytes %d\n",count/8);
+     //  printf("\n TXTWRT Count of skipped bytes %d\n",count/8);
   }
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),Bypass(false),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },sparseMatch(x),count(0),blenght(1024){
-  if (level>=4){
-    recordModel=new recordModel1(x);
-    sparseModel1=new sparseModelx(x);
-    wordModel=new wordModel1(x);
-    indirectModel=new indirectModel1(x);
-    dmcModel=new dmcModel1(x);
-    nestModel=new nestModel1(x);
-    XMLModel=new XMLModel1(x);
-    textModel =new TextModel(x,16) ;
-  }
-  matchModel=new matchModel1(x);
-  normalModel=new normalModel1(x);
-  const int tinput=1+(level>=4?(recordModel->inputs() + sparseModel1->inputs() +
-  wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
-   XMLModel->inputs()+ textModel->inputs()+1 ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() +2;
-  m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024+256+512+4096+4096+4096+11*32+4096+1024+3*256+1024+8192,x, 18+1+1+3+1+1);
-  m->setText(true);
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024), mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_SPARSE] = new sparseModelx(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new dmcModel1(x);
+  models[M_NEST] = new nestModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_XML] = new XMLModel1(x);
+  models[M_TEXT] = new TextModel(x,16);
+  models[M_WORD] = new  wordModel1(x);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  //blanks
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_WORD2] =       new blankModel1(x);
+  
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+= 4096+ 256+ 256+ 256*8+ 256*8+ 256*8+ 1536+ 2048;
+   mixerNetsCount+=8;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   m->setText(true);
 }
 
 void PredictorTXTWRT::update()  {
@@ -12042,39 +12841,39 @@ void PredictorTXTWRT::update()  {
     m->update();
     m->add(256);
     Bypass=false;
-    ismatch=matchModel->p(*m);  // Length of longest matching context
-    if ((x.Match.length>blenght ) || matchModel->Bypass) {//0xFFF
-    //count++;
-        matchModel->Bypass = Bypass = true;
+    ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if ((x.Match.length>blenght ) || x.Match.bypass) {//0xFFF
+        count++;
+        x.Match.bypass = Bypass = true;
         
-        sparseMatch.p(*m);
-        normalModel->p(*m,0,-1); 
-        int state=XMLModel->p(*m,0,-1);
-        wordModel->p(*m,state&7,-1);
-        nestModel->p(*m,0,-1);
-        indirectModel->p(*m,0,-1);
-        dmcModel->p(*m);
-        recordModel->p(*m,0,-1);
-        textModel->p(*m,state&7,-1);
+        models[M_SPARSEMATCH]->p(*m);
+        models[M_NORMAL]->p(*m,0,-1); 
+        int state=models[M_XML]->p(*m,0,-1);
+        models[M_WORD]->p(*m,state&7,-1);
+        models[M_NEST]->p(*m,0,-1);
+        models[M_INDIRECT]->p(*m,0,-1);
+        models[M_DMC]->p(*m);
+        models[M_RECORD]->p(*m,0,-1);
+        models[M_TEXT]->p(*m,state&7,-1);
         m->reset();
-        pr= matchModel->BypassPrediction;
+        pr= x.Match.bypassprediction;
         return;
     }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m); //ord ma
+  
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m); //ord ma
     order=order-3; 
     if(order<0) order=0;
     if(order>7) order=7;
-    if (level>=4){   
-        int state=XMLModel->p(*m);
-        m->set(wordModel->p(*m,state&7)&0xfff, 4096);    
-        sparseModel1->p(*m,ismatch,order);
-        nestModel->p(*m);
-        indirectModel->p(*m);
-        dmcModel->p(*m);
-        rlen=recordModel->p(*m);
-        textModel->p(*m,(state&7));
-    }    
+        int state=models[M_XML]->p(*m);
+        m->set(models[M_WORD]->p(*m,state&7)&0xfff, 4096);    
+        models[M_SPARSE]->p(*m,ismatch,order);
+        models[M_NEST]->p(*m);
+        models[M_INDIRECT]->p(*m);
+        models[M_DMC]->p(*m);
+        rlen=models[M_RECORD]->p(*m);
+        models[M_TEXT]->p(*m,(state&7));
+
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
         m->set(x.c0, 256);
@@ -12112,15 +12911,50 @@ class PredictorIMG1: public Predictors {
   int pr;  // next prediction
    bool Bypass; 
   Mixer *m;
+   int mixerInputs,mixerNets,mixerNetsCount;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG1(){ }
 
-PredictorIMG1(): pr(2048),Bypass(false)  {
-  matchModel=new matchModel1(x); 
-  im1bitModel=new im1bitModel1(x); 
-  const int tinput=1+ matchModel->inputs() + im1bitModel->inputs() ;
-  m=new Mixer(tinput,  12801+256+1,x, 7 );
+PredictorIMG1(): pr(2048),Bypass(false) , mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_MATCH] = new matchModel1(x);
+  models[M_IM1]   = new im1bitModel1(x);
+  
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC] = new blankModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_WORD2] =  new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=  256;
+   mixerNetsCount+=1;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -12128,15 +12962,15 @@ void update()  {
   m->update();
   m->add(256); 
   Bypass=false;
-  int ismatch=matchModel->p(*m);
-  if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
+  int ismatch=models[M_MATCH]->p(*m);
+  if (x.Match.length>0xFFF || x.Match.bypass) {
+        x.Match.bypass =  Bypass =   true;
         m->reset();
-        pr= matchModel->BypassPrediction;
+        pr= x.Match.bypassprediction;
         return;
     }
   m->set(ismatch,256);
-  im1bitModel->p(*m, x.finfo);
+  models[M_IM1]->p(*m, x.finfo);
   pr=m->p(); 
 }
 };
@@ -12146,16 +12980,50 @@ class PredictorAUDIO2: public Predictors {
   Mixer *m;
   EAPM a;
    bool Bypass; 
+    int mixerInputs,mixerNets,mixerNetsCount;
   void setmixer();
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorAUDIO2(){  }
 
-PredictorAUDIO2(): pr(2048),a(x),Bypass(false) {
-  wavModel=new wavModel1(x); 
-  matchModel=new matchModel1(x);
-  const int tinput=1+wavModel->inputs()+ matchModel->inputs() ;
-  m=new Mixer(tinput,  3095+256*7+256*8+256*7+2048+256*3-264-8+4*8+512,x, 5+1);
+PredictorAUDIO2(): pr(2048),a(x),Bypass(false), mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8]    = new blankModel1(x);
+  models[M_IM24]   = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG]   = new blankModel1(x);
+  models[M_WAV]    = new wavModel1(x);
+  models[M_MATCH]  = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE]    = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC]    = new blankModel1(x);
+  models[M_NEST]   = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_IM1]    = new blankModel1(x);
+  models[M_XML]    = new blankModel1(x);
+  models[M_IM4]    = new blankModel1(x);
+  models[M_TEXT]   = new blankModel1(x);
+  models[M_WORD]   = new blankModel1(x);
+  models[M_DEC]    = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_WORD2]  = new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=0;
+   mixerNetsCount+=0;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -12163,14 +13031,14 @@ void update()  {
   m->update();
   m->add(256);
   Bypass=false;
-  matchModel->p(*m);  
-  if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass = Bypass =    true;
+  models[M_MATCH]->p(*m);  
+  if (x.Match.length>0xFFF || x.Match.bypass) {
+        x.Match.bypass = Bypass =    true;
         m->reset();
-        pr= matchModel->BypassPrediction;
+        pr= x.Match.bypassprediction;
         return;
     }
-  wavModel->p(*m,x.finfo);
+  models[M_WAV]->p(*m,x.finfo);
   pr=a.p1(m->p(0,1),pr,7);
 }
 };
@@ -12999,7 +13867,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 pdfi1=0,pdfiw=0,pdfih=0,pdfic=0;
   char pdfi_buf[32];
   int pdfi_ptr=0,pdfin=0;
-  
+  U64 pLzwp=0;
+  int pLzw=0;
    // For image detection
   static Array<U32> tfidf(0);
   static int tiffImages=-1;
@@ -13751,6 +14620,20 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       if (pdfiw && pdfih && pdfic==1 && pdfin==5) IMG_DETP(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
       if (pdfiw && pdfih && pdfic==8 && pdfin==5) IMG_DETP(IMAGE8,pdfi1-3,i-pdfi1+4,pdfiw,pdfih);
     }
+    //detect lzw in pdf
+    //headers: /LZWDecode >>stream 0x2F4C5A57 0x4465636F 0x64650D0A 0x3E3E0D0A 0x73747265 0x616D0D0A
+    if (pLzw==0 && buf4==0x2F4C5A57 && buf3==0x4465636F && buf2==0x64650D0A && buf1==0x3E3E0D0A && buf0==0x73747265){
+        pLzw=1,pLzwp=i-(5*4);
+    }
+    else if (pLzw==1 && buf0==0x616D0D0A){
+             pLzw=2;
+         }
+    else if (pLzw==2 &&    buf1==0x0D0A656E &&    buf0==0x64737472){ //endstr
+            pLzw=0;
+            info2=0;
+            B85_DET(CMP,(pLzwp+6*4+1),0,((i-2*4) -(pLzwp+6*4+1)+2));//type startpos 0 len
+    }
+   
     
     // Detect .rgb image
     if ((buf0&0xffff)==0x01da) rgbi=i,rgbx=rgby=0;
@@ -16617,8 +17500,20 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
     typenamess[type][it]+=len,  typenamesc[type][it]++; 
       //s2-=len;
       sprintf(blstr,"%s%d",b2,blnum++);
-      
-      printf(" %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
+      // printf(" %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
+      printf(" %-11s |",blstr);
+#if defined(WINDOWS)      
+      HANDLE  hConsole;
+      hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+      int streamcolor=getstreamid(type)+1+1;
+      if (streamcolor<1) streamcolor=7;
+      SetConsoleTextAttribute(hConsole, streamcolor);
+#endif      
+      printf(" %-9s",typenames[type]);
+#if defined(WINDOWS)      
+      SetConsoleTextAttribute(hConsole, 7);
+#endif      
+      printf("|%10.0I64i [%0lu - %0lu]",len,begin,end-1);
       if (type==AUDIO) printf(" (%s)", audiotypes[(info&31)%4+(info>>7)*2]);
       else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24 || type==MRBR|| type==MRBR4|| type==IMAGE8GRAY || type==IMAGE32 ||type==GIF) printf(" (width: %d)", info&0xFFFFFF);
       else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
@@ -16956,7 +17851,25 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                     
             if (level>0) delete threadpredict;
             delete threadencode;
-           printf("Stream(%d) compressed from %0lu to %0lu bytes\n",i,size, out->curpos());
+            printf("Stream(");
+#if defined(WINDOWS)             
+            HANDLE  hConsole;
+            hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+            SetConsoleTextAttribute(hConsole, i+2);
+#endif
+            printf("%d",i);
+#if defined(WINDOWS)       
+            SetConsoleTextAttribute(hConsole,7);
+#endif    
+            printf(") compressed from %0lu to ",size);
+#if defined(WINDOWS)            
+            SetConsoleTextAttribute(hConsole, 9);
+#endif
+            printf("%0lu",out->curpos());
+#if defined(WINDOWS) 
+            SetConsoleTextAttribute(hConsole, 7);
+#endif
+            printf(" bytes\n");
 }
 
 #ifdef MT
@@ -17033,8 +17946,9 @@ thread(void *arg) {
   Job* job=(Job*)arg;
   const char* result=0;  // error message unless OK
   try {
-    if (job->command==0) 
+    if (job->command==0) {
       compressStream(job->streamid,job->datasegmentsize,job->in,job->out);
+      }
     else if (job->command==1)
       decompress(*job); 
   }
@@ -17179,7 +18093,6 @@ printf("\n");
             DEFAULT_OPTION);
             quit();
         }
-    
         File* archive=0;               // compressed file
         int files=0;                   // number of files to compress/decompress
         Array<const char*> fname(1);   // file names (resized to files)
@@ -17347,6 +18260,7 @@ printf("\n");
             while (*p!='\n') ++p; *(p++)='\0';
             if (mode==COMPRESS) { while (*q!='\n') ++q; *(q++)='\0'; }
         }
+
         // Compress or decompress files
         assert(fname.size()==files);
         assert(fsize.size()==files);
@@ -17388,33 +18302,43 @@ printf("\n");
                  filestreams[i]->setpos( 0);
                 streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
                 if (datasegmentsize>0){                       //if segment contains data
+
+#if defined(WINDOWS) 
+                    HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+                    SetConsoleTextAttribute(hConsole, i+2);
+#endif
                     switch(i) {
                         case 0: {
-                            printf("default   stream(0).  Total %0lu\n",datasegmentsize); break;}
+                            printf("default   "); break;}
                         case 1: {
-                            printf("jpeg      stream(1).  Total %0lu\n",datasegmentsize); break;}        
+                            printf("jpeg      "); break;}        
                         case 2: {
-                            printf("image1    stream(2).  Total %0lu\n",datasegmentsize); break;}
+                            printf("image1    "); break;}
                         case 3: {
-                            printf("image4    stream(3).  Total %0lu\n",datasegmentsize); break;}    
+                            printf("image4    "); break;}    
                         case 4: {
-                            printf("image8    stream(4).  Total %0lu\n",datasegmentsize); break;}
+                            printf("image8    "); break;}
                         case 5: {
-                            printf("image24   stream(5).  Total %0lu\n",datasegmentsize); break;}        
+                            printf("image24   "); break;}        
                         case 6: {
-                            printf("audio     stream(6).  Total %0lu\n",datasegmentsize); break;}
+                            printf("audio     "); break;}
                         case 7: {
-                            printf("exe       stream(7).  Total %0lu\n",datasegmentsize); break;}
+                            printf("exe       "); break;}
                         case 8: {
-                            printf("text0 wrt stream(8).  Total %0lu\n",datasegmentsize); break;}
+                            printf("text0 wrt "); break;}
                         case 9: 
                         case 10: {
-                            printf("%stext wrt stream(%d). Total %0lu\n",i==10?"big":"",i,datasegmentsize); break;}   
+                            printf("%stext wrt ",i==10?"big":"",i); break;}   
                         case 11: {
-                            printf("dec       stream(11). Total %0lu\n",datasegmentsize); break;}
+                            printf("dec       "); break;}
                              case 12: {
-                            printf("compressed stream(12). Total %0lu\n",datasegmentsize); break;}
+                            printf("compressed "); break;}
                     }
+                    
+#if defined(WINDOWS) 
+                    SetConsoleTextAttribute(hConsole, 7);
+#endif                    
+                    printf("stream(%d).  Total %0lu\n",i,datasegmentsize);
 #ifdef MT
                                                               // add streams to job list
                     filesmt[i]=new FileTmp();                 //open tmp file for stream output
@@ -17585,8 +18509,14 @@ printf("\n");
             for (int i=0;i<streamc;i++){
                 if (filestreamsize[i]>0) archive->put64(filestreamsize[i]);
             }
+#if defined(WINDOWS) 
+            HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+            SetConsoleTextAttribute(hConsole, 10);
+#endif
             printf("Total %0lu bytes compressed to %0lu bytes.\n", total_size,  archive->curpos()); 
-            
+#if defined(WINDOWS) 
+            SetConsoleTextAttribute(hConsole, 7);
+#endif
         }
         // Decompress files to dir2: paq8pxd -d dir1/archive.paq8pxd dir2
         // If there is no dir2, then extract to dir1
@@ -17759,6 +18689,7 @@ printf("\n");
     }
     return 0;
 }
+
 
 
 

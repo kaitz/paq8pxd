@@ -61,7 +61,7 @@
 #define HASH_MULT           23
 
 enum EWordType { LOWERWORD, FIRSTUPPER, UPPERWORD, VARWORD, NUMBER,UTF8UPPER};
-enum ELetterType { LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR };
+//enum ELetterType { LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR };
 #define OUT_OF_MEMORY() \
     { \
         printf("Not enough memory!\n");\
