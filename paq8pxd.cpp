@@ -547,10 +547,11 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd69"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd70"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
+#define SM              // For statemap
 
 #ifdef WINDOWS                       
 #ifdef MT
@@ -2136,11 +2137,19 @@ protected:
     assert(cxt>=0 && cxt<N);
     assert(y==0 || y==1);
     U32 *p=&t[cxt], p0=p[0];
+#ifdef SM   
+    int n=p0&1023, pr=p0>>13;  // count, prediction
+    //if (n<limit) ++p0;
+    //else p0=(p0&0xfffffc00)|limit;
+    p0+=(n<limit);
+    p0+=(((y<<19)-pr))*dt[n]&0xfffffc00;
+#else
     int n=p0&1023, pr=p0>>10;  // count, prediction
     //if (n<limit) ++p0;
     //else p0=(p0&0xfffffc00)|limit;
     p0+=(n<limit);
     p0+=(((y<<22)-pr)>>3)*dt[n]&0xfffffc00;
+#endif
     p[0]=p0;
   }
 
@@ -2426,23 +2435,37 @@ public:
     Context = (ctx&Mask)*Stride;
     bCount=B=0;
   }
-  void Reset( int Rate = 0 ){
+    void Reset( int Rate = 0 ){
     for (U32 i=0; i<Data.size(); ++i)
-      Data[i]=(0x7FF<<20)|min(1023,Rate);
+      Data[i]=(1<<31)|min(1023,Rate);
   }
   void mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023) {
     // update
-    U32 Count = min(min(Limit,0x3FF), ((*cp)&0x3FF)+1);
-    int Prediction = (*cp)>>10, Error = (m.x.y<<22)-Prediction;
-    Error = ((Error/8)*dt[Count])/1024;
-    Prediction = min(0x3FFFFF,max(0,Prediction+Error));
-    *cp = (Prediction<<10)|Count;
+    int Prediction,Error ;
+    /*  U32 Count = min(min(Limit,0x3FF), ((*cp)&0x3FF)+1);
+     Prediction =  (*cp)>>10, Error = (m.x.y<<22)-Prediction;
+    Error = ((Error )*dt[Count]);
+     Prediction = min(0x3FFFFF,max(0,Prediction+Error));
+    (*cp) = (Prediction<<10)|Count; //*/
+    U32 p0=cp[0];
+#ifdef SM     
+  int n=p0&1023, pr=p0>>13;  // count, prediction
+     p0+=(n<Limit);     
+     p0+=(((m.x.y<<19)-pr))*dt[n]&0xfffffc00;
+#else
+ int n=p0&1023, pr=p0>>10;  // count, prediction
+     p0+=(n<Limit);     
+     p0+=(((m.x.y<<22)-pr)>>3)*dt[n]&0xfffffc00;
+#endif    
+     cp[0]=p0;
+
     // predict
     B+=(m.x.y && B>0);
     cp=&Data[Context+B];
-    Prediction = (*cp)>>20;
-    m.add((stretch(Prediction)*Multiplier)/Divisor);
-    m.add(((Prediction-2048)*Multiplier)/(Divisor*2));
+    pr = (*cp)>>20;
+    m.add((stretch(pr)*Multiplier)/Divisor);
+    pr=((pr-2048)*Multiplier)/(Divisor*2);
+    m.add(pr);
     bCount++; B+=B+1;
     if (bCount==bTotal)
       bCount=B=0;
@@ -7491,7 +7514,7 @@ public:
     }
    
   int inputs() {return inpts*cm.inputs()+nSCMaps*2+100*2+1;}
-  int nets() {return 6+   256+   512+   2048+   8*32+   6*64+   256*2+   1024+   8192+   8192+   8192+   8192+  256;}
+  int nets() {return 256+   256+   512+   2048+   8*32+   6*64+   256*2+   1024+   8192+   8192+   8192+   8192+  256;}
   int netcount() {return 13;}
    
   int p(Mixer& m,int info,int val2=0){
@@ -7891,13 +7914,13 @@ public:
       if (val2==1) return 1; 
     cm.mix(m);
     for (int i=0;i<n2Maps;i++)
-      Map[i].mix(m,1,3);
+      Map[i].mix(m);
     for (int i=0;i<nSCMaps;i++)
       SCMap[i].mix(m,9,1,3);
 
     m.add(0);
     
-    m.set(5, 6);
+    m.set(col+((line&7)<<5), 256);
     m.set(min(63,column[0])+((ctx[0]>>3)&0xC0), 256);
     m.set(min(127,column[1])+((ctx[0]>>2)&0x180), 512);
     m.set((ctx[0]&0x7FC)|(bpos>>1), 2048);
@@ -12655,7 +12678,7 @@ class PredictorIMG24: public Predictors {
   int pr;  // next prediction
   Mixer *m;
   struct {
-    APM APMs[4];
+    APM APMs[1];
     APM1 APM1s[2];
   } Image;
   StateMap StateMaps[2];
@@ -12665,7 +12688,7 @@ public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG24(){ }
 
-PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}} },
+PredictorIMG24(): pr(2048),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
                   StateMaps{ 256, 256*256},Bypass(false), mixerInputs(0),mixerNets(0),mixerNetsCount(0){
    
   // create array of models
@@ -12704,7 +12727,7 @@ PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000
    mixerNets+=  256;
    mixerNetsCount+=1;
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   m=new Mixer(mixerInputs,  mixerNets+8192,x, mixerNetsCount+1);
 }
 
 void update()  {
@@ -12732,15 +12755,17 @@ void update()  {
   models[M_IM24]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
+  m->set(x.Image.ctx&0x1FFF,8192);
   int pr1, pr2, pr3;
   int pr0=x.filetype==IMAGE24? m->p(1,1): m->p();
   int limit=0x3FF>>((x.blpos<0xFFF)*4);
+ // pr=pr0;
   pr  = Image.APMs[0].p(pr0, (x.c0<<4)|(x.Misses&0xF), x.y,limit);
-  pr1 = Image.APMs[1].p(pr0, hash(x.c0, x.Image.pixels.W, x.Image.pixels.WW)&0xFFFF,  x.y,limit);
+ /* pr1 = Image.APMs[1].p(pr0, hash(x.c0, x.Image.pixels.W, x.Image.pixels.WW)&0xFFFF,  x.y,limit);
   pr2 = Image.APMs[2].p(pr0, hash(x.c0, x.Image.pixels.N, x.Image.pixels.NN)&0xFFFF, x.y, limit);
   pr3 = Image.APMs[3].p(pr0, (x.c0<<8)|x.Image.ctx, x.y, limit);
   pr0 = (pr0+pr1+pr2+pr3+2)>>2;
-
+*/
   pr1 = Image.APM1s[0].p(pr, hash(x.c0, x.Image.pixels.W, x.buf(1)-x.Image.pixels.Wp1, x.Image.plane)&0xFFFF);
   pr2 = Image.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.N, x.buf(1)-x.Image.pixels.Np1, x.Image.plane)&0xFFFF);
   pr=(pr*2+pr1*3+pr2*3+4)>>3;
@@ -13155,7 +13180,10 @@ Encoder::Encoder(Mode m, File* f,Predictors& predict):
   }
   for (int i=0; i<1024; ++i)
     dt[i]=16384/(i+i+3);
-
+#ifdef SM    
+    dt[1023]=1;
+    dt[0]=4095;
+#endif
 }
 
 void Encoder::flush() {
@@ -13813,7 +13841,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   int aiffm=0,aiffs=0;  // For AIFF detection
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
-  bmpInfo bmp = {0};    // For BMP detection
+  bmpInfo bmp = {};    // For BMP detection
   U64 rgbi=0;
   int rgbx=0,rgby=0;  // For RGB detection
   U64 tga=0;
@@ -13826,7 +13854,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 mdfa=0;
   int cda=0,cdm=0;   // For CD sectors detection
   U32 cdf=0;
-  TextInfo text = {0}; // For TEXT
+  TextInfo text = {}; // For TEXT
  ///
    U64 uuds=0,uuds1=0,uudp=0,uudslen=0,uudh=0;//,b64i=0;
   U64 uudstart=0,uudend=0,uudline=0,uudnl=0,uudlcount=0,uuc=0;
@@ -13837,7 +13865,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 b85s=0,b85s1=0,b85p=0,b85slen=0,b85h=0;
   U64 base85start=0,base85end=0,b85line=0;
   //U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
-  gifInfo gif = {0};
+  gifInfo gif = {};
   U64 png=0, lastchunk=0, nextchunk=0;               // For PNG detection
   int pngw=0, pngh=0, pngbps=0, pngtype=0,pnggray=0; 
   //MSZip
@@ -13847,7 +13875,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 fSZDD=0; //
   LZSS* lz77;
   U8 zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
-  int zbufpos=0, histogram[256]={0};;
+  int zbufpos=0, histogram[256]={};
   U64 zzippos=-1;
   bool brute = true;
   int pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
@@ -14488,15 +14516,15 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     }
     // Detect .bmp image
     if ( !(bmp.bmp || bmp.hdrless) && (((buf0&0xffff)==16973) || (!(buf0&0xFFFFFF) && ((buf0>>24)==0x28))) ) //possible 'BM' or headerless DIB
-      bmp = {0},bmp.hdrless=!(U8)buf0,bmp.of=bmp.hdrless*54,bmp.bmp=i-bmp.hdrless*16;
+      bmp = {},bmp.hdrless=!(U8)buf0,bmp.of=bmp.hdrless*54,bmp.bmp=i-bmp.hdrless*16;
     if (bmp.bmp || bmp.hdrless) {
       const int p=i-bmp.bmp;
       if (p==12) bmp.of=bswap(buf0);
-      else if (p==16 && buf0!=0x28000000) bmp = {0}; //BITMAPINFOHEADER (0x28)
+      else if (p==16 && buf0!=0x28000000) bmp = {}; //BITMAPINFOHEADER (0x28)
       else if (p==20) bmp.x=bswap(buf0),bmp.bmp=((bmp.x==0||bmp.x>0x30000)?(bmp.hdrless=0):bmp.bmp); //width
       else if (p==24) bmp.y=abs((int)bswap(buf0)),bmp.bmp=((bmp.y==0||bmp.y>0x10000)?(bmp.hdrless=0):bmp.bmp); //height
       else if (p==27) bmp.bpp=c,bmp.bmp=((bmp.bpp!=1 && bmp.bpp!=4 && bmp.bpp!=8 && bmp.bpp!=24 && bmp.bpp!=32)?(bmp.hdrless=0):bmp.bmp);
-      else if ((p==31) && buf0) bmp = {0};
+      else if ((p==31) && buf0) bmp = {};
       else if (p==36) bmp.size=bswap(buf0);
       // check number of colors in palette (4 bytes), must be 0 (default) or <= 1<<bpp.
       // also check if image is too small, since it might not be worth it to use the image models
@@ -14531,7 +14559,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
           else if (bmp.bpp==24) IMG_DET(IMAGE24,max(0,bmp.bmp-1),bmp.of,((bmp.x*3)+3)&-4,bmp.y);
           else if (bmp.bpp==32) IMG_DET(IMAGE32,max(0,bmp.bmp-1),bmp.of,bmp.x*4,bmp.y);
         }
-        bmp = {0};
+        bmp = {};
       }
     }
     // Detect .pbm .pgm .ppm .pam image
@@ -14675,7 +14703,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
           int tagval=tiffMM==false?b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24):(int)bswap(b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24));;
           //printf("Tag %d  val %d\n",tag, tagval);
           if (tagfmt==3||tagfmt==4) {
-              
+              tagval= (taglen==1 && tiffMM==true)?tagval>>16:tagval;
             if (tag==256) tifx=tagval,tiffFiles[tiffImages].width=tifx;
             else if (tag==257) tify=tagval,tiffFiles[tiffImages].height=tify;
             else if (tag==258) tifzb=(tagval==12||tagval==14||tagval==16)?14:taglen==1?tagval:8,tiffFiles[tiffImages].bits1=tifzb; // bits per component
@@ -14738,6 +14766,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
           int tagval=tiffMM==false?b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24):(int)bswap(b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24));;
           // printf("Tag %d  val %d\n",tag, tagval);
           if (tagfmt==3||tagfmt==4) {
+              tagval= (taglen==1 && tiffMM==true)?tagval>>16:tagval;
             if (tag==256) tifx=tagval,tiffFiles[tiffImages].width=tifx;
             else if (tag==257) tify=tagval,tiffFiles[tiffImages].height=tify;
             else if (tag==258) tifzb=(tagval==12||tagval==14||tagval==16)?14:taglen==1?tagval:8,tiffFiles[tiffImages].bits1=tifzb; // bits per component
@@ -14768,6 +14797,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
            in->setpos( start+i+tifofs-7);
           for (int j=0; j<4; j++) b[j]=in->getc();
           tifofs=b[0]+(b[1]<<8)+(b[2]<<16)+(b[3]<<24);
+          tifofs=tiffMM==false?(int)tifofs:(int)bswap(tifofs);          
         }
         if (tifofs && tifofs<(1<<18) && tifofs+i<n && tifx>1) {
             if (tifc==1) {
@@ -15138,7 +15168,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         int length = i-text.start-1; 
         bool dtype=(png || pdfimw || cdi || soi || pgm || rgbi || tga || gif.gif || b64s||tar || bmp.bmp ||wavi ||b64s1 ||b85s1||b85s||DECcount||mrb||uuds );
         if (((length<MIN_TEXT_SIZE && text.missCount>MAX_TEXT_MISSES) || dtype)){
-          text = {0};
+          text = {};
           text.start = i+1;
         }
         else if (text.missCount>MAX_TEXT_MISSES ) {
@@ -15231,12 +15261,23 @@ int decode_cd(File*in, int size, File*out, FMode mode, U64 &diffFound) {
 
 // 24-bit image data transform:
 // simple color transform (b, g, r) -> (g, g-r, g-b)
-
+#define RGB565_MIN_RUN 63
 void encode_bmp(File* in, File* out, int len, int width) {
-  int r,g,b;
+  int r,g,b, total=0;
+  bool isPossibleRGB565 = true;
   for (int i=0; i<len/width; i++) {
     for (int j=0; j<width/3; j++) {
       b=in->getc(), g=in->getc(), r=in->getc();
+      if (isPossibleRGB565) {
+        int pTotal=total;
+        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
+        if (total>RGB565_MIN_RUN || pTotal>=RGB565_MIN_RUN) {
+          b^=(b&8)-((b>>3)&1);
+          g^=(g&4)-((g>>2)&1);
+          r^=(r&8)-((r>>3)&1);
+        }
+        isPossibleRGB565=total>0;
+      }
       out->putc(g);
       out->putc(g-r);
       out->putc(g-b);
@@ -15246,20 +15287,31 @@ void encode_bmp(File* in, File* out, int len, int width) {
 }
 
 int decode_bmp(Encoder& en, int size, int width, File*out, FMode mode, U64 &diffFound) {
-  int r,g,b,p;
+  int r,g,b,p, total=0;
+  bool isPossibleRGB565 = true;
   for (int i=0; i<size/width; i++) {
     p=i*width;
     for (int j=0; j<width/3; j++) {
-      b=en.decompress(), g=en.decompress(), r=en.decompress();
+      g=en.decompress(), r=en.decompress(), b=en.decompress();
+      r=g-r, b=g-b;
+      if (isPossibleRGB565){
+        if (total>=RGB565_MIN_RUN) {
+          b^=(b&8)-((b>>3)&1);
+          g^=(g&4)-((g>>2)&1);
+          r^=(r&8)-((r>>3)&1);
+        }
+        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
+        isPossibleRGB565=total>0;
+      }
       if (mode==FDECOMPRESS) {
-        out->putc(b-r);
         out->putc(b);
-        out->putc(b-g);
+        out->putc(g);
+        out->putc(r);
       }
       else if (mode==FCOMPARE) {
-        if (((b-r)&255)!=out->getc() && !diffFound) diffFound=p+1;
-        if (b!=out->getc() && !diffFound) diffFound=p+2;
-        if (((b-g)&255)!=out->getc() && !diffFound) diffFound=p+3;
+        if (((b)&255)!=out->getc() && !diffFound) diffFound=p+1;
+        if (g!=out->getc() && !diffFound) diffFound=p+2;
+        if (((r)&255)!=out->getc() && !diffFound) diffFound=p+3;
         p+=3;
       }
     }

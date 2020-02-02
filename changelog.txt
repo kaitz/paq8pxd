@@ -1,3 +1,7 @@
+v70
+    - Change StationaryMap
+    - Change im24 model, compresses faster.
+    - detect tiff change
 v69
     -Online wrt is present and fixed, now actually decodes word if code
       is larger then 1 byte.
