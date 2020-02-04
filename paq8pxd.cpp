@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd70"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd71"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -3215,7 +3215,7 @@ public:
       
       int st=(stretch(p1)*Multiplier)/Divisor;
       m.add(st);
-      m.add(((p1-2047)*Multiplier)/(2*Divisor));
+      m.add(((p1-2048)*Multiplier)/(2*Divisor));
       if (state == 0) {
         m.add(0);
         m.add(0);
@@ -6002,7 +6002,7 @@ public:
       SCM[0].mix(m);
       SCM[1].mix(m, 6);
       SCM[2].mix(m, 5);
-      Maps[0].mix(m, 1, 4, 255);
+      Maps[0].mix(m);
       Maps[1].mix(m);
       Maps[2].mix(m);
     }
@@ -6144,7 +6144,7 @@ public:
       }
 
       for (int i=0;i<4;i++)
-        Maps[i].mix(m, 1, 2);
+        Maps[i].mix(m);
 
     }
     else
@@ -7979,7 +7979,6 @@ class im8bitModel1: public Model {
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1} };
-                                     
  SmallStationaryContextMap pltMap[nPltMaps] = { {11,1},{11,1},{11,1},{11,1} };
  IndirectMap sceneMap[5]{ {8}, {8}, {22,1}, {11,1}, {11,1} };
  IndirectContext<U8> iCtx[nPltMaps] = { 16, 16, 16, 16 };
@@ -8034,7 +8033,7 @@ int p(Mixer& m,int w,int val2=0){
     if (xx.blpos==1){
       isPNG=  (xx.filetype==PNG8?1:xx.filetype==PNG8GRAY?1:0);
       gray=xx.filetype==PNG8GRAY?1:xx.filetype==IMAGE8GRAY?1:0;
-      x =1; line = jump =  px= 0;
+      x =0; line = jump =  px= 0;
       filterOn = false;
       columns[0] = max(1,w/max(1,ilog2(w)*2));
       columns[1] = max(1,columns[0]/max(1,ilog2(columns[0])));
@@ -8217,10 +8216,10 @@ int p(Mixer& m,int w,int val2=0){
         cm.set(hash(++i, W, N,NW, px));
         cm.set(hash(++i, N, NN,NNN, px));
         cm.set(hash(++i, W, NE,NEE, px));
-        cm.set(hash(++i, hash( W,NW,N,NE), px));
-        cm.set(hash(++i,  hash(N,NE,NN,NNE), px));
-        cm.set(hash(++i,  hash(N,NW,NNW,NN), px));
-        cm.set(hash(++i,  hash(W,WW,NWW,NW), px));
+        cm.set(hash(hash( W,NW,N,NE), px));
+        cm.set(hash( hash(N,NE,NN,NNE), px));
+        cm.set(hash( hash(N,NW,NNW,NN), px));
+        cm.set(hash( hash(W,WW,NWW,NW), px));
         cm.set(hash(++i, W, NW<<8 | N, WW<<8 | NWW, px));
         cm.set(hash(++i, px, column[0]));
         cm.set(hash(++i, px));
@@ -8336,7 +8335,8 @@ int p(Mixer& m,int w,int val2=0){
     }
   }
   U8 B=(c0<<(8-bpos));
-  if (gray && (x || !isPNG)){
+  if (x || !isPNG){
+      if (gray) {
     int i=1;
     Map[i++].set((((U8)(Clip(W+N-NW)-px-B))*8+bpos)|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<11));
     
@@ -8349,6 +8349,7 @@ int p(Mixer& m,int w,int val2=0){
     sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
     sceneMap[3].set_direct((prvFrmPx-B)*8+bpos);
     sceneMap[4].set_direct((prvFrmPred-B)*8+bpos);
+}
   // Predict next bit
   if (x || !isPNG){
   col=(col+1)&7;
@@ -8471,10 +8472,10 @@ int p(Mixer& m,int w=0,int val2=0)  {
     const int p1 = sm[i].p(s,x.y);
     const int st = stretch(p1)>>1;
     m.add(st);
-    m.add((p1-2047)>>2);
+    m.add((p1-2048)>>3);
     m.add(st*abs(n1-n0));
   }
-  m.add(stretch(map.p(px,x.y))>>1);
+  m.add(stretch(map.p(px,x.y)));
  
   m.set(W*16+px, 256);
   m.set(min(31,col/max(1,w/16))+N*32, 512);
@@ -12635,19 +12636,12 @@ void update()  {
   m->add(256);
   Bypass=false;
   int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
-  if (x.Match.length>(x.finfo) || x.Match.bypass) {
-        x.Match.bypass =  Bypass =   true;
-        m->reset();
-        pr= x.Match.bypassprediction;
-        models[M_IM8]->p(*m,x.finfo,1);
-        return;
-    }
   m->set(ismatch, 256);
   models[M_NORMAL]->p(*m);
   models[M_IM8]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
-  int pr0=m->p();
+  int pr0=m->p(0,1);
    if(x.filetype== IMAGE8GRAY)  {
       int pr1, pr2, pr3;
       int limit=0x3FF>>((x.blpos<0xFFF)*4);
@@ -12744,13 +12738,6 @@ void update()  {
   m->add(256);
   Bypass=false;
   int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
-  if (x.Match.length>(x.finfo) || x.Match.bypass) {
-        x.Match.bypass =  Bypass =   true;
-        m->reset();
-        pr= x.Match.bypassprediction;
-         models[M_IM24]->p(*m,x.finfo,1);
-        return;
-    }
   m->set(ismatch,256);
   models[M_IM24]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);

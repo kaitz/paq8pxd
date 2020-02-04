@@ -1,3 +1,6 @@
+v71
+    - small change in im8 compression
+    - reduce compression loss in v70
 v70
     - Change StationaryMap
     - Change im24 model, compresses faster.
