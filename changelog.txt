@@ -1,3 +1,10 @@
+v72
+    - Change StationaryMap, StateMap
+    - Change jpegModel
+    - Change wordModel1
+    - remove wavModel
+    - added audio8, audio16
+
 v71
     - small change in im8 compression
     - reduce compression loss in v70
