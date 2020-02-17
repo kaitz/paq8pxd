@@ -1,3 +1,8 @@
+v73
+    - Change text detection
+    - Change wordModel1
+    - Add mod_ppmd/chart model back (-x option)
+
 v72
     - Change StationaryMap, StateMap
     - Change jpegModel
