@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd73"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd74"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -19050,9 +19050,9 @@ int main(int argc, char** argv) {
                 slow=aopt[1]=='x'?true:false;
             }
             else if (aopt[2]=='1' && aopt[3]>='0' && aopt[3]<='5' && strlen(aopt)==4 && (aopt[1]=='s' || aopt[1]=='x')){
-                aopt[1]='-', aopt[0]=' ';
-                level=((~atol(aopt))+1); 
                 slow=aopt[1]=='x'?true:false;
+                aopt[1]='-', aopt[0]=' ';
+                level=((~atol(aopt))+1);
             }
 #ifdef MT 
             else if (aopt[2]>='0' && aopt[2]<='9'&& (aopt[4]<='9' && aopt[4]>'0') && strlen(aopt)==5 && 
@@ -19062,10 +19062,11 @@ int main(int argc, char** argv) {
             else if (aopt[2]=='1' && aopt[3]>='0' && aopt[3]<='5' && 
             (aopt[5]<='9' && aopt[5]>'0')&& strlen(aopt)==6 && (aopt[1]=='s' || aopt[1]=='x')){
                 topt=aopt[5]-'0';
+                slow=aopt[1]=='x'?true:false;
                 aopt[4]=0;
                 aopt[1]='-';
                 aopt[0]=' ';
-                level=((~atol(aopt))+1); slow=aopt[1]=='x'?true:false;
+                level=((~atol(aopt))+1);
             }
 #endif
             else
@@ -19074,7 +19075,7 @@ int main(int argc, char** argv) {
             ++argv;
             pause=false;
         }
-
+if (slow==true) printf("Slow mode\n");
         // Print help message quick 
         if (argc<2) {
             printf(PROGNAME " archiver (C) 2018, Matt Mahoney et al.\n"

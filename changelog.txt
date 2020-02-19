@@ -1,3 +1,5 @@
+v74
+    - fix -x option on level 10-15
 v73
     - Change text detection
     - Change wordModel1
