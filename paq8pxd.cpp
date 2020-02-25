@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd74"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd75"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -2652,7 +2652,7 @@ class ContextMap {
     // mix() with global context passed as arguments to improve speed.
   int model;  
 public:
-  ContextMap(U64 m, int c=1);  // m = memory in bytes, a power of 2, C = c
+  ContextMap(U64 m, int c=1,int mod=-1);  // m = memory in bytes, a power of 2, C = c
   ~ContextMap();
   void set();   // set next whole byte context to cx
   void set(U32 cx, int next=-1);   // set next whole byte context to cx
@@ -2778,8 +2778,8 @@ for (int i=pcount; i<7; ++i) {
 }
 
 // Construct using m bytes of memory for c contexts(c+7)&-8
-ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
-    cxt(C), runp(C), r0(C),r1(C),r0i(C),rmask(C),cn(0) {
+ContextMap::ContextMap(U64 m, int c,int mod): C(c),  t(m>>6), cp(C), cp0(C),
+    cxt(C), runp(C), r0(C),r1(C),r0i(C),rmask(C),cn(0),model(mod) {
   assert(m>=64 && (m&m-1)==0);  // power of 2?
   assert(sizeof(E)==64);
   sm=new StateMap[C];
@@ -2791,7 +2791,7 @@ ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
  // printf("ContextMap t %0.2f mbytes\n",(((t.size()*sizeof(E)) +0.0)/1024)/1024);
  // #endif
 }
-
+#define CMBADLIMIT 8*32767
 ContextMap::~ContextMap() {
   delete[] sm;
 }
@@ -2912,33 +2912,34 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
     }
    }
    }
-   // predict from bit context
-    if(m.x.count>0x5FFFF){
-        // for faster statemap
-        for (int i=0; i<cn; ++i) {
-            if(cxt[i]){
-                int s = 0;
-                if (cp[i]) s = *cp[i];
-                if (s>0) result++; 
-                mix3(m, s, sm[i]);
-            }else{
-                for (int i=0; i<(inputs()-1); i++)
+   if(m.x.count>0x5FFFF){
+   // for faster statemap
+   for (int i=0; i<cn; ++i) {
+       if(cxt[i]){
+            // predict from bit context
+            int s = 0;
+            if (cp[i]) s = *cp[i];
+            if (s>0) result++;
+            mix3(m, s, sm[i]);
+       }else{
+            for (int i=0; i<(inputs()-1); i++)
                 m.add(0);     
-            }
-        }
+       }
+   }
     }else{
-        for (int i=0; i<cn; ++i) {
-            if(cxt[i]){
-                int s = 0;
-                if (cp[i]) s = *cp[i];
-                if (s>0) result++;
-                mix2(m, s, sm[i]);
-            }else{
-                for (int i=0; i<(inputs()-1); i++)
+       for (int i=0; i<cn; ++i) {
+       if(cxt[i]){
+            // predict from bit context
+            int s = 0;
+            if (cp[i]) s = *cp[i];
+            if (s>0) result++;
+              mix2(m, s, sm[i]);
+       }else{
+            for (int i=0; i<(inputs()-1); i++)
                 m.add(0);     
-            }
-        }
-    }
+       }
+   }
+   }
     // predict from last byte in context
      
      for (int i=0; i<cn; ++i) {
@@ -2948,7 +2949,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
          r1[i]=b;
          r0i[i]=ilog(a+1);
      }
- 
+
 #if defined(SIMD_CM_R ) && defined(__AVX2__)
     const int bsh=(8-bp);
     const int bsh1=(7-bp);
@@ -3190,6 +3191,8 @@ for (int i=pcount; i<7; ++i) {
   U32 index; // Next context to set by set()
   U32 bits;
   U8 lastByte, lastBit, bitPos;
+   Array<int> badcxt;
+   int model;  
   inline void Update() {
     U64 mask = Table.size()-1;
     for (U32 i=0; i<index; i++) {
@@ -3244,7 +3247,7 @@ for (int i=pcount; i<7; ++i) {
   }
 public:
   // Construct using Size bytes of memory for Count contexts
-  ContextMap2(const U64 Size, const U32 Count) : C(Count), Table(Size>>6), BitState(Count), BitState0(Count), ByteHistory(Count), Contexts(Count), HasHistory(Count){
+  ContextMap2(const U64 Size, const U32 Count,int mod) : C(Count), Table(Size>>6), BitState(Count), BitState0(Count), ByteHistory(Count), Contexts(Count), HasHistory(Count),badcxt(Count),model(mod) {
    // assert(Size>=64 && ispowerof2(Size));
     assert(sizeof(Bucket)==64);
     Maps6b = new StateMap*[C];
@@ -3324,7 +3327,9 @@ public:
       if (state == 0) {
         m.add(0);
         m.add(0);
+        badcxt[i]++;
       } else {
+          badcxt[i]--;
         m.add(st*abs(n1-n0));
         const int p0=4095-p1;
         m.add((((p1&n0)-(p0&n1))*Multiplier)/(4*Divisor));
@@ -5480,7 +5485,7 @@ private:
   void Update(Buf& buffer,Mixer& mixer);
   void SetContexts(Buf& buffer,Mixer& mixer);
 public:
-  TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),  Map(CMlimit(MEM()*Size), N), Stemmers(Language::Count-1), Languages(Language::Count-1),
+  TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),  Map(CMlimit(MEM()*Size), N,M_TEXT), Stemmers(Language::Count-1), Languages(Language::Count-1),
    WordPos(0x10000), State(Parse::Unknown), pState(State), Lang{ 0, 0, Language::Unknown, Language::Unknown }, Info{ 0 }, ParseCtx(0),doXML(false),firstwasspace(false) {
     Stemmers[Language::English-1] = new EnglishStemmer();
     Stemmers[Language::French-1] = new FrenchStemmer();
@@ -5810,9 +5815,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
      
         if (Info.lastNewLine>1 && firstwasspace && (Info.firstChar==' ' || Info.firstChar<4)  && buffer(1)!=' ') Info.firstChar=c;
         if (Info.lastNewLine>1 && firstwasspace && !((Info.firstChar>='a' && Info.firstChar<='z') || (Info.firstChar>='0' && Info.firstChar<='9')|| (Info.firstChar>=128 &&(buffer(2)!=3))) ) Info.firstChar=c;  //world95
-    
-    
-    
+
   if (Info.lastNest>512)
     Info.nestHash = 0;
   int leadingBitsSet = 0;
@@ -6295,10 +6298,12 @@ class wordModel1: public Model {
     U32 number0, number1,hq;  // hashes
     U32 text0,N,data0,type0;  // hash stream of letters
     ContextMap cm;
-    ContextMap cm1;
+   // ContextMap cm1;
     int nl3,nl2,nl1, nl;  // previous, current newline position
     U32 mask,mask2;
     Array<int> wpos;  // last position of word
+    Array<U32> inkeyw;  // last position of word
+    Array<U32> inkeyw1;  // last position of word
     int w;
     bool doXML;
     U32 lastLetter,firstLetter, lastUpper, lastDigit,wordGap;
@@ -6319,17 +6324,20 @@ class wordModel1: public Model {
     bool firstwasspace;
     U8 opened;
     U32 line0;
+    U32 iword0;
+    U32 lastSpace;
 public:
-  wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
+  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
   word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),number0(0),number1(0),
-  hq(0),text0(0),N(64),data0(0),type0(0),cm(CMlimit(MEM()*16), N),cm1(CMlimit(MEM()/2), 7),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
+  hq(0),text0(0),N(64+7),data0(0),type0(0),cm(CMlimit(MEM()*val), N,M_WORD),/*cm1(CMlimit(MEM()/2), 7),*/nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),inkeyw(0x10000),inkeyw1(0x10000),w(0),doXML(false),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0),numbers(0),numbercount(0),
-  g_ascii_lo(0), g_ascii_hi(0), wrtpos(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtstatus(0),wrtLoaded(false),wrtTextSize(0),wrtbytesize(0),wrtc4(0),ccount(0),col1(0),firstwasspace(false),opened(0),line0(0){
+  g_ascii_lo(0), g_ascii_hi(0), wrtpos(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtstatus(0),wrtLoaded(false),wrtTextSize(0),wrtbytesize(0),wrtc4(0),ccount(0),col1(0),firstwasspace(false),opened(0),line0(0),
+  iword0(0),lastSpace(0){
       cWord=&StemWords[0], pWord=&StemWords[3];
 
        c=pC=ppC=0;
    }
-   int inputs() {return N*cm.inputs()+7*cm.inputs();}
+   int inputs() {return N*cm.inputs();/*+7*cm.inputs()*/}
    int nets() {return 0;}
   int netcount() {return 0;}
    int p(Mixer& m,int val1=0,int val2=0)  {
@@ -6401,6 +6409,7 @@ public:
         x.words=x.words*2;
         lastUpper=min(lastUpper+1,255);
         lastLetter=min(lastLetter+1,255);
+        lastSpace=min(lastSpace+1,1024*4);
         mask2<<=2;
         if (pC>='A' && pC<='Z') pC+='a'-'A';
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
@@ -6417,7 +6426,8 @@ public:
         if (istemplate && (x.c4&0xffff)==0x7d7d) istemplate=0; //'}}'
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
-        if ((c>='a' && c<='z') || (c>=128 &&(x.b3!=3)|| (c>0 && c<4 ))) {
+        //if (doXML==true) printf(".");
+        if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 &&(x.b3!=3)|| (c>0 && c<4 ))) {
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
                 if ((lastLetter=3 && (x.c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
@@ -6459,6 +6469,7 @@ public:
                 wrdhsh=wrdhsh*271*32+(c-97);
             }else
                 wrdhsh=wrdhsh*11*32+c;
+            
         } else {
             if (word0) { 
             type0 = (type0<<2)|1;
@@ -6467,10 +6478,14 @@ public:
                 word3=word2;
                 word2=word1;
                 word1=word0;
+                //if (iword0)
+                inkeyw[w]=iword0;
+                
                 if (fword==0) fword=word0;
+                //if (c==',')inkeyw1[w]=fword;
                 x.wordlen1=x.wordlen;
                 wpos[w]=x.blpos;
-                if (c==':'|| c=='=') cword0=word0;
+                if (c==':'|| c=='=') cword0=word0;//,inkeyw[w]
                 if (c==']'&& (x.frstchar!=':') &&  doXML==true) xword0=word0; // wiki 
                 ccword=0;
                 word0=x.wordlen=0;                
@@ -6479,14 +6494,16 @@ public:
             
             if (c==SPACE &&  buf(2)!=SPACE) linespace++; // count spaces in one line, skip repeats
             if (c==SPACE || c==10 || c==5) { 
-               ++x.spaces, ++x.spacecount; 
+             ++x.spaces, ++x.spacecount; 
+              if (c==SPACE )lastSpace=0;
                if (c==10 && linespace==0 && x.frstchar==0x5B ){
-                   xword1=xword2=xword3=0;
+                   xword1=xword2=xword3=iword0=0;
                }
                if (c==10 || c==5) fword=linespace=line0=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;
             }
-            else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':' || c=='|') x.spafdo=0,ccword=c,mask2+=3;
+            else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':' || c=='|'|| c=='=') x.spafdo=line0=0,ccword=c,mask2+=3;
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
+            if (ccword=='=' || (ccword==':' && doXML==false)) iword0=word1;
 
         }
         if ((x.c4&0xffffff)==0x3A2F2F) { // ://
@@ -6510,6 +6527,7 @@ public:
         else if (number0) {
             type0 = (type0<<2)|2;
             number1=number0;
+            //inkeyw[number0&(wpos.size()-1)]=iword0;
             number0=0,ccword=0;
 
         }
@@ -6525,11 +6543,13 @@ public:
         int above=buf[nl1+x.col];  // text column context, first
         int above1=buf[nl2+x.col]; // text column context, second
         int above2=buf[nl3+x.col]; // text column context, second
+        //if (above==above1 && above1==above2) printf("sama " );
         if (val2) x.col=val2,above=buf[buf.pos-x.col],above1=buf[buf.pos-x.col*2];;
         if (x.col<=2) {x.frstchar=(x.col==2?min(c,126):0); firstwasspace=x.frstchar==' '?true:false;        }
         if (x.col>2 && firstwasspace && (x.frstchar==' ' || x.frstchar<4)  && buf(1)!=' ') x.frstchar=c;
         if (x.col>2 && firstwasspace && !((x.frstchar>='a' && x.frstchar<='z') || (x.frstchar>='0' && x.frstchar<='9')|| (x.frstchar>=128 &&(x.b3!=3))) ) x.frstchar=c;  //scan for real char
-        if (x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
+        if (firstwasspace==false && x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
+        //if (firstwasspace==false && x.frstchar=='[' && x.col<4 && (x.c4&0xffff)==0x5b5b && above=='[') nmli=true,printf("link");
          int fl = 0;
         if ((x.c4&0xff) != 0) {
             if (isalpha(x.c4&0xff)) fl = 1;
@@ -6541,25 +6561,35 @@ public:
             else fl = 7;
         }
         mask = (mask<<3)|fl;
-    
+    if (c=='(' || c=='{' || c=='[' || c=='<') { opened=c;}
+        else if (c==')' || c=='}' || c==']' || c=='>' || c==QUOTE || c==APOSTROPHE) {opened=0;}
+        const U32 dist =  llog(x.blpos-wpos[word0&(wpos.size()-1)]);
+        U32 tmask=((dist==0)<<4)| ((doXML)<<3)| ((opened)<<2)| ((istemplate)<<1)| islink;
+        if (x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK) i=0;
+        else i=(hash(5,tmask)>>16);
  if (val2!=-1){
         //256+ hash 513+ none
         if ((x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK)){
             for(int j=0;j<10;j++)  {cm.set();++i;}
         }
         else {
-            cm.set(hash(++i,x.spafdo, x.spaces,ccword));
-            cm.set(hash(++i,line0));
+            cm.set(hash(++i,x.spafdo, x.spaces&0x7ff,ccword));
+            cm.set(hash(++i,line0,inkeyw[w]));
             cm.set(hash(++i,x.frstchar, c));
             cm.set(hash(++i,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
-            cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255)));
+            cm.set(hash(++i,x.spaces, (x.words&511), (numbers&511)));//spaces...
         
             //cm.set(x.spaces&0x7ff);
+           /* cm.set(hash(++i,word0, word2,wordGap, word6));
+            cm.set(hash(++i,word1, c,ccword));  
+            cm.set(hash(++i,word0, word1,inkeyw[w]));  
+            cm.set(hash(++i,word0, word6, lastDigit<wordGap+x.wordlen));
+            cm.set(hash(++i,word0, cword0,inkeyw[word1&(inkeyw.size()-1)]));*/
             cm.set(hash(++i,number0, word1,wordGap, word6));
             cm.set(hash(++i,number1, c,ccword));  
-            cm.set(hash(++i,number0, number1,wordGap));  
+            cm.set(hash(++i,number0, number1,inkeyw[w]));  
             cm.set(hash(++i,word0, word6, lastDigit<wordGap+x.wordlen));
-            cm.set(hash(++i,number0, cword0));
+            cm.set(hash(++i,number0, cword0,inkeyw[word1&(inkeyw.size()-1)]));
         }
         U32 h=x.wordcount*64+x.spacecount+numbercount*128;
         if (x.filetype!=DECA){
@@ -6568,7 +6598,7 @@ public:
            // U32 h=x.wordcount*64+x.spacecount+x.numbercount*128;
             cm.set(hash(++i,c,h,ccword));
             cm.set(hash(++i,x.frstchar,h,lastLetter));
-            cm.set(hash(data0,word1, number1,type0&0xFFF));
+            cm.set(hash(data0,word1, number1,type0&0xFFF));//cm.set(hash(data0,word1,word2, type0&0xFFF));
             cm.set(h);
             cm.set(hash(++i,h,x.spafdo)); 
             U32 d=x.c4&0xf0ff;
@@ -6576,49 +6606,60 @@ public:
         //}else {
         //    for(int j=0;j<8;j++)  {cm.set();++i;}
         }
+        
         h=word0*271;
         h=h+buf(1);
+        if (/*x.filetype==DEFAULT||*/x.filetype==DECA){
         cm.set(hash(++i,h));
         cm.set(hash(++i,word0,word6)); 
         cm.set(hash(++i,data0));// ,iCtx()
+        }else{
+        cm.set(hash(h));
+        cm.set(hash(++i,word0,inkeyw[w],tmask)); 
+        cm.set(hash(++i,data0,inkeyw[w],tmask));//  
+        }
         //if (wrdhsh) cm.set(hash(++i,wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); else  {cm.set();++i;}
         cm.set(hash(++i,data0,c, word1)); 
         cm.set(hash(++i,h, word1)); 
         cm.set(hash(++i,word0, word1));
-        cm.set(hash(++i,h, word1,word2,lastUpper<x.wordlen));
+        cm.set(hash(++i,h, word1,word2/*,lastUpper<x.wordlen*/));
         cm.set(hash(++i,text0&0xffffff));
         cm.set(text0&0xfffff);
         U32 isfword=x.filetype==DECA?-1:fword;
         if (doXML==true){
-            cm.set(hash(++i,word0,number0, data0,xword0));
-            cm.set(hash(++i,word0,number0,data0, xword1));  //wiki 
-            cm.set(hash(++i,word0,number0,data0, xword2));  //
-            cm.set(hash(++i,word0,number0,data0, xword3));  //
-            cm.set(hash(++i,x.frstchar, xword2));
+            cm.set(hash(++i,word0, data0,xword0));
+            cm.set(hash(++i,word0,data0, xword1));  //wiki 
+            cm.set(hash(++i,word0,data0, xword2));  //
+            cm.set(hash(++i,word0,data0, xword3));  //
+            cm.set(hash(++i,x.frstchar, xword2,inkeyw[w]));
         }else{
             //for(int j=0;j<5;j++)  {cm.set();++i;}
             cm.set(hash(++i+512,nl1));    //chars occurring in this paragraph (order 0)
-      cm.set(hash(++i+512,nl1,c));  //chars occurring in this paragraph (order 1)
+      cm.set();++i;//cm.set(hash(++i+512,nl1,c));  //chars occurring in this paragraph (order 1)
       cm.set(hash(++i+512,x.frstchar));   //chars occurring in a paragraph that began with frstchar (order 0)
       //cm.set(hash(++i+512,x.frstchar,c)); //chars occurring in a paragraph that began with frstchar (order 1)*/
+      if (lastSpace<1024*4)       cm.set(hash(++i+512,h, word1, word4)); else cm.set();++i;
       cm.set();++i;
         }
         
         cm.set(hash(++i,word0, cword0,isfword));
-        cm.set(hash(++i,h, word2,isfword));
+        if (lastSpace<1024*4){
+        cm.set(hash(++i,h, word2));//,isfword
         cm.set(hash(++i,h, word3));
         cm.set(hash(++i,h, word4));
         cm.set(hash(++i,h, word5));
         cm.set(hash(++i,h, word1,word3));
         cm.set(hash(++i,h, word2,word3));
+ }else{
+            for(int j=0;j<6;j++)  {cm.set();++i;}
+}
         if (x.filetype!=DECA){
             cm.set(hash(++i,isfword));
             cm.set(hash(++i,isfword,c));
         }
 
-        if (c=='(' || c=='{' || c=='[' || c=='<') { opened=c;}
-        else if (c==')' || c=='}' || c==']' || c=='>' || c==QUOTE || c==APOSTROPHE) {opened=0;}
-        const U32 dist =  llog(x.blpos-wpos[word0&(wpos.size()-1)]);
+        
+        
         cm.set(hash(++i,opened,c,dist!=0));
         cm.set(hash(++i,opened,word0));
         cm.set(x.f4&0x00000fff);
@@ -6666,8 +6707,8 @@ public:
              ));
       
         
-        if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(); //wordlist
-        if (wrdhsh)  cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set();//?
+        if (x.wordlen1)            cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(); //wordlist
+        if (wrdhsh)          cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else i++,cm.set();//?
         hq=hash(x.col,above^above1,numbers&127,x.filetype==DECA?x.c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
          cm.set(hash(++i,x.col,above^above1,above2 , ((islink)<<8)|
              ((linespace > 4)<<7)|
@@ -6682,7 +6723,7 @@ public:
  }
     }
     if (val2==-1) return 1;
-    cm.mix(m);
+    
     if(x.bpos==0) {
 
     U32 g=x.c4&0xff; // group identifier
@@ -6699,20 +6740,22 @@ public:
       g_ascii_lo  |= g;
     }
  if( linespace>0 /*|| x.filetype!=DEFAULT*/) { 
-        U64 i = to_be_collapsed*8;
+ 
+        U64 i = to_be_collapsed*8;i=i*65;
     U32 g_a_hi=(g_ascii_lo>>32),g_a_lo=g_ascii_lo&0x00000000ffffffff;
-    cm1.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
-    cm1.set(hash( (++i), g_a_hi, g_a_lo));                                  // last 8 groups
-    cm1.set(hash( (++i), g_a_hi&0x0000ffff, g_a_lo ));                      // last 6 groups
-    cm1.set(hash( (++i), g_a_lo));                                          // last 4 groups
-    cm1.set(hash( (++i), g_a_lo&0x0000ffff));                               // last 2 groups
+    cm.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
+    cm.set(hash( (++i), g_a_hi, g_a_lo));                                  // last 8 groups
+    cm.set(hash( (++i), g_a_hi&0x0000ffff, g_a_lo ));                      // last 6 groups
+    cm.set(hash( (++i), g_a_lo));                                          // last 4 groups
+    cm.set(hash( (++i), g_a_lo&0x0000ffff));                               // last 2 groups
 
-    cm1.set(hash( (++i), g_a_hi&0x00ffffff, g_a_lo , x.c4&0x0000ffff ));    // last 7 groups + last 2 chars
-    cm1.set(hash( (++i), g_a_hi&0x000000ff, g_a_lo , x.c4&0x00ffffff ));    // last 5 groups + last 3 chars
- } else for(int i=0;i<7;i++) cm1.set();
+    cm.set(hash( (++i), g_a_hi&0x00ffffff, g_a_lo , x.c4&0x0000ffff ));    // last 7 groups + last 2 chars
+    cm.set(hash( (++i), g_a_hi&0x000000ff, g_a_lo , x.c4&0x00ffffff ));    // last 5 groups + last 3 chars
+ } else for(int i=0;i<7;i++) cm.set();
     //Stats->charGroup = g_ascii_lo; //group identifiers of the last 8 characters
   }
-  cm1.mix(m);
+  //cm1.mix(m);
+  cm.mix(m);
     return hq;
 }
  virtual ~wordModel1(){/*printf("skip wrt %d ",ccount);*/ }
@@ -7415,7 +7458,7 @@ class recordModel1: public Model {
 public:
   recordModel1( BlockData& bd,U64 msize=CMlimit(MEM()*2) ): x(bd),buf(bd.buf),  cpos1(256) , cpos2(256),
     cpos3(256), cpos4(256),wpos1(0x10000), rlen(3), rcount(2),padding(0),prevTransition(0),nTransition(0), col(0),mxCtx(0),
-    x1(0),MayBeImg24b(false),cm(32768, 3), cn(32768/2, 3), co(32768*2, 3), cp(CMlimit(msize*2), 16), nMaps ( 6),
+    x1(0),MayBeImg24b(false),cm(32768, 3,M_RECORD), cn(32768/2, 3,M_RECORD), co(32768*2, 3,M_RECORD), cp(CMlimit(msize*2), 16,M_RECORD), nMaps ( 6),
     N(0), NN(0), NNN(0), NNNN(0),WxNW(0), nIndCtxs(5){
         // run length and 2 candidates
         rlen[0] = 2; 
@@ -7536,8 +7579,10 @@ public:
     cn.set(hash(++i,c|rlen[0]<<8));
 
     co.set(hash(++i,buf(1)<<8|min(255, buf.pos-cpos1[buf(1)])));
-    co.set(hash(++i,buf(1)<<17|buf(2)<<9|llog(buf.pos-wpos1[w])>>2));
+    co.set(hash(++i,buf(1)<<17|buf(2)<<9));
     co.set(hash(++i,buf(1)<<8|N));
+    
+    //if (lpos && rlen[0]>2) printf("lpos %d rlen %d",lpos,rlen[0]);
 
     cp.set(hash(++i,rlen[0]|N<<10|col<<18));
     cp.set(hash(++i,rlen[0]|buf(1)<<10|col<<18));
@@ -7662,7 +7707,7 @@ class sparseModely: public Model {
   ContextMap cm;
   
 public:
-  sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(40),cm(CMlimit(MEM()*2), N) {
+  sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(40),cm(CMlimit(MEM()*2), N,M_SPARSE_Y) {
   }
   int inputs() {return N*cm.inputs();}
   int nets() {return 0;}
@@ -10927,7 +10972,7 @@ U32 execxt(int i, int x=0) {
   return prefix|opcode<<4|modrm<<12|x<<20|sib<<(28-6);
 }
 public:
-  exeModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),N1(10), N2(10),cm(CMlimit(MEM()*4), N1+N2),iMap(20,1),
+  exeModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),N1(10), N2(10),cm(CMlimit(MEM()*4), N1+N2,M_EXE),iMap(20,1),
   pState (Start), State( Start), TotalOps(0), OpMask(0),OpCategMask(0), Context(0),BrkPoint(0),
   BrkCtx(0),Valid(false) {
       memset(&Cache, 0, sizeof(OpCache));
@@ -11234,7 +11279,7 @@ class indirectModel1: public Model {
   IndirectContext<U8> iCtx8;
   StationaryMap Maps;
 public:
-  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()),15),t1(256),
+  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()),15,M_INDIRECT),t1(256),
    t2(0x10000), t3(0x8000),t4(0x8000),iCtx{16 },iCtx8{10,2},Maps{ 10, 2 }{
   }
   int inputs() {return 15*cm.inputs()+2;}
@@ -11561,7 +11606,7 @@ class nestModel1: public Model {
   ContextMap cm;
 public:
   nestModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), ic(0), bc(0),
-   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(MEM()/2), 12)  {
+   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(MEM()/2), 12,M_NEST)  {
   }
   int inputs() {return 12*cm.inputs();}
   int nets() {return 0;}
@@ -11758,7 +11803,7 @@ class XMLModel1: public Model {
     XMLContent *Content ;
 public:
   XMLModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
-   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(CMlimit(MEM()/4), 4) {
+   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(CMlimit(MEM()/4), 4,M_XML) {
        memset(&Cache, 0, sizeof(XMLTagCache));
        memset(&StateBH, 0, sizeof(StateBH));  
         
@@ -11978,7 +12023,7 @@ class sparseModelx: public Model {
    BlockData& x;
    Buf& buf;
 public:
-  sparseModelx(BlockData& bd): cm(CMlimit(MEM()*4), 31),scm1(8,8), scm2(8,8), scm3(8,8),
+  sparseModelx(BlockData& bd): cm(CMlimit(MEM()*4), 31,M_SPARSE),scm1(8,8), scm2(8,8), scm3(8,8),
      scm4(8,8), scm5(8,8),scm6(8,8), scma(8,8),x(bd),buf(bd.buf) {
     }
     int inputs() {return 31*cm.inputs()+7*2;}
@@ -12064,7 +12109,7 @@ class normalModel1: public Model {
   Array<U32> cxt; // order 0-11 contexts
   int inpt;
 public:
-  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10/*,M_NORMAL*/), StateMaps{ 256, 256*256 },rcm7(CMlimit(MEM()/4),bd),
+  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10,M_NORMAL), StateMaps{ 256, 256*256 },rcm7(CMlimit(MEM()/4),bd),
   rcm9(CMlimit(MEM()/4),bd), rcm10(CMlimit(MEM()/2),bd), cxt(16){
  }
  int inputs() {return 10*cm.inputs() +3+2;}
@@ -12084,7 +12129,7 @@ public:
 int p(Mixer& m,int val1=0,int val2=0){  
   if (x.bpos==0) {
       setContexts();
-      if (val2==-1) return 1;
+     // if (val2==-1) return 1;
     int i;
     //if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && buf(3)!=10 && buf(3)!=5 && 
     //(x.filetype==DICTTXT || x.filetype==BIGTEXT)) for (i=14; i>0; --i) 
@@ -12103,7 +12148,8 @@ int p(Mixer& m,int val1=0,int val2=0){
     
     rcm10.set(cxt[12]);
    // if  (x.filetype!=DECA) 
-     cm.set(cxt[14]);
+    cm.set(cxt[14]);
+
   }
   
   rcm7.mix(m);
@@ -12525,7 +12571,7 @@ class chartModel: public Model {
   Array<U8> indirect2;
   Array<U8> indirect3;
 public:
-  chartModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()*4),30),cn(CMlimit(MEM()),20), 
+  chartModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()*4),30,M_CHART),cn(CMlimit(MEM()),20,M_CHART), 
   chart(32), indirect(2048), indirect2(256), indirect3(0x10000) 
  {   
  }
@@ -13619,7 +13665,7 @@ Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,
   models[M_NORMAL] = new normalModel1(x);
   models[M_XML] = new XMLModel1(x);
   models[M_TEXT] = new TextModel(x,16);
-  models[M_WORD] =  new  wordModel1(x);
+  models[M_WORD] =  new  wordModel1(x,16);
   models[M_SPARSEMATCH] = new SparseMatchModel(x);
   //blanks
   models[M_SPARSE_Y] = new blankModel1(x);
