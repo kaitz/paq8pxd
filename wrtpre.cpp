@@ -633,7 +633,7 @@ public:
     XWRT_Decoder();
     ~XWRT_Decoder();
 
-    int WRT_start_decoding(File* in);
+    U64 WRT_start_decoding(File* in);
     int WRT_decode();
 private:
 
@@ -960,7 +960,7 @@ void XWRT_Decoder::read_dict(){
 }
 
 
-int XWRT_Decoder::WRT_start_decoding(File* in){
+U64 XWRT_Decoder::WRT_start_decoding(File* in){
     int c;
     XWRT_file=in;
     last_c=0;
@@ -970,7 +970,7 @@ int XWRT_Decoder::WRT_start_decoding(File* in){
     collision=0;
 
     defaultSettings(0); 
-    int fileLen;
+    U64 fileLen;
     GETC(c);GETC(c);GETC(c);GETC(c);//header
     GETC(c);
     fileLen=c;
@@ -980,6 +980,14 @@ int XWRT_Decoder::WRT_start_decoding(File* in){
     fileLen=fileLen|(c<<16);
     GETC(c);
     fileLen=fileLen|(c<<24);
+    GETC(c);
+    fileLen=fileLen|(U64(c)<<32);
+    GETC(c);
+    fileLen=fileLen|(U64(c)<<40);
+    GETC(c);
+    fileLen=fileLen|(U64(c)<<48);
+    GETC(c);
+    fileLen=fileLen|(U64(c)<<54);
     fileLenMB=fileLen/(1024*1024);
     if (fileLenMB>255*256)
     fileLenMB=255*256;
@@ -1016,11 +1024,11 @@ public:
     XWRT_Encoder();
     ~XWRT_Encoder();
 
-    void WRT_start_encoding(File* in, File* out,U32 fileLen,bool type_detected);
+    void WRT_start_encoding(File* in, File* out,U64 fileLen,bool type_detected);
 
 private:
 
-    void WRT_encode( int filelen);
+    void WRT_encode( U64 filelen);
     inline void encodeCodeWord(int &i);
     inline void encodeSpaces();
     inline void encodeWord(U8* s,int s_size,EWordType wordType,int& c);
@@ -1038,12 +1046,12 @@ private:
     void sortDict(int size);
 
     void write_dict();
-    int WRT_detectFileType(int filelen);
+    int WRT_detectFileType(U64 filelen);
     void WRT_detectFinish();
 
     int s_size;
     int last_c_bak,last_c,last_last_c;
-    int filelento;
+    U64 filelento;
 	int lowerfq;
 
     U8* dynmem;
@@ -1512,11 +1520,11 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     return;
 }
 // process the file
-void XWRT_Encoder::WRT_encode(int filelen){
+void XWRT_Encoder::WRT_encode(U64 filelen){
     U8 s[STRING_MAX_SIZE];
     EWordType wordType;
     int c,y;
-	int utfcount=0;
+    U64 utfcount=0;
     spaces=0;
     s_size=0;
     last_c=0;
@@ -1526,9 +1534,6 @@ void XWRT_Encoder::WRT_encode(int filelen){
     while (true) 
     {
         if (c==EOF || filelento>=filelen) break;
-  /* if (filelento== 495660) {
-   printf("%d", filelento);
-   }*/
         PRINT_CHARS(("c=%c (%d) last=%c \n",c,c,last_c));
        
         if (detect){
@@ -1684,7 +1689,47 @@ void XWRT_Encoder::WRT_encode(int filelen){
                     continue;
                 } 
             }
-            
+            if (s_size>3){
+                s[s_size]=0;
+                int a1=s[s_size-3],b1=s[s_size-2],c1=s[s_size-1];
+                // test for char and split word and add
+                if ( (a1==0xE2 && b1==0x80 && (c==0x92 || c==0x93|| c==0x94)) || //dash (E28092/3/4)
+                     (a1==0xE5 && b1==0xB9 && c==0xB4) || //year   E5B9B4
+                     (a1==0xE4 && b1==0xBA && c==0xBA) || //people E4BABA
+                     (a1==0xE6 && b1==0x9C && c==0x88) || //month  E69C88
+                     (a1==0xE6 && b1==0x97 && c==0xA5) ){   //day    E697A5
+                    s_size=s_size-3;
+                    s[s_size]=0;
+                    int cc=s[s_size-1];
+                    wordType=VARWORD;
+                    encodeWord(s,s_size,wordType,cc);
+                    s[0]=a1;s[1]=b1;s[2]=c1;s[3]=0;
+                    s_size=3;
+                    encodeWord(s,s_size,wordType,c);
+                    s_size=0;
+                    ENCODE_GETC(c);
+                    utfcount=utfcount+y;
+                    continue;
+                }
+                // num/utf8 split
+                else if ( ((U8)s[s_size-4]>='0' && (U8)s[s_size-4]<='9') && ((U8)s[s_size-3]>>4)==0xE) {
+                    s_size=s_size-3;
+                    s[s_size]=0;
+                    int cc=s[s_size-1];
+                    wordType=VARWORD;
+                    encodeWord(s,s_size,wordType,cc);
+                    s[0]=a1;s[1]=b1;s[2]=c1;s[3]=0;
+                    y=utf8_check(s); // be sure
+                    s_size=3;
+                    if (y==3){
+                       encodeWord(s,s_size,wordType,c);
+                       s_size=0;
+                       ENCODE_GETC(c);
+                       utfcount=utfcount+y; continue;
+                    }
+                }
+                //
+            }
             if (s_size>=STRING_MAX_SIZE-2){
                 encodeWord(s,s_size,wordType,c);
                 s_size=0;
@@ -1700,7 +1745,7 @@ void XWRT_Encoder::WRT_encode(int filelen){
     }
     encodeWord(s,s_size,wordType,c);
     s_size=0;
-    if ((filelen-utfcount)<(filelen>>1)) lowerfq=1; // set flag if more utf then ascii
+    //if ((filelen-utfcount)<(filelen>>1)) lowerfq=1; // set flag if more utf then ascii
 }
 inline int common(const char* offset1,const char* offset2, int bound){
     int lp=0;
@@ -1744,7 +1789,7 @@ void XWRT_Encoder::write_dict(){
     fwrite_fast((U8*)writeBuffer+3,count,XWRT_fileout);
 }
 
-void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U32 fileLen,bool type_detected){
+void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U64 fileLen,bool type_detected){
     collision=0;
     XWRT_file=in;
     XWRT_fileout=out;
@@ -1771,6 +1816,10 @@ void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U32 fileLen,bool type_
     PUTC((fileLen>>8)&0xFF);
     PUTC((fileLen>>16)&0xFF);
     PUTC((fileLen>>24)&0xFF);
+    PUTC((fileLen>>32)&0xFF);
+    PUTC((fileLen>>40)&0xFF);
+    PUTC((fileLen>>48)&0xFF);
+    PUTC((fileLen>>54)&0xFF);
 
     PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
     write_dict(); // przed initialize()
@@ -1817,7 +1866,7 @@ inline void XWRT_Encoder::checkWord(U8* &s,int &s_size,int& c){
         dictfreq[i]++;
     }
 }
-int XWRT_Encoder::WRT_detectFileType(int filelen){
+int XWRT_Encoder::WRT_detectFileType(U64 filelen){
     detect=true;
     s_size=0;
     memset(addSymbols,0,sizeof(addSymbols));

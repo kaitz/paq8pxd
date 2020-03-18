@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd75"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd76"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1325,10 +1325,10 @@ const U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 7, 7, 7, 7 };
 const U32 tri[4]={0,4,3,7}, trj[4]={0,6,6,12};
 typedef enum {M_RECORD=0,M_IM8,M_IM24,M_SPARSE,M_JPEG,M_WAV,M_MATCH,M_DISTANCE,
               M_EXE,M_INDIRECT,M_DMC,M_NEST,M_NORMAL,M_IM1,M_XML,M_IM4,M_TEXT,
-              M_WORD,M_WORD2,M_DEC,M_LINEAR,M_SPARSEMATCH,M_SPARSE_Y,M_PPM,M_CHART,/*M_LSTM,*/M_MODEL_COUNT} ModelTypes;
+              M_WORD,M_DEC,M_LINEAR,M_SPARSEMATCH,M_SPARSE_Y,M_PPM,M_CHART,/*M_LSTM,*/M_MODEL_COUNT} ModelTypes;
 const char* models[M_MODEL_COUNT]={"RECORD","IM8","IM24","SPARSE","JPEG","WAV","MATCH","DISTANCE",
               "EXE","INDIRECT","DMC","NEST","NORMAL","IM1","XML","IM4","TEXT",
-              "WORD","WORD2","DEC","LINEAR","SPARSEMATCH","SPARSE_Y","M_PPM","M_CHART"/*,"M_LSTM"*/};
+              "WORD","DEC","LINEAR","SPARSEMATCH","SPARSE_Y","M_PPM","M_CHART"/*,"M_LSTM"*/};
 #define PNGFlag (1<<31)
 #define GrayFlag (1<<30)
 // Contain all global data usable between models
@@ -1375,10 +1375,15 @@ public:
   } Image;
   U64 Misses;
   U32 count;
+  int wwords;
+  U32 tmask;
+  U64 wrtc4;
+  bool dictonline;
+  bool inpdf;
 BlockData():y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
     b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
     failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),
-    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0),count(0){
+    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0),count(0),wwords(0),tmask(0),wrtc4(0),dictonline(false),inpdf(false){
         // Set globals according to option
         assert(level<=15);
         bufn.setsize(0x10000);
@@ -3191,7 +3196,6 @@ for (int i=pcount; i<7; ++i) {
   U32 index; // Next context to set by set()
   U32 bits;
   U8 lastByte, lastBit, bitPos;
-   Array<int> badcxt;
    int model;  
   inline void Update() {
     U64 mask = Table.size()-1;
@@ -3247,7 +3251,7 @@ for (int i=pcount; i<7; ++i) {
   }
 public:
   // Construct using Size bytes of memory for Count contexts
-  ContextMap2(const U64 Size, const U32 Count,int mod) : C(Count), Table(Size>>6), BitState(Count), BitState0(Count), ByteHistory(Count), Contexts(Count), HasHistory(Count),badcxt(Count),model(mod) {
+  ContextMap2(const U64 Size, const U32 Count,int mod) : C(Count), Table(Size>>6), BitState(Count), BitState0(Count), ByteHistory(Count), Contexts(Count), HasHistory(Count),model(mod) {
    // assert(Size>=64 && ispowerof2(Size));
     assert(sizeof(Bucket)==64);
     Maps6b = new StateMap*[C];
@@ -3284,6 +3288,10 @@ public:
     
     
   }
+  inline void  set() {
+    set(U32(0));
+  
+}
   int mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4) {
     int result = 0;
     lastBit = m.x.y;
@@ -3292,6 +3300,7 @@ public:
     lastByte = bits&0xFF;
     if (bitPos==0)
       bits = 1;
+
     Update();
 
     for (U32 i=0; i<index; i++) {
@@ -3327,9 +3336,7 @@ public:
       if (state == 0) {
         m.add(0);
         m.add(0);
-        badcxt[i]++;
       } else {
-          badcxt[i]--;
         m.add(st*abs(n1-n0));
         const int p0=4095-p1;
         m.add((((p1&n0)-(p0&n1))*Multiplier)/(4*Divisor));
@@ -4993,350 +5000,126 @@ public:
   }
 };
 bool CAlpha2(U32 ins) {
-  int function=0;
+   static const int op10[22]= {0x40,0x00,0x02,0x49,0x09,0x0b,0x0f,0x12,0x1b,0x1d,0x60,0x20,0x22,0x69,0x29,0x2b,0x2d,0x32,0x3b,0x3d,0x4d,0x6d};
+   static const int op11[16]= {0x00,0x08,0x14,0x16,0x20,0x24,0x26,0x28,0x40,0x44,0x46,0x48,0x61,0x64,0x66,0x6c};
+   static const int op12[27]= {0x02,0x06,0x0b,0x12,0x16,0x1b,0x22,0x26,0x2b,0x30,0x31,0x32,0x34,0x36,0x39,0x3b,0x3c,0x52,0x57,0x5a,0x62,0x67,0x6a,0x72,0x77,0x7a};
+   static const int op13[5 ]= {0x40,0x00,0x60,0x20,0x30};
+   static const int op14[51]= {0x004,0x00a,0x08a,0x10a,0x18a,0x40a,0x48a,0x50a,0x58a,0x00b,0x04b,0x08b,0x0cb,0x10b,0x14b,0x18b,0x1cb,0x50b,0x54b,0x58b,0x5cb,
+                               0x70b,0x74b,0x78b,0x7cb,0x014,0x024,0x02a,0x0aa,0x12a,0x1aa,0x42a,0x4aa,0x52a,0x5aa,0x02b,0x06b,0x0ab,0x0eb,0x12b,0x16b,0x1ab,
+                               0x1eb,0x52b,0x56b,0x5ab,0x5eb,0x72b,0x76b,0x7ab,0x7eb};
+   static const int op15a[11]={0x0a5,0x4a5,0x0a6,0x4a6,0x0a7,0x4a7,0x03c,0x0bc,0x03e,0x0be};
+   static const int op15b[13]={0x000, 0x001,0x002,0x003, 0x01e,0x020,0x021,0x022,0x023,0x02c,0x02d,0x02f};
+   static const int op16a[11]={0x0a4,0x5a4,0x0a5, 0x5a5,0x0a6, 0x5a6,0x0a7,0x5a7,0x2ac,0x6ac};
+   static const int op16b[11]={0x00,0x01,0x02,0x03,0x20,0x21,0x22,0x23,0x2c,0x2f };
+   static const int op17[15]= {0x010,0x020,0x021,0x022,0x024,0x025,0x02a,0x02b,0x02c,0x02d, 0x02e,0x02f, 0x030,0x130, 0x530};
+   static const int op18[12]= {0x0000,0x0400, 0x4000,0x4400,0x8000,0xA000,0xC000,0xE000,0xE800,0xF000,0xF800,0xFC00};
+   static const int op1c[20]= {0x00,0x01,0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3a,0x3b,0x3c,0x3d,0x3e,0x3f,0x70,0x78};
+  int function=0,i=0;
   int opc=ins >> 26;
-      if (opc==0)   goto op_00;   
-      if (opc==1)   return false;
-      if (opc==2)   return false;
-      if (opc==3)   return false;
-      if (opc==4)   return false;
-      if (opc==5)   return false;
-      if (opc==6)   return false;
-      if (opc==7)   return false;
-      if (opc==0x08) return true; 
-      if (opc==0x09) return true; 
-      if (opc==0x0a) return true; 
-      if (opc==0x0b) return true; 
-      if (opc==0x0c) return true; 
-      if (opc==0x0d) return true; 
-      if (opc==0x0e) return true; 
-      if (opc==0x0f) return true; 
-      if (opc==0x10) goto op_10;
-      if (opc==0x11) goto op_11;
-      if (opc==0x12) goto op_12;
-      if (opc==0x13) goto op_13;
-      if (opc==0x14) goto op_14;
-      if (opc==0x15) goto op_15;
-      if (opc==0x16) goto op_16;
-      if (opc==0x17) goto op_17;
-      if (opc==0x18) goto op_18;
+      if (opc==0) {        // PAL
+        function = ins & 0x1fffffff;
+        if( ((function > 0x3f) && (function < 0x80)) || (function > 0xbf)){
+            return false;
+        }
+        return true;
+      }  
+      if (opc>=1 && opc<=7)   return false;
+      if (opc>=0x08 && opc<=0x0f)   return true;
+      if (opc==0x10) {        // INTA
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<22;i++){
+            if (op10[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x11) {        // INTL
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<16;i++){
+            if (op11[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x12) {        // INTS
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<27;i++){
+            if (op12[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x13) {        // INTM
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<5;i++){
+            if (op13[i]==function)return true;
+        }
+        return false;
+
+    }
+      if (opc==0x14) {        // ITFP
+        function = (ins >> 5) & 0x7ff;
+        for (i=0;i<51;i++){
+            if (op14[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x15) {        // FLTV
+        function = (ins >> 5) & 0x7ff;
+
+         for (i=0;i<11;i++){
+            if (op15a[i]==function)return true;
+        }
+        if(function & 0x200)  return false;
+        function =  (function & 0x7f);
+        for (i=0;i<13;i++){
+            if (op15b[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x16) {        // FLTI
+        function = (ins >> 5) & 0x7ff;
+        for (i=0;i<11;i++){
+            if (op16a[i]==function)return true;
+        }
+        if(((function & 0x600) == 0x200) || ((function & 0x500) == 0x400)) return false;
+        opc = function & 0x3f;
+        for (i=0;i<11;i++){
+            if (op16b[i]==opc)return true;
+        }
+        if (opc==0x3c) {
+            if((function & 0x300) == 0x100){ return false;}
+        return true;
+        }
+        if (opc==0x3e) {
+            if((function & 0x300) == 0x100){ return false;}
+        return true;
+        }
+        return false;
+    }
+      if (opc==0x17) {        // FLTL
+        function = (ins >> 5) & 0x7ff;
+        for (i=0;i<15;i++){
+            if (op17[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x18) {    // MISC
+        function = (ins & 0xffff);
+        for (i=0;i<12;i++){
+            if (op18[i]==function)return true;
+        }
+        return false;
+    }
       if (opc==0x19) return true;
       if (opc==0x1a) return true;
       if (opc==0x1b) return true;
-      if (opc==0x1c) goto op_1c;
-      if (opc>=0x1d && opc<=0x3f) return true;
-      return false;
-
-op_00:  // PAL
-  function = ins & 0x1fffffff;
-  if( ((function > 0x3f) && (function < 0x80)) || (function > 0xbf))                             
-  {                                                              
-    return false;                                                   
-  } 
-  return true;
-
-op_10:  // INTA
-  function = (ins >> 5) & 0x7f;
-  switch(function) {
-  case 0x40: 
-  case 0x00: 
-  case 0x02: 
-  case 0x49: 
-  case 0x09: 
-  case 0x0b: 
-  case 0x0f: 
-  case 0x12: 
-  case 0x1b: 
-  case 0x1d: 
-  case 0x60: 
-  case 0x20: 
-  case 0x22: 
-  case 0x69: 
-  case 0x29: 
-  case 0x2b: 
-  case 0x2d: 
-  case 0x32: 
-  case 0x3b: 
-  case 0x3d: 
-  case 0x4d: 
-  case 0x6d: return true;
-  default:   return false; 
-  }
-
-op_11:  // INTL
-  function = (ins >> 5) & 0x7f;
-  
-  switch(function) {
-  case 0x00: 
-  case 0x08: 
-  case 0x14: 
-  case 0x16: 
-  case 0x20: 
-  case 0x24: 
-  case 0x26: 
-  case 0x28: 
-  case 0x40: 
-  case 0x44: 
-  case 0x46: 
-  case 0x48: 
-  case 0x61: 
-  case 0x64: 
-  case 0x66: 
-  case 0x6c:  return true;
-  default:    return false; 
-  }
-
-op_12:  // INTS
-  function = (ins >> 5) & 0x7f;
-  
-  switch(function) {
-  case 0x02:  
-  case 0x06:  
-  case 0x0b:  
-  case 0x12:  
-  case 0x16:  
-  case 0x1b:  
-  case 0x22:  
-  case 0x26:  
-  case 0x2b:  
-  case 0x30:  
-  case 0x31:  
-  case 0x32:  
-  case 0x34:  
-  case 0x36:  
-  case 0x39:  
-  case 0x3b:  
-  case 0x3c:  
-  case 0x52:  
-  case 0x57:  
-  case 0x5a:  
-  case 0x62:  
-  case 0x67:  
-  case 0x6a:  
-  case 0x72:  
-  case 0x77:  
-  case 0x7a:  return true;
-  default:    return false; 
-  }
-
-op_13:  // INTM
-
-  function = (ins >> 5) & 0x7f;
-  switch(function) 
-  {
-  case 0x40: 
-  case 0x00: 
-  case 0x60: 
-  case 0x20: 
-  case 0x30:  return true;
-  default:   return false; 
-  }
-
-op_14:   // ITFP
-  function = (ins >> 5) & 0x7ff;
-  
-  switch(function) {
-  case 0x004:
-  case 0x00a:
-  case 0x08a:
-  case 0x10a:
-  case 0x18a:
-  case 0x40a:
-  case 0x48a:
-  case 0x50a:
-  case 0x58a:
-  case 0x00b:
-  case 0x04b:
-  case 0x08b:
-  case 0x0cb:
-  case 0x10b:
-  case 0x14b:
-  case 0x18b:
-  case 0x1cb:
-  case 0x50b:
-  case 0x54b:
-  case 0x58b:
-  case 0x5cb:
-  case 0x70b:
-  case 0x74b:
-  case 0x78b:
-  case 0x7cb:
-  case 0x014:
-  case 0x024:
-  case 0x02a:
-  case 0x0aa:
-  case 0x12a:
-  case 0x1aa:
-  case 0x42a:
-  case 0x4aa:
-  case 0x52a:
-  case 0x5aa:
-  case 0x02b:
-  case 0x06b:
-  case 0x0ab:
-  case 0x0eb:
-  case 0x12b:
-  case 0x16b:
-  case 0x1ab:
-  case 0x1eb:
-  case 0x52b:
-  case 0x56b:
-  case 0x5ab:
-  case 0x5eb:
-  case 0x72b:
-  case 0x76b:
-  case 0x7ab:
-  case 0x7eb:
-    return true;
-
-  default:
-    return false; 
-  }
-
-op_15:     // FLTV
-  function = (ins >> 5) & 0x7ff;
-  
-  switch(function) {
-  case 0x0a5:
-  case 0x4a5:
-  case 0x0a6:
-  case 0x4a6:
-  case 0x0a7:
-  case 0x4a7:
-  case 0x03c:
-  case 0x0bc:
-  case 0x03e:
-  case 0x0be:
-    return true;
-
-  default:
-    if(function & 0x200)  return false; 
-
-    switch(function & 0x7f) {
-    case 0x000: 
-    case 0x001: 
-    case 0x002: 
-    case 0x003: 
-    case 0x01e: 
-    case 0x020: 
-    case 0x021: 
-    case 0x022: 
-    case 0x023: 
-    case 0x02c: 
-    case 0x02d: 
-    case 0x02f: return true;
-    default:  return false; 
+      if (opc==0x1c) {           // FPTI
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<20;i++){
+            if (op1c[i]==function)return true;
+        }
+        return false;
     }
-    break;
-  }
-
-op_16:    // FLTI
-  function = (ins >> 5) & 0x7ff;  
-  switch(function) {
-  case 0x0a4:
-  case 0x5a4:
-  case 0x0a5:
-  case 0x5a5:
-  case 0x0a6:
-  case 0x5a6:
-  case 0x0a7:
-  case 0x5a7:
-  case 0x2ac:
-  case 0x6ac:
-    return true;
-
-  default:
-    if(((function & 0x600) == 0x200) || ((function & 0x500) == 0x400)) return false; 
-
-    switch(function & 0x3f) {
-    case 0x00: 
-    case 0x01: 
-    case 0x02: 
-    case 0x03: 
-    case 0x20: 
-    case 0x21: 
-    case 0x22: 
-    case 0x23: 
-    case 0x2c: 
-    case 0x2f:  return true;
-    case 0x3c:  if((function & 0x300) == 0x100){ return false;} return true;
-    case 0x3e:  if((function & 0x300) == 0x100){ return false;} return true;
-    default:    return false; 
-    }
-    break;
-  }
-
-op_17:     // FLTL
-  function = (ins >> 5) & 0x7ff;
-  switch(function) {
-  case 0x010:
-  case 0x020:
-  case 0x021:
-  case 0x022:
-  case 0x024:
-  case 0x025:
-  case 0x02a:
-  case 0x02b:
-  case 0x02c:
-  case 0x02d:
-  case 0x02e:
-  case 0x02f:
-  case 0x030:
-  case 0x130:
-  case 0x530:
-   return true;
-
-  default:
-   return false; 
-  }
-
-op_18:    // MISC
-
-  function = (ins & 0xffff);
-  switch(function) {
-  case 0x0000: 
-  case 0x0400: 
-  case 0x4000: 
-  case 0x4400: 
-  case 0x8000: 
-  case 0xA000: 
-  case 0xC000: 
-  case 0xE000: 
-  case 0xE800: 
-  case 0xF000: 
-  case 0xF800: 
-  case 0xFC00: return true;
-  default:     return false; 
-  }
-
-op_1c:   // FPTI
-  function = (ins >> 5) & 0x7f;
-  
-  switch(function) {
-  case 0x00: 
-  case 0x01: 
-  case 0x30: 
-  case 0x31: 
-  case 0x32: 
-  case 0x33: 
-  case 0x34: 
-  case 0x35: 
-  case 0x36: 
-  case 0x37: 
-  case 0x38: 
-  case 0x39: 
-  case 0x3a: 
-  case 0x3b: 
-  case 0x3c: 
-  case 0x3d: 
-  case 0x3e: 
-  case 0x3f: 
-  case 0x70: 
-  case 0x78:  return true;
-  default:    return false; 
-  }
-
-  return false;
+    if (opc>=0x1d && opc<=0x3f) return true;
+    return false;
 }
 //////////////////////////// Models //////////////////////////////
 
@@ -6290,18 +6073,25 @@ public:
 #define APOSTROPHE 0x27
 // Model English text (words and columns/end of line)
 class wordModel1: public Model {
+   public:
+   BlockData& x;
+   Buf& buf;  
+private:
+   int N;
+   ContextMap cm;
+  class Info {
    BlockData& x;
    Buf& buf;
+    ContextMap  &cm;
     U32 word0, word1, word2, word3, word4, word5,word6;  // hashes
     U32 wrdhsh;
     U32 xword0,xword1,xword2,xword3,cword0,ccword,fword;
     U32 number0, number1,hq;  // hashes
-    U32 text0,N,data0,type0;  // hash stream of letters
-    ContextMap cm;
-   // ContextMap cm1;
+    U32 text0,data0,type0;  // hash stream of letters
     int nl3,nl2,nl1, nl;  // previous, current newline position
     U32 mask,mask2;
     Array<int> wpos;  // last position of word
+    Array<U16> wchk ;
     Array<U32> inkeyw;  // last position of word
     Array<U32> inkeyw1;  // last position of word
     int w;
@@ -6312,95 +6102,52 @@ class wordModel1: public Model {
     EnglishStemmer StemmerEN;
     int StemIndex,same,linespace;
     int islink,istemplate;
+    bool is_letter, is_letter_pC, is_letter_ppC;
     U32 numbers,numbercount;
     U64 g_ascii_lo=0, g_ascii_hi=0; // group identifiers of 8+8 last characters
     U8 c, pC, ppC;           // last char, previous char, char before the previous char (converted to lowearcase)
-    U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
-   // wrtDecoder wr;
-    bool wrtLoaded;
-    U8 wrtText[STRING_MAX_SIZE];
-    int wrtTextSize,wrtstatus,wrtbytesize;
-    U32 wrtc4,ccount,col1;
+    U32 c4;
+    U32 ccount,col1;
     bool firstwasspace;
     U8 opened;
     U32 line0;
     U32 iword0;
     U32 lastSpace;
-public:
-  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
-  word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),number0(0),number1(0),
-  hq(0),text0(0),N(64+7),data0(0),type0(0),cm(CMlimit(MEM()*val), N,M_WORD),/*cm1(CMlimit(MEM()/2), 7),*/nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),inkeyw(0x10000),inkeyw1(0x10000),w(0),doXML(false),
+    bool pdft;
+    U16 chk;
+    int above, above1, above2,fl,f;
+    U32 expr0, expr1, expr2, expr3, expr4,exprlen0,expr0chars;  // wordtoken hashes for expressions
+    int wcol,wnl1,wnl,wabove;
+  public:
+   
+    Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm(contextmap),
+    word0(0),word1(0),word2(0), word3(0),word4(0),word5(0),word6(0),
+    wrdhsh(0),
+    xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),
+    number0(0),number1(0),hq(0),
+    text0(0),data0(0),type0(0),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),wchk(0x10000),inkeyw(0x10000),inkeyw1(0x10000),w(0),doXML(false),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0),numbers(0),numbercount(0),
-  g_ascii_lo(0), g_ascii_hi(0), wrtpos(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtstatus(0),wrtLoaded(false),wrtTextSize(0),wrtbytesize(0),wrtc4(0),ccount(0),col1(0),firstwasspace(false),opened(0),line0(0),
-  iword0(0),lastSpace(0){
-      cWord=&StemWords[0], pWord=&StemWords[3];
-
-       c=pC=ppC=0;
-   }
-   int inputs() {return N*cm.inputs();/*+7*cm.inputs()*/}
-   int nets() {return 0;}
-  int netcount() {return 0;}
-   int p(Mixer& m,int val1=0,int val2=0)  {
-    // Update word hashes
-    if (x.bpos==0) {
-        //load wrt dictionary from faile
-        //detect header//'!Pq8'
-      /*  if (x.c4==0x21507138 && x.blpos<16){ 
-          wrtpos=x.blpos;
-          }
-          
-          if (wrtpos>0 && wrtpos+4==x.blpos){ 
-           wrtfile=bswap(x.c4) ;
-          }
-          //load size
-          if (wrtpos>0 && wrtpos+4+3==x.blpos)  { 
-          wrtsize=(x.c4&0xffffff);
-          if (wrtsize<4) wrtpos=0;
-          }
-          //load count
-          if (wrtpos>0 && wrtpos+4+3+3==x.blpos)  { 
-          wrtcount=(x.c4&0xffffff);
-          wrtcount=(wrtcount>>16)+((wrtcount&0xff)<<16)+(wrtcount&0xff00);
-          printf("WRT dict count %d words.\n",wrtcount);
-          if (wrtcount==0) wrtpos=0;
-          }
-          if (wrtpos>0 && wrtsize>0 && wrtpos+4+3+3+wrtsize+3==x.blpos && wrtdata==0)  { 
-          if (buf(6)==5){
-          wrtdata=x.blpos+5;
-          }
-          else wrtLoaded==false,wrtpos=0;
-          }
-         
-          if (wrtpos>0 && wrtdata>0 && x.blpos>=wrtdata &&wrtLoaded==false)  { 
-          wr.WRT_start_decoding(wrtcount,wrtsize,&x.buf[buf.pos-5-3-wrtsize]);
-          wrtLoaded=true;
-          printf("WRT dict online.\n");
-          }
-       if (wrtLoaded==true) {
-           // Returned wrtstatus values
-           // codeword size   1-3
-           // D_REGULAR_CHAR    0
-           // D_WORD_DECODED   -1     
-           // D_FIRSTUPPER     -2
-           // D_UPPERWORD      -3
-           // D_ESCAPE         -4
-           // D_UTFUPPER       -5
-          wrtstatus=wr.WRT_decode(buf(1),&wrtText[0],&wrtTextSize);
-          if (wrtstatus==-1){
-          wrtbytesize++;
-          // print decoded word
-          // for (int p=0;p<wrtTextSize;p++)printf("%c",wrtText[p]);
-          wrtbytesize=0;
-          word6=0;
-          }else if (wrtstatus>0){
-              wrtbytesize++;
-          }
-      }*/
+  g_ascii_lo(0), g_ascii_hi(0), c(0), pC(0), ppC(0),c4(0),ccount(0),col1(0),firstwasspace(false),opened(0),line0(0),
+  iword0(0),lastSpace(0),pdft(false),chk(0),above(0), above1(0), above2(0),fl(0),f(0) {
+      reset();
+    }
+    void reset() { 
+       cWord=&StemWords[0], pWord=&StemWords[3];expr0=expr1=expr2=expr3=expr4=exprlen0=expr0chars=0;
+       is_letter=is_letter_pC=is_letter_ppC=false;
+       
+       wcol=wabove=0,wnl1=wnl=-1;
+    }
+    void shiftwords() { 
+    }
+    void killwords() { 
+    }
+    void process_char(const bool is_extended_char,int val1=0,int val2=0) {
         ppC=pC; pC=c;
-         c=x.c4&255;
-         //if (wrtstatus==0 && wrtLoaded==true){ wrtc4=(wrtc4<<8)|c;}
-         int f=0,i=0;
-
+        is_letter_ppC=is_letter_pC; is_letter_pC=is_letter;
+        c=x.c4&255;
+        c4=(c4<<8)|c;
+        int i=0;
+        f=0;
         if (x.spaces&0x80000000) --x.spacecount;
         if (x.words&0x80000000) --x.wordcount;
         if (numbers&0x80000000) --numbercount;
@@ -6423,15 +6170,15 @@ public:
            memset(cWord, 0, sizeof(Word));
         }
         if (islink && (c==SPACE || c==']' || c==10  )) islink=0; //disable if not in link
-        if (istemplate && (x.c4&0xffff)==0x7d7d) istemplate=0; //'}}'
+        if (istemplate && (c4&0xffff)==0x7d7d) istemplate=0; //'}}'
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
-        //if (doXML==true) printf(".");
-        if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 &&(x.b3!=3)|| (c>0 && c<4 ))) {
+        is_letter=((c>='a' && c<='z') || (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
+        if (is_letter) {// if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 /*&&(x.b3!=3)*/|| (c>0 && c<4))) {
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
-                if ((lastLetter=3 && (x.c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
-                    (lastLetter=3 && (x.c4&0xFFFF00)==0x2D0A00 && buf(4)!=0x2D) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2D0D0A00 && buf(5)!=0x2D)  ){
+                if ((lastLetter=3 && (c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
+                    (lastLetter=3 && (c4&0xFFFF00)==0x2D0A00 && buf(4)!=0x2D) || (lastLetter=4 && (c4&0xFFFFFF00)==0x2D0D0A00 && buf(5)!=0x2D)  ){
                     word0=word1;
                     word1=word2;
                     word2=word3;
@@ -6451,16 +6198,15 @@ public:
                       wordGap = lastLetter;
                       firstLetter = c;
                       wrdhsh = 0;
-                }   
+                }
+                if (pC==QUOTE ) { opened=QUOTE;}//nci
             }
             lastLetter=0;
-            ++x.words, ++x.wordcount;
-             if (c>4  ) word0^=hash(word0, c,0);
+            if (c>4) word0^=hash(word0, c,0);
             text0=text0*997*16+c;
+            ++x.words, ++x.wordcount;
             x.wordlen++;
             x.wordlen=min(x.wordlen,45);
-            f=0;
-            w=word0&(wpos.size()-1);
             if ((c=='a' || c=='e' || c=='i' || c=='o' || c=='u') || (c=='y' && (x.wordlen>0 && pC!='a' && pC!='e' && pC!='i' && pC!='o' && pC!='u'))){
                 mask2++;
                 wrdhsh=wrdhsh*997*8+(c/4-22);
@@ -6469,53 +6215,53 @@ public:
                 wrdhsh=wrdhsh*271*32+(c-97);
             }else
                 wrdhsh=wrdhsh*11*32+c;
-            
+            f=0;
+            w=word0&(wpos.size()-1);
+            chk=U16(word0>>16);
         } else {
             if (word0) { 
             type0 = (type0<<2)|1;
+            if (c!='|' ){            
                 word5=word4;
                 word4=word3;
                 word3=word2;
                 word2=word1;
-                word1=word0;
-                //if (iword0)
+                word1=word0;}
                 inkeyw[w]=iword0;
-                
                 if (fword==0) fword=word0;
-                //if (c==',')inkeyw1[w]=fword;
                 x.wordlen1=x.wordlen;
                 wpos[w]=x.blpos;
-                if (c==':'|| c=='=') cword0=word0;//,inkeyw[w]
+                
+                wchk[w]=chk;
+                if (c==':'|| c=='=') cword0=word0;
                 if (c==']'&& (x.frstchar!=':') &&  doXML==true) xword0=word0; // wiki 
                 ccword=0;
                 word0=x.wordlen=0;                
                 if((c=='.'||c=='!'||c=='?' ||c=='}' ||c==')') && buf(2)!=10 && x.filetype!=EXE) f=1; 
             }
-            
             if (c==SPACE &&  buf(2)!=SPACE) linespace++; // count spaces in one line, skip repeats
             if (c==SPACE || c==10 || c==5) { 
              ++x.spaces, ++x.spacecount; 
               if (c==SPACE )lastSpace=0;
-               if (c==10 && linespace==0 && x.frstchar==0x5B ){
+               if (/*c==10 &&*/ linespace==0 && x.frstchar==0x5B ){
                    xword1=xword2=xword3=iword0=0;
                }
-               if (c==10 || c==5) fword=linespace=line0=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;
+               if (c==10 || c==5) fword=linespace=line0=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1,wnl1=wnl,wnl=x.bufn.pos-1;
             }
             else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':' || c=='|'|| c=='=') x.spafdo=line0=0,ccword=c,mask2+=3;
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
             if (ccword=='=' || (ccword==':' && doXML==false)) iword0=word1;
-
         }
-        if ((x.c4&0xffffff)==0x3A2F2F) { // ://
+        if ((c4&0xffffff)==0x3A2F2F) { // ://
             islink=1;
         }
-        if ((x.c4&0xffff)==0x7b7b) { //'{{'
+        if ((c4&0xffff)==0x7b7b) { //'{{'
             istemplate=1;
         }
         if (doXML==true){
-            if ((x.c4&0xFFFF)==0x3D3D && x.frstchar==0x3d) xword1=word1; // ,xword2=word2; // == wiki
-            if ((x.c4&0xFFFF)==0x2727) xword2=word1;                     //,xword2=word2; // '' wiki
-            if ((x.c4&0xFFFF)==0x7D7D) xword3=word1;                     //}} wiki
+            if ((c4&0xFFFF)==0x3D3D && x.frstchar==0x3d) xword1=word1; // ,xword2=word2; // == wiki
+            if ((c4&0xFFFF)==0x2727) xword2=word1;                     //,xword2=word2; // '' wiki
+            if ((c4&0xFFFF)==0x7D7D) xword3=word1;                     //}} wiki
         }
         lastDigit=min(0xFF,lastDigit+1);
         if (c>='0' && c<='9') {
@@ -6527,9 +6273,7 @@ public:
         else if (number0) {
             type0 = (type0<<2)|2;
             number1=number0;
-            //inkeyw[number0&(wpos.size()-1)]=iword0;
             number0=0,ccword=0;
-
         }
         line0^=hash(line0, buf(1));
         if (!((c>='a' && c<='z') ||(c>='0' && c<='9') || (c>=128 ))){
@@ -6540,44 +6284,93 @@ public:
             }
         col1=x.col;
         x.col=min(255, buf.pos-nl);
-        int above=buf[nl1+x.col];  // text column context, first
-        int above1=buf[nl2+x.col]; // text column context, second
-        int above2=buf[nl3+x.col]; // text column context, second
-        //if (above==above1 && above1==above2) printf("sama " );
+        wcol=min(255, x.bufn.pos-wnl); // (wrt mode)
+        wabove=x.bufn[wnl1+wcol];  // text column context, first (wrt mode)
+         above=buf[nl1+x.col];  // text column context, first
+         above1=buf[nl2+x.col]; // text column context, second
+         above2=buf[nl3+x.col]; // text column context, 3
         if (val2) x.col=val2,above=buf[buf.pos-x.col],above1=buf[buf.pos-x.col*2];;
         if (x.col<=2) {x.frstchar=(x.col==2?min(c,126):0); firstwasspace=x.frstchar==' '?true:false;        }
         if (x.col>2 && firstwasspace && (x.frstchar==' ' || x.frstchar<4)  && buf(1)!=' ') x.frstchar=c;
         if (x.col>2 && firstwasspace && !((x.frstchar>='a' && x.frstchar<='z') || (x.frstchar>='0' && x.frstchar<='9')|| (x.frstchar>=128 &&(x.b3!=3))) ) x.frstchar=c;  //scan for real char
         if (firstwasspace==false && x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
-        //if (firstwasspace==false && x.frstchar=='[' && x.col<4 && (x.c4&0xffff)==0x5b5b && above=='[') nmli=true,printf("link");
-         int fl = 0;
-        if ((x.c4&0xff) != 0) {
-            if (isalpha(x.c4&0xff)) fl = 1;
-            else if (ispunct(x.c4&0xff)) fl = 2;
-            else if (isspace(x.c4&0xff)) fl = 3;
-            else if ((x.c4&0xff) == 0xff) fl = 4;
-            else if ((x.c4&0xff) < 16) fl = 5;
-            else if ((x.c4&0xff) < 64) fl = 6;
+          fl = 0;
+        if ((c4&0xff) != 0) {
+            if (isalpha(c4&0xff)) fl = 1;
+            else if (ispunct(c4&0xff)) fl = 2;
+            else if (isspace(c4&0xff)) fl = 3;
+            else if ((c4&0xff) == 0xff) fl = 4;
+            else if ((c4&0xff) < 16) fl = 5;
+            else if ((c4&0xff) < 64) fl = 6;
             else fl = 7;
         }
         mask = (mask<<3)|fl;
-    if (c=='(' || c=='{' || c=='[' || c=='<') { opened=c;}
+        if (c=='(' || c=='{' || c=='[' || c=='<' ) { opened=c;}
         else if (c==')' || c=='}' || c==']' || c=='>' || c==QUOTE || c==APOSTROPHE) {opened=0;}
-        const U32 dist =  llog(x.blpos-wpos[word0&(wpos.size()-1)]);
-        U32 tmask=((dist==0)<<4)| ((doXML)<<3)| ((opened)<<2)| ((istemplate)<<1)| islink;
+      const bool is_newline_pC = pC==NEW_LINE || pC==0;
+        if( (c>='a' && c<='z')|| c>=128 || (c>0 && c<4))  {
+        expr0chars = expr0chars<<8|c; // last 4 consecutive letters
+        expr0=hash(expr0,c);
+        exprlen0=min(exprlen0+1,48);//maxwordlen
+      } else {
+        expr0chars=0;
+        exprlen0=0;
+        if( (c==SPACE || c==10 || c==0) && (is_letter_pC || pC==APOSTROPHE || pC==QUOTE) ) {//
+          expr4=expr3;
+          expr3=expr2;
+          expr2=expr1;
+          expr1=expr0;
+          expr0=0;
+        } else if(c==APOSTROPHE || c==QUOTE || ( (c==10 || c==0) && pC==SPACE) || (c==SPACE && is_newline_pC) ) {//
+          //ignore
+        } else {
+          expr4=expr3=expr2=expr1=expr0=0;
+        }
+    }
+    }
+
+    int predict(const U8 pdf_text_parser_state,int val1=0,int val2=0) {
+      if (x.bpos==0) {
+       int i=0;
+       const U32 dist =  llog(x.blpos-wpos[word0&(wpos.size()-1)]);
+
+        x.tmask=i=((c<5)<<5)|((0)<<4)| ((dist==0)<<3)| ((doXML)<<2)| ((opened)<<6)| ((istemplate)<<1)| islink;
         if (x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK) i=0;
-        else i=(hash(5,tmask)>>16);
+        else i=(hash(6,i)>>16);
+
  if (val2!=-1){
         //256+ hash 513+ none
-        if ((x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK)){
-            for(int j=0;j<10;j++)  {cm.set();++i;}
+        if ((pdf_text_parser_state!=0 || x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK)){
+          if (pdf_text_parser_state!=0 ){           
+             if(exprlen0>=1) {
+             const int wl_wme_mbc=min(exprlen0,1+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, c));
+             }      else {cm.set();i++;}
+
+             if(exprlen0>=2) {
+             const int wl_wme_mbc=min(exprlen0,2+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, expr0chars&0xffff));
+             }      else {cm.set();i++;}
+
+             if(exprlen0>=3) {
+             const int wl_wme_mbc=min(exprlen0,3+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, expr0chars&0xffffff));
+             }      else {cm.set();i++;}
+
+             if(exprlen0>=4) {
+             const int wl_wme_mbc=min(exprlen0,4+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, expr0chars));
+             }   else {cm.set();i++;}
+             for(int j=0;j<6;j++)  {cm.set();++i;}
+          } else for(int j=0;j<10;j++)  {cm.set();++i;}
+           
         }
         else {
-            cm.set(hash(++i,x.spafdo, x.spaces&0x7ff,ccword));
+            cm.set(hash(++i,x.spafdo, x.spaces ,ccword));
             cm.set(hash(++i,line0,inkeyw[w]));
             cm.set(hash(++i,x.frstchar, c));
             cm.set(hash(++i,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
-            cm.set(hash(++i,x.spaces, (x.words&511), (numbers&511)));//spaces...
+            cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255)));//spaces...
         
             //cm.set(x.spaces&0x7ff);
            /* cm.set(hash(++i,word0, word2,wordGap, word6));
@@ -6593,6 +6386,8 @@ public:
         }
         U32 h=x.wordcount*64+x.spacecount+numbercount*128;
         if (x.filetype!=DECA){
+        //if (pdf_text_parser_state==0 ){
+       
             cm.set(hash(++i,x.wordlen1,x.col));
             cm.set(hash(++i,c,x.spacecount/2,wordGap));
            // U32 h=x.wordcount*64+x.spacecount+x.numbercount*128;
@@ -6601,22 +6396,26 @@ public:
             cm.set(hash(data0,word1, number1,type0&0xFFF));//cm.set(hash(data0,word1,word2, type0&0xFFF));
             cm.set(h);
             cm.set(hash(++i,h,x.spafdo)); 
-            U32 d=x.c4&0xf0ff;
+            U32 d=c4&0xf0ff;
             cm.set(hash(++i,d,x.frstchar,ccword));
         //}else {
-        //    for(int j=0;j<8;j++)  {cm.set();++i;}
+          //  for(int j=0;j<8;j++)  {cm.set();++i;}
+        //}
         }
-        
         h=word0*271;
         h=h+buf(1);
         if (/*x.filetype==DEFAULT||*/x.filetype==DECA){
         cm.set(hash(++i,h));
         cm.set(hash(++i,word0,word6)); 
         cm.set(hash(++i,data0));// ,iCtx()
-        }else{
+        }else if (pdf_text_parser_state>0){
+            cm.set(hash(h,pdf_text_parser_state));
+        cm.set(hash(++i,word0)); 
+        cm.set(hash(++i,data0));//  
+            }else{
         cm.set(hash(h));
-        cm.set(hash(++i,word0,inkeyw[w],tmask)); 
-        cm.set(hash(++i,data0,inkeyw[w],tmask));//  
+        cm.set(hash(++i,word0,inkeyw[w],x.tmask)); 
+        cm.set(hash(++i,data0,inkeyw[w],x.tmask));//  
         }
         //if (wrdhsh) cm.set(hash(++i,wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); else  {cm.set();++i;}
         cm.set(hash(++i,data0,c, word1)); 
@@ -6627,24 +6426,27 @@ public:
         cm.set(text0&0xfffff);
         U32 isfword=x.filetype==DECA?-1:fword;
         if (doXML==true){
-            cm.set(hash(++i,word0, data0,xword0));
-            cm.set(hash(++i,word0,data0, xword1));  //wiki 
-            cm.set(hash(++i,word0,data0, xword2));  //
-            cm.set(hash(++i,word0,data0, xword3));  //
+            cm.set(hash(++i,word0,number0, data0,xword0));
+            cm.set(hash(++i,word0,number0,data0, xword1));  //wiki 
+            cm.set(hash(++i,word0,number0,data0, xword2));  //
+            cm.set(hash(++i,word0,number0,data0, xword3));  //
             cm.set(hash(++i,x.frstchar, xword2,inkeyw[w]));
         }else{
             //for(int j=0;j<5;j++)  {cm.set();++i;}
             cm.set(hash(++i+512,nl1));    //chars occurring in this paragraph (order 0)
-      cm.set();++i;//cm.set(hash(++i+512,nl1,c));  //chars occurring in this paragraph (order 1)
+     cm.set();++i;//cm.set(hash(++i+512,nl1,c));  //chars occurring in this paragraph (order 1)
       cm.set(hash(++i+512,x.frstchar));   //chars occurring in a paragraph that began with frstchar (order 0)
       //cm.set(hash(++i+512,x.frstchar,c)); //chars occurring in a paragraph that began with frstchar (order 1)*/
       if (lastSpace<1024*4)       cm.set(hash(++i+512,h, word1, word4)); else cm.set();++i;
-      cm.set();++i;
+      cm.set();   ++i;
+    //  cm.set(hash(expr0,expr1,expr2,expr3,expr4));
+           
+       // cm.set(hash(++i,expr0,expr1,expr2));
         }
         
         cm.set(hash(++i,word0, cword0,isfword));
         if (lastSpace<1024*4){
-        cm.set(hash(++i,h, word2));//,isfword
+        cm.set(hash(++i,h, word2,isfword));//,isfword fp.log
         cm.set(hash(++i,h, word3));
         cm.set(hash(++i,h, word4));
         cm.set(hash(++i,h, word5));
@@ -6653,14 +6455,11 @@ public:
  }else{
             for(int j=0;j<6;j++)  {cm.set();++i;}
 }
-        if (x.filetype!=DECA){
+        if  (x.filetype!=DECA ){
             cm.set(hash(++i,isfword));
             cm.set(hash(++i,isfword,c));
         }
-
-        
-        
-        cm.set(hash(++i,opened,c,dist!=0));
+        cm.set(hash(++i,opened,c,dist!=0,pdf_text_parser_state));
         cm.set(hash(++i,opened,word0));
         cm.set(x.f4&0x00000fff);
         cm.set(x.f4); 
@@ -6671,11 +6470,11 @@ public:
             word2=word1;
             word1='.';
         }
-        if (x.col<((U32)max(255,val2))&& x.filetype!=DECA){
-            cm.set(hash(++i,nl1-nl2,x.col,buf(1),above));  
-            cm.set(hash(++i,buf(1),above,above^above1 )); 
-            cm.set(hash(++i,x.col,buf(1))); 
-            cm.set(hash(++i,x.col,c==32));  
+        if (pdf_text_parser_state==0 && x.col<((U32)max(255,val2))&& x.filetype!=DECA){
+            cm.set(hash(++i,nl1-nl2,(wcol<<8)|x.col,buf(1),above));  
+            cm.set(hash(++i,buf(1),above,above^above1,wabove )); 
+            cm.set(hash(++i,x.col,wcol,buf(1))); 
+            cm.set(hash(++i,x.col,wcol,c==32));  
         } 
         else {
           if (x.filetype!=DECA )
@@ -6690,8 +6489,8 @@ public:
        
             cm.set(hash(++i,mask,0)); 
             cm.set(hash(++i,mask,buf(1))); 
-            cm.set(hash(++i,mask&0xff,x.col)); 
-            cm.set(hash(++i,mask,x.c4&0x00ffff00)); 
+            if (pdf_text_parser_state==0)    cm.set(hash(++i,mask&0xff,x.col,wcol)); else  {cm.set();++i;}
+            cm.set(hash(++i,mask,c4&0x00ffff00)); 
             cm.set(hash(++i,mask&0x1ff,x.f4&0x00fff0)); 
             cm.set(hash(++i,h, llog(wordGap), mask&0x1FF, ///// dis>30
              ((istemplate)<<9)|  
@@ -6707,10 +6506,10 @@ public:
              ));
       
         
-        if (x.wordlen1)            cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(); //wordlist
+        if (x.wordlen1 && pdf_text_parser_state==0)            cm.set(hash(x.col,x.wordlen1,above,above1,c4&0xfF)); else cm.set(); //wordlist
         if (wrdhsh)          cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else i++,cm.set();//?
-        hq=hash(x.col,above^above1,numbers&127,x.filetype==DECA?x.c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
-         cm.set(hash(++i,x.col,above^above1,above2 , ((islink)<<8)|
+        hq=hash(x.col,above^above1,numbers&127,x.filetype==DECA?c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
+        if (  pdf_text_parser_state==0) cm.set(hash(++i,x.col,above^above1,above2 , ((islink)<<8)|
              ((linespace > 4)<<7)|
              ((x.wordlen1 > 3)<<6)|
              ((x.wordlen > 0)<<5)|
@@ -6718,7 +6517,7 @@ public:
              ((x.spafdo == x.wordlen + x.wordlen1 + 3)<<3)|
              ((x.spafdo >= lastLetter + x.wordlen1 + wordGap)<<2)|
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
-             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));   
+             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));   else  {cm.set();++i;}
         cm.set(hash((*pWord).Hash[2], h));
  }
     }
@@ -6726,7 +6525,7 @@ public:
     
     if(x.bpos==0) {
 
-    U32 g=x.c4&0xff; // group identifier
+    U32 g=c4&0xff; // group identifier
          if('0'<=g && g<='9') g='0'; //all digits are in one group
     else if('A'<=g && g<='Z') g='A'; //all uppercase letters are in one group
     else if('a'<=g && g<='z') g='a'; //all lowercase letters are in one group
@@ -6739,654 +6538,117 @@ public:
       g_ascii_lo <<= 8;
       g_ascii_lo  |= g;
     }
- if( linespace>0 /*|| x.filetype!=DEFAULT*/) { 
- 
-        U64 i = to_be_collapsed*8;i=i*65;
+ if( linespace>0) {
+    U64 i = to_be_collapsed*8;i=i*65;
     U32 g_a_hi=(g_ascii_lo>>32),g_a_lo=g_ascii_lo&0x00000000ffffffff;
     cm.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
     cm.set(hash( (++i), g_a_hi, g_a_lo));                                  // last 8 groups
     cm.set(hash( (++i), g_a_hi&0x0000ffff, g_a_lo ));                      // last 6 groups
     cm.set(hash( (++i), g_a_lo));                                          // last 4 groups
     cm.set(hash( (++i), g_a_lo&0x0000ffff));                               // last 2 groups
-
-    cm.set(hash( (++i), g_a_hi&0x00ffffff, g_a_lo , x.c4&0x0000ffff ));    // last 7 groups + last 2 chars
-    cm.set(hash( (++i), g_a_hi&0x000000ff, g_a_lo , x.c4&0x00ffffff ));    // last 5 groups + last 3 chars
+    cm.set(hash( (++i), g_a_hi&0x00ffffff, g_a_lo , c4&0x0000ffff ));    // last 7 groups + last 2 chars
+    cm.set(hash( (++i), g_a_hi&0x000000ff, g_a_lo , c4&0x00ffffff ));    // last 5 groups + last 3 chars
  } else for(int i=0;i<7;i++) cm.set();
-    //Stats->charGroup = g_ascii_lo; //group identifiers of the last 8 characters
+
   }
-  //cm1.mix(m);
-  cm.mix(m);
-    return hq;
-}
- virtual ~wordModel1(){/*printf("skip wrt %d ",ccount);*/ }
-};
-
-static U64 hashes[14] = {
-  UINT64_C(0x9E3779B97F4A7C15),
-  UINT64_C(0x993DDEFFB1462949),
-  UINT64_C(0xE9C91DC159AB0D2D),
-  UINT64_C(0x83D6A14F1B0CED73),
-  UINT64_C(0xA14F1B0CED5A841F),
-  UINT64_C(0xC0E51314A614F4EF),
-  UINT64_C(0xDA9CC2600AE45A27),
-  UINT64_C(0x826797AA04A65737),
-  UINT64_C(0x2375BE54C41A08ED),
-  UINT64_C(0xD39104E950564B37),
-  UINT64_C(0x3091697D5E685623),
-  UINT64_C(0x20EB84EE04A3C7E1),
-  UINT64_C(0xF501F1D0944B2383),
-  UINT64_C(0xE3E4E8AA829AB9B5)
-};
-// Golden ratio of 2^64 (not a prime)
-#define PHI64 hashes[0] // 11400714819323198485
-
-// Some more arbitrary magic (prime) numbers
-#define MUL64_1  hashes[1]
-#define MUL64_2  hashes[2]
-#define MUL64_3  hashes[3]
-#define MUL64_4  hashes[4]
-#define MUL64_5  hashes[5] 
-#define MUL64_6  hashes[6]
-#define MUL64_7  hashes[7]
-#define MUL64_8  hashes[8]
-#define MUL64_9  hashes[9]
-#define MUL64_10 hashes[10]
-#define MUL64_11 hashes[11]
-#define MUL64_12 hashes[12]
-#define MUL64_13 hashes[13]
-
-// Finalizers (range reduction)
-// - Keep the necessary number of bits after performing a
-//   (combination of) multiplicative hash(es)
-/*
-U32 finalize64(const U64 hash, const int hashbits) {
-  assert(U32(hashbits)<=32); // just a reasonable upper limit
-  return U32(hash>>(64-hashbits));
-}
-
-// Get the next 8 or 16 bits following "hasbits" for checksum
-static U64 checksum64(const U64 hash, const int hashbits, const int checksumbits) {
-  assert(0<checksumbits && U32(checksumbits)<=32); //32 is just a reasonable upper limit
-  return (hash>>(64-hashbits-checksumbits))&((1<<checksumbits)-1); 
-}
-*/
-//
-// Value hashing
-//
-// - Hash 1-13 64-bit (usually small) integers
-
-static  
-U64 hash64(const U64 x0) {
-  return (x0+1)*PHI64;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5, const U64 x6) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5 +
-         (x6+1)*MUL64_6;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5, const U64 x6, const U64 x7) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5 +
-         (x6+1)*MUL64_6 + (x7+1)*MUL64_7;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5, const U64 x6, const U64 x7, const U64 x8) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5 +
-         (x6+1)*MUL64_6 + (x7+1)*MUL64_7 + (x8+1)*MUL64_8;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5, const U64 x6, const U64 x7, const U64 x8, const U64 x9) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5 +
-         (x6+1)*MUL64_6 + (x7+1)*MUL64_7 + (x8+1)*MUL64_8 +
-         (x9+1)*MUL64_9;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5, const U64 x6, const U64 x7, const U64 x8, const U64 x9,
-         const U64 x10) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5 +
-         (x6+1)*MUL64_6 + (x7+1)*MUL64_7 + (x8+1)*MUL64_8 +
-         (x9+1)*MUL64_9 + (x10+1)*MUL64_10;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5, const U64 x6, const U64 x7, const U64 x8, const U64 x9,
-         const U64 x10,const U64 x11) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5 +
-         (x6+1)*MUL64_6 + (x7+1)*MUL64_7 + (x8+1)*MUL64_8 +
-         (x9+1)*MUL64_9 + (x10+1)*MUL64_10 + (x11+1)*MUL64_11;
-}
-static  
-U64 hash64(const U64 x0, const U64 x1, const U64 x2, const U64 x3, const U64 x4,
-         const U64 x5, const U64 x6, const U64 x7, const U64 x8, const U64 x9,
-         const U64 x10,const U64 x11,const U64 x12) {
-  return (x0+1)*PHI64   + (x1+1)*MUL64_1 + (x2+1)*MUL64_2 +
-         (x3+1)*MUL64_3 + (x4+1)*MUL64_4 + (x5+1)*MUL64_5 +
-         (x6+1)*MUL64_6 + (x7+1)*MUL64_7 + (x8+1)*MUL64_8 +
-         (x9+1)*MUL64_9 + (x10+1)*MUL64_10 + (x11+1)*MUL64_11 + (x12+1)*MUL64_12;
-}
-static   
-U64 combine64(const U64 seed, const U64 x) {
-  return hash64(seed+x);
-}
-class WordModel: public Model {
- 
-private:
- // static constexpr int nCM1=17; // pdf / non_pdf contexts
-  static constexpr int nCM2=41; // common contexts
-  static constexpr int nCM = nCM2;//+nCM2; // 52
-public:
-   BlockData& x;
-   Buf& buf;  
-private:
-  ContextMap cm;
-  static constexpr int wposbits=16;
-  static constexpr int maxwordlen=45;
-  static constexpr int maxlinematch=16;
-  static constexpr int maxlastUpper=63;
-  static constexpr int maxlastLetter=16;
- class Info {
-   BlockData& x;
-   Buf& buf;
-    ContextMap &cm;
-    Array<U32> wpos{1<<wposbits};  // last positions of whole words
-    Array<U16> wchk{1<<wposbits};  // checksums for whole words
-    U32 c1,c4;                      // last 4 processed characters
-    U8 c, pC, ppC;           // last char, previous char, char before the previous char (converted to lowearcase)
-    bool is_letter, is_letter_pC, is_letter_ppC;
-    U8 opened;     // "(", "[", "{", "<", opening QUOTE, opening APOSTROPHE (or 0 when none of them)
-    U8 wordlen0, wordlen1, exprlen0;     // length of word0 and word1
-    U64 line0, frstword;       // hash of line content, hash of first word on line
-    U64 word0, word1, word2, word3, word4;  // wordtoken hashes, word0 is the partally processed ("current") word
-    U64 expr0, expr1, expr2, expr3, expr4;  // wordtoken hashes for expressions
-    U64 keyword0, gaptoken0, gaptoken1;         // hashes
-    U16 w, chk; // finalized hash and checksum of last partially processed word
-    int frstchar;  // category of first character of the current line (or -1 when in first column)
-    int linematch; // the length of match of the current line vs the previos line
-    int nl1, nl2;  // current newline position, previous newline position
-    U64 groups; // 8 last character categories
-    U64 text0;  // uninterrupted stream of letters
-    U32 lastLetter, lastUpper, wordGap;
-    U32 mask, expr0chars, mask2, f4;
-  public:
-   
-    Info(BlockData& bd,U32 val, ContextMap &contextmap):x(bd),buf(bd.buf), cm(contextmap) {
-      reset();
-    }
-    void reset() {
-      //zero contents
-      memset(&wpos[0], 0, (1<<wposbits)*sizeof(U32));
-      memset(&wchk[0], 0, (1<<wposbits)*sizeof(U16));
-      c4=0;c=pC=ppC=0;
-      is_letter=is_letter_pC=is_letter_ppC=false;
-      opened=wordlen0=wordlen1=exprlen0=0;
-      line0=frstword=0;
-      word0=word1=word2=word3=word4=0;
-      expr0=expr1=expr2=expr3=expr4=0;
-      keyword0=gaptoken0=gaptoken1=0;
-      w=chk=0;
-      frstchar=linematch=nl1=nl2=0;
-      groups=text0=0;
-      lastLetter=lastUpper=wordGap=0;
-      mask=expr0chars=mask2=f4=0;
-      //---
-      lastUpper=maxlastUpper;
-      lastLetter=wordGap=maxlastLetter;
-      frstchar=linematch=-1;
-    }
-    void shiftwords() {
-      word4=word3;
-      word3=word2;
-      word2=word1;
-      word1=word0;
-      wordlen1=wordlen0;
-    }
-    void killwords() {
-      word4=word3=word2=word1=0;
-      gaptoken1=0; //not really necessary - tiny gain
-    }
-    void process_char(const bool is_extended_char) {
-      //note: the pdf model uses this function, therefore only c1 may be referenced, c4, c8, etc. should not
-
-      //shift history
-      ppC=pC; pC=c;
-      is_letter_ppC=is_letter_pC; is_letter_pC=is_letter;
-      c1=x.buf(1);
-      c4=c4<<8|c1;
-      c=c1;
-      if(c>='A' && c<='Z') {c+='a'-'A'; lastUpper=0;}
-
-                 is_letter = (c>='a' && c<='z') || is_extended_char  ;
-      const bool is_number = (c>='0' && c<='9') || (pC>='0' && pC<='9' && c=='.' );// decimal point (english) or thousand separator (misc) 
-      const bool is_newline = c==NEW_LINE || c==0;
-      const bool is_newline_pC = pC==NEW_LINE || pC==0;
-      lastUpper=min(lastUpper+1,maxlastUpper);
-      lastLetter=min(lastLetter+1,maxlastLetter);
-      mask2<<=8;
-
-      if (is_letter || is_number ) {
-        if (wordlen0==0){ // the beginning of a new word
-          if (pC==NEW_LINE && lastLetter==3 && ppC=='+') { 
-            // correct hyphenation with "+" (book1 from Calgary)
-            // (undo some of the recent context changes)
-            word0=word1; word1=word2; word2=word3; 
-            word3=word4=0;
-            wordlen0=wordlen1; 
-          } else {
-            wordGap = lastLetter;
-            gaptoken1=gaptoken0;
-            if (pC==QUOTE || (pC==APOSTROPHE && !is_letter_ppC)) opened=pC;
-          } 
-          gaptoken0=0; 
-          mask2=0;
-        }
-        lastLetter=0;
-        if (c>4  )word0=combine64(word0, c);
-        w=U16(finalize64(word0,wposbits));
-        chk=U16(checksum64(word0,wposbits,16));
-        text0=(text0<<8|c)&0xffffffffff; // last 5 alphanumeric chars (other chars are ignored)
-        wordlen0=min(wordlen0+1,maxwordlen);
-        //last letter types
-        if(is_letter) {
-          if(c=='e')mask2|=c; // vowel/e // separating 'a' is also ok
-          else if (c=='a' || c=='i' || c=='o' || c=='u')mask2|='a'; // vowel
-          else if (c>='b' && c<='z') {
-            if(c=='y')mask2|='y'; // y
-            else if(pC=='t' && c=='h') {mask2=((mask2>>8)&0x00ffff00)|'t';} // consonant/th
-            else mask2|='b'; // consonant
-          }
-          else mask2|=128; // extended_char: c>=128
-        }
-        else { // is_number
-          if(c=='.') mask2|='.'; // decimal point or thousand separator
-          else mask2|= c=='0'?'0':'1'; // number
-        }
-      }
-      else { //it's not a letter/number 
-        gaptoken0=hash64(gaptoken0,is_newline?' ':c1);
-        if(is_newline && pC=='+' && is_letter_ppC) {} //calgary/book1 hyphenation - don't shift again
-        else if(c=='?' || pC=='!' || pC=='.') killwords(); //end of sentence (probably)
-        else if(c==pC) {} //don't shift when anything repeats
-        else if((c==SPACE || is_newline) && (pC==SPACE || is_newline_pC)) {} //ignore repeating whitespace
-        else shiftwords();
-        if (wordlen0!=0) { //beginning of a new non-word token
-          //INJECT_SHARED_pos
-          wpos[w]=x.buf.pos;
-          wchk[w]=chk;
-          w=0;
-          chk=0;
-
-          if (c==':'||c=='=') keyword0 = word0; // enwik, world95.txt, html/xml
-          if(frstword==0)frstword=word0;
-
-          word0=0;
-          wordlen0=0;
-          mask2=0;
-        }
-
-        if (c1=='.' || c1=='!' || c1=='?') mask2|='!';
-        else if (c1==',' || c1==';' || c1==':') mask2|=',';
-        else if (c1=='(' || c1=='{' || c1=='[' || c1=='<') {mask2|='(';opened=c1;}
-        else if (c1==')' || c1=='}' || c1==']' || c1=='>') {mask2|=')';opened=0;}
-        else if (c1==QUOTE || c1==APOSTROPHE) {mask2|=c1;opened=0;}
-        else if (c1=='-') mask2|=c1;
-        else mask2|=c1; //0, SPACE, NEW_LINE, /\+=%$ etc.
-      }
-      
-      //const U8 chargrp = stats->Text.chargrp;
-      U8 g=c1;
-      if(g>=128){
-        //utf8 code points (weak context)
-             if((g&0xf8)==0xf0)g=1;
-        else if((g&0xf0)==0xe0)g=2;
-        else if((g&0xe0)==0xc0)g=3;
-        else if((g&0xc0)==0x80)g=4;
-        //the rest of the values
-        else if (g==0xff)g=5;
-        else g=c1&0xf0;
-      }
-      else if(g>='0' && g<='9')g='0';
-      else if(g>='a' && g<='z')g='a';
-      else if(g>='A' && g<='Z')g='A';
-      else if(g<32 && !is_newline)g=6;
-      groups=groups<<8|g;
-
-      // Expressions (words separated by single spaces)
-      //
-      // Remarks: (1) formatted text files may contain SPACE+NEW_LINE (dickens) or NEW_LINE+SPACE (world95.txt)
-      // or just a NEW_LINE instead of a SPACE. (2) quotes and apostrophes are ignored during processing
-      if(is_letter) {
-        expr0chars = expr0chars<<8|c; // last 4 consecutive letters
-        expr0=hash64(expr0,c);
-        exprlen0=min(exprlen0+1,maxwordlen);
-      }
-      else {
-        expr0chars=0;
-        exprlen0=0;
-        if((c==SPACE || is_newline) && (is_letter_pC || pC==APOSTROPHE || pC==QUOTE)) {
-          expr4=expr3;
-          expr3=expr2;
-          expr2=expr1;
-          expr1=expr0;
-          expr0=0;
-        } else if(c==APOSTROPHE || c==QUOTE || (is_newline && pC==SPACE) || (c==SPACE && is_newline_pC)) {
-          //ignore
-        } else {
-          expr4=expr3=expr2=expr1=expr0=0;
-        }
-      }
-    }
-   /* void line_model_predict() {
-      U64 i = 1024;
-      const bool is_newline = c==NEW_LINE || c==0;
-      if (is_newline) {  // a new line has just started (or: zero in asciiz or in binary data)
-        nl2=nl1; nl1=x.buf.pos; 
-        //nl2=nl1; nl1=x.buf.pos; 
-        frstchar=-1; frstword=0; line0=0;
-      }
-      line0=hash64(line0,c1);
-      cm.set(hash64(++i,line0));
-
-      int col = x.buf.pos-nl1;
-      if (col==1) frstchar = groups&0xff;
-
-      const U8  c_above = x.buf[nl2+col];
-      const U8 pC_above = x.buf[nl2+col-1];
-
-      const bool is_new_line_start = col==0 && nl2>0;
-      const bool is_prev_char_match_above = c1==pC_above && col!=0 && nl2!=0;
-      const U32 above_ctx = c_above<<1|U32(is_prev_char_match_above);
-      if(is_new_line_start) linematch=0; //first char not yet known = nothing to match
-      else if(linematch>=0 && is_prev_char_match_above) linematch=min(linematch+1,maxlinematch); //match continues
-      else linematch=-1; //match does not continue
-
-      // context: matches with the previous line
-      if(linematch>=0) cm.set(hash64(++i,c_above,linematch));
-      else {cm.set();i++;}
-      cm.set(hash64(++i,       above_ctx,c1));
-      cm.set(hash64(++i,col<<9|above_ctx,c1));
-      const int line_length = nl1-nl2;
-      cm.set(hash64(++i,nl1-nl2, col, above_ctx, groups&0xff)); // english_mc
-      cm.set(hash64(++i,nl1-nl2, col, above_ctx, c1)); // english_mc
-
-      // modeling line content per column (and NEW_LINE is some extent)
-      cm.set(hash64(++i,col,c1==SPACE)); // after space vs after other char in this column // world95.txt
-      cm.set(hash64(++i,col,c1));
-      cm.set(hash64(++i,col,mask&0x1ff));
-      cm.set(hash64(++i,col,line_length)); // the lenght of the previous line may foretell the content of columns
-
-      cm.set(hash64(++i,col, frstchar, ((int)lastUpper<col)<<8 | (groups&0xff))); // book1 book2 news
-
-      // content of lines, paragraphs
-      cm.set(hash64(++i,nl1));    //chars occurring in this paragraph (order 0)
-      cm.set(hash64(++i,nl1,c));  //chars occurring in this paragraph (order 1)
-      cm.set(hash64(++i,frstchar));   //chars occurring in a paragraph that began with frstchar (order 0)
-      cm.set(hash64(++i,frstchar,c)); //chars occurring in a paragraph that began with frstchar (order 1)
-      cm.set(hash64(++i,frstword));   //chars occurring in a paragraph that began with frstword (order 0)
-      cm.set(hash64(++i,frstword,c)); //chars occurring in a paragraph that began with frstword (order 1)
-      assert(i==1024+nCM1);
-    }*/
-    void model_skip(ContextMap &cm) {
-      for(int i=0;i<nCM2;i++)
-        cm.set();
-    }
-    void predict(const U8 pdf_text_parser_state) {
-      const U32 lastpos = wchk[w]!=chk ? 0 : wpos[w]; //last occurrence (position) of a whole word or number
-      const U32 dist = lastpos==0 ? 0 : min(llog(x.buf.pos-lastpos+120)>>4,20);
-      const bool word0_may_end_now = lastpos!=0;
-      const U8 may_be_caps = U8(c4>>8)>='A' && U8(c4>>8)<='Z' && U8(c4)>='A' && U8(c4)<='Z';
-      const bool is_textblock = (x.filetype==TEXT||x.filetype==TEXT0|| x.filetype==TXTUTF8||x.filetype==EOLTEXT||x.filetype==DICTTXT||x.filetype==BIGTEXT||x.filetype==NOWRT);
-
-      U64 i = 2048*is_textblock;
-
-      cm.set(hash64(++i,text0)); //strong                
-      // expressions in normal text
-      if(is_textblock) {
-        cm.set(hash64(expr0,expr1,expr2,expr3,expr4));
-        cm.set(hash64(++i,expr0,expr1,expr2));
-      } else {
-         cm.set();i++;
-         cm.set();i++;
-      }
-
-
-      // sections introduced by keywords (enwik world95.txt html/xml)
-      cm.set(hash64(++i,gaptoken0,keyword0)); // chars occurring in a section introduced by "keyword:" or "keyword=" (order 0 and variable order for the gap)
-      cm.set(hash64(++i,word0, c, keyword0)); // tokens occurring in a section introduced by "keyword:" or "keyword=" (order 1 and variable order for a word)
-
-      
-      cm.set(hash64(++i,word0, dist));
-      cm.set(hash64(++i,word1, gaptoken0, dist));
-
-      cm.set(hash64(++i,x.buf.pos>>10, word0)); //word/number tokens and characters occurring in this 1K block
-
-      // Simple word morphology (order 1-4)
-
-      const int wme_mbc=word0_may_end_now<<1|may_be_caps;
-      const int wl=min(wordlen0,6);
-      const int wl_wme_mbc=wl<<2|wme_mbc;
-      cm.set(hash64(++i, wl_wme_mbc, mask2 /*last 1-4 char types*/));
-
-      if(exprlen0>=1) {
-        const int wl_wme_mbc=min(exprlen0,1+3)<<2|wme_mbc;
-        cm.set(hash64(++i, wl_wme_mbc, c));
-      }
-      else {cm.set();i++;}
-
-      if(exprlen0>=2) {
-        const int wl_wme_mbc=min(exprlen0,2+3)<<2|wme_mbc;
-        cm.set(hash64(++i, wl_wme_mbc, expr0chars&0xffff));
-      }
-      else {cm.set();i++;}
-
-      if(exprlen0>=3) {
-        const int wl_wme_mbc=min(exprlen0,3+3)<<2|wme_mbc;
-        cm.set(hash64(++i, wl_wme_mbc, expr0chars&0xffffff));
-      }
-      else {cm.set();i++;}
-
-      if(exprlen0>=4) {
-        const int wl_wme_mbc=min(exprlen0,4+3)<<2|wme_mbc;
-        cm.set(hash64(++i, wl_wme_mbc, expr0chars));
-      }
-      else {cm.set();i++;}
-
-      cm.set(hash64(++i,word0, pdf_text_parser_state));
-
-      cm.set(hash64(++i,   word0, gaptoken0));                           // stronger
-      cm.set(hash64(++i,c, word0,                    gaptoken1));        // stronger
-      cm.set(hash64(++i,c,        gaptoken0,  word1));                   // stronger //french texts need that "c"
-      cm.set(hash64(++i,   word0,             word1));                   // stronger
-      cm.set(hash64(++i,   word0,             word1,            word2)); // weaker
-      cm.set(hash64(++i,          gaptoken0,  word1, gaptoken1, word2)); // stronger
-      cm.set(hash64(++i,   word0,             word1, gaptoken1, word2)); // weaker
-      cm.set(hash64(++i,   word0,             word1, gaptoken1));        // weaker
-
-      const U8 c1=c4&0xff;
-      if(is_textblock) {
-        cm.set(hash64(++i,word0, c1, word2));
-        cm.set(hash64(++i,word0, c1, word3));
-        cm.set(hash64(++i,word0, c1, word4));
-        cm.set(hash64(++i,word0, c1, word1, word4));
-        cm.set(hash64(++i,word0, c1, word1, word3));
-        cm.set(hash64(++i,word0, c1, word2, word3));
-      } else {
-        cm.set();i++;
-        cm.set();i++;
-        cm.set();i++;
-        cm.set();i++;
-        cm.set();i++;
-        cm.set();i++;
-      }
-      
-      const U8 g=groups&0xff;
-      cm.set(hash64(++i,opened,wl_wme_mbc,g,pdf_text_parser_state));
-      cm.set(hash64(++i,opened,c,dist!=0,pdf_text_parser_state));
-      cm.set(hash64(++i,opened,word0)); // book1, book2, dickens, enwik
-
-
-      cm.set(hash64(++i,groups));
-      cm.set(hash64(++i,groups,c));
-      cm.set(hash64(++i,groups,c4&0x0000ffff));
-
-      f4=(f4<<4) | (c1==' ' ? 0 : c1>>4);
-
-      cm.set(hash64(++i,f4&0xfff));
-      cm.set(hash64(++i,f4));
-
-      int fl = 0;
-      if (c1 != 0) {
-        if (isalpha(c1)) fl = 1;
-        else if (ispunct(c1)) fl = 2;
-        else if (isspace(c1)) fl = 3;
-        else if ((c1) == 0xff) fl = 4;
-        else if ((c1) < 16) fl = 5;
-        else if ((c1) < 64) fl = 6;
-        else fl = 7;
-      }
-      mask = (mask<<3)|fl;
-
-      cm.set(hash64(++i,mask));
-      cm.set(hash64(++i,mask,c1));
-      cm.set(hash64(++i,mask,c4&0x00ffff00));
-      cm.set(hash64(++i,mask&0x1ff,f4&0x00fff0));
-
-      if(is_textblock) {
-        cm.set(hash64( word0, c1, llog(wordGap), mask&0x1FF,
-          ((wordlen1 > 3)<<2)|
-          ((lastUpper < lastLetter + wordlen1)<<1)|
-          (lastUpper < wordlen0 + wordlen1 + wordGap)
-        )); //weak
-      }
-      else {
-        cm.set();i++;
-      }
-      assert(int(i)==2048*is_textblock+nCM2);
+     return hq;
     }
   };
+  
   U8 pdf_text_parser_state; // 0,1,2,3
   Info info_normal;
   Info info_pdf;
-      U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
+  U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
     wrtDecoder wr;
     bool wrtLoaded;
-    //U8 wrtText[STRING_MAX_SIZE];
     Array<U8> wrtText;
     int wrtTextSize,wrtstatus,wrtbytesize;
-    U64 wrtc4;
+    U32 hq;
 public:
-  WordModel (BlockData& bd,U32 val=0) : 
-    x(bd),buf(bd.buf), cm(CMlimit(MEM()*16), nCM+1),pdf_text_parser_state(0), info_normal(bd,0,cm), info_pdf(bd,0,cm),
-     wrtpos(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtstatus(0),wrtLoaded(false),wrtText(STRING_MAX_SIZE),wrtTextSize(0),wrtbytesize(0),wrtc4(0) {}
-  int inputs() {return nCM*cm.inputs()+7*cm.inputs();}
-  int nets() {return 0;}
+  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),
+  info_normal(bd,0,cm), info_pdf(bd,0,cm),
+   wrtpos(0),wrtfile(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtLoaded(false),wrtText(STRING_MAX_SIZE),wrtTextSize(0),wrtstatus(0),wrtbytesize(0),hq(0){
+  
+   }
+   int inputs() {return N*cm.inputs();}
+   int nets() {return 0;}
   int netcount() {return 0;}
-  void reset() {
-    info_normal.reset();
-    info_pdf.reset();
-  }
-  int p(Mixer& m,int val1=0,int val2=0)  {
-    //INJECT_SHARED_bpos 
+  #define bswap64(n) ((bswap((n&0xFFFFFFFF00000000)>>32))|((bswap(n&0x00000000FFFFFFFF))<<32))
+   int p(Mixer& m,int val1=0,int val2=0)  {
     if (x.bpos==0) {
-           //load wrt dictionary from faile
-        //detect header//'!Pq8'
+        // load wrt dictionary from file
+        // detect header//'!Pq8'
         if (x.c4==0x21507138 && x.blpos<16){ 
           wrtpos=x.blpos;
-          }
-          
-          if (wrtpos>0 && wrtpos+4==x.blpos){ 
-           wrtfile=bswap(x.c4) ;
+        }
+        if (wrtpos>0)  { 
+          if (wrtpos+4+4==x.blpos){ 
+            wrtfile=(U64(bswap(x.c4))<<32)| bswap(x.c8);
           }
           //load size
-          if (wrtpos>0 && wrtpos+4+3==x.blpos)  { 
+          if (wrtpos+4+4+3==x.blpos) { 
           wrtsize=(x.c4&0xffffff);
           if (wrtsize<4) wrtpos=0;
           }
           //load count
-          if (wrtpos>0 && wrtpos+4+3+3==x.blpos)  { 
-          wrtcount=(x.c4&0xffffff);
-          wrtcount=(wrtcount>>16)+((wrtcount&0xff)<<16)+(wrtcount&0xff00);
-          printf("WRT dict count %d words.\n",wrtcount);
-          if (wrtcount==0) wrtpos=0;
+          if (wrtpos+4+4+3+3==x.blpos) { 
+            wrtcount=(x.c4&0xffffff);
+            wrtcount=(wrtcount>>16)+((wrtcount&0xff)<<16)+(wrtcount&0xff00);
+            printf("WRT dict count %d words.\n",wrtcount);
+            x.wwords=wrtcount;
+            if (wrtcount==0) wrtpos=wrtsize=0;
           }
-          if (wrtpos>0 && wrtsize>0 && wrtpos+4+3+3+wrtsize+3==x.blpos && wrtdata==0)  { 
-          if (buf(6)==5){
-          
-          wrtdata=x.blpos+5;
+          if (wrtsize>0 && wrtpos+4+4+3+3+wrtsize+3==x.blpos && wrtdata==0) { 
+            if (buf(6)==5) {
+              wrtdata=x.blpos+5;
+            }
+            else wrtLoaded==false,wrtpos=wrtdata=wrtsize=0;
           }
-          else wrtLoaded==false,wrtpos=0;
+          if (wrtdata>0 && x.blpos>=wrtdata &&wrtLoaded==false) { 
+            wr.WRT_start_decoding(wrtcount,wrtsize,&x.buf[buf.pos-5-3-wrtsize]);
+            wrtLoaded=x.dictonline=true;
+            printf("WRT dict online.\n");
           }
-         
-          if (wrtpos>0 && wrtdata>0 && x.blpos>=wrtdata &&wrtLoaded==false)  { 
-           
-          wr.WRT_start_decoding(wrtcount,wrtsize,&x.buf[buf.pos-5-3-wrtsize]);
-          wrtLoaded=true;
-          printf("WRT dict online.\n");
-          }
-       if (wrtLoaded==true)
-      {
+        }
+        if (wrtLoaded==true) {
+           // Returned wrtstatus values
+           // codeword size   1-3
+           // D_REGULAR_CHAR    0
+           // D_WORD_DECODED   -1     
+           // D_FIRSTUPPER     -2
+           // D_UPPERWORD      -3
+           // D_ESCAPE         -4
+           // D_UTFUPPER       -5
           wrtstatus=wr.WRT_decode(buf(1),&wrtText[0],&wrtTextSize);
           if (wrtstatus==-1){
-          wrtbytesize++;
-          wrtbytesize=0;
-          for (int p=0;p<wrtTextSize;p++){
-          U8 wc=wrtText[p];
-          wrtc4=(wrtc4<<8)|wc;
-//printf("%c",wc);
-          }
+            wrtbytesize++;
+            // print decoded word
+            // for (int p=0;p<wrtTextSize;p++)printf("%c",wrtText[p]);
+            for (int p=0;p<wrtTextSize;p++){
+                U8 wc=wrtText[p];
+                x.wrtc4=(x.wrtc4<<8)|wc;
+                x.bufn[x.bufn.pos++]=wc;
+                x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+            }
+            wrtbytesize=0;
+            wrtTextSize=0;
           }else if (wrtstatus>0){
-              wrtbytesize++;
-          }
+            wrtbytesize++;
+        }
       }
-         U8 c=x.c4&255;
-         if (wrtstatus==0 && wrtLoaded==true){ wrtc4=(wrtc4<<8)|c;/*printf("%c",c);*/}
-         if ((wrtc4&0xffffffff)==0x0a62740A){// lower case BT\n 
-            // printf("lower case BT\n " );
-         }
-      //extract text from pdf
       const U8 c1=x.c4;
+      if (wrtstatus==0 && wrtLoaded==true){
+       x.wrtc4=(x.wrtc4<<8)|c1;/*printf("%c",c1);*/
+        x.bufn[x.bufn.pos++]=c1;
+        x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+       }
       
-      if((wrtc4&0xffffffff)==0x0A62740A&& wrtstatus==0 && wrtLoaded==true||x.c4==0x0a42540a) {// 0x0a42540a "\nBT\n" 
-      pdf_text_parser_state=1;
-      //printf("PDF on " );
+      //extract text from pdf
+      if((x.wrtc4&0xffffffff)==0x0A62740A&& wrtstatus==0 && wrtLoaded==true||x.c4==0x0a42540a) {//  "\nBT\n"  "\nbt\n" 
+          pdf_text_parser_state=1;x.inpdf=true;
       } // Begin Text
-      else if ((wrtc4&0xffffffff)==0x0A65740A && wrtstatus==0 && wrtLoaded==true||x.c4==0x0a45540a) {// 0x0a45540a"\nET\n" 
-      pdf_text_parser_state=0;
-      //printf("PDF off " );
+      else if ((x.wrtc4&0xffffffff)==0x0A65740A && wrtstatus==0 && wrtLoaded==true||x.c4==0x0a45540a) {// "\nET\n" "\net\n" 
+          pdf_text_parser_state=0;x.inpdf=false;
       } // End Text
       bool do_pdf_process=true;
       if(pdf_text_parser_state!=0) {
@@ -7402,27 +6664,27 @@ public:
       const bool is_pdftext = (pdf_text_parser_state&4)!=0;
       if(is_pdftext) {
         if(do_pdf_process) {
-          //printf("%c",c1); //debug: print the extracted pdf text
-          const bool is_extended_char = 0;//const bool is_extended_char = c1=='\\' ||wrtstatus==-1|| (c1 <4 && c1>0 && wrtLoaded==true && wrtstatus==0) ;//|| wrtstatus!=0;
-          info_pdf.process_char(is_extended_char);
+          //printf("%c ",c1);  //debug: print the extracted pdf text
+          const bool is_extended_char =wrtstatus==-1 || c1>=128|| (c1 <4 && c1>0 && wrtLoaded==true && wrtstatus==0);
+          info_pdf.process_char(is_extended_char,val1,val2);
         }
-        info_pdf.predict(pdf_text_parser_state);
-        //info_pdf.line_model_skip(cm);
+        hq=info_pdf.predict(pdf_text_parser_state,val1,val2);
       } else {
         const bool is_textblock = (x.filetype==TEXT||x.filetype==TEXT0|| x.filetype==TXTUTF8||x.filetype==EOLTEXT||x.filetype==DICTTXT||x.filetype==BIGTEXT||x.filetype==NOWRT);
-        const bool is_extended_char = is_textblock && c1>=128;//is_textblock && (wrtstatus==-1 ||(c1 <4 && c1>0 && wrtLoaded==true && wrtstatus==0)|| c1>=128 );
-        info_normal.process_char(is_extended_char);
-       // info_normal.predict(pdf_text_parser_state);
-        //info_normal.line_model_predict();
-        info_pdf.model_skip(cm);
+        const bool is_extended_char = is_textblock && c1>=128;
+        info_normal.process_char(is_extended_char,val1,val2);
+        hq=info_normal.predict(pdf_text_parser_state,val1,val2);
       }
       
     }
     cm.mix(m);
-    return 0;
+    return hq;
   }
-  virtual ~WordModel(){}
+  
+ virtual ~wordModel1(){/*printf("skip wrt %d ",ccount);*/ }
 };
+
+
 
 //////////////////////////// recordModel ///////////////////////
 
@@ -7476,7 +6738,19 @@ public:
   if (!x.bpos) {
    int w=x.c4&0xffff, c=w&255, d=w>>8;
     if (rrlen==0){
-      int r=buf.pos-cpos1[c];
+        int r=0;
+        if (x.dictonline==true){ r=x.bufn.pos-cpos1[c];
+        if ( r>1) {
+        if ( r==cpos1[c]-cpos2[c]  && r==cpos2[c]-cpos3[c] && (r>32 || r==cpos3[c]-cpos4[c])
+          && (r>10 || ((c==x.bufn(r*5+1)) && c==x.bufn(r*6+1)))) {      
+          if (r==rlen[1]) ++rcount[0];
+          else if (r==rlen[2]) ++rcount[1];
+          else if (rcount[0]>rcount[1]) rlen[2]=r, rcount[1]=1;
+          else rlen[1]=r, rcount[0]=1;
+        }
+      }    
+        }else{
+        r=buf.pos-cpos1[c];
       if ( r>1) {
         if ( r==cpos1[c]-cpos2[c]  && r==cpos2[c]-cpos3[c] && (r>32 || r==cpos3[c]-cpos4[c])
           && (r>10 || ((c==buf(r*5+1)) && c==buf(r*6+1)))) {      
@@ -7486,7 +6760,7 @@ public:
           else rlen[1]=r, rcount[0]=1;
         }
       }    
-
+} 
     // check candidate lengths
     for (int i=0; i < 2; i++) {
       if (rcount[i] > max(0,12-(int)ilog2(rlen[i+1]))){
@@ -7531,14 +6805,26 @@ public:
     else rlen[0]=rrlen,rcount[0]=rcount[1]=0;
     
     assert(rlen[0]>0);
-    col=buf.pos%rlen[0];
+    if (x.dictonline==true)
+    col=x.bufn.pos%rlen[0];
+    else col=buf.pos%rlen[0];
     x1 = min(0x1F,col/max(1,rlen[0]/32));
+    if (x.dictonline==true){
+        N = x.bufn(rlen[0]), NN = x.bufn(rlen[0]*2), NNN = x.bufn(rlen[0]*3), NNNN = x.bufn(rlen[0]*4);
+    for (int i=0; i<nIndCtxs-1; iCtx[i]+=c, i++);
+    iCtx[0]=(c<<8)|N;
+    iCtx[1]=(x.bufn(rlen[0]-1)<<8)|N;
+    iCtx[2]=(c<<8)|x.bufn(rlen[0]-1);
+    iCtx[3]=(hash(c, N, x.bufn(rlen[0]+1)));
+    }else{
+    
     N = buf(rlen[0]), NN = buf(rlen[0]*2), NNN = buf(rlen[0]*3), NNNN = buf(rlen[0]*4);
     for (int i=0; i<nIndCtxs-1; iCtx[i]+=c, i++);
     iCtx[0]=(c<<8)|N;
     iCtx[1]=(buf(rlen[0]-1)<<8)|N;
     iCtx[2]=(c<<8)|buf(rlen[0]-1);
     iCtx[3]=(hash(c, N, buf(rlen[0]+1)));
+    }
     /*
     Consider record structures that include fixed-length strings.
     These usually contain the text followed by either spaces or 0's,
@@ -7559,8 +6845,8 @@ public:
     */
     if (!col)
       nTransition = 0;
-    if ((((U16)(x.c4>>8) == (U16)(SPACE*0x010101)) && (c != SPACE)) || (!(x.c4>>8) && c && ((padding != SPACE) || (buf.pos-prevTransition > rlen[0])))){
-      prevTransition = buf.pos;
+    if ((((U16)(x.c4>>8) == (U16)(SPACE*0x010101)) && (c != SPACE)) || (!(x.c4>>8) && c && ((padding != SPACE) || ((x.dictonline==true)?x.bufn.pos:buf.pos-prevTransition > rlen[0])))){
+      prevTransition = (x.dictonline==true)?x.bufn.pos:buf.pos;
       nTransition+=(nTransition<31);
       padding = (U8)d;
     }
@@ -7569,27 +6855,25 @@ public:
     if (val2!=-1) {
    
     // Set 2 dimensional contexts
-    cm.set(hash(++i,c<<8| (min(255, buf.pos-cpos1[c])/4)));
+    cm.set(hash(++i,c<<8| (min(255, (x.dictonline==true)?x.bufn.pos:buf.pos-cpos1[c])/4)));
     if (!( x.filetype==DECA))
-    cm.set(hash(++i,w<<9| llog(buf.pos-wpos1[w])>>2));
+    cm.set(hash(++i,w<<9| llog((x.dictonline==true)?x.bufn.pos:buf.pos-wpos1[w])>>2));
     cm.set(hash(++i,rlen[0]|N<<10|NN<<18));
 
     cn.set(hash(++i,w|rlen[0]<<8));
     cn.set(hash(++i,d|rlen[0]<<16));
     cn.set(hash(++i,c|rlen[0]<<8));
 
-    co.set(hash(++i,buf(1)<<8|min(255, buf.pos-cpos1[buf(1)])));
+    co.set(hash(++i,buf(1)<<8|min(255, (x.dictonline==true)?x.bufn.pos:buf.pos-cpos1[buf(1)])));
     co.set(hash(++i,buf(1)<<17|buf(2)<<9));
     co.set(hash(++i,buf(1)<<8|N));
     
-    //if (lpos && rlen[0]>2) printf("lpos %d rlen %d",lpos,rlen[0]);
-
     cp.set(hash(++i,rlen[0]|N<<10|col<<18));
     cp.set(hash(++i,rlen[0]|buf(1)<<10|col<<18));
     cp.set(hash(++i,col|rlen[0]<<12));
     if (rlen[0]>8){
-      cp.set( hash(++i, min(min(0xFF,rlen[0]),buf.pos-prevTransition), min(0x3FF,col), (w&0xF0F0)|(w==((padding<<8)|padding)), nTransition ) );
-      cp.set( hash(++i, w, (buf(rlen[0]+1)==padding && N==padding), col/max(1,rlen[0]/32) ) );
+      cp.set( hash(++i, min(min(0xFF,rlen[0]),(x.dictonline==true)?x.bufn.pos:buf.pos-prevTransition), min(0x3FF,col), (w&0xF0F0)|(w==((padding<<8)|padding)), nTransition ) );
+      cp.set( hash(++i, w, ((x.dictonline==true)?x.bufn(rlen[0]+1):buf(rlen[0]+1)==padding && N==padding), col/max(1,rlen[0]/32) ) );
     }
     else
       cp.set(), cp.set();
@@ -7606,7 +6890,7 @@ public:
     cp.set(hash(++i, iCtx[3]()));
     cp.set(hash(++i, iCtx[1]()&0xFF, iCtx[3]()&0xFF));
 
-    cp.set(hash(++i, N, (WxNW=c^buf(rlen[0]+1))));
+    cp.set(hash(++i, N, (WxNW=c^(x.dictonline==true)?x.bufn(rlen[0]+1):buf(rlen[0]+1))));
     cp.set(hash(++i, (x.Match.length>0)?x.Match.byte:0x100|U8(iCtx[1]()), N, WxNW));//cp.set(hash(++i, (min(ilog2(x.Match.length),3)!=0)<<8 |x.Match.byte,U8(iCtx[1]()), N, WxNW));
     int k=0x300;
     if (MayBeImg24b)
@@ -7625,8 +6909,13 @@ public:
     cpos4[c]=cpos3[c];
     cpos3[c]=cpos2[c];
     cpos2[c]=cpos1[c];
-    cpos1[c]=buf.pos;
+    if (x.dictonline==true){
+    cpos1[c]=x.bufn.pos;
+    wpos1[w]=x.bufn.pos;
+    }else
+    {cpos1[c]=buf.pos;
     wpos1[w]=buf.pos;
+    }
     mxCtx = (rlen[0]>128)?(min(0x7F,col/max(1,rlen[0]/128))):col;
   }
   U8 B = x.c0<<(8-x.bpos);
@@ -9354,7 +8643,8 @@ public:
     if (!images[idx].jpeg) return images[idx].next_jpeg;
      //if (!images[idx].jpeg) return 0; //??
     // Detect APPx or COM field
-    if (!images[idx].data && !images[idx].app && buf(4)==FF && (((buf(3)>=0xC1) && (buf(3)<=0xCF) && (buf(3)!=DHT)) || ((buf(3)>=0xDC) && (buf(3)<=0xFE)))){
+    bool mainfileds=(( ((buf(3)>=0xC1) && (buf(3)<=0xCF) && (buf(3)!=DHT)) || ((buf(3)>=0xDC) && (buf(3)<=0xFE)) ) && idx==0);
+    if (!images[idx].data && !images[idx].app && buf(4)==FF &&  (buf(3)>>4==0xe || buf(3)==COM||mainfileds)) {//(((buf(3)>=0xC1) && (buf(3)<=0xCF) && (buf(3)!=DHT)) || ((buf(3)>=0xDC) && (buf(3)<=0xFE)))){
 //&& (buf(3)>>4==0xe || buf(3)==COM))
       images[idx].app=buf(2)*256+buf(1)+2;
    if (idx)
@@ -9816,6 +9106,7 @@ public:
   int sd=((smx.p((hc)&0xffff,x.y)));
    m1.add(sd=stretch(sd));
    m.add(sd);
+   
    m1.set(firstcol, 2);
    m1.set( coef+256*min(3,huffbits), 1024 );
    m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048 );
@@ -11622,9 +10913,9 @@ int p(Mixer& m,int val1=0,int val2=0){
     int c=x.c4&255, matched=1, vv;
     w*=((vc&7)>0 && (vc&7)<3);
     if (c&0x80) w = w*11*32 + c;
-    const int lc = (c >= 'A' && c <= 'Z'?c+'a'-'A':c);
+    const int lc = (c >= 'A' && c <= 'Z'?c+'a'-'A':c) ;
     if (lc == 'a' || lc == 'e' || lc == 'i' || lc == 'o' || lc == 'u'){ vv = 1; w = w*997*8 + (lc/4-22); } else
-    if (lc >= 'a' && lc <= 'z'){ vv = 2; w = w*271*32 + lc-97; } else
+    if (lc >= 'a' && lc <= 'z' || c>128){ vv = 2; w = w*271*32 + lc-97; } else
     if (lc == ' ' || lc == '.' || lc == ',' || lc == '\n'|| lc == 5) vv = 3; else
     if (lc >= '0' && lc <= '9') vv = 4; else
     if (lc == 'y') vv = 5; else
@@ -12033,50 +11324,51 @@ public:
   if (x.bpos==0) {
     scm5.set(seenbefore);
     scm6.set(howmany);
+    int j=x.tmask;
     U32 h=x.x4<<6;
     U32 d=x.c4&0xffff;
     if (x.c4==0 && x.x4==0){
-        cm.set();
-        cm.set();
-        cm.set();
-        cm.set();
-        cm.set();
-        cm.set();
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
     }else{
     
-    cm.set(buf(1)+(h&0xffffff00));
-    cm.set(buf(1)+(h&0x00ffff00));
-    cm.set(buf(1)+(h&0x0000ff00));
+    cm.set(hash(j++,buf(1)+(h&0xffffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x00ffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x0000ff00)));
     
     h<<=6;
-    cm.set(d+(h&0xffff0000));
-    cm.set(d+(h&0x00ff0000));
+    cm.set(hash(j++,d+(h&0xffff0000)));
+    cm.set(hash(j++,d+(h&0x00ff0000)));
     h<<=6, d=x.c4&0xffffff;
-    cm.set(d+(h&0xff000000));
+    cm.set(hash(j++,d+(h&0xff000000)));
 }
     for (int i=1; i<5; ++i) { 
-      cm.set(U32(seenbefore|buf(i)<<8));
-      cm.set(U32((x.buf(i+3)<<8)|buf(i+1)));
+      cm.set(hash(j++,U32(seenbefore|buf(i)<<8)));
+      cm.set(hash(j++,U32((x.buf(i+3)<<8)|buf(i+1))));
     }
-    cm.set(x.spaces&0x7fff);
-    cm.set(x.spaces&0xff);
-    cm.set(x.words&0x1ffff);
-    cm.set(x.f4&0x000fffff);
-    cm.set(x.tt&0x00000fff);
+    cm.set(hash(j++,x.spaces&0x7fff));
+    cm.set(hash(j++,x.spaces&0xff));
+    cm.set(hash(j++,x.words&0x1ffff));
+    cm.set(hash(j++,x.f4&0x000fffff));
+    cm.set(hash(j++,x.tt&0x00000fff));
     h=x.w4<<6;
-    cm.set(buf(1)+(h&0xffffff00));
-    cm.set(buf(1)+(h&0x00ffff00));
-    cm.set(buf(1)+(h&0x0000ff00));
+    cm.set(hash(j++,buf(1)+(h&0xffffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x00ffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x0000ff00)));
     d=x.c4&0xffff;
     h<<=6;
-    cm.set(d+(h&0xffff0000));
-    cm.set(d+(h&0x00ff0000));
+    cm.set(hash(j++,d+(h&0xffff0000)));
+    cm.set(hash(j++,d+(h&0x00ff0000)));
     h<<=6, d=x.c4&0xffffff;
-    cm.set(d+(h&0xff000000));
-    cm.set(x.w4&0xf0f0f0ff);
-    cm.set((x.w4&63)*128+(5<<17));
-    cm.set((x.f4&0xffff)<<11|x.frstchar);
-    cm.set(x.spafdo*8*((x.w4&3)==1));
+    cm.set(hash(j++,d+(h&0xff000000)));
+    cm.set(hash(j++,x.w4&0xf0f0f0ff));
+    cm.set(hash(j++,(x.w4&63)*128+(5<<17)));
+    cm.set(hash(j++,(x.f4&0xffff)<<11|x.frstchar));
+    cm.set(hash(j++,x.spafdo*8*((x.w4&3)==1)));
     
     scm1.set(x.words&127);
     scm2.set((x.words&12)*16+(x.w4&12)*4+(x.f4&0xf));
@@ -12131,23 +11423,15 @@ int p(Mixer& m,int val1=0,int val2=0){
       setContexts();
      // if (val2==-1) return 1;
     int i;
-    //if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && buf(3)!=10 && buf(3)!=5 && 
-    //(x.filetype==DICTTXT || x.filetype==BIGTEXT)) for (i=14; i>0; --i) 
-    //  cxt[i]=cxt[i-1]*primes[i];
-    //cxt[15]=(isalpha(buf(1)))?(cxt[15]*primes[15]+ tolower(buf(1))):0;
     if (val2==0) cm.set(cxt[15]);  
-   // for (i=14; i>0; --i)  // update order 0-11 context hashes
-   //   cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
     for (i=0; i<7; ++i)
       cm.set(cxt[i]);
 
     rcm7.set(cxt[7]);
-    //if  (x.filetype!=DECA)  
     cm.set(cxt[8]);
     rcm9.set(cxt[10]);
     
     rcm10.set(cxt[12]);
-   // if  (x.filetype!=DECA) 
     cm.set(cxt[14]);
 
   }
@@ -12868,7 +12152,6 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false)
   models[M_WAV] =         new blankModel1(x);
   models[M_IM4] =         new blankModel1(x); 
   models[M_IM1] =         new blankModel1(x);
-  models[M_WORD2] =       new blankModel1(x);//WordModel(x);
   if (slow==true)
   models[M_PPM] =         new ppmdModel1(x);
   else
@@ -12921,7 +12204,9 @@ void Predictor::update()  {
             m->setText(false);
            if (x.filetype==DBASE) m->setText(true);
             isCompressed=(x.filetype==CMP || x.filetype==MSZIP)?true:false;
+           
          }
+         if (x.inpdf==true ) m->setText(true); else  m->setText(false);
     }
     m->update();
     m->add(256);
@@ -12941,7 +12226,7 @@ void Predictor::update()  {
     if ( isCompressed==false){        
             int dataRecordLen=(x.filetype==DBASE)?x.finfo:(x.filetype==IMGUNK)?x.finfo:0; //force record length 
             rlen=models[M_RECORD]->p(*m,dataRecordLen);
-            models[M_WORD]->p(*m,0,x.finfo>0?x.finfo:0); //colmodels[M_WORD2]->p(*m);
+            models[M_WORD]->p(*m,0,x.finfo>0?x.finfo:0); //col
             models[M_SPARSE_Y]->p(*m,ismatch,order);
             models[M_DISTANCE]->p(*m);
             models[M_INDIRECT]->p(*m);
@@ -12953,7 +12238,7 @@ void Predictor::update()  {
             xmlstate=models[M_XML]->p(*m);
             Valid=models[M_EXE]->p(*m);
             models[M_TEXT]->p(*m);
-            if (x.filetype!=DBASE||x.filetype!=BINTEXT||x.filetype!=HDR) models[M_LINEAR]->p(*m);
+            if (!(x.filetype==DBASE||x.filetype==BINTEXT||x.filetype==HDR ||x.inpdf==false )) models[M_LINEAR]->p(*m);
     } 
     m->set((order<<3)|x.bpos, 64);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
@@ -13018,8 +12303,13 @@ PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new SparseMatchModel(x);
   models[M_SPARSE_Y] = new sparseModely(x);
-  models[M_WORD2] =       new blankModel1(x);
-  models[M_PPM] =         new blankModel1(x); //
+  //if (slow==true)
+ // models[M_PPM] =         new ppmdModel1(x);
+  //else
+  models[M_PPM] =         new blankModel1(x); 
+  if (slow==true)
+  models[M_CHART] =         new chartModel(x);
+  else
   models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
   // get mixer data from models
@@ -13079,7 +12369,8 @@ void PredictorDEC::update()  {
     models[M_INDIRECT]->p(*m);
     models[M_DMC]->p(*m);
     Valid=models[M_DEC]->p(*m);
- 
+//if (slow==true) models[M_PPM]->p(*m); 
+            if (slow==true) models[M_CHART]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
@@ -13136,7 +12427,6 @@ PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),mixerInp
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new blankModel1(x);
   models[M_SPARSE_Y] = new sparseModely(x);
-  models[M_WORD2] =       new blankModel1(x);
   models[M_PPM] =         new blankModel1(x); 
   models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
@@ -13157,6 +12447,9 @@ PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),mixerInp
 
 void update()  {
     update0();
+    if (x.bpos==0) {
+        x.c4=(x.c4<<8)+x.buf(1);
+    }
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
     m->add(256);
@@ -13236,6 +12529,9 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),Bypass(false),count(0), mix
   models[M_NEST] = new nestModel1(x);
   models[M_NORMAL] = new normalModel1(x);
   models[M_IM1] = new blankModel1(x);
+  if (slow==true)
+  models[M_XML] = new blankModel1(x);
+  else
   models[M_XML] = new XMLModel1(x);
   models[M_IM4] = new blankModel1(x);
   models[M_TEXT] = new TextModel(x,16);
@@ -13244,9 +12540,14 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),Bypass(false),count(0), mix
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new SparseMatchModel(x);
   models[M_SPARSE_Y] = new sparseModely(x);
-  models[M_WORD2] =       new blankModel1(x);
+  if (slow==true)
+  models[M_PPM] =         new ppmdModel1(x);
+  else
   models[M_PPM] =         new blankModel1(x); 
-  models[M_CHART] =         new blankModel1(x);//
+  if (slow==true)
+  models[M_CHART] =         new chartModel(x);
+  else
+  models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
   // get mixer data from models
    for (int i=0;i<M_MODEL_COUNT;i++){
@@ -13308,9 +12609,10 @@ void PredictorEXE::update()  {
     models[M_INDIRECT]->p(*m);
     models[M_DMC]->p(*m);
     models[M_EXE] ->p(*m,1); //1024*2
-    models[M_XML]->p(*m);
+     if (slow==false) models[M_XML]->p(*m);
     models[M_TEXT]->p(*m);
-
+if (slow==true) models[M_PPM]->p(*m); 
+            if (slow==true) models[M_CHART]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
@@ -13372,7 +12674,6 @@ PredictorIMG4(): pr(2048), StateMaps{ 256, 256*256}, Image
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new blankModel1(x);
   models[M_SPARSE_Y] = new blankModel1(x);
-  models[M_WORD2]  = new blankModel1(x);
   models[M_PPM] =         new blankModel1(x); 
   models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
@@ -13471,7 +12772,6 @@ PredictorIMG8(): pr(2048),  Image{
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new blankModel1(x);
   models[M_SPARSE_Y] = new blankModel1(x);
-  models[M_WORD2] =       new blankModel1(x);
   models[M_PPM] =         new blankModel1(x); 
   models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
@@ -13573,7 +12873,6 @@ PredictorIMG24(): pr(2048),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x1
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new blankModel1(x);
   models[M_SPARSE_Y] = new blankModel1(x);
-  models[M_WORD2] =       new blankModel1(x);
   models[M_PPM] =         new blankModel1(x); 
   models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
@@ -13653,7 +12952,7 @@ public:
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),Bypass(false),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024), mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0){
 
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -13679,7 +12978,6 @@ Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,
   models[M_EXE] = new blankModel1(x);
   models[M_JPEG] = new blankModel1(x);
   models[M_WAV] = new blankModel1(x);
-  models[M_WORD2] =    new blankModel1(x);//  new WordModel(x);
   if (slow==true)
   models[M_PPM] =         new ppmdModel1(x);
   else
@@ -13741,8 +13039,7 @@ void PredictorTXTWRT::update()  {
         models[M_SPARSEMATCH]->p(*m);
         models[M_NORMAL]->p(*m,0,-1); 
         int state=models[M_XML]->p(*m,0,-1);
-       models[M_WORD]->p(*m,state&7,-1);
-        //models[M_WORD2]->p(*m,state&7,-1);
+        models[M_WORD]->p(*m,state&7,-1);
         models[M_NEST]->p(*m,0,-1);
         models[M_INDIRECT]->p(*m,0,-1);
         models[M_DMC]->p(*m);
@@ -13752,15 +13049,15 @@ void PredictorTXTWRT::update()  {
         pr= x.Match.bypassprediction;
         return;
     }
-    //if (x.bpos==0)x.count++;
+    if (x.bpos==0)x.count++;
     models[M_SPARSEMATCH]->p(*m);
     order=models[M_NORMAL]->p(*m); //ord ma
     order=order-3; 
     if(order<0) order=0;
     if(order>7) order=7;
+
         int state=models[M_XML]->p(*m);
         m->set(models[M_WORD]->p(*m,state&7)&0xfff, 4096);    
-        //models[M_WORD2]->p(*m);
         models[M_SPARSE]->p(*m,ismatch,order);
         models[M_NEST]->p(*m);
         models[M_INDIRECT]->p(*m);
@@ -13838,7 +13135,6 @@ PredictorIMG1(): pr(2048),Bypass(false) , mixerInputs(0),mixerNets(0),mixerNetsC
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new blankModel1(x);
   models[M_SPARSE_Y] = new blankModel1(x);
-  models[M_WORD2] =  new blankModel1(x);
   models[M_PPM] =         new blankModel1(x); 
   models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
@@ -13909,7 +13205,6 @@ PredictorAUDIO2(): pr(2048),a(x), mixerInputs(0),mixerNets(0),mixerNetsCount(0) 
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new blankModel1(x);
   models[M_SPARSE_Y] = new blankModel1(x);
-  models[M_WORD2]  = new blankModel1(x);
   models[M_PPM] =         new blankModel1(x); 
   models[M_CHART] =         new blankModel1(x);
   //models[M_LSTM] =         new blankModel1(x);
@@ -14715,6 +14010,7 @@ struct TextParserStateInfo {
   Array<U32> _number;  // 0: none or CR-only;   1: CRLF-only (applicable to EOL transform);   2: mixed or LF-only
   U32 invalidCount;     // adaptive count of invalid UTF8 sequences seen recently
   U32 UTF8State;        // state of utf8 parser; 0: valid;  12: invalid;  any other value: yet uncertain (more bytes must be read)
+  U32 countUTF8;
   TextParserStateInfo(): _start(0), _end(0), _EOLType(0),_number(0) {}
   void reset(U64 startpos) {
     _start.resize(1);
@@ -14727,6 +14023,7 @@ struct TextParserStateInfo {
     _number[0]=0;
     invalidCount=0;
     UTF8State=0;
+    countUTF8=0;
   }
   U64 start(){return _start[_start.size()-1];}
   U64 end(){return _end[_end.size()-1];}
@@ -14743,6 +14040,7 @@ struct TextParserStateInfo {
     _number.push_back(0);
     invalidCount=0;
     UTF8State=0;
+     countUTF8=0;
   }
   void removefirst() {
     if(_start.size()==1)
@@ -14761,15 +14059,13 @@ struct TextParserStateInfo {
     }
   }
 } textparser;
+void printStatus1(U64 n, U64 size) {
+fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+}
 
-//U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
-// Detect EXE or JPEG data
-//U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
-// Detect EXE or JPEG data
 Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,int s1=0) {
   U32 buf4=0,buf3=0, buf2=0, buf1=0, buf0=0;  // last 8 bytes
   U64 start= in->curpos();
-
   // For EXE detection
   Array<U64> abspos(256),  // CALL/JMP abs. addr. low byte -> last offset
     relpos(256);    // CALL/JMP relative addr. low byte -> last offset
@@ -14877,7 +14173,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     buf2=buf2<<8|buf1>>24;
     buf1=buf1<<8|buf0>>24;
     buf0=buf0<<8|c;
-
+    
+    if (!(i&0x1fffff)) printStatus1(i, n); // after every 2mb
     if  ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 || c==4 ) textbin++,info=textbin;
 
     if(tiffImages>=0){
@@ -15197,7 +14494,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     
     //detect LZSS compressed data in compress.exe generated archives
     if ((buf0==0x88F02733 && buf1==0x535A4444 && !cdi  && type!=MDF) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
-    if (fSZDD  && type!=MDF && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733 && !cdi  && (i-fSZDD)==4))){
+    if (fSZDD  && type!=MDF && buf0!=0 && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733 && !cdi  && (i-fSZDD)==4))){
        int lz2=0;
         if (buf1!=0x88F02733 && (i-fSZDD)==4) lz2=2;  //+2 treshold
         U32 fsizez=bswap(buf0); //uncompressed file size
@@ -15277,14 +14574,13 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     // SOF0 (FF C0 xx xx 08) and SOS (FF DA) within a reasonable distance.
     // Detect end by any code other than RST0-RST7 (FF D9-D7) or
     // a byte stuff (FF 00).
-
     if (!soi && i>=3 && ((
     ((buf0&0xffffff00)==0xffd8ff00 && ((U8)buf0==0xC0 || (U8)buf0==0xC4 || ((U8)buf0>=0xDB && (U8)buf0<=0xFE)))
     ||(buf0&0xfffffff0)==0xffd8ffe0  ) )    
     ) soi=i, app=i+2, sos=sof=0;
     if (soi) {
       if (app==i && (buf0>>24)==0xff &&
-         ((buf0>>16)&0xff)>0xc0 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2;
+         ((buf0>>16)&0xff)>0xc0 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2,brute=false;
       if (app<i && (buf1&0xff)==0xff && (buf0&0xff0000ff)==0xc0000008) sof=i,brute=false;
       
       if (sof && sof>soi && i-sof<0x1000 && (buf0&0xffff)==0xffda) {
@@ -15929,7 +15225,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&& e8e9count==0 &&  !tar && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&& e8e9count==0 && textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits
@@ -16069,11 +15365,11 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     //if (b85s==2)continue;
     
     // Detect text, utf-8, eoltext and text0
-    //text.isLetter = tolower(c)!=toupper(c);
+    text.isLetter = tolower(c)!=toupper(c);
     //text.countLetters+=(text.isLetter)?1:0;
     text.countNumbers+=(c>='0' && c<='9') ?1:0;
     //text.isNumbertext=text.countLetters< text.countNumbers;
-   /* text.isUTF8 = ((c!=0xC0 && c!=0xC1 && c<0xF5) && (
+    text.isUTF8 = ((c!=0xC0 && c!=0xC1 && c<0xF5) && (
         (c<0x80) ||
         // possible 1st byte of UTF8 sequence
         ((buf0&0xC000)!=0xC000 && ((c&0xE0)==0xC0 || (c&0xF0)==0xE0 || (c&0xF8)==0xF0)) ||
@@ -16084,7 +15380,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         // possible 4th byte of UTF8 sequence
         ((buf0&0xF8C0C0C0)==0xF0808080 && (buf0>>24)<0xF5)
     ));
-     text.countUTF8+=((text.isUTF8 && !text.isLetter && (c>=0x80))?1:0);*/
+     textparser.countUTF8+=((text.isUTF8 && !text.isLetter && (c>=0x80))?1:0);
     if (text.lastNLpos==0 && c==NEW_LINE ) text.lastNLpos=i;
     else if (text.lastNLpos>0 && c==NEW_LINE ) {
         int tNL=i-text.lastNLpos;
@@ -16157,10 +15453,10 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     textparser.UTF8State = utf8_state_table[256 + textparser.UTF8State + t];
     if(textparser.UTF8State == UTF8_ACCEPT) { // proper end of a valid utf8 sequence
       if (c==NEW_LINE || c==5) {
-      /*  if (((buf0>>8)&0xff) != CARRIAGE_RETURN)
-          textparser.setEOLType(2); // mixed or LF-only
-        else 
-          if (textparser.EOLType()==0)textparser.setEOLType(1); // CRLF-only*/
+      //  if (((buf0>>8)&0xff) != CARRIAGE_RETURN)
+      //    textparser.setEOLType(2); // mixed or LF-only
+      //  else 
+      //    if (textparser.EOLType()==0)textparser.setEOLType(1); // CRLF-only
       }
       textparser.invalidCount=textparser.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE;
       if(textparser.invalidCount==0){
@@ -17037,7 +16333,7 @@ U64 decode_arm(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
 #include "wrtpre.cpp"
 
-void encode_txt(File* in, File* out, int len,int wrtn) {
+void encode_txt(File* in, File* out, U64 len,int wrtn) {
     assert(wrtn<2);
    XWRT_Encoder* wrt;
    wrt=new XWRT_Encoder();
@@ -17047,22 +16343,22 @@ void encode_txt(File* in, File* out, int len,int wrtn) {
 }
 
 //called only when encode_txt output was smaller then input
-int decode_txt(Encoder& en, int size, File*out, FMode mode, U64 &diffFound) {
+U64 decode_txt(Encoder& en, U64 size, File*out, FMode mode, U64 &diffFound) {
     XWRT_Decoder* wrt;
     wrt=new XWRT_Decoder();
     char c;
     int b=0;
-    int bb=0;
+    U64 bb=0L;
     FileTmp dtmp;
     //decompress file
-    for (int i=0; i<size; i++) {
+    for (U64 i=0L; i<size; i++) {
         c=en.decompress(); 
         dtmp.putc(c);    
     }
      dtmp.setpos(0);
     wrt->defaultSettings(0);
     bb=wrt->WRT_start_decoding(&dtmp);
-    for ( int i=0; i<bb; i++) {
+    for ( U64 i=0L; i<bb; i++) {
         b=wrt->WRT_decode();    
         if (mode==FDECOMPRESS) {
             out->putc(b);
@@ -18251,27 +17547,27 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) {
             if ( type!=TXTUTF8 ){
-            encode_txt(in, tmp, int(len),1);
+            encode_txt(in, tmp, (len),1);
             U64 txt0Size= tmp->curpos();
             //reset to text mode
              in->setpos(begin);
             tmp->close();
             tmp=new FileTmp;
-            encode_txt(in, tmp, int(len),0);
+            encode_txt(in, tmp, (len),0);
             U64 txtSize= tmp->curpos();
             tmp->close();
             in->setpos( begin);
             tmp=new FileTmp;
             if (txt0Size<txtSize && (((txt0Size*100)/txtSize)<95)) {
                 in->setpos( begin);
-                encode_txt(in, tmp, int(len),1);
+                encode_txt(in, tmp, (len),1);
                 type=TEXT0,info=1;
             }else{
-                encode_txt(in, tmp, int(len),0);
+                encode_txt(in, tmp, (len),0);
                 type=TEXT,info=0;
             }
             }
-            else encode_txt(in, tmp, int(len),info&1); 
+            else encode_txt(in, tmp, (len),info&1); 
         }
         else if (type==EOLTEXT ) diffFound=encode_txtd(in, tmp, int(len),info&1);
         else if (type==BASE64) encode_base64(in, tmp, int(len));
@@ -18305,7 +17601,8 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==DECA) decode_dec(en, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
-        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) decode_txt(en, int(tmpsize), in, FCOMPARE, diffFound);
+        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) decode_txt(en, (tmpsize), in, FCOMPARE, diffFound);
+      //  else if ((type==TXTUTF8 ) ) tmp->setend();
         else if (type==EOLTEXT ) ts=decode_txtd(tmp, int(tmpsize), in, FCOMPARE, diffFound)!=len?1:0;  
         if (type==EOLTEXT && (diffFound || ts)) {
             // if fail fall back to text
@@ -18536,7 +17833,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
 
   // Transform and test in blocks
   while (n>0) {
-      if(type==TEXT || type==EOLTEXT) { // it was a split block in the previous iteration: TEXT -> DEFAULT -> ...
+      if(type==TEXT || type==EOLTEXT || type==TXTUTF8) { // it was a split block in the previous iteration: TEXT -> DEFAULT -> ...
       nextType=nextblock_type_bak;
       end=textend+1;
     }
@@ -18553,11 +17850,12 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
     textend=begin+textparser._end[0];
     if(textend>end-1)textend=end-1;
     if(type==DEFAULT && textstart<textend) { // only DEFAULT blocks may be overridden
-     int nsize=0;
+     U64 nsize=0;
       if(textstart==begin && textend == end-1) { // whole first block is text
         type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // DEFAULT -> TEXT
-        int nsize=textparser.number();
+        U64 nsize=textparser.number();
         if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
+        //if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8;
       }
       else if (textend - textstart + 1 >= TEXT_MIN_SIZE) { // we have one (or more) large enough text portion that splits DEFAULT
         if (textstart != begin) { // text is not the first block 
@@ -18577,6 +17875,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
         if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
         }
       }
+      if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8;
       // no text block is found, still DEFAULT
       
     }
@@ -18586,9 +17885,8 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
     }
     U64 len=U64(end-begin);
     if (begin>end) len=0;
-    if (len>=2147483646) {  // fix me, len is int, must be U32  or do not allow larger then +int block size
-      len=2147483646;
-      type=DEFAULT;
+    if (len>=2147483646) {  
+      if (!(type==TEXT || type==TXTUTF8 ||type==TEXT0))len=2147483646,type=DEFAULT; // force to int
     }
     if (len>0) {
     if ((type==EOLTEXT) && len<1024*64) type=TEXT;
@@ -18610,7 +17908,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
 #if defined(WINDOWS)      
       SetConsoleTextAttribute(hConsole, 7);
 #endif      
-      printf("|%10.0I64i [%0lu - %0lu]",len,begin,end-1);
+      printf("|%10.0f [%0.0f - %0.0f]",len+0.0,begin,(end-1)+0.0);
       if (type==AUDIO) printf(" (%s)", audiotypes[(info&31)%4+(info>>7)*2]);
       else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24 || type==MRBR|| type==MRBR4|| type==IMAGE8GRAY || type==IMAGE32 ||type==GIF) printf(" (width: %d)", info&0xFFFFFF);
       else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
@@ -18649,8 +17947,8 @@ void DetectStreams(const char* filename, U64 filesize) {
 
 U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int it=0, U64 s1=0, U64 s2=0) {
     Filetype type;
-    U64 len=0L, i=0L;
-    U64 diffFound=0L;
+    U64 len,i,diffFound;
+    len=i=diffFound=0L;
     int info=-1;
     s2+=size;
     while (i<size) {
@@ -18667,7 +17965,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
-        else if (type==BIGTEXT) len=decode_txt(en, int(len), out, mode, diffFound);
+        else if (type==BIGTEXT) len=decode_txt(en, (len), out, mode, diffFound);
         //else if (type==EOLTEXT) len=decode_txtd(en, int(len), out, mode, diffFound);
         else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT) {
             FileTmp tmp;
@@ -18690,7 +17988,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         }
         else {
             for (U64 j=i+s1; j<i+s1+len; ++j) {
-                if (!(j&0x1fff)) printStatus(j, s2);
+                if (!(j&0x1ffff)) printStatus(j, s2);
                 if (mode==FDECOMPRESS) out->putc(en.decompress());
                 else if (mode==FCOMPARE) {
                     int a=out->getc();
@@ -18724,7 +18022,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
     f.create(filename);
     mode=FDECOMPRESS, printf("Extracting");
   }
-  printf(" %s %0lu -> \n", filename, filesize);
+  printf(" %s %0.0f -> \n", filename, filesize+0.0);
 
   // Decompress/Compare
   U64 r=decompressStreamRecursive(&f, filesize, en, mode);
@@ -18919,7 +18217,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                             delete wrt;
                             datasegmentlen= tm.curpos();
                             filestreamsize[i]=datasegmentlen;
-                            printf(" Total %0lu wrt: %0lu\n",datasegmentsize,datasegmentlen); 
+                            printf(" Total %0.0f wrt: %0.0f\n",datasegmentsize+0.0,datasegmentlen+0.0); 
                             tm.setpos(0);
                             if (level>0){
                             threadencode->predictor.x.filetype=DICTTXT;
@@ -18958,11 +18256,11 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
 #if defined(WINDOWS)       
             SetConsoleTextAttribute(hConsole,7);
 #endif    
-            printf(") compressed from %0lu to ",size);
+            printf(") compressed from %0.0f to ",size+0.0);
 #if defined(WINDOWS)            
             SetConsoleTextAttribute(hConsole, 9);
 #endif
-            printf("%0lu",out->curpos());
+            printf("%0.0f",out->curpos()+0.0);
 #if defined(WINDOWS) 
             SetConsoleTextAttribute(hConsole, 7);
 #endif
@@ -19375,7 +18673,7 @@ printf("\n");
                 filestreams[i]=new FileTmp();
             }
             for (int i=0; i<files; ++i) {
-                printf("\n%d/%d  Filename: %s (%0lu bytes)\n", i+1, files, fname[i], fsize[i]);
+                printf("\n%d/%d  Filename: %s (%0.0f bytes)\n", i+1, files, fname[i], fsize[i]+0.0); 
                 DetectStreams(fname[i], fsize[i]);
             }
             segment.put1(0xff); //end marker
@@ -19439,7 +18737,7 @@ printf("\n");
 #if defined(WINDOWS) 
                     SetConsoleTextAttribute(hConsole, 7);
 #endif                    
-                    printf("stream(%d).  Total %0lu\n",i,datasegmentsize);
+                    printf("stream(%d).  Total %0.0f\n",i,datasegmentsize+0.0);
 #ifdef MT
                                                               // add streams to job list
                     filesmt[i]=new FileTmp();                 //open tmp file for stream output
@@ -19555,7 +18853,7 @@ printf("\n");
         if (jobs[i].state==OK) {
             filesmt[jobs[i].streamid]->setpos( 0);
             //append streams to archive
-            const int BLOCK=4096;
+            const int BLOCK=4096*16;
             U8 blk[BLOCK];
             bool readdone=false; 
             for (;;) { 
@@ -19614,7 +18912,7 @@ printf("\n");
             HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
             SetConsoleTextAttribute(hConsole, 10);
 #endif
-            printf("Total %0lu bytes compressed to %0lu bytes.\n", total_size,  archive->curpos()); 
+            printf("Total %0.0f bytes compressed to %0.0f bytes.\n", total_size+0.0,  archive->curpos()+0.0); 
 #if defined(WINDOWS) 
             SetConsoleTextAttribute(hConsole, 7);
 #endif
@@ -19750,8 +19048,8 @@ printf("\n");
                             int b=0;
                             wrt->defaultSettings(0);
                              tm.setpos( 0);
-                            int bb=wrt->WRT_start_decoding(&tm);
-                            for ( int ii=0; ii<bb; ii++) {
+                            U64 bb=wrt->WRT_start_decoding(&tm);
+                            for ( U64 ii=0; ii<bb; ii++) {
                                 b=wrt->WRT_decode();    
                                 filestreams[i]->putc(b);
                             }

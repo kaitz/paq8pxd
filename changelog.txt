@@ -1,3 +1,14 @@
+v76
+    - Change wordModel1 to compress pdf text (from paq8px_183fix1)
+    - Fix jpeg thumbnail compression
+    - Make online wrt work
+    - In wrt split num/utf8 chars, also some other utf8 chars. Large file mode
+    - Allow large text block detection (+2GB)
+    - Set utf8 for text if found
+    - Change wordModel1, recordmodel to use wrt column mode
+    - Change sparsemodelx
+    - Small fixes
+    - Show progress when detecting data
 v75
     - Change wordModel1
 v74
