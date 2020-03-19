@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd76"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd77"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1380,10 +1380,11 @@ public:
   U64 wrtc4;
   bool dictonline;
   bool inpdf;
+  int wcol;
 BlockData():y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
     b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
     failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),
-    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0),count(0),wwords(0),tmask(0),wrtc4(0),dictonline(false),inpdf(false){
+    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0),count(0),wwords(0),tmask(0),wrtc4(0),dictonline(false),inpdf(false),wcol(0){
         // Set globals according to option
         assert(level<=15);
         bufn.setsize(0x10000);
@@ -5659,9 +5660,9 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
   Map.set(hash(i++, (Info.lastLetter==0)?cWord->Hash[0]:pWord->Hash[0], c, cSegment->FirstWord.Hash[1], min(3,ilog2(cSegment->WordCount+1))));
   Map.set(hash(i++, cWord->Hash[0], c, Segments(1).FirstWord.Hash[1]));
   Map.set(hash(i++, max(31,lc), Info.masks[1]&0xFFC, (Info.spaces&0xFE)|(Info.lastPunct<Info.lastLetter), (Info.maskUpper&0xFF)|(((0x100|Info.firstLetter)*(Info.wordLength[0]>1))<<8)));
-  Map.set(hash(i++, column, min(7,ilog2(Info.lastUpper+1)), ilog2(Info.lastPunct+1)));
+  Map.set(hash(i++, column,mixer.x.wcol, min(7,ilog2(Info.lastUpper+1)), ilog2(Info.lastPunct+1)));
   Map.set(hash(++i,
-    (column&0xF8)|(Info.masks[1]&3)|((Info.prevNewLine-Info.lastNewLine>63)<<2)|
+    (((mixer.x.dictonline==true)?mixer.x.wcol:column)&0xF8)|(Info.masks[1]&3)|((Info.prevNewLine-Info.lastNewLine>63)<<2)|
     (min(3, Info.lastLetter)<<8)|
     (Info.firstChar<<10)|
     ((Info.commas>4)<<18)|
@@ -5674,7 +5675,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
     ((Info.linespace>4)<<25)
   ));
   Map.set(hash(
-    (2*column)/3,
+    (2*((mixer.x.dictonline==true)?mixer.x.wcol:column))/3,
     min(13, Info.lastPunct)+(Info.lastPunct>16)+(Info.lastPunct>32)+Info.maskPunct*16,
     ilog2(Info.lastUpper+1),
     ilog2(Info.prevNewLine-Info.lastNewLine),
@@ -5683,7 +5684,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
     ((m2<11)<<2)
   ));
    
-  Map.set(hash(i++, column>>1, Info.spaces&0xF));
+  Map.set(hash(i++, column>>1,mixer.x.wcol, Info.spaces&0xF));
   Map.set(hash(
     Info.masks[3]&0x3F,
     min((max(Info.wordLength[0],3)-2)*(Info.wordLength[0]<8),3),
@@ -5736,7 +5737,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
     (Info.lastPunct>=Info.lastLetter+Info.wordLength[1]+Info.wordGap)
   ));
   Map.set(hash(i++, w, c, Words[Lang.pId](1+(Info.wordLength[0]==0)).Letters[Words[Lang.pId](1+(Info.wordLength[0]==0)).Start], Info.firstLetter*(Info.wordLength[0]<7)));
-  Map.set(hash(i++, column, Info.spaces&7, Info.nestHash&0x7FF)); 
+  Map.set(hash(i++, column, mixer.x.wcol,Info.spaces&7, Info.nestHash&0x7FF)); 
   Map.set(hash(i++, cWord->Hash[0], (Info.lastUpper<column)|((Info.lastUpper<Info.wordLength[0])<<1), min(5, Info.wordLength[0])));
 }
 
@@ -6284,7 +6285,7 @@ private:
             }
         col1=x.col;
         x.col=min(255, buf.pos-nl);
-        wcol=min(255, x.bufn.pos-wnl); // (wrt mode)
+        x.wcol=wcol=min(255, x.bufn.pos-wnl); // (wrt mode)
         wabove=x.bufn[wnl1+wcol];  // text column context, first (wrt mode)
          above=buf[nl1+x.col];  // text column context, first
          above1=buf[nl2+x.col]; // text column context, second

@@ -1,3 +1,5 @@
+v77
+    - Change TextModel (wrt)
 v76
     - Change wordModel1 to compress pdf text (from paq8px_183fix1)
     - Fix jpeg thumbnail compression
