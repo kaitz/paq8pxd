@@ -1110,38 +1110,38 @@ int  ascii_len(U8 *s, int len){
 // Markus Kuhn <http://www.cl.cam.ac.uk/~mgk25/> -- 1999-12-31
 // License: https://www.cl.cam.ac.uk/~mgk25/short-license.html
 
-U32 utf8_check(U8 *s){
+/*U32 utf8_check(U8 *s){
     int i=0;
-    if (*s < 0x80)      /* 0xxxxxxx */
+    if (*s < 0x80)      // 0xxxxxxx 
       return 0;
-    else if ((s[0] & 0xe0) == 0xc0) {      /* 110XXXXx 10xxxxxx */
-      if ((s[1] & 0xc0) != 0x80 || (s[0] & 0xfe) == 0xc0)                        /* overlong? */
+    else if ((s[0] & 0xe0) == 0xc0) {      // 110XXXXx 10xxxxxx 
+      if ((s[1] & 0xc0) != 0x80 || (s[0] & 0xfe) == 0xc0)                        // overlong? 
     return i;
       else
     i = 2;
-    } else if ((s[0] & 0xf0) == 0xe0) {      /* 1110XXXX 10Xxxxxx 10xxxxxx */
+    } else if ((s[0] & 0xf0) == 0xe0) {      // 1110XXXX 10Xxxxxx 10xxxxxx 
       if ((s[1] & 0xc0) != 0x80 ||
       (s[2] & 0xc0) != 0x80 ||
-      (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||    /* overlong? */
-      (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||    /* surrogate? */
+      (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||    // overlong? 
+      (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||    // surrogate? 
       (s[0] == 0xef && s[1] == 0xbf &&
-       (s[2] & 0xfe) == 0xbe))                      /* U+FFFE or U+FFFF? */
+       (s[2] & 0xfe) == 0xbe))                      // U+FFFE or U+FFFF? 
     return i;
       else
     i = 3;
-    } else if ((s[0] & 0xf8) == 0xf0) {      /* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
+    } else if ((s[0] & 0xf8) == 0xf0) {      // 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx 
       if ((s[1] & 0xc0) != 0x80 ||
       (s[2] & 0xc0) != 0x80 ||
       (s[3] & 0xc0) != 0x80 ||
-      (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||    /* overlong? */
-      (s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) /* > U+10FFFF? */
+      (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||    // overlong? 
+      (s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) // > U+10FFFF?
     return i;
       else
      i += 4;
     } else
       return i;
   return i;
-}
+}*/
 // encode word (should be lower case) using n-gram array (when word doesn't exist in the dictionary)
 inline void XWRT_Encoder::encodeAsText(U8* &s,int &s_size){
     for (int i=0; i<s_size; i++)    {
