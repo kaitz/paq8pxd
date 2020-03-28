@@ -1,3 +1,7 @@
+v79
+    - Change wordModel1
+       some html entities rollback
+    - Some fixes
 v78
     - Change wordModel1,recordmodel
 v77

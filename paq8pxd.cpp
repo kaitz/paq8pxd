@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd78"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd79"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1321,7 +1321,48 @@ static const int typet[TYPELAST][3]={
   { 1, STR_IMAGE24, 0}// PNG32,
   };
 const U32 WRT_mpw[16]= { 4, 4, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0 };
-const U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 7, 7, 7, 7 };
+const U8 WRT_mtt[256]= {
+ 0,4,4,5,0,5,3,7, 0,2,4,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
+ 2,4,3,3,4,6,6,7, 5,4,0,4,3,4,0,1,
+ 1,1,1,1,1,1,1,1, 1,1,7,3,3,4,3,4,
+ 
+ 0,5,5,5,5,5,5,5, 5,5,5,5,5,5,5,5,
+ 5,5,5,5,5,5,5,5, 5,5,5,6,4,3,4,4,
+ 0,5,5,5,5,5,5,5, 5,5,5,5,5,5,5,5,
+ 5,5,5,5,5,5,5,5, 5,5,5,4,4,4,4,4,
+
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+
+ 7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,
+ 7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,
+ 7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,
+};
+const U8 WRT_wrd1[256]={
+   0,  0,  0, 64,  0, 64,192,  0,   0,  0, 64,  0,  0,  0,  0,  0,
+   0,  0,  0,  0,  0,  0,  0,  0, 192,  0,  0,  0,  0,  0,  0,  0,
+   0,  0,192,  0,  0,  0,  0,  0,   0,  0,  0,  0,128,  0,  0,  0,
+  64, 64, 64, 64, 64, 64, 64, 64,  64, 64,  0,  0,128,  0,128,  0,
+
+   0, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64, 64, 64, 64, 64, 64,
+  64, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64,  0,192,  0,  0,  0,
+   0, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64, 64, 64, 64, 64, 64,
+  64, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64,  0,  0,  0,  0,  0,
+
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+
+ 192,192,192,192,192,192,192,192, 192,192,192,192,192,192,192,192,
+ 192,192,192,192,192,192,192,192, 192,192,192,192,192,192,192,192,
+ 192,192,192,192,192,192,192,192, 192,192,192,192,192,192,192,192,
+ };
 const U32 tri[4]={0,4,3,7}, trj[4]={0,6,6,12};
 typedef enum {M_RECORD=0,M_IM8,M_IM24,M_SPARSE,M_JPEG,M_WAV,M_MATCH,M_DISTANCE,
               M_EXE,M_INDIRECT,M_DMC,M_NEST,M_NORMAL,M_IM1,M_XML,M_IM4,M_TEXT,
@@ -1383,14 +1424,18 @@ public:
   int wcol;
   int utf8l,wlen;
   bool wstat,wdecoded;
+  U32 pwords,pbc;
+  int bc4;
 BlockData():y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
     b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
     failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),
-    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0),count(0),wwords(0),tmask(0),wrtc4(0),dictonline(false),inpdf(false),wcol(0),utf8l(0),wlen(0),wstat(false),wdecoded(false){
+    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0),count(0),wwords(0),tmask(0),
+    wrtc4(0),dictonline(false),inpdf(false),wcol(0),utf8l(0),wlen(0),wstat(false),wdecoded(false),
+    pwords(0),pbc(0),bc4(0){
         // Set globals according to option
         assert(level<=15);
         bufn.setsize(0x10000);
-        if (level>=9) buf.setsize(0x10000000); //limit 256mb
+        if (level>=11) buf.setsize(0x40000000); //limit 1gb
         else buf.setsize(MEM()*8);
        /* #ifndef NDEBUG 
         printf("\n Buf size %d bytes\n", buf.poswr);
@@ -6107,6 +6152,7 @@ U32 utf8_check(U8 *s){
 #define SPACE 0x20
 #define QUOTE 0x22
 #define APOSTROPHE 0x27
+
 // Model English text (words and columns/end of line)
 class wordModel1: public Model {
    public:
@@ -6153,8 +6199,9 @@ private:
     U16 chk;
     int above, above1, above2,fl,f;
     U32 expr0, expr1, expr2, expr3, expr4,exprlen0,expr0chars,wchar1,wchar2,wrth;  // wordtoken hashes for expressions
-    int wcol,wnl1,wnl,wabove,scount;
+    int wcol,wnl2,wnl1,wnl,wabove,scount;
     bool scountset;
+    U32 wpword1;
   public:
    
     Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm(contextmap),
@@ -6165,15 +6212,16 @@ private:
     text0(0),data0(0),type0(0),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),wchk(0x10000),inkeyw(0x10000),inkeyw1(0x10000),w(0),doXML(false),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0),numbers(0),numbercount(0),
   g_ascii_lo(0), g_ascii_hi(0), c(0), pC(0), ppC(0),c4(0),ccount(0),col1(0),firstwasspace(false),opened(0),line0(0),
-  iword0(0),lastSpace(0),pdft(false),chk(0),above(0), above1(0), above2(0),fl(0),f(0),scount(0),scountset(false) {
+  iword0(0),lastSpace(0),pdft(false),chk(0),above(0), above1(0), above2(0),fl(0),f(0),scount(0),scountset(false),wpword1(0) {
       reset();
     }
     void reset() { 
        cWord=&StemWords[0], pWord=&StemWords[3];expr0=expr1=expr2=expr3=expr4=exprlen0=expr0chars=wchar2=wrth=0;wchar1=1;
        is_letter=is_letter_pC=is_letter_ppC=false;
        
-       wcol=wabove=0,wnl1=wnl=-1;
+       wcol=wabove=0,wnl2,wnl1=wnl=-1;
     }
+    // forget it
     void shrwords() { 
         word1=word2;
         word2=word3;
@@ -6190,7 +6238,7 @@ private:
         is_letter_ppC=is_letter_pC; is_letter_pC=is_letter;
         c=x.c4&255;
         c4=(c4<<8)|c;
-        int i=0;
+        int i=0,d=0;
         f=0;
         if (x.spaces&0x80000000) --x.spacecount;
         if (x.words&0x80000000) --x.wordcount;
@@ -6204,6 +6252,14 @@ private:
         mask2<<=2;
         if (is_extended_char>0 || is_extended_char==-1) wchar1=(wchar1<<8)|c;
         if (is_extended_char==0 && wchar1!=1 ) wchar2=wchar1,wchar1=1;
+        if (!(x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK || x.filetype==EXE || x.filetype==ARM)){
+           d=WRT_wrd1[c]; 
+           x.pwords=x.pwords*2;   
+           x.pbc=x.pbc*2+d/64;
+           if ((d)) {x.pwords++, wpword1^=hash(wpword1, c);}
+           else wpword1=d; 
+           x.bc4=d<<2; 
+        }
         if (pC>='A' && pC<='Z') pC+='a'-'A';
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
         if ((c>='a' && c<='z') || c=='\'' || c=='-')
@@ -6217,11 +6273,13 @@ private:
         }
         if ((c4&0xFFFF)==0x5b5b ) scountset=true;
         if (islink && (c==SPACE || c==']' || c==10  )) islink=0; //disable if not in link
-        if (scountset &&  c=='|' )  scountset=false; 
-        if (scountset &&  (c==']' ||x.frstchar=='[') )  scountset=false,scount=0; 
+        if (scountset &&  c=='|')  scountset=false; 
+        if ((c4&0xFFFF)==0x5d5d && cword0==-1)cword0=0,shrwords();//']]'
+        if (scountset &&  (c==']' ||x.frstchar=='[') )  scountset=false,scount=cword0=0; 
         if (istemplate && (c4&0xffff)==0x7d7d) istemplate=0; //'}}'
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
+        //if (doXML==true) printf("%c",c);
         is_letter=((c>='a' && c<='z') || x.wstat==true|| (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
         if (is_letter) {// if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 /*&&(x.b3!=3)*/|| (c>0 && c<4))) {
             if (!x.wordlen){
@@ -6244,7 +6302,7 @@ private:
                       firstLetter = c;
                       wrdhsh = 0;
                 }
-                if (pC==QUOTE ) { opened=QUOTE;}
+                if (pC==QUOTE /*||   (x.wrtc4&0xffffffffffff)==0x2671756F743B*/) { opened=QUOTE;}
             }
             lastLetter=0;
             if (c>4) word0^=hash(word0, c,0);
@@ -6270,10 +6328,16 @@ private:
             if (word0) { 
                 type0 = (type0<<2)|1;
                 if (scountset) scount=min(scount+1,5);
-                if (scountset==false && scount>0) { // wiki: xxx xxx [[yyy yyy|xxx xxx]] -> remove yyy words
+                if (scountset==false && scount>0&& cword0!=-1) { // wiki: xxx xxx [[yyy yyy|xxx xxx]] -> remove yyy words
                     x.f4=x.f4>>(4*scount);
                     x.tt=x.tt>>(2*scount);
                     while (scount-->0) shrwords();
+                    scount=0;
+                }
+                else if (cword0==-1) { // wiki: xxx xxx [[yyy: yyy|yyy yyy]] -> remove yyy words
+                    x.f4=x.f4>>(4*1);
+                    x.tt=x.tt>>(2*1);
+                    shrwords();
                     scount=0;
                 }else{ 
                     word7=word6;
@@ -6293,6 +6357,7 @@ private:
                 wrth=0;
                 wchk[w]=chk;
                 if (c==':'|| c=='=') cword0=word0;
+                if ((c==':' && scountset==true && scount==1)) cword0=-1; // kill  [[xxx: ...]]
                 if (c==']'&& (x.frstchar!=':') &&  doXML==true) xword0=word0; // wiki 
                 ccword=0;
                 word0= 0;                
@@ -6305,8 +6370,21 @@ private:
                if (/*c==10 &&*/ linespace==0 && x.frstchar==0x5B ){
                    xword1=xword2=xword3=iword0=0;
                }
-               if (c==10 || c==5) fword=linespace=line0=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1,wnl1=wnl,wnl=x.bufn.pos-1;
+               if (c==10 || c==5) fword=linespace=line0=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1,wnl2=wnl1,wnl1=wnl,wnl=x.bufn.pos-1;
             }
+            else if ((x.wrtc4&0xffffffff)==0x266C743B ||
+                            (x.wrtc4&0xffffffff)==0x2667743B ||
+                    (x.wrtc4&0xffffffffffff)==0x2671756F743B ||
+                    (x.wrtc4&    0xffffffffff)==0x26616D703B ||
+                                 x.wrtc4==0x26616D703B6C743B ||
+                                 x.wrtc4==0x26616D703B67743B ||
+                                 x.wrtc4==0x6D703B6E6273703B ||
+                                 x.wrtc4==0x6D703B71756F743B ||
+                                 x.wrtc4==0x703B6E646173683B ||
+                                 x.wrtc4==0x703B6D646173683B) { 
+                shrwords(); 
+       
+            }//'&lt;' '&gt;' " & 
             else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':' || c=='|'|| c=='=') x.spafdo=line0=0,ccword=c,mask2+=3;
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
             if (ccword=='=' || (ccword==':' && doXML==false)) iword0=word1;
@@ -6345,7 +6423,7 @@ private:
         x.col=min(255, buf.pos-nl);
         if (x.dictonline==true){
         
-        x.wcol=wcol=min(255, x.bufn.pos-wnl); // (wrt mode)
+        x.wcol=wcol=/*min(255, */x.bufn.pos-wnl;//); // (wrt mode)
         wabove=x.bufn[wnl1+wcol];  // text column context, first (wrt mode)
         }
         else x.wcol=wabove=0;
@@ -6358,6 +6436,9 @@ private:
         if (x.col>2 && firstwasspace && !((x.frstchar>='a' && x.frstchar<='z') || (x.frstchar>='0' && x.frstchar<='9')|| (x.frstchar>=128 &&(x.b3!=3))) ) x.frstchar=c;  //scan for real char
         if (firstwasspace==false && x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
           fl = 0;
+          if (!(x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK || x.filetype==EXE || x.filetype==ARM)){
+              fl=(WRT_mtt[c4&0xff]);//
+              }else{
         if ((c4&0xff) != 0) {
             if (isalpha(c4&0xff)) fl = 1;
             else if (ispunct(c4&0xff)) fl = 2;
@@ -6367,9 +6448,13 @@ private:
             else if ((c4&0xff) < 64) fl = 6;
             else fl = 7;
         }
+        }
         mask = (mask<<3)|fl;
-        if (c=='(' || c=='{' || c=='[' || c=='<' ) { opened=c;}
-        else if (c==')' || c=='}' || c==']' || c=='>' || c==QUOTE || c==APOSTROPHE) {opened=0;}
+        //0x2671756F743B
+        if (c=='(' || c=='{' || c=='[' || c=='<' || (x.wrtc4&0xffffffff)==0x266C743B/*|| x.wrtc4==0x26616D703B6C743B*/ ) { opened=c;}
+        else if (c==')' || c=='}' || c==']' || c=='>' || c==QUOTE || c==APOSTROPHE ||
+        (x.wrtc4&0xffffffff)==0x2667743B /*||
+            x.wrtc4==0x26616D703B67743B||   (x.wrtc4&0xffffffffffff)==0x2671756F743B*/) {opened=0;}
       const bool is_newline_pC = pC==NEW_LINE || pC==0;
         if( (c>='a' && c<='z')|| c>=128 || (c>0 && c<4))  {
         expr0chars = expr0chars<<8|c; // last 4 consecutive letters
@@ -6396,7 +6481,7 @@ private:
       if (x.bpos==0) {
        int i=0;
        const U32 dist =  llog(x.blpos-wpos[word0&(wpos.size()-1)]);
-
+       bool istext=!(x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK || x.filetype==EXE || x.filetype==ARM);
         x.tmask=i=((c<5)<<5)|((0)<<4)| ((dist==0)<<3)| ((doXML)<<2)| ((opened)<<6)| ((istemplate)<<1)| islink;
         if (x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK) i=0;
         else i=(hash(6,i)>>16);
@@ -6433,7 +6518,7 @@ private:
             cm.set(hash(++i,line0,inkeyw[w]));
             cm.set(hash(++i,x.frstchar, c));
             cm.set(hash(++i,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
-            cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255)));//spaces...
+            cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255), (x.pwords&255)));//spaces...
         
             //cm.set(x.spaces&0x7ff);
            /* cm.set(hash(++i,word0, word2,wordGap, word6));
@@ -6449,7 +6534,7 @@ private:
         }
         U32 h=x.wordcount*64+x.spacecount+numbercount*128;
         if (x.filetype!=DECA){
-        //if (pdf_text_parser_state==0 ){
+        if ( scountset==false /*&&!(x.frstchar=='{' && istemplate!=0)*/   ){
        
             cm.set(hash(++i,x.wordlen,wrth,x.col));
             cm.set(hash(++i,c,x.spacecount/2,wordGap));
@@ -6461,9 +6546,9 @@ private:
             cm.set(hash(++i,h,x.spafdo)); 
             U32 d=c4&0xf0ff;
             cm.set(hash(++i,d,x.frstchar,ccword));
-        //}else {
-          //  for(int j=0;j<8;j++)  {cm.set();++i;}
-        //}
+        }else {
+            for(int j=0;j<8;j++)  {cm.set();++i;}
+        }
         }
         h=word0*271;
         h=h+buf(1);
@@ -6489,11 +6574,15 @@ private:
         cm.set(text0&0xfffff);
         U32 isfword=x.filetype==DECA?-1:fword;
         if (doXML==true){
-            cm.set(hash(++i,word0,number0, data0,xword0));
-            cm.set(hash(++i,word0,number0,data0, xword1));  //wiki 
-            cm.set(hash(++i,word0,number0,data0, xword2));  //
-            cm.set(hash(++i,word0,number0,data0, xword3));  //
+            if ( scountset==false ){
+            cm.set(hash(++i,word0,number0,wpword1,xword0));
+            cm.set(hash(++i,word0,number0,wpword1, xword1));  //wiki 
+            cm.set(hash(++i,word0,number0,wpword1, xword2));  //
+            cm.set(hash(++i,word0,number0,wpword1, xword3));  //
             cm.set(hash(++i,x.frstchar, xword2,inkeyw[w]));
+            }else {
+            for(int j=0;j<5;j++)  {cm.set();++i;}
+        }
         }else{
             //for(int j=0;j<5;j++)  {cm.set();++i;}
             cm.set(hash(++i+512,nl1));    //chars occurring in this paragraph (order 0)
@@ -6512,7 +6601,7 @@ private:
             cm.set(hash(++i,h, word2,isfword));//,isfword fp.log
             cm.set(hash(++i,h, word3));
             cm.set(hash(++i,h, word4));
-            cm.set(hash(++i,h, word5));
+            cm.set((istext==true)?wpword1:hash(++i,h, word5));
             cm.set(hash(++i,h, word1,word3));
             cm.set(hash(++i,h, word2,word3));
         }else{
@@ -6538,8 +6627,8 @@ private:
         const bool is_new_line_start = x.col==0 && nl1>0;
         const bool is_prev_char_match_above = buf(1)==pC_above && x.col!=0 && nl1!=0;
         const U32 above_ctx = above<<1|U32(is_prev_char_match_above);
-        if (pdf_text_parser_state==0 && x.col<((U32)max(255,val2))&& x.filetype!=DECA){
-            cm.set(hash(++i,nl1-nl2,(wcol<<8)|x.col,buf(1),above_ctx));  
+        if (pdf_text_parser_state==0 &&!(x.frstchar=='{' && istemplate!=0) &&scountset==false && x.col<((U32)max(255,val2))&& x.filetype!=DECA){
+            cm.set(hash(++i,((wnl1-wnl2)<<16)|nl1-nl2,(wcol<<8)|x.col,buf(1),above_ctx));  
             cm.set(hash(++i,buf(1),above_ctx,above^above1,wabove )); 
             cm.set(hash(++i,x.col,wcol,buf(1))); 
             cm.set(hash(++i,x.col,wcol,c==32));  
@@ -6557,7 +6646,7 @@ private:
        
             cm.set(hash(++i,mask)); 
             cm.set(hash(++i,mask,buf(1))); 
-            if (pdf_text_parser_state==0)    cm.set(hash(++i,mask&0x1ff,x.col,wcol)); else  {cm.set();++i;}
+            if (pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))    cm.set(hash(++i,mask&0x1ff,x.col,wcol)); else  {cm.set();++i;}
             cm.set(hash(++i,mask,c4&0x00ffff00)); 
             cm.set(hash(++i,mask&0x1ff,x.f4&0x00fff0)); 
             cm.set(hash(++i,h, llog(wordGap), mask&0x1FF, ///// dis>30
@@ -6574,10 +6663,10 @@ private:
              ));
       
         
-        if (x.wordlen1 && pdf_text_parser_state==0)            cm.set(hash((wcol<<8)|x.col,x.wordlen1,above,above1,c4&0xfF)); else cm.set(); //wordlist 
+        if (x.wordlen1 && pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))            cm.set(hash((wcol<<8)|x.col,x.wordlen1,above,above1,c4&0xfF)); else cm.set(); //wordlist 
         if (wrdhsh)          cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else i++,cm.set();//?
         hq=hash((wcol<<8)|x.col,above^above1,numbers&127,x.filetype==DECA?c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
-        if (  pdf_text_parser_state==0) cm.set(hash(++i,(wcol<<8)|x.col,above^above1,above2 , ((islink)<<8)|
+        if (  pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0)) cm.set(hash(++i,(wcol<<8)|x.col,above^above1,above2 , ((islink)<<8)|
              ((linespace > 4)<<7)|
              ((x.wordlen1 > 3)<<6)|
              ((x.wordlen > 0)<<5)|
@@ -6607,7 +6696,7 @@ private:
       g_ascii_lo  |= g;
     }
  if( linespace>0) {
-    U64 i = to_be_collapsed*8;i=i*65;
+    U64 i = to_be_collapsed*8;//i=i*65;
     U32 g_a_hi=(g_ascii_lo>>32),g_a_lo=g_ascii_lo&0x00000000ffffffff;
     cm.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
     cm.set(hash( (++i), g_a_hi, g_a_lo));                                  // last 8 groups
@@ -7098,7 +7187,7 @@ public:
     cm.set(hash(j++,buf(1)|buf(3)<<8|buf(5)<<16));
     cm.set(hash(j++,buf(2)|buf(4)<<8|buf(6)<<16));
     if (x.c4==0){
-        for (int i=0; i<11; ++i) cm.set(); 
+        for (int i=0; i<11; ++i) cm.set(); j++;
     }else{
     cm.set(hash(j++,x.c4&0x00f0f0ff));
     cm.set(hash(j++,x.c4&0x00ff00ff));
@@ -11051,12 +11140,13 @@ int p(Mixer& m,int val1=0,int val2=0){
 if (val2==-1) return 1;
     cm.set(hash( (vv>0 && vv<3)?0:(lc|0x100), ic&0x3FF, ec&0x7, ac&0x7, uc ));
     cm.set(hash(ic, w, ilog2(bc+1)));
+    
     cm.set(U32((3*vc+77*pc+373*ic+qc)&0xffff));
     cm.set(U32((31*vc+27*pc+281*qc)&0xffff));
     cm.set(U32((13*vc+271*ic+qc+bc)&0xffff));
-    cm.set(U32((17*pc+7*ic)&0xffff));
     cm.set(U32((13*vc+ic)&0xffff));
     cm.set(U32((vc/3+pc)&0xffff));
+    cm.set(U32((17*pc+7*ic)&0xffff));
     cm.set(U32((7*wc+qc)&0xffff));
     cm.set(U32((vc&0xffff)|((x.f4&0xf)<<16)));
     cm.set(U32(((3*pc)&0xffff)|((x.f4&0xf)<<16)));
@@ -11212,6 +11302,10 @@ public:
     if (B==0x0A || B==5)
       LineEnding = 1+((U8)(x.c4>>8)==0x0D);
     if(State!=None) lastState=buf.pos;
+    // if &< or &> or &</ then ignore and force to reading content, so wordmodel knows
+    if (  (x.c4&&0xffff)==0x263c || (x.c4&&0xffff)==0x263e|| (x.c4&&0xffffff)==0x263c2f){
+              State = ReadContent;
+    }
     switch (State){
       case None : {
         if (B==0x3C){
@@ -11319,7 +11413,7 @@ public:
         break;
       }
       case ReadContent : {
-        if (B==0x3C){
+        if (B==0x3C && ((x.c4&0xffff)!=0x263c)){ // if new tag and not escape
           State = ReadTagName;
           Cache.Index++;
           memset(&Cache.Tags[ Cache.Index&(CacheSize-1) ], 0, sizeof(XMLTag));
@@ -11494,7 +11588,7 @@ public:
   int netcount() {return 0;}
   void setContexts(){
       int i;
-    if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && buf(3)!=10 && buf(3)!=5 && 
+    if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && !(buf(3)==10 || buf(3)==5) && 
     (x.filetype==DICTTXT ||x.filetype==TEXT0|| x.filetype==BIGTEXT)) for (i=14; i>0; --i) 
       cxt[i]=cxt[i-1]*primes[i];
     cxt[15]=(isalpha(buf(1)))?(cxt[15]*primes[15]+ tolower(buf(1))):0;
@@ -12283,7 +12377,7 @@ void Predictor::update()  {
             if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
+        x.tt=x.tt*8+WRT_mtt[b1];
         x.f4=x.f4*16+(b1>>4);
         if(x.blpos==1) {
             m->setText(false);
@@ -12428,7 +12522,7 @@ void PredictorDEC::update()  {
             if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
+        x.tt=x.tt*8+WRT_mtt[b1];
         x.f4=x.f4*16+(b1>>4);
     }
 
@@ -12667,7 +12761,7 @@ void PredictorEXE::update()  {
             if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
+        x.tt=x.tt*8+WRT_mtt[b1];
         x.f4=x.f4*16+(b1>>4);
     }
     m->update();
@@ -13027,6 +13121,7 @@ class PredictorTXTWRT: public Predictors {
   U32 count;
   U32 blenght;
    int mixerInputs,mixerNets,mixerNetsCount;
+   StateMap StateMaps[1];
 public:
   PredictorTXTWRT();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -13037,7 +13132,7 @@ public:
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),Bypass(false),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0),StateMaps{   256*4}{
 
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -13083,7 +13178,7 @@ Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,
        mixerNetsCount+=models[i]->netcount();
    }
    // add extra 
-   mixerInputs+=1;
+   mixerInputs+=1+1;
    mixerNets+= 4096+ 256+ 256+ 256*8+ 256*8+ 256*8+ 1536+ 2048;
    mixerNetsCount+=8;
    // create mixer
@@ -13106,10 +13201,11 @@ void PredictorTXTWRT::update()  {
         x.x4=x.x4*256+b1,x.x5=(x.x5<<8)+b1;
         if(b1=='.' || b1=='!' || b1=='?' || b1=='/'|| b1==')'|| b1=='}') {
             x.w5=(x.w5<<8)|0x3ff,x.f4=(x.f4&0xfffffff0)+2,x.x5=(x.x5<<8)+b1,x.x4=x.x4*256+b1;
-            if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
+            if(b1!='!') x.w4|=12;//, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
+        
+        x.tt=x.tt*8+WRT_mtt[b1];
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
         x.f4=x.f4*16+(b1>>4);
     }
     x.Misses+=x.Misses+((pr>>11)!=x.y);
@@ -13152,11 +13248,12 @@ void PredictorTXTWRT::update()  {
         if (slow==true) models[M_PPM]->p(*m);
         if (slow==true) models[M_CHART]->p(*m);
         //if (slow==true) models[M_LSTM]->p(*m);
+         m->add((stretch(StateMaps[0].p(x.c0|x.bc4,x.y))+1)>>1);
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
         m->set(x.c0, 256);
         m->set(ismatch, 256);
-        m->set((x.w4&3)*64+c+order*256, 256*8);
+        m->set((x.bc4>>8)*64+c+order*256, 256*8);
         m->set(256*order + (x.w4&240) + (x.b3>>4), 256*8);
         m->set((x.w4&255)+256*x.bpos, 256*8);
         if (x.bpos){
@@ -13172,14 +13269,14 @@ void PredictorTXTWRT::update()  {
         int limit=0x3FF>>((x.blpos<0xFFF)*2);
     int pr1, pr2, pr3;
     pr  = Text.APMs[0].p(pr0, (x.c0<<8)|(x.Text.mask&0xF)|((x.Misses&0xF)<<4), x.y, limit);
-    pr1 = Text.APMs[1].p(pr0, hash(x.bpos, x.Misses&3, x.buf(1), x.x5&0x80ff, x.Text.mask>>4)&0xFFFF, x.y, limit);
-    pr2 = Text.APMs[2].p(pr0, hash(x.c0, x.Match.byte, min(3, ilog2(x.Match.length+1)))&0xFFFF, x.y, limit);
-    pr3 = Text.APMs[3].p(pr0, hash(x.c0, x.buf(1), x.buf(2), x.Text.firstLetter)&0xFFFF, x.y, limit);
+    pr1 = Text.APMs[1].p(pr0, x.c0^hash(x.bpos, x.Misses&3, x.buf(1), x.x5&0x80ff, x.Text.mask>>4)&0xFFFF, x.y, limit);
+    pr2 = Text.APMs[2].p(pr0, x.c0^hash( x.Match.byte, min(3, ilog2(x.Match.length+1)))&0xFFFF, x.y, limit);
+    pr3 = Text.APMs[3].p(pr0, x.c0^hash( x.c4&0xffff,   x.Text.firstLetter)&0xFFFF, x.y, limit);
     pr0 = (pr0+pr1+pr2+pr3+2)>>2;
 
-    pr1 = Text.APM1s[0].p(pr0, hash(x.Match.byte, min(3, ilog2(x.Match.length+1)), x.buf(1))&0xFFFF);
-    pr2 = Text.APM1s[1].p(pr, hash(x.c0, x.buf(1), x.buf(2), x.buf(3))&0xFFFF, 6);
-    pr3 = Text.APM1s[2].p(pr, hash(x.c0, x.buf(2), x.buf(3), x.buf(4))&0xFFFF, 6);
+    pr1 = Text.APM1s[0].p(pr0, x.c0^hash(x.Match.byte, min(3, ilog2(x.Match.length+1)), x.buf(1))&0xFFFF);
+    pr2 = Text.APM1s[1].p(pr, x.c0^hash( x.c4&0x00ffffff)&0xFFFF, 6);
+    pr3 = Text.APM1s[2].p(pr, x.c0^hash( x.c4&0xffffff00)&0xFFFF, 6);
     pr = (pr+pr1+pr2+pr3+2)>>2;
     pr = (pr+pr0+1)>>1;
 }
@@ -15447,7 +15544,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         }
         else     b85s=0;   
     }
-    //if (b85s==2)continue;
     
     // Detect text, utf-8, eoltext and text0
     text.isLetter = tolower(c)!=toupper(c);
