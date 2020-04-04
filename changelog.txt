@@ -1,3 +1,13 @@
+v80
+    - Small changes in wordModel
+    - Add second option -w for direct input of wikipedia dumps
+    - WIT data type (option -w) for wikipedia 
+        no detection, malformed input gets transform fail
+     -> subtract ID, convert timestamp, convert html entities (also to UTF8)
+      | extract article header ns/id -> contributor, place after data
+      | extract langs at the end of article, place after data
+    - Move online wrt out from wordmodel
+    
 v79
     - Change wordModel1
        some html entities rollback
