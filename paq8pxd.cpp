@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd80"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd81"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -16719,7 +16719,7 @@ int wctoutf8(char *dest, U32 ch){
 int numlen(char *str) {
     int c, i = 0;
     for (i = 0; *str!=';'; str++){
-        if (*str<0 || *str>'9') return 0;
+        if (*str<'0' || *str>'9') return 0;
         i++;
     }   
     return i;
@@ -16938,8 +16938,12 @@ void henttail( char *in,char *out,FileTmp *o){
               (memcmp(&ps[3], "ikipedysta:",11)==0) || 
               (memcmp(&ps[2],"wikia:",6)==0) || 
               (memcmp(&ps[2],"incubator:",10)==0) || 
-              (memcmp(&ps[2],"ficheiro:",9)==0) ||
+              (memcmp(&ps[2],"ficheiro:",9)==0) || (memcmp(&ps[2],"Ficheiro:",9)==0) ||
               (memcmp(&ps[2],"arquivo:",8)==0) ||
+              (memcmp(&ps[2],"foundation:",11)==0) ||
+              (memcmp(&ps[2],"template:",9)==0) ||
+              (memcmp(&ps[2],"wikinews:",9)==0) ||
+              (memcmp(&ps[2],"bild:",5)==0) ||
               (memcmp(&ps[2],"fr:Wikipédia:Aide]]",20)==0) ||
               (memcmp(&ps[2],"de:Boogie Down Produ",20)==0) ||
               (memcmp(&ps[2],"da:Wikipedia:Hvordan",20)==0) ||
@@ -17342,8 +17346,8 @@ int encode_txt_wit(File* in, File* out, U64 len) {
    out3.close();
    out2.close();
    out1.close();
- // printf("Main size: %d",U32(msize));
- // printf("Langs size: %d",U32(tsize));
+  //printf("Main size: %d kb",U32(msize/1024));
+  //printf("Langs size: %d kb",U32(tsize/1024));
   return tsize;
 }
 // end WIT
