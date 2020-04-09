@@ -1,3 +1,9 @@
+v82 
+    - -w option - reorder content by title selecting ',' or ':'
+v81
+    - fix str number detection &#xxxx;
+    - wit -> more escapes for lang
+
 v80
     - Small changes in wordModel
     - Add second option -w for direct input of wikipedia dumps

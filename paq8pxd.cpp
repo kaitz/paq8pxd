@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd81"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd82"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -6491,7 +6491,7 @@ private:
        int i=0;
        const U32 dist =  llog(x.blpos-wpos[word0&(wpos.size()-1)]);
        bool istext=!(x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK || x.filetype==EXE || x.filetype==ARM);
-        x.tmask=i=((c<5)<<5)|((0)<<4)| ((dist==0)<<3)| ((doXML=true?1:0)<<2)| ((opened)<<6)| ((istemplate)<<1)| islink;
+        x.tmask=i=((c<5)<<5)|((0)<<4)| ((dist==0)<<3)| ((/*doXML=true?1:*/0)<<2)| ((opened)<<6)| ((istemplate)<<1)| islink;
         if (x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK) i=0;
         else i=(hash(6,i)>>16);
 
@@ -17022,57 +17022,191 @@ void henttail1( char *in,char *out,FileTmp *o,char *p2,int size){
     }
 }
 
-// {{ }} html: category: ?
-void henttag1( char *in,char *out,FileTmp *o){
-    int c, i=0,  j=0;
-    static  int lnu=0,f=0, b1=0, lc=0,co=0;
+// ,
+void henttag1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
     unsigned char   *ps;
-   // for testing
-   /* ++lnu;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
+
     j = strlen(in);
-    if (j> 5 && *(in)=='{' && *(in+1)=='{' && *(in+j-2)=='}'&& *(in+j-3)=='}')  {
-       // printf("%s",in);
-        
-        wfputs1(in,o);
-        out[0]='&';
-        out[1]='}';
-        out[2]=10;
-        out[3]=0;
-        return;
+ 
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 ) ) text=0;
+      
+    if (title==1 && move==0 && text)   {
+       move=1;
+    }    
+    if (move && title && j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+             k1=(int)(strchr(in,'>')-(char*)p4);
+            memcpy(out, in,k1);
+            out[k1+1]=10;out[k1+2]=0;
+            k1++;
+        } else out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
     }
-    else*/
+    else
       do {
         j=*in++; *out++=j;
       }
       while (j!=0); 
 }
 
-void henttag1r( char *in,char *out,char *p2,int size){
-    int i, j, k;
-    static int c=0 ,lnu=0, f=0;
+int henttag1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int c=0 ,lnu=0, f=0,move=0,text=0;;
     static  char *p4=p2;
-  //  char su[8192*8];
-    //char *s=su;
-   // char ou[8192*8];
-    ++lnu;
-    /*j = strlen(in);
-   
-    if (j==3 && *(in)=='&' && *(in+1)=='}') {
-        c=0;
-      
-          k=(int)(strchr(p4,10)+1-(char*)p4);
-          for (int i = 0; i<k;i++ ){
-            out[i]=*p4++;
-          }
-          out[k]=0;
-          //printf("%s",out);
-        
-    }else{*/
-        do {
+    char *p8=out;
+     // for testing 
+    j = strlen(in);
+  
+    if (j>13&& title && text==0 &&  memcmp(in+6,"<text ",6)==0  ) text=f=1,k=33,move=0;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 )) text=k=f=0,move=1;
+    if (title==1 && move==0 && text)   {
+       if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</page>",7)==0/*||memcmp(&in[j-8],"</text>",7)==0*/){
+            move=1;text=0;
+            do {
         j=*in++; *out++=j;
       }
       while (j!=0); 
-   // }
+      return 0; 
+        }
+    }
+  
+    
+    if (move==0 && title && text && j){
+        if (f){
+        // text line only
+        for (int i = 0; i<k;i++ ){
+            out[i]=*in++;
+          }
+          f=0;
+      }
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=0;
+            return 0;
+        } 
+        return 1;
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      
+      return 0;
+}
+
+//file
+void hentfiles1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 )) text=0;
+      
+    if (title && move==0 && text) {
+       move=1;
+    }
+    
+    if (move && title && j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+             k1=(int)(strchr(in,'>')-(char*)p4);
+            memcpy(out, in,k1);
+            out[k1+1]=10;out[k1+2]=0;
+            k1++;
+            
+        } else out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+// :
+int hentfiles1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  f=0,move=0,text=0;
+    static  char *p4=p2;
+    char *p8=out;
+    j = strlen(in);
+  
+    if (j>13&& title && text==0 &&  memcmp(in+6,"<text ",6)==0  ) text=f=1,k=33,move=0;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 ) ) text=k=f=0,move=1;
+    if (title  && move==0 && text)   {
+       if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</page>",7)==0||memcmp(&in[j-8],"</text>",7)==0){
+            move=1;text=0;
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      return 0; 
+        }
+    }  
+    
+    if (move==0 && title && text && j){
+        if (f){
+        // text line only
+        for (int i = 0; i<k;i++ ){
+            out[i]=*in++;
+          }
+          f=0;
+      
+      }
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=f=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      
+      return 0;
+}
+
+
+void skipline( char *in,char *out ){
+    int j;
+    do {
+        j=*in++; *out++=j;
+    }
+    while (j!=0);
 }
 
 //wit restore
@@ -17083,25 +17217,31 @@ int decode_txt_wit(File*in, U64 size, File*out, FMode mode, U64 &diffFound,int w
     int i, j, f = 0, lastID = 0;
     U64 tsize=size-winfo; // winfo <- tail lenght
     in->setpos(tsize); // tail data pos
-    
+    //header
     wfgets(s, 8192*8, in);    
     int headerlenght=atoi(&s[0]);
     char *h1=(char*)calloc(headerlenght+1,1);
     char *h1p=h1;
+    // tag
     wfgets(s, 8192*8, in);    
     int taglenght=atoi(&s[0]);
     char *t1=(char*)calloc(taglenght+1,1);
-    
+    // files
+    wfgets(s, 8192*8, in);    
+    int fileslenght=atoi(&s[0]);
+    char *f1=(char*)calloc(fileslenght+1,1);
+    //lang
     wfgets(s, 8192*8, in);    
     int langlenght=atoi(&s[0]);
     char *p1=(char*)calloc(langlenght+1,1);
     
-    if(headerlenght)in->blockread((U8*)h1,U64(headerlenght));  //read header
     if(taglenght)   in->blockread((U8*)t1,U64(taglenght));  //read tag
+    if(fileslenght)   in->blockread((U8*)f1,U64(fileslenght));  //read tag
+    if(headerlenght)in->blockread((U8*)h1,U64(headerlenght));  //read header
     if(langlenght)  in->blockread((U8*)p1,U64(langlenght));  //read lang
     
     in->setpos(0);
-    int header=0;
+    int header=0,title=0,files=0;
     do {
     wfgets(s, 8192*8, in);    
     
@@ -17187,19 +17327,38 @@ int decode_txt_wit(File*in, U64 size, File*out, FMode mode, U64 &diffFound,int w
             h1p=h1p+k;
             header=0;
     }
-    //else
+
      {
-         if (memcmp(&s[j-9],"</title>",8)==0 && *(int*)s=='    ') header=1;
-        hent9(s,o);
-        henttag1r(s,o,t1,taglenght);
+         if (memcmp(&s[j-9],"</title>",8)==0 && *(int*)s=='    ') {header=1,title=0,files=0;
+            for(i=0; i<j; i++) {
+
+      if (s[i]==',' )  title=1;
+      if (s[i]==':' )  files=2;
+      
+      }
+      if (title && files==2) title=0;//,printf("%s",s); // active reset to files only
+      if (files==1) files=0;
+  }
+         }
+        int m=1,n=1;
+        while (m||n){        
+            m=henttag1r(s,o,t1,taglenght,title);// loop over until not
+           n=hentfiles1r(o,s,f1,fileslenght,files);// loop over until not
+           skipline(s,o);
+        hent9(o,s);
+        
         henttail1(o,s,&out1,p1,langlenght);
-        if (s[0]==0) continue;
+        if (s[0]==0) {
+            //m=henttag1r(o,s,t1,taglenght,title);
+        break;
+        }
         hent6( s,o);
         hent1( o,s);
-        hent3( s,o);
+        hent3( s,o);/// siiani
         wfputs1(o,&out1);
-        
-    }
+        //printf("%s",o );
+        }
+    
   }
   while (in->curpos() < tsize);
   free(p1);
@@ -17228,8 +17387,9 @@ int encode_txt_wit(File* in, File* out, U64 len) {
     FileTmp out1; // lang
     FileTmp out2; // tag
     FileTmp out3; // header
+    FileTmp out4; // files
     int i, j, f = 0, lastID = 0;
-
+    int ti=0,files=0;
   do {
     wfgets(s, 8192*8, in);
     j = strlen(s);
@@ -17285,7 +17445,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
           else                                             s2=7;
           if (*(int*)&s[6]=='noc<') {
            f=3;
-           if (f==3 && *(int*)&s[6+4+4+4]=='led ')  f=0; //special case
+           if (f==3 && *(int*)&s[6+4+4+4]=='led ')  f=0; //special case "deleted"
           }
         }
         if (s2){
@@ -17296,11 +17456,25 @@ int encode_txt_wit(File* in, File* out, U64 len) {
         hent2(o,s);
         hent5(s,o);
         henttail(o,s,&out1);
-        henttag1(s,o,&out2);hent9(o,s);
+        
+        henttag1(s,o,&out2,ti);
+        if (s[0]==0)wfputs(o,out);
+        if (o[0]==0 || s[0]==0) continue;
+        hentfiles1(s,o,&out4,files);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hent9(o,s);
         wfputs(o,out);
 }
     for(i=0; i<j; i++)
-      if (*(int*)&s[i]=='it/<' && *(int*)&s[i+4]=='>elt'&&*(int*)s=='    ') f=2;
+      if (*(int*)&s[i]=='it/<' && *(int*)&s[i+4]=='>elt'&&*(int*)s=='    ') {f=2;
+      ti=0;files=0;
+      for(i=0; i<j; i++){
+      if (s[i]==',' )  ti=1;      
+      if (s[i]==':' )  files=2;// article about files
+      
+      }
+      if (ti && files==2) ti=0;
+
+  }
     for(i=0; i<j; i++)
       if (*(int*)&s[i]=='oc/<' && *(int*)&s[i+4]=='irtn') f=0;
   }
@@ -17310,44 +17484,63 @@ int encode_txt_wit(File* in, File* out, U64 len) {
   int tsize=out1.curpos();
   int tagsize=out2.curpos();
   int headersize=out3.curpos();
-   //FileDisk aaa,bbb,ccc;
-   // aaa.create("xxxxxxxtag");
-  //  bbb.create("xxxxxxxlang");
-   // ccc.create("xxxxxxxheader");
+  int filesize=out4.curpos();
+/*   FileDisk aaa,bbb,ccc,ddd;
+   aaa.create("xxxxxxxtag");
+   bbb.create("xxxxxxxlang");
+   ccc.create("xxxxxxxheader");
+   ddd.create("xxxxxxxfiles");*/
    out1.setpos(0);
    out2.setpos(0);
    out3.setpos(0);
+    out4.setpos(0);
    sprintf(o, "%d%c", headersize, 10);
    j=strlen(o);
    wfputs(o,out); //header
    sprintf(o, "%d%c", tagsize, 10);
    j=j+strlen(o);
    wfputs(o,out); //tag
+   sprintf(o, "%d%c", filesize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //filesize
    sprintf(o, "%d%c", tsize, 10);
    j=j+strlen(o);
    wfputs(o,out); //lang
-   for(U64 i=0; i<headersize; i++) {
-       int a=out3.getc();
-       out->putc(a);
-       // ccc.putc(a);
-   }
    for(U64 i=0; i<tagsize; i++) {
        int a=out2.getc();
        out->putc(a);
-       // aaa.putc(a);
+   //     aaa.putc(a);
    }
+   for(U64 i=0; i<filesize; i++) {
+       int a=out4.getc();
+       out->putc(a);
+   //     ddd.putc(a);
+   }
+   for(U64 i=0; i<headersize; i++) {
+       int a=out3.getc();
+       out->putc(a);
+   //     ccc.putc(a);
+   }
+   
    for(U64 i=0; i<tsize; i++) {
        int a=out1.getc();
        out->putc(a);
-       // bbb.putc(a);
+    //    bbb.putc(a);
    }
-   tsize=tsize+j+tagsize+headersize;
-   //aaa.close(); bbb.close();ccc.close();
+   
+   //aaa.close(); bbb.close();ccc.close();ddd.close();
+   out4.close();
    out3.close();
    out2.close();
    out1.close();
-  //printf("Main size: %d kb",U32(msize/1024));
-  //printf("Langs size: %d kb",U32(tsize/1024));
+  /*printf("Main size: %d kb\n",U32(msize/1024));
+  printf("tags size: %d kb\n",U32(tagsize/1024));
+  printf("file size: %d kb\n",U32(filesize/1024));
+  printf("header size: %d kb\n",U32(headersize/1024));
+  printf("Langs size: %d kb\n",U32(tsize/1024));*/
+  tsize=tsize+j+tagsize+headersize+filesize;
+  
+  
   return tsize;
 }
 // end WIT
@@ -18711,9 +18904,12 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
   s2+=n;
   // Transform and test in blocks
   while (n>0) {
-    if (it==0 && witmode==true)
+    if (it==0 && witmode==true) {
       len=end=end0,info=0,type=WIT;
-    else  {   
+    }
+    else if (it==1 && witmode==true){    
+      len=end=end0,info=0,type=TXTUTF8;
+    } else {   
     if(type==TEXT || type==EOLTEXT || type==TXTUTF8) { // it was a split block in the previous iteration: TEXT -> DEFAULT -> ...
       nextType=nextblock_type_bak;
       end=textend+1;
