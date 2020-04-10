@@ -17650,7 +17650,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
         
         int skip=0;
         char *p = strstr(o, "<text ");
-        if (p)  {printf("%s",o); tf=1, p = strchr(p, '>'); assert(p);  skip= (char*)p+1-(char*)o;
+        if (p)  { tf=1, p = strchr(p, '>'); assert(p);  skip= (char*)p+1-(char*)o;
         if(p[-1]=='/' /*|| p[2]==0*/) tf=0;  
         }
         
