@@ -1,3 +1,7 @@
+v83
+    - add mod_SSE to text stream predictor
+    - -w option - reorder content by title beginning with number larger then 9
+                - add &" to "  
 v82 
     - -w option - reorder content by title selecting ',' or ':'
 v81
