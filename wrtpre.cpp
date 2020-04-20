@@ -349,7 +349,7 @@ protected:
     ELetterType letterType;
     ELetterType letterSet[256];
 
-    int sizeDict,sizeDynDict;
+    int sizeDict,sizeDynDict,staticDict,reducedStaticDict;
     U8* dictmem;
     U8* dictmem_end;
     U8* mem;
@@ -365,7 +365,6 @@ protected:
     int bound4,bound3,dict123size,dict12size,collision,quoteOpen,quoteClose,detectedSym;
     U32 maxMemSize;
     int sortedDictSize;
-    
 
 public:
 };
@@ -401,9 +400,11 @@ inline void XWRT_Common::stringHash(const U8 *ptr, int len,int& hash){
 }
 int XWRT_Common::addWord(U8* &mem,int &i){
     int c,j;
+    if (staticd==false || detect==true){
+    
     if (i<=1 || sizeDict>=dictionary)
     return -1;
-    
+    }
     dictlen[sizeDict]=i;
     dict[sizeDict]=mem;
     
@@ -941,7 +942,7 @@ void XWRT_Decoder::read_dict(){
             s.append(1,bufferData[0]);
             bufferData++;
 
-            if (s.size()>WORD_MAX_SIZE || bufferData>bound)
+            if ((s.size()>WORD_MAX_SIZE || bufferData>bound) &&  staticd==false)
             {
                 //printf("File corrupted (s.size()>WORD_MAX_SIZE)!\n");
                 OUT_OF_MEMORY();
@@ -1038,12 +1039,11 @@ private:
     inline void toUpper(U8* s,int &s_size);
     void encodeUTF8(U8* s,int &s_size,int& c);
     inline void checkWord(U8* &s,int &s_size,int& c);
-    
     inline void checkHashExactly(U8* &s,int &s_size,int& i);
     inline int checkHash(U8* &s,int &s_size,int h);
     inline void stringHash(const U8 *ptr, int len,int& hash);
 
-    void sortDict(int size);
+    void sortDict(int size,int staticSize);
 
     void write_dict();
     int WRT_detectFileType(U64 filelen);
@@ -1372,7 +1372,7 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     /*if (s_size>0 && !(wordType==3 || wordType==5)){
             toLower(s,s_size);
         }*/
-    if (s_size>=WORD_MIN_SIZE){
+    if (s_size>=WORD_MIN_SIZE || staticd==true){
         checkHashExactly(s,s_size,i);
         PRINT_CODEWORDS(("i=%d/%d %s(%d)\n",i,sizeDynDict,s,s_size));
         
@@ -1833,6 +1833,8 @@ void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U64 fileLen,bool type_
 }
 
 inline void XWRT_Encoder::checkWord(U8* &s,int &s_size,int& c){
+    if (staticd==false){
+   
     if (s_size<1){
         spaces=0;
         return;
@@ -1844,7 +1846,8 @@ inline void XWRT_Encoder::checkWord(U8* &s,int &s_size,int& c){
     if (s_size<WORD_MIN_SIZE){
         spaces=0;
         return;
-    } 
+    }  
+    }
     int i;
     checkHashExactly(s,s_size,i);
     if (i<0){
@@ -1865,6 +1868,15 @@ inline void XWRT_Encoder::checkWord(U8* &s,int &s_size,int& c){
     {
         dictfreq[i]++;
     }
+}
+void wfgets1(char *str, int count, FILE  *fp) {
+    int c, i = 0;
+    while (i<count-1 && ((c=getc(fp))!=EOF)) {
+        str[i++]=c;
+        if (c=='\n')
+            break;
+    }
+    str[i]=0;
 }
 int XWRT_Encoder::WRT_detectFileType(U64 filelen){
     detect=true;
@@ -1887,6 +1899,30 @@ int XWRT_Encoder::WRT_detectFileType(U64 filelen){
     PRINT_DICT(("maxDict=%d allocatedMemory=%d hashTable=%d\n",dictionary,dictionary*WORD_AVG_SIZE+sizeof(U8*)*(dictionary+1)+sizeof(U8)*(dictionary+1)+sizeof(int)*(dictionary+1),HASH_TABLE_SIZE*sizeof(word_hash[0])));
     if (dictmem && dict && dictlen && dictfreq){
         initializeLetterSet();
+        //add static dict
+        staticDict=0;
+        if (staticd==true){
+        
+        detect=false;
+        FILE *in;
+        char so[8192*8];
+        U8 *s=(U8*)&so;
+        int c=0;
+        in=fopen(externaDict,"rb");
+        do{
+        wfgets1(so, 8192*8, in);   
+         s_size=strlen(so)-1;
+        if (s_size>0)
+        checkWord(s,s_size,c);  
+        }
+        while (s[0]!=0);
+            s_size=0;
+            fclose(in);
+            staticDict=sizeDict;
+            //printf("static dict size %d\n",sizeDict);
+            //
+            detect=true;
+        }
         WRT_encode(filelen);
         WRT_detectFinish();
     }
@@ -1916,7 +1952,7 @@ int compare_freq( const void *arg1, const void *arg2 ){
     int b=*(int*)arg2;
     return dictfreq[b]-dictfreq[a];
 }
-void XWRT_Encoder::sortDict(int size){
+void XWRT_Encoder::sortDict(int size,int staticSize){
     int i,add;
     size--;
     if (size<10) return; // fail if word count is below - no transform
@@ -1928,9 +1964,10 @@ void XWRT_Encoder::sortDict(int size){
     int* inttable=new int[size];
     if (!inttable)
     OUT_OF_MEMORY();
+    if (staticd==false){
     for (i=0; i<size; i++)
     inttable[i]=i+1;
-    /**/qsort(&inttable[0],size,sizeof(inttable[0]),compare_freq);
+    qsort(&inttable[0],size,sizeof(inttable[0]),compare_freq);
     qsort(&inttable[0],min(size,dict1size),sizeof(inttable[0]),compare_str); //compare_str
     
     if (size>dict1size)
@@ -1942,14 +1979,30 @@ void XWRT_Encoder::sortDict(int size){
     if (size>bound4)
     qsort(&inttable[bound4],size-bound4,sizeof(inttable[0]),compare_str);//compare_str
     
+    //qsort(&inttable[staticSize],min(size,dict1size+staticSize),sizeof(inttable[0]),compare_str); //compare_str
+    }else{
+    for (i=0; i<size; i++)
+    inttable[i]=i;
+    // sort only dynamic dict
+    if (size>(dict1size+staticSize)){
+        qsort(&inttable[(staticSize)],min(size,(bound3+staticSize))-(staticSize),sizeof(inttable[0]),compare_str);//compare_str
+    }
+    if (size>(bound3+staticSize)){
+        qsort(&inttable[(bound3+staticSize)],min(size,(bound4+staticSize))-(bound3+staticSize),sizeof(inttable[0]),compare_str);//compare_str
+    }
+    if (size>(bound4+staticSize)){
+        qsort(&inttable[(bound4+staticSize)],size-(bound4+staticSize),sizeof(inttable[0]),compare_str);//compare_str
+    }
+    }
     for (i=0; i<size; i++){
         std::string str=(char*)dict[inttable[i]];
         sortedDict.push_back(str);
     }
     delete(inttable);
 }
+int utf8len(char *s);
 void XWRT_Encoder::WRT_detectFinish(){  
-    int i,j;
+    int i,j ,newstaticsize;
     PRINT_DICT(("%d words ",sizeDict-1));
     sortedDict.clear();
     int num;
@@ -1958,14 +2011,50 @@ void XWRT_Encoder::WRT_detectFinish(){
     minWordFreq2=minWordFreq;
     else
     minWordFreq2=minWordFreq-2;
-    for (i=1; i<sizeDict-1; i++){
+    reducedStaticDict=newstaticsize=0;
+    if (staticd==true){
+        //reduce static dict and compact it
+    for (i=0; i<staticDict; i++){
         num=dictfreq[i];
         
-        if (num>=minWordFreq || (num>=minWordFreq2 && (dictlen[i]>=7)) /*|| (lowerfq && num>=6 && utf8_check(dict[i]))*/ )  
+        if (num>minfq)  // from command line
+       // printf("%.*s %d\n", dictlen[i], dict[i],dictfreq[i]); // print string and its frq
+       ;
+        else
+        dictfreq[i]=0;
+    }
+    int n = 0;
+    for (i = 0; i<staticDict; i++)    {
+        if (dictfreq[i] != 0)
+        {
+            dictfreq[n] = dictfreq[i];
+            dict[n]=dict[i];
+        dictlen[n]=dictlen[i];
+        dict[i]=0;
+        dictfreq[i]=0;
+        n++;
+        }
+    }
+      newstaticsize=n;
+  }
+    for (i=staticDict; i<sizeDict-1; i++){
+        num=dictfreq[i];
+        if (staticd==true){
+            
+         if ( utf8len((char*)dict[i])>1|| (num>=minWordFreq*(staticd==true?2:1) && (staticd==true?((dictlen[i]>3)?1:0):1)) || (num>=minWordFreq2*(staticd==true?2:1) && (dictlen[i]>=7)) 
+            )  
         //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
         ;
         else
         dictfreq[i]=0;
+    }else{
+        if (num>=minWordFreq || (num>=minWordFreq2 && (dictlen[i]>=7))) ;
+        
+        //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
+       
+        else
+        dictfreq[i]=0;
+    }
     }
     for (i=1, j=sizeDict-2; i<j; i++){
         if (dictfreq[i]>0)
@@ -1978,9 +2067,12 @@ void XWRT_Encoder::WRT_detectFinish(){
         dictfreq[i]=dictfreq[j];
         dictfreq[j--]=0;
     }
+   
     sizeDict=i;
+    reducedStaticDict=newstaticsize;
     if (sizeDict>maxDictSize)
     sizeDict=maxDictSize;
+    // printf("static reduced %d (freq>=%d)\ndynamic words %d (dynamic freq>=%d)\ntotal words %d  \n",reducedStaticDict,minfq,sizeDict-reducedStaticDict,minWordFreq,sizeDict);
     PRINT_DICT(("reduced to %d words (freq>=%d)\n",sizeDict,minWordFreq));
-    sortDict(sizeDict);
+    sortDict(sizeDict,reducedStaticDict);
 }

@@ -1,3 +1,10 @@
+v84
+    - adjust jpeg,im1 predictor
+    - add mod_SSE to all predictors exept jpeg
+    - add external dictionary command line option
+    - add RC to encoder (paq8pxd82sa)
+    - change ppmd mem
+    - in wordmodel process math tag (wiki)
 v83
     - add mod_SSE to text stream predictor
     - -w option - reorder content by title beginning with number larger then 9

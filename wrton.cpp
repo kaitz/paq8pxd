@@ -118,8 +118,8 @@ inline void wrtDecoder::stringHash(const U8 *ptr, int len,int& hash){
 }
 int wrtDecoder::addWord(U8* &mem,int &i){
     int c,j;
-    if (i<=1 || sizeDict>=dictionary)
-    return -1;
+    //if (i<=1 || sizeDict>=dictionary)
+    //return -1;
     
     dictlen[sizeDict]=i;
     dict[sizeDict]=mem;
@@ -450,11 +450,11 @@ void wrtDecoder::read_dict(int count,int size, U8* data){
         while (bufferData[0]!=10){
             s.append(1,bufferData[0]);
             bufferData++;
-            if (s.size()>WORD_MAX_SIZE || bufferData>bound)
-            {
+            //if (s.size()>WORD_MAX_SIZE || bufferData>bound)
+            //{
                 //printf("File corrupted (s.size()>WORD_MAX_SIZE)!\n");
-                quit("Not enough memory!\n");
-            }
+              //  quit("Not enough memory!\n");
+            //}
         } 
         bufferData++;
         sortedDict.push_back(s);

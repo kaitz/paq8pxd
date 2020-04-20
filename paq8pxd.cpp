@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd83"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd84"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1258,10 +1258,12 @@ U64 checksum64(const U64 hash, const int hashbits, const int checksumbits) {
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
 bool slow=false;
 bool witmode=false;
+bool staticd=false;
 U64 MEM(){
      return 0x10000UL<<level;
 }
-
+char *externaDict;
+int minfq=0;
 Segment segment; //for file segments type size info(if not -1)
 const int streamc=13;
 File * filestreams[streamc];
@@ -1377,6 +1379,11 @@ const char* models[M_MODEL_COUNT]={"RECORD","IM8","IM24","SPARSE","JPEG","WAV","
 // Contain all global data usable between models
 class BlockData {
 public: 
+//wrt
+  U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
+  bool wrtLoaded;
+  Array<U8> wrtText;
+  int wrtTextSize,wrtstatus,wrtbytesize;
     Segment segment; //for file segments type size info(if not -1)
     int y; // Last bit, 0 or 1, set by encoder
     int c0; // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
@@ -1428,22 +1435,22 @@ public:
   bool wstat,wdecoded;
   U32 pwords,pbc;
   int bc4;
-  //wrt
-  U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
-  bool wrtLoaded;
-  Array<U8> wrtText;
-  int wrtTextSize,wrtstatus,wrtbytesize;
-BlockData():y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
+  
+BlockData(): wrtpos(0),wrtfile(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtLoaded(false),wrtText(255),wrtTextSize(0),wrtstatus(0),wrtbytesize(0),
+y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
     b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
     failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),
-    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0),count(0),wwords(0),tmask(0),
+    wordlen(0),wordlen1(0),grp(0),/*Text{0},Match{0},Image{0},*/Misses(0),count(0),wwords(0),tmask(0),
     wrtc4(0),dictonline(false),inpdf(false),wcol(0),utf8l(0),wlen(0),wstat(false),wdecoded(false),
-    pwords(0),pbc(0),bc4(0),
-    wrtpos(0),wrtfile(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtLoaded(false),wrtText(255),wrtTextSize(0),wrtstatus(0),wrtbytesize(0){
+    pwords(0),pbc(0),bc4(0)
+   {
+       memset(&Image, 0, sizeof(Image));
+       memset(&Match, 0, sizeof(Match));
+       memset(&Text, 0, sizeof(Text));
         // Set globals according to option
         assert(level<=15);
         bufn.setsize(0x10000);
-        if (level>=11) buf.setsize(0x40000000); //limit 1gb
+        if (level>=11) buf.setsize(0x20000000); //limit 512mb
         else buf.setsize(MEM()*8);
        /* #ifndef NDEBUG 
         printf("\n Buf size %d bytes\n", buf.poswr);
@@ -2919,7 +2926,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
   // Update model with y
   int result=0;
   for (int i=0; i<cn; ++i) {
-   if(cxt[i]){
+   if(cxt[i]){   
     if (cp[i]) {
       assert(cp[i]>=&t[0].bh[0][0] && cp[i]<=&t[t.size()-1].bh[6][6]);
       assert(((long long)(cp[i])&63)>=15);
@@ -6269,7 +6276,7 @@ private:
            x.pbc=x.pbc*2+d/64;
            if ((d)) {x.pwords++, wpword1^=hash(wpword1, c);}
            else wpword1=d; 
-           x.bc4=d<<2; 
+          // x.bc4=d<<2; 
         }
         if (pC>='A' && pC<='Z') pC+='a'-'A';
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
@@ -6493,7 +6500,7 @@ private:
        bool istext=!(x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK || x.filetype==EXE || x.filetype==ARM);
         x.tmask=i=((c<5)<<5)|((0)<<4)| ((dist==0)<<3)| ((/*doXML=true?1:*/0)<<2)| ((opened)<<6)| ((istemplate)<<1)| islink;
         if (x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK) i=0;
-        else i=(hash(6,i)>>16);
+        else i=(hash(6,i+pdf_text_parser_state*1024)>>16);
 
  if (val2!=-1){
         //256+ hash 513+ none
@@ -6518,7 +6525,8 @@ private:
              const int wl_wme_mbc=min(exprlen0,4+3)<<2;
              cm.set(hash(++i, wl_wme_mbc, expr0chars));
              }   else {cm.set();i++;}
-             for(int j=0;j<6;j++)  {cm.set();++i;}
+             cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255), (x.pwords&255)));//spaces...
+             for(int j=0;j<5;j++)  {cm.set();++i;}
           } else for(int j=0;j<10;j++)  {cm.set();++i;}
            
         }
@@ -6582,7 +6590,7 @@ private:
         cm.set(hash(++i,text0&0xffffff));
         cm.set(text0&0xfffff);
         U32 isfword=x.filetype==DECA?-1:fword;
-        if (doXML==true){
+        if (doXML==true && pdf_text_parser_state==0){
             if ( scountset==false ){
             cm.set(hash(++i,word0,number0,wpword1,xword0));
             cm.set(hash(++i,word0,number0,wpword1, xword1));  //wiki 
@@ -6720,13 +6728,14 @@ private:
     }
   };
   
-  U8 pdf_text_parser_state; // 0,1,2,3
+  U8 pdf_text_parser_state,math_state; // 0,1,2,3
   Info info_normal;
   Info info_pdf;
+  Info math;
     U32 hq;
 public:
-  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),
-  info_normal(bd,0,cm), info_pdf(bd,0,cm),hq(0){
+  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),math_state(0),
+  info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),hq(0){
   
    }
    int inputs() {return N*cm.inputs();}
@@ -6754,7 +6763,16 @@ public:
         else if(c1==')') {pdf_text_parser_state&=(255-4);} //signal: start pdf gap processing
         }
       }
-
+      // ':&<math& >' '|&<math& >' ' &<math& >' '\n&<math& >'
+      if(x.wrtc4==0x3A263C6D61746826|| x.wrtc4==0x20263C6D61746826||x.wrtc4==0x10263C6D61746826||/*(x.wrtc4&0xffffffff)==0x6D617468||*/ x.wrtc4==0x7C263C6D61746826 ) {//  
+          math_state=2;         
+      } // Begin math
+      else if (math_state &&(x.wrtc4&0xff)==0x26  ||(x.wrtc4&0xff)==0x20) {//  
+          math_state=0; 
+      } // End math
+      //else if (math_state==1 && ((x.c4>>8)&0xff)=='>') {//  
+      //    math_state=2; 
+      //} // End math
       const bool is_pdftext = (pdf_text_parser_state&4)!=0;
       if(is_pdftext) {
         if(do_pdf_process) {
@@ -6763,6 +6781,12 @@ public:
           info_pdf.process_char(x.wrtstatus,val1,val2);
         }
         hq=info_pdf.predict(pdf_text_parser_state,val1,val2);
+        }
+     else   if(math_state==2) {
+         //printf("%c ",c1); 
+          math.process_char(x.wrtstatus,val1,val2);
+      
+        hq=math.predict(math_state,val1,val2);
       } else {
         const bool is_textblock = (x.filetype==TEXT||x.filetype==TEXT0|| x.filetype==TXTUTF8||x.filetype==EOLTEXT||x.filetype==DICTTXT||x.filetype==BIGTEXT||x.filetype==NOWRT);
         const bool is_extended_char = is_textblock && c1>=128;
@@ -8566,7 +8590,7 @@ public:
 */
 }
 };
- 
+
 class jpegModelx: public Model {
      int MaxEmbeddedLevel ;
    JPEGImage  images[3];
@@ -8655,8 +8679,9 @@ public:
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
-  qtab(256),qmap(10),N(35+1),cxt(N),m1(32+32+3+4+1,2050+3+1024 /*770*/,bd, 3,0,2), a1(0x20000),a2(0x20000),x(bd),buf(bd.buf),
+  qtab(256),qmap(10),N(35+1),cxt(N),m1(32+32+3+4+1,2050+3+1024 /*770*/,bd, 3,0,0), a1(0x20000),a2(0x20000),x(bd),buf(bd.buf),
   hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0), smx(256*256) {
+     m1.setText(true);
   }
   int inputs() {return 7+N*2+1+1;}
   int nets() {return 9+1025+1024+4096;}
@@ -9206,17 +9231,18 @@ public:
    m1.set(firstcol, 2);
    m1.set( coef+256*min(3,huffbits), 1024 );
    m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048 );
-   m1.setl(x.y);
+  // m1.setl(x.y);
   int pr=m1.p(1,1);
    x.Misses+=x.Misses+((pr0>>11)!=x.y);
   pr0=pr;
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
   pr=a1.p(pr,hash(hc,adv_pred[1]/16,x.Misses&0xf)&0x1FFFF, x.y,1023);
+  
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
   pr=a2.p(pr, hash(hc,coef)&0x1FFFF,x.y, 1023);
-  
+
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
   m.add(stretch((pr+pr0)>>1));
@@ -11931,8 +11957,8 @@ class ppmdModel1: public Model {
   ppmd_Model ppmd_12_256_1;
 public:
   ppmdModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){
-    int ppmdmem=(210<<(level>8))<<(level>13);
-    ppmd_12_256_1.Init(12+(level>8),ppmdmem,1,0);
+    int ppmdmem=((210<<(level>8))<<(level>9))<<(level>10);
+    ppmd_12_256_1.Init(12+(level>8?4:0),ppmdmem,1,0);
  }
  int inputs() {return 1;}
  int nets() {return 0;}
@@ -12129,14 +12155,6 @@ Predictors(){
         x.buf[x.buf.pos++]=x.c0;
         x.c0=1;
         ++x.blpos;
-        //if (x.blpos==0x5FFFF) cmbad=CMBADLIMIT*5;
-        /*if (!(x.blpos&0xffff) && cmbad<INT_MAX) {cmbad==INT_MAX;
-        printf("Enable contexts\n");
-        }
-        else if (!(x.blpos&0xffff) && cmbad==INT_MAX) {cmbad=CMBADLIMIT+CMBADLIMIT/8;
-        printf("Disable contexts\n");
-
-        } */
       x.buf.pos=x.buf.pos&x.buf.poswr; //wrap
       x.c8=(x.c8<<8)|x.buf(5);
     }
@@ -12204,6 +12222,40 @@ int EAPM::p2(int pr0,int pr8, int r){
   return pr;
 }
 
+
+#include "mod_sse.cpp"
+using SSE_sh::M_T1;
+
+class eSSE {
+  BlockData& x;
+ SSE_sh::M_T1* sse_;
+public:
+  eSSE(BlockData& bd);
+  int p(int input) ;
+  void update() ;
+   ~eSSE(){ delete sse_;
+  }
+};
+
+eSSE::eSSE(BlockData& bd):x(bd) {
+    sse_=new M_T1();
+    sse_->M_Init();
+}
+
+int eSSE::p(int input){
+  int pr = (4096-input)*(32768/4096); //1 + (1 - input) * 32766; // 
+  if( pr<1 ) pr=1;
+  if( pr>32767 ) pr=32767;
+  pr = sse_->M_Estimate(pr);
+ /// pr = (32768-pr)/(32768/4096);
+  if( pr<1 ) pr=1;
+  if( pr>32767 ) pr=32767;
+  return pr;
+}
+void eSSE::update(){
+   sse_->M_Update( x.y);
+}
+
 //general predicor class
 class Predictor: public Predictors {
   int pr;  // next prediction
@@ -12216,6 +12268,7 @@ class Predictor: public Predictors {
   U32 count;
   U32 lastmiss;
   int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
 public:
   Predictor();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -12227,7 +12280,7 @@ delete m;
 };
 
 Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
- mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+ mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] =      new recordModel1(x);
@@ -12275,6 +12328,7 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),isCompressed(
    mixerInputs+=1;
    mixerNets+=64+    (8+1024)+    256+    1024+    256+   2048+   2048+    256+    1536;
    mixerNetsCount+=9;
+   sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
@@ -12353,6 +12407,8 @@ void Predictor::update()  {
     m->set(c, 1536);
     pr0=m->p(1,1);
     pr=a.p2(pr0,pr,7);
+    sse.update();
+    pr = sse.p(pr);
 }
 
 //general predicor class
@@ -12364,6 +12420,7 @@ class PredictorDEC: public Predictors {
   Mixer *m;
   EAPM a;   
   int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
 public:
   PredictorDEC();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -12372,7 +12429,7 @@ public:
   }
 };
 
-PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -12416,6 +12473,7 @@ PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),mixerIn
    mixerInputs+=1;
    mixerNets+= (8+1024)+    256+    1024+    256+   1024+   2048+    256+    1536;
    mixerNetsCount+=8;
+   sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
@@ -12475,6 +12533,8 @@ void PredictorDEC::update()  {
     m->set(c, 1536);
     pr0=m->p();
     pr=a.p1(pr0,pr,7);
+    sse.update();
+    pr = sse.p(pr);
 }
 //JPEG predicor class
 class PredictorJPEG: public Predictors {
@@ -12526,16 +12586,18 @@ PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),mixerInp
    // add extra 
    mixerInputs+=3;
    mixerNets+=  256+      (8+1024)+       256+       256+       256+       256+       1536;
-      
+     
    mixerNetsCount+=7;
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+    m->setText(true); 
 }
 
 void update()  {
     update0();
     if (x.bpos==0) {
         x.c4=(x.c4<<8)+x.buf(1);
+        if(x.blpos==1) m->setText(true);
     }
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
@@ -12545,8 +12607,12 @@ void update()  {
     if (x.Match.length>0xFF || x.Match.bypass) {//256b
     
         x.Match.bypass =   Bypass =    true;
-        m->reset();
+        m->reset(); 
+        m->setText(false); // reset back
         pr= x.Match.bypassprediction;
+        pr=(4096-pr)*(32768/4096);
+        if(pr<1) pr=1;
+        if(pr>32767) pr=32767;
         models[M_JPEG]->p(*m,1);//we found long repeating match. update, do not predict. artificial images, same partial content
         return;
     }
@@ -12579,6 +12645,9 @@ void update()  {
         m->set(c, 1536);
         pr=a.p2(m->p(),pr,7);
     }
+    pr=(4096-pr)*(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>32767) pr=32767;
 }
 };
 //EXE predicor class
@@ -12589,6 +12658,7 @@ class PredictorEXE: public Predictors {
   EAPM a;
   U32 count;
   int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
 public:
   PredictorEXE();
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
@@ -12597,7 +12667,7 @@ public:
     }
 };
 
-PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),count(0), mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),count(0), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
  
   // create array of models
   models = new Model*[M_MODEL_COUNT];
@@ -12645,7 +12715,7 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),count(0), mixerInputs(0),mi
    mixerInputs+=1;
    mixerNets+=( 8+1024)+     256+     256+     1024+     256+     256+     256+     1536;
    mixerNetsCount+=8;
-    
+    sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
@@ -12709,6 +12779,8 @@ if (slow==true) models[M_PPM]->p(*m);
     m->set(c, 1536);
     int pr0=m->p(1,1);
     pr=a.p2(pr0,pr,7);
+    sse.update();
+    pr = sse.p(pr);
 }
 
 //IMG4 predicor class
@@ -12722,12 +12794,13 @@ class PredictorIMG4: public Predictors {
   } Image;
    
     int mixerInputs,mixerNets,mixerNetsCount;
+    eSSE sse;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG4(){ }
 
 PredictorIMG4(): pr(2048), StateMaps{ 256, 256*256}, Image
-     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}}, mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new blankModel1(x);
@@ -12765,6 +12838,7 @@ PredictorIMG4(): pr(2048), StateMaps{ 256, 256*256}, Image
    mixerInputs+=1+2;
    mixerNets+=0;
    mixerNetsCount+=0;
+   sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
@@ -12794,6 +12868,8 @@ void update()  {
   pr2 = Image.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.W, x.Image.pixels.N)&0xFFFF, 6);
   pr = (pr*2+pr1+pr2+2)>>2;
   pr = (pr+pr0+1)>>1;   
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 //IMG8 predicor class
@@ -12811,13 +12887,14 @@ class PredictorIMG8: public Predictors {
   } Image;
   StateMap StateMaps[2];
     int mixerInputs,mixerNets,mixerNetsCount;
+    eSSE sse;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG8(){ }
 
 PredictorIMG8(): pr(2048),  Image{
      {{0x1000, 0x10000, 0x10000, 0x10000},  {{0x10000,x}, {0x10000,x}}},
-     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new blankModel1(x);
@@ -12855,6 +12932,7 @@ PredictorIMG8(): pr(2048),  Image{
    mixerInputs+=1+2;
    mixerNets+=   256;
    mixerNetsCount+=1;
+   sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
@@ -12898,6 +12976,8 @@ void update()  {
       pr = (pr*2+pr1+pr2+2)>>2;
       pr = (pr+pr0+1)>>1;   
   }
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 //IMG24 predicor class
@@ -12910,12 +12990,13 @@ class PredictorIMG24: public Predictors {
   } Image;
   StateMap StateMaps[2];
     int mixerInputs,mixerNets,mixerNetsCount;
+    eSSE sse;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG24(){ }
 
 PredictorIMG24(): pr(2048),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
-                  StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+                  StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
    
   // create array of models
   models = new Model*[M_MODEL_COUNT];
@@ -12954,6 +13035,7 @@ PredictorIMG24(): pr(2048),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x1
    mixerInputs+=1+2;
    mixerNets+=  256;
    mixerNetsCount+=1;
+   sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets+8192,x, mixerNetsCount+1);
 }
@@ -12991,41 +13073,11 @@ void update()  {
   pr2 = Image.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.N, x.buf(1)-x.Image.pixels.Np1, x.Image.plane)&0xFFFF);
   pr=(pr*2+pr1*3+pr2*3+4)>>3;
   pr = (pr+pr0+1)>>1;
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 
-#include "mod_sse.cpp"
-using SSE_sh::M_T1;
-
-class eSSE {
-  BlockData& x;
- SSE_sh::M_T1* sse_;
-public:
-  eSSE(BlockData& bd);
-  int p(int input) ;
-  void update() ;
-   ~eSSE(){ delete sse_;
-  }
-};
-
-eSSE::eSSE(BlockData& bd):x(bd) {
-    sse_=new M_T1();
-    sse_->M_Init();
-}
-
-int eSSE::p(int input){
-  int pr = (8192-input)*(32768/8192); //1 + (1 - input) * 32766; // 
-  if( pr<1 ) pr=1;
-  if( pr>32767 ) pr=32767;
-  pr = sse_->M_Estimate(pr);
-  pr = (32768-pr)/(32768/4096);
-  if( pr<1 ) pr=1;
-  if( pr>4095 ) pr=4095;
-  return pr;
-}
-void eSSE::update(){
-   sse_->M_Update( x.y);
-}
  
 //TEXT predicor class
 class PredictorTXTWRT: public Predictors {
@@ -13058,7 +13110,7 @@ public:
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0),StateMaps{   256*4},sse(x){
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x){
 
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -13178,6 +13230,7 @@ void PredictorTXTWRT::wrt(){
                 U8 wc=x.wrtText[p];
                 x.wrtc4=(x.wrtc4<<8)|wc;
                 x.bufn[x.bufn.pos++]=wc;
+               // printf("%c",wc);
                 x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
             }
             }
@@ -13216,6 +13269,8 @@ void PredictorTXTWRT::update()  {
         if (b1==32) --b1;
         x.f4=x.f4*16+(b1>>4);
         wrt();
+        int d=WRT_wrd1[b1]; 
+        x.bc4=x.bc4<<2|(d/64); 
     }
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
@@ -13238,13 +13293,18 @@ void PredictorTXTWRT::update()  {
         models[M_TEXT]->p(*m,(state&7));
         if (slow==true) models[M_PPM]->p(*m);
         if (slow==true) models[M_CHART]->p(*m);
+        //7 8 8
         //if (slow==true) models[M_LSTM]->p(*m);
-         m->add((stretch(StateMaps[0].p(x.c0|x.bc4,x.y))+1)>>1);
+        int dd=(pr>>9)>0+(pr>>9)>14;//+pr>7;
+        dd=(dd<<7)|(x.bc4&127);
+        dd=(dd<<8)|(x.buf(1));
+        dd=(dd<<8)|x.c0;
+         m->add((stretch(StateMaps[0].p( dd,x.y))+1)>>1);
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
         m->set(x.c0, 256);
         m->set(ismatch, 256);
-        m->set((x.bc4>>8)*64+c+order*256, 256*8);
+        m->set((x.bc4&3)*64+c+order*256, 256*8);
         m->set(256*order + (x.w4&240) + (x.b3>>4), 256*8);
         m->set((x.w4&255)+256*x.bpos, 256*8);
         if (x.bpos){
@@ -13270,7 +13330,7 @@ void PredictorTXTWRT::update()  {
     pr2 = Text.APM1s[1].p(pr, x.c0^hash( x.c4&0x00ffffff)&0xFFFF, 6);
     pr3 = Text.APM1s[2].p(pr, x.c0^hash( x.c4&0xffffff00)&0xFFFF, 6);
     pr = (pr+pr1+pr2+pr3+2)>>2;
-    pr = (pr+pr0);  //
+    pr = (pr+pr0)>>1;  //
     sse.update();
     pr = sse.p(pr);
     
@@ -13282,11 +13342,12 @@ class PredictorIMG1: public Predictors {
   int pr;  // next prediction
   Mixer *m;
    int mixerInputs,mixerNets,mixerNetsCount;
+   eSSE sse;
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorIMG1(){ }
 
-PredictorIMG1(): pr(2048), mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+PredictorIMG1(): pr(2048), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_MATCH] = new matchModel1(x);
@@ -13325,8 +13386,10 @@ PredictorIMG1(): pr(2048), mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
    mixerInputs+=1;
    mixerNets+=  256;
    mixerNetsCount+=1;
+   sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   m->setText(true);
 }
 
 void update()  {
@@ -13337,6 +13400,8 @@ void update()  {
   m->set(ismatch,256);
   models[M_IM1]->p(*m, x.finfo);
   pr=m->p(); 
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 
@@ -13345,12 +13410,13 @@ class PredictorAUDIO2: public Predictors {
   Mixer *m;
   EAPM a;
   int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
   void setmixer();
 public:
   int p()  const {assert(pr>=0 && pr<4096); return pr;} 
    ~PredictorAUDIO2(){  }
 
-PredictorAUDIO2(): pr(2048),a(x), mixerInputs(0),mixerNets(0),mixerNetsCount(0) {
+PredictorAUDIO2(): pr(2048),a(x), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -13388,6 +13454,7 @@ PredictorAUDIO2(): pr(2048),a(x), mixerInputs(0),mixerNets(0),mixerNetsCount(0) 
    mixerInputs+=1;
    mixerNets+=0;
    mixerNetsCount+=0;
+   sse.p(pr);
    // create mixer
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
@@ -13400,6 +13467,8 @@ void update()  {
   models[M_RECORD]->p(*m);
   models[M_WAV]->p(*m,x.finfo);
   pr=a.p1(m->p(((x.finfo&2)==0),1),pr,7);
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 //////////////////////////// Encoder ////////////////////////////
@@ -13420,7 +13489,7 @@ void update()  {
 // setFile(f) sets alternate source to FILE* f for decompress() in COMPRESS
 //   mode (for testing transforms).
 // If level (global) is 0, then data is stored without arithmetic coding.
-
+#include "sh_v2f.inc"
 typedef enum {COMPRESS, DECOMPRESS} Mode;
 class Encoder {
 private:
@@ -13429,38 +13498,40 @@ private:
   U32 x1, x2;            // Range, initially [0, 1), scaled by 2^32
   U32 x;                 // Decompress mode: last 4 input bytes of archive
   File*alt;             // decompress() source in COMPRESS mode
-
+  Rangecoder rc; 
   // Compress bit y or return decompressed bit
   void code(int i=0) {
     int p=predictor.p();
-    p+=p==0;
-    assert(p>0 && p<4096);
-    U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
+    rc.rc_BProcess( p, i );
+    //p+=p==0;
+    //assert(p>0 && p<4096);
+    //U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
     //U32 xmid=x1 + ((((x2-x1)*U64( U32(p)))>>12));// is it really safe ?
-    assert(xmid>=x1 && xmid<x2);
+    //assert(xmid>=x1 && xmid<x2);
     predictor.x.y=i;
-    i ? (x2=xmid) : (x1=xmid+1);
+    //i ? (x2=xmid) : (x1=xmid+1);
     predictor.update();
-    while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
-      archive->putc(x2>>24);
-      x1<<=8;
-      x2=(x2<<8)+255;
-    }
+    //while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
+    ////  archive->putc(x2>>24);
+    //  x1<<=8;
+   //   x2=(x2<<8)+255;
+   // }
   }
   int decode() {
     int p=predictor.p();
-    p+=p==0;
-    assert(p>0 && p<4096);
-    U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
+   // p+=p==0;
+    //assert(p>0 && p<4096);
+    //U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
   //  U32 xmid=x1 + ((((x2-x1)*U64( U32(p)))>>12)); // is it really safe ?
-    assert(xmid>=x1 && xmid<x2);
-    x<=xmid ? (x2=xmid,predictor.x.y=1) : (x1=xmid+1,predictor.x.y=0);
+    //assert(xmid>=x1 && xmid<x2);
+   // x<=xmid ? (x2=xmid,predictor.x.y=1) : (x1=xmid+1,predictor.x.y=0);
+   predictor.x.y = rc.rc_BProcess( p, 0 );
     predictor.update();
-    while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
-      x1<<=8;
-      x2=(x2<<8)+255;
-      x=(x<<8)+(archive->getc()&255);  // EOF is OK
-    }
+   // while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
+    //  x1<<=8;
+    //  x2=(x2<<8)+255;
+    //  x=(x<<8)+(archive->getc()&255);  // EOF is OK
+   // }
     return predictor.x.y;
   }
  
@@ -13507,11 +13578,12 @@ public:
 };
 
 Encoder::Encoder(Mode m, File* f,Predictors& predict):
-    mode(m), archive(f), x1(0), x2(0xffffffff), x(0), alt(0),predictor(predict) {
+    mode(m), archive(f), /*x1(0), x2(0xffffffff), x(0),*/ alt(0),predictor(predict) {
+        if(level>0) if(mode==DECOMPRESS) rc.StartDecode(f); else rc.StartEncode(f);
         
   if (level>0 && mode==DECOMPRESS) {  // x = first 4 bytes of archive
-    for (int i=0; i<4; ++i)
-      x=(x<<8)+(archive->getc()&255);
+   // for (int i=0; i<4; ++i)
+   //   x=(x<<8)+(archive->getc()&255);
   }
   for (int i=0; i<1024; ++i)
     dt[i]=16384/(i+i+3);
@@ -13522,8 +13594,8 @@ Encoder::Encoder(Mode m, File* f,Predictors& predict):
 }
 
 void Encoder::flush() {
-  if (mode==COMPRESS && level>0)
-    archive->put32(x1);//putc(x1>>24),archive->putc(x1>>16),archive->putc(x1>>8),archive->putc(x1);  // Flush first unequal byte of range
+  if (mode==COMPRESS && level>0)rc.FinishEncode();
+   // archive->put32(x1);//putc(x1>>24),archive->putc(x1>>16),archive->putc(x1>>8),archive->putc(x1);  // Flush first unequal byte of range
 }
  
 /////////////////////////// Filters /////////////////////////////////
@@ -16775,10 +16847,10 @@ void hent1(char *in,char *out){
     j=*in++; *out++=j;
     if (j=='&') {
         k=*in++;
-        if (k=='&')  *(int*)out=';pma', out+=4;  else
-        if (k=='"')  *(int*)out='touq', out+=4, *out++=';';  else
-        if (k=='<')  *(int*)out=' ;tl', out+=3;  else
-        if (k=='>')  *(int*)out=' ;tg', out+=3;
+        if (k=='&')  *(int*)out=0x3B706D61, out+=4;  else//';pma'
+        if (k=='"')  *(int*)out=0x746F7571, out+=4, *out++=';';  else//'touq'
+        if (k=='<')  *(int*)out=0x203B746C, out+=3;  else//' ;tl'
+        if (k=='>')  *(int*)out=0x203B7467, out+=3;//' ;tg'
         else   *out++=k;
     }
   }
@@ -16811,15 +16883,15 @@ void hent3(char *in,char *out) {
     int j, k;
     do {
     j=*in++; *out++=j;
-    if (j==';' && *(int*)(in-5)=='pma&') {
+    if (j==';' && *(int*)(in-5)==0x706D6126) { //'pma&'
       k = *in++;
       if (k==3); else
-      if (k=='"')  *(int*)out='touq', out+=4, *out++=';';  else
-      if (k=='<')  *(int*)out=' ;tl', out+=3;  else
-      if (k=='>')  *(int*)out=' ;tg', out+=3;  else
-      if (k=='!')  *(int*)out='psbn', out+=4, *out++=';';  else
-      if (k=='*')  *(int*)out='sadn', out+=4, *out++='h', *out++=';'; else
-      if (k=='^')  *(int*)out='sadm', out+=4, *out++='h', *out++=';'; 
+      if (k=='"')  *(int*)out=0x746F7571, out+=4, *out++=';';  else//'touq'
+      if (k=='<')  *(int*)out=0x203B746C, out+=3;  else//' ;tl'
+      if (k=='>')  *(int*)out=0x203B7467, out+=3;  else//' ;tg'
+      if (k=='!')  *(int*)out=0x7073626E, out+=4, *out++=';';  else//'psbn'
+      if (k=='*')  *(int*)out=0x7361646E, out+=4, *out++='h', *out++=';'; else//'sadn'
+      if (k=='^')  *(int*)out=0x7361646D, out+=4, *out++='h', *out++=';'; //'sadm'
       
       else *out++=k;
     }
@@ -16834,14 +16906,14 @@ void hent(char *in,char *out){
 
     if (j=='&') {
       k = *(int*)in;
-      if (k==';pma') { 
+      if (k==0x3B706D61) { //';pma'
        *out++='&', in+=4; k=*(in);
       if ((k=='"') || (k=='<') || (k=='>') || (k=='!') || (k=='*') || (k=='^'))*out++=3; }  else  // escape if char present
-      if (k=='touq' && *(in+4)==';')  *out++='"', in+=5;  else
+      if (k==0x746F7571 && *(in+4)==';')  *out++='"', in+=5;  else//'touq'
       {
         k = k*256 + ' ';
-        if (k==';tl ') *out++='<', in+=3;  else
-        if (k==';tg ') *out++='>', in+=3;
+        if (k==0x3B746C20) *out++='<', in+=3;  else//';tl '
+        if (k==0x3B746720) *out++='>', in+=3;//';tg '
       }
     }
   }
@@ -16855,14 +16927,14 @@ void hent2(char *in,char *out){
 
     if (j=='&' && *(in-2)=='&') {
         k=*(int*)in;
-        if (k=='touq' && *(in+4)==';')  *out++='"', in+=5;  else
-        if (k=='psbn' && *(in+4)==';')  *out++='!', in+=5;  else
-        if (k=='sadn' && *(in+4)=='h' && *(in+5)==';')  *out++='*', in+=6;  else
-        if (k=='sadm' && *(in+4)=='h' && *(in+5)==';')  *out++='^', in+=6;  else
+        if (k==0x746F7571 && *(in+4)==';')  *out++='"', in+=5;  else//'touq'
+        if (k==0x7073626E && *(in+4)==';')  *out++='!', in+=5;  else//'psbn'
+        if (k==0x7361646E && *(in+4)=='h' && *(in+5)==';')  *out++='*', in+=6;  else//'sadn'
+        if (k==0x7361646D && *(in+4)=='h' && *(in+5)==';')  *out++='^', in+=6;  else//'sadm'
         {
         k = k*256 + ' ';
-        if (k==';tl ')  *out++='<', in+=3;  else
-        if (k==';tg ')  *out++='>', in+=3;
+        if (k==0x3B746C20)  *out++='<', in+=3;  else//';tl '
+        if (k==0x3B746720)  *out++='>', in+=3;//';tg '
         }
     }
   }
@@ -16956,10 +17028,10 @@ void henttail( char *in,char *out,FileTmp *o){
    
     ++lnu;
     j = strlen(in);
-    for(i=0; i<j; ++i)  if (*(int*)&in[i]=='xet<')  b1 = lnu;
+    for(i=0; i<j; ++i)  if (*(int*)&in[i]==0x7865743C)  b1 = lnu;//'xet<'
     // parse comment tag
     if (memcmp(&in[6],"<comment>",9)==0 && f==0) co=1;
-    for(i=0; i<j; i++) if (*(int*)&in[i]=='oc/<' && f==0 && co==1) {
+    for(i=0; i<j; i++) if (*(int*)&in[i]==0x6F632F3C && f==0 && co==1) {//'oc/<'
         co=0,lnu=0,b1=0; // </co mment
         do {
            j=*in++; *out++=j;
@@ -17034,7 +17106,7 @@ void henttail( char *in,char *out,FileTmp *o){
             }
             f=1, lc=0;
             ++lc;
-            for(i=0; i<j; i++)  if (*(int*)&in[i]=='et/<' && (*(in+4+i+2)=='>'))  f=0,lnu=0,b1=0;
+            for(i=0; i<j; i++)  if (*(int*)&in[i]==0x65742F3C && (*(in+4+i+2)=='>'))  f=0,lnu=0,b1=0;//'et/<'
             hent9(in,out);
             wfputs1(in,o);
             out[0]=0;
@@ -17049,7 +17121,7 @@ void henttail( char *in,char *out,FileTmp *o){
     }
     else if (f==1){
      ++lc;
-     for(i=0; i<j; i++)  if (*(int*)&in[i]=='et/<')  f=0,lnu=0,b1=0;
+     for(i=0; i<j; i++)  if (*(int*)&in[i]==0x65742F3C)  f=0,lnu=0,b1=0;//'et/<'
      hent9(in,out);
      wfputs1(in,o);
      out[0]=0;
@@ -17065,8 +17137,8 @@ void henttail1( char *in,char *out,FileTmp *o,char *p2,int size){
     char ou[8192*8];
     ++lnu;
     j = strlen(in);
-    for(i=0; i<j; i++) if (*(int*)&in[i]=='xet<') c=1, f=lnu;
-    for(i=0; i<j; i++) if (*(int*)&in[i]=='et/<' && (*(in+4+i+2)=='>' )) c=0; // </te xt>
+    for(i=0; i<j; i++) if (*(int*)&in[i]==0x7865743C) c=1, f=lnu;//'xet<'
+    for(i=0; i<j; i++) if (*(int*)&in[i]==0x65742F3C && (*(in+4+i+2)=='>' )) c=0; //'et/<' </te xt>
 
     if ((memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</sha1>",7)==0)&& c==1 && (lnu-f>=4) /*&& *p4!=0&& (p4-p2)<size*/) {
         c=0;
@@ -17429,14 +17501,15 @@ int decode_txt_wit(File*in, U64 size, File*out, FMode mode, U64 &diffFound,int w
         do {
             *(int*)o = 0x20202020;
             j=4;
-            if (*(int*)&h1p[0]!='ider' &&*(int*)&h1p[0]!='iver' && *(int*)&h1p[0]!='tser' && n!=0) *(int*)(o+j)= 0x20202020,j=j+2;
+            //'ider' 'iver' 'tser'
+            if (*(int*)&h1p[0]!=0x69646572 &&*(int*)&h1p[0]!=0x69766572&& *(int*)&h1p[0]!=0x74736572 && n!=0) *(int*)(o+j)= 0x20202020,j=j+2;
             if (cont==1) *(int*)(o+j)= 0x20202020,j=j+2;
-            if (*(int*)&h1p[0]=='noc/') cont=0;
+            if (*(int*)&h1p[0]==0x6E6F632F) cont=0;//'noc/'
             int k=(int)(strchr(h1p,10)+1-(char*)h1p);
 
         // id  
         if ( n==0){
-            if ( (*(int*)&h1p[0]&0xffffff)=='>sn'){
+            if ( (*(int*)&h1p[0]&0xffffff)==0x3E736E){//'>sn'
                 o[j]='<';
             memcpy(o+j+1, h1p, k);
             int e=(strchr(h1p, '>')-h1p)+2;
@@ -17501,7 +17574,7 @@ int decode_txt_wit(File*in, U64 size, File*out, FMode mode, U64 &diffFound,int w
     }
 
      {
-         if (memcmp(&s[j-9],"</title>",8)==0 && *(int*)s=='    ') {header=1,title= files=number=0;
+         if (memcmp(&s[j-9],"</title>",8)==0 && *(int*)s==0x20202020) {header=1,title= files=number=0;
             for(i=0; i<j; i++) {
 
       if (s[i]==',' )  title=1;
@@ -17637,7 +17710,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
           else                                             s2=7;
           if (*(int*)&s[6]=='noc<') {
            f=3;
-           if (f==3 && *(int*)&s[6+4+4+4]=='led ')  f=0; //special case "deleted"
+           if (f==3 && *(int*)&s[6+4+4+4]==0x6C656420)  f=0; //'led 'special case "deleted"
           }
         }
         if (s2){
@@ -17668,7 +17741,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
         wfputs(o,out);
 }
     for(i=0; i<j; i++)
-      if (*(int*)&s[i]=='it/<' && *(int*)&s[i+4]=='>elt'&&*(int*)s=='    ') {f=2;
+      if (*(int*)&s[i]==0x69742F3C && *(int*)&s[i+4]==0x3E656C74&&*(int*)s==0x20202020) {f=2;//'it/<' '>elt'
       ti=files=number=0;
        
       for(int i=0; i<j; i++){
@@ -17684,7 +17757,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
       if (number) ti=files=0;
   }
     for(i=0; i<j; i++)
-      if (*(int*)&s[i]=='oc/<' && *(int*)&s[i+4]=='irtn') f=0;
+      if (*(int*)&s[i]==0x6F632F3C && *(int*)&s[i+4]==0x6972746E) f=0;//'oc/<' 'irtn'
   }
   while (!in->eof());
   // output tail to main file and report tail size as info
@@ -19719,6 +19792,17 @@ int main(int argc, char** argv) {
             ++argv;
             if (argv[1][0]=='-' && argv[1][1]=='w')   {
                 witmode=true; printf("WIT\n");
+                --argc;
+                ++argv;
+            }
+            if (argv[1][0]=='-' && argv[1][1]=='e')   {
+                staticd=true;
+                minfq=atol(&argv[1][2]);
+                char *extd=(strchr(&argv[1][2], ','));
+                if (minfq<1) printf("BAD cmdl: min frq must be  >0\n");
+                if (extd==0) printf("BAD cmdl: dict file not found\n");
+                else externaDict=extd+1;
+                //witmode=true; printf("WIT\n");
                 --argc;
                 ++argv;
             }
