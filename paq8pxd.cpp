@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd84"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd85"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -11019,7 +11019,7 @@ class nestModel1: public Model {
   ContextMap cm;
 public:
   nestModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), ic(0), bc(0),
-   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(MEM()/2), 12,M_NEST)  {
+   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(level>8?0x800000 :(MEM()/2) ), 12,M_NEST)  {
   }
   int inputs() {return 12*cm.inputs();}
   int nets() {return 0;}
@@ -12271,7 +12271,7 @@ class Predictor: public Predictors {
   eSSE sse;
 public:
   Predictor();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;
    ~Predictor(){
 
@@ -12279,7 +12279,7 @@ delete m;
   }
 };
 
-Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
+Predictor::Predictor(): pr(16384),pr0(pr),order(0),ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
  mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
   // create array of models
   models = new Model*[M_MODEL_COUNT];
@@ -12335,6 +12335,9 @@ Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),isCompressed(
 
 void Predictor::update()  {
     update0();
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     
     if (x.bpos==0) {
@@ -12423,13 +12426,13 @@ class PredictorDEC: public Predictors {
   eSSE sse;
 public:
   PredictorDEC();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;
    ~PredictorDEC(){
   }
 };
 
-PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
+PredictorDEC::PredictorDEC(): pr(16384),pr0(pr),order(0),ismatch(0), a(x),mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -12545,11 +12548,11 @@ class PredictorJPEG: public Predictors {
   bool Bypass; 
   int mixerInputs,mixerNets,mixerNetsCount;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   ~PredictorJPEG(){   //printf("\n JPEG Count of skipped bytes %d\n",x.count);
       
  }
-PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+PredictorJPEG(): pr(16384), a(x), StateMaps{ 256, 256*256},Bypass(false),mixerInputs(0),mixerNets(0),mixerNetsCount(0){
   
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -12599,7 +12602,10 @@ void update()  {
         x.c4=(x.c4<<8)+x.buf(1);
         if(x.blpos==1) m->setText(true);
     }
-    x.Misses+=x.Misses+((pr>>11)!=x.y);
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
+    x.Misses+=x.Misses+((pr>>10)!=x.y);
     m->update();
     m->add(256);
     Bypass=false;
@@ -12661,13 +12667,13 @@ class PredictorEXE: public Predictors {
   eSSE sse;
 public:
   PredictorEXE();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;
     ~PredictorEXE(){
     }
 };
 
-PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),count(0), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
+PredictorEXE::PredictorEXE(): pr(16384),order(0),a(x),count(0), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
  
   // create array of models
   models = new Model*[M_MODEL_COUNT];
@@ -12722,6 +12728,9 @@ PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),count(0), mixerInputs(0),mi
 
 void PredictorEXE::update()  {
     update0();
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     if (x.bpos==0) {
         int b1=x.buf(1);
@@ -12796,10 +12805,10 @@ class PredictorIMG4: public Predictors {
     int mixerInputs,mixerNets,mixerNetsCount;
     eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG4(){ }
 
-PredictorIMG4(): pr(2048), StateMaps{ 256, 256*256}, Image
+PredictorIMG4(): pr(16384), StateMaps{ 256, 256*256}, Image
      {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
   // create array of models
   models = new Model*[M_MODEL_COUNT];
@@ -12848,6 +12857,9 @@ void update()  {
   if (x.bpos==0) {
     x.c4=(x.c4<<8)+x.buf(1);
   }
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
@@ -12889,10 +12901,10 @@ class PredictorIMG8: public Predictors {
     int mixerInputs,mixerNets,mixerNetsCount;
     eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG8(){ }
 
-PredictorIMG8(): pr(2048),  Image{
+PredictorIMG8(): pr(16384),  Image{
      {{0x1000, 0x10000, 0x10000, 0x10000},  {{0x10000,x}, {0x10000,x}}},
      {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
   // create array of models
@@ -12942,6 +12954,9 @@ void update()  {
   if (x.bpos==0) {
     x.c4=(x.c4<<8)+x.buf(1);
   }
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
@@ -12992,10 +13007,10 @@ class PredictorIMG24: public Predictors {
     int mixerInputs,mixerNets,mixerNetsCount;
     eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG24(){ }
 
-PredictorIMG24(): pr(2048),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
+PredictorIMG24(): pr(16384),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
                   StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
    
   // create array of models
@@ -13049,6 +13064,10 @@ void update()  {
         x.w5=x.w5*4+i;
         x.x5=(x.x5<<8)+b1;
   }
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
+  
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
@@ -13101,7 +13120,7 @@ class PredictorTXTWRT: public Predictors {
    
 public:
   PredictorTXTWRT();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void wrt();
   void update() ;
    ~PredictorTXTWRT(){
@@ -13109,7 +13128,7 @@ public:
   }
 };
 
-PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),
+PredictorTXTWRT::PredictorTXTWRT(): pr(16384),pr0(pr),order(0),rlen(0),ismatch(0),
 Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x){
 
   models = new Model*[M_MODEL_COUNT];
@@ -13272,6 +13291,9 @@ void PredictorTXTWRT::update()  {
         int d=WRT_wrd1[b1]; 
         x.bc4=x.bc4<<2|(d/64); 
     }
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
     m->add(256);
@@ -13344,10 +13366,10 @@ class PredictorIMG1: public Predictors {
    int mixerInputs,mixerNets,mixerNetsCount;
    eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG1(){ }
 
-PredictorIMG1(): pr(2048), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
+PredictorIMG1(): pr(16384), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_MATCH] = new matchModel1(x);
@@ -13413,10 +13435,10 @@ class PredictorAUDIO2: public Predictors {
   eSSE sse;
   void setmixer();
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorAUDIO2(){  }
 
-PredictorAUDIO2(): pr(2048),a(x), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
+PredictorAUDIO2(): pr(16384),a(x), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
   // create array of models
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -13466,6 +13488,9 @@ void update()  {
   models[M_MATCH]->p(*m);  
   models[M_RECORD]->p(*m);
   models[M_WAV]->p(*m,x.finfo);
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
   pr=a.p1(m->p(((x.finfo&2)==0),1),pr,7);
   sse.update();
     pr = sse.p(pr);
