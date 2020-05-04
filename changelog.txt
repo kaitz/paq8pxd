@@ -1,3 +1,12 @@
+v86
+    - change jpeg
+    - -w option - +9 html entities
+                - reorder: albums, clubs, disorders
+                - List type articles moved to ':' section
+    - wrt most upper chars converted to lower, if -w also process combined words
+    - wordmodel some changes
+v85
+    - fix rounding error
 v84
     - adjust jpeg,im1 predictor
     - add mod_SSE to all predictors exept jpeg

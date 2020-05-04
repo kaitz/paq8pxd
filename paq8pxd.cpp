@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd85"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd86"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -2919,7 +2919,6 @@ inline int mix3(Mixer& m, int s, StateMap& sm) {
 
   return s>0;
 }
-int cmbad=INT_MAX;
 // Update the model with bit y1, and predict next bit to mixer m.
 // Context: cc=c0, bp=bpos, c1=buf(1), y1=y.
 int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
@@ -6298,7 +6297,7 @@ private:
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
         //if (doXML==true) printf("%c",c);
-        is_letter=((c>='a' && c<='z') || x.wstat==true|| (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
+        is_letter=((c>='a' && c<='z') ||(c>='0' && c<='9' && witmode==true) || x.wstat==true|| (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
         if (is_letter) {// if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 /*&&(x.b3!=3)*/|| (c>0 && c<4))) {
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
@@ -6383,8 +6382,12 @@ private:
             }
             if (c==SPACE &&  buf(2)!=SPACE) linespace++; // count spaces in one line, skip repeats
             if (c==SPACE || c==10 || (c==5 && pC!='&')) { 
-             ++x.spaces, ++x.spacecount; 
-              if (c==SPACE )lastSpace=0;
+              if (c==SPACE )lastSpace=0,++x.spaces, ++x.spacecount; //else  
+              if (pC=='.' || (ppC=='.' &&( pC==0x27 || pC==0x22))  ){
+              x.tt=0xfffffff8, x.f4=0;
+              } else   if  (pC=='?' || ((ppC=='?'|| ppC=='!')&&( pC==0x27 || pC==0x22))  ){
+              x.tt=(x.tt&0xfffffff8)+1, x.f4=0;
+              } 
                if (/*c==10 &&*/ linespace==0 && x.frstchar==0x5B ){
                    xword1=xword2=xword3=iword0=0;
                }
@@ -6615,7 +6618,7 @@ private:
         
         cm.set(hash(++i,word0, cword0,isfword));
         if (lastSpace<1024*4){
-            cm.set(hash(++i,h, word2,isfword));//,isfword fp.log
+            if (witmode==true) cm.set(hash(++i,h, word2));else cm.set(hash(++i,h, word2,isfword));//,isfword fp.log
             cm.set(hash(++i,h, word3));
             cm.set(hash(++i,h, word4));
             cm.set((istext==true)?wpword1:hash(++i,h, word5));
@@ -6625,8 +6628,13 @@ private:
             for(int j=0;j<6;j++)  {cm.set();++i;}
         }
         if  (x.filetype!=DECA ){
-            cm.set(hash(++i,isfword));
+            if (witmode==true  )  {
+                cm.set( (fword));++i;
             cm.set(hash(++i,isfword,c));
+            }else{
+            
+            cm.set(hash(++i,isfword));
+            cm.set(hash(++i,isfword,c));}
         }
         cm.set(hash(++i,opened,c,dist!=0,pdf_text_parser_state));
         //cm.set(hash(++i,opened,word0));
@@ -6728,14 +6736,15 @@ private:
     }
   };
   
-  U8 pdf_text_parser_state,math_state; // 0,1,2,3
+  U8 pdf_text_parser_state,math_state,pre_state; // 0,1,2,3
   Info info_normal;
   Info info_pdf;
   Info math;
+  Info pre;
     U32 hq;
 public:
-  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),math_state(0),
-  info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),hq(0){
+  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
+  info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),pre(bd,0,cm),hq(0){
   
    }
    int inputs() {return N*cm.inputs();}
@@ -6773,6 +6782,13 @@ public:
       //else if (math_state==1 && ((x.c4>>8)&0xff)=='>') {//  
       //    math_state=2; 
       //} // End math
+      //&<pre&>
+      if((x.wrtc4&0xffffffffffffff)==0x263C707265263E ) {//  
+          pre_state=4; 
+      } // Begin pre
+      else if (pre_state &&(x.wrtc4&0xffffff)==0x263C2F  ) {// '</p' 
+          pre_state=0; 
+      } // End pre
       const bool is_pdftext = (pdf_text_parser_state&4)!=0;
       if(is_pdftext) {
         if(do_pdf_process) {
@@ -6787,6 +6803,12 @@ public:
           math.process_char(x.wrtstatus,val1,val2);
       
         hq=math.predict(math_state,val1,val2);
+        } else   if(pre_state==4) {
+         //printf("%c ",c1); 
+          pre.process_char(x.wrtstatus,val1,val2);
+      
+        hq=pre.predict(pre_state,val1,val2);
+       
       } else {
         const bool is_textblock = (x.filetype==TEXT||x.filetype==TEXT0|| x.filetype==TXTUTF8||x.filetype==EOLTEXT||x.filetype==DICTTXT||x.filetype==BIGTEXT||x.filetype==NOWRT);
         const bool is_extended_char = is_textblock && c1>=128;
@@ -8672,6 +8694,7 @@ class jpegModelx: public Model {
     // The 7 mapped values are for context+{"", 0, 00, 01, 1, 10, 11}.
     U32 skip;
     StateMap smx;
+    U32 jmiss;
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
@@ -8680,12 +8703,12 @@ public:
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
   qtab(256),qmap(10),N(35+1),cxt(N),m1(32+32+3+4+1,2050+3+1024 /*770*/,bd, 3,0,0), a1(0x20000),a2(0x20000),x(bd),buf(bd.buf),
-  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0), smx(256*256) {
+  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0), smx(256*256),jmiss(0) {
      m1.setText(true);
   }
   int inputs() {return 7+N*2+1+1;}
-  int nets() {return 9+1025+1024+4096;}
-  int netcount() {return 3+1;}
+  int nets() {return 9+1025+1024+4096+16;}
+  int netcount() {return 3+1+1;}
   int p(Mixer& m,int val1=0,int val2=0){
 
  if (idx < 0){
@@ -9234,14 +9257,15 @@ public:
   // m1.setl(x.y);
   int pr=m1.p(1,1);
    x.Misses+=x.Misses+((pr0>>11)!=x.y);
+   jmiss+=jmiss+((pr0>>11)!=x.y);
   pr0=pr;
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
-  pr=a1.p(pr,hash(hc,adv_pred[1]/16,x.Misses&0xf)&0x1FFFF, x.y,1023);
-  
+  //pr=a1.p(pr,hash(hc,adv_pred[1]/16,x.Misses&0xf,jmiss&0xf)&0x1FFFF, x.y,1023);// larger files
+  pr=a1.p(pr,hash(hc,adv_pred[1]/16,(x.Misses&0xf)?(x.Misses&0xf):(jmiss&0xf),(x.Misses&0xf)?0:(jmiss&0xf))&0x1FFFF, x.y,1023);
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
-  pr=a2.p(pr, hash(hc,coef)&0x1FFFF,x.y, 1023);
+  pr=a2.p(pr, hash(hc&0xffff,coef,x.Misses&0xf)&0x1FFFF,x.y, 1023);
 
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
@@ -9250,6 +9274,7 @@ public:
   m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025 );
   m.set( coef+256*min(3,huffbits/2), 1024 );
    m.set((hc)&0xfff, 4096 );
+   m.set((x.Misses&0xf), 16 );
   return 1;
   }
   virtual ~jpegModelx(){
@@ -12614,7 +12639,7 @@ void update()  {
     
         x.Match.bypass =   Bypass =    true;
         m->reset(); 
-        m->setText(false); // reset back
+        //m->setText(false); // reset back
         pr= x.Match.bypassprediction;
         pr=(4096-pr)*(32768/4096);
         if(pr<1) pr=1;
@@ -13234,7 +13259,7 @@ void PredictorTXTWRT::wrt(){
             x.wrtbytesize++;
             x.wdecoded=true;
             // print decoded word
-            // for (int p=0;p<wrtTextSize;p++)printf("%c",wrtText[p]);
+            // for (int p=0;p<x.wrtTextSize;p++)printf("%c",x.wrtText[p]);
             x.wlen=x.wrtbytesize;
              int y=0;
             if (x.wrtTextSize<5 && x.wrtText[0]>'z') y=utf8_check(&x.wrtText[0]); 
@@ -13259,8 +13284,9 @@ void PredictorTXTWRT::wrt(){
             x.wrtbytesize++;
         }
       }
-      const U8 c1=x.c4;
+        U8 c1=x.c4;
       if (x.wrtstatus==0 && x.wrtLoaded==true){
+          if (c1==5) c1=10;
        x.wrtc4=(x.wrtc4<<8)|c1;//printf("%c",c1);
         x.bufn[x.bufn.pos++]=c1;
         x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
@@ -16916,8 +16942,16 @@ void hent3(char *in,char *out) {
       if (k=='>')  *(int*)out=0x203B7467, out+=3;  else//' ;tg'
       if (k=='!')  *(int*)out=0x7073626E, out+=4, *out++=';';  else//'psbn'
       if (k=='*')  *(int*)out=0x7361646E, out+=4, *out++='h', *out++=';'; else//'sadn'
-      if (k=='^')  *(int*)out=0x7361646D, out+=4, *out++='h', *out++=';'; //'sadm'
-      
+      if (k=='^')  *(int*)out=0x7361646D, out+=4, *out++='h', *out++=';'; else //'sadm'
+      if (U8(k)==0xc2 && U8(*(in))==0xae ) {  *(int*)out=0x3B676572, out+=4,in++;}else //'reg'    
+      if (U8(k)==0xc2 && U8(*(in))==0xb0 ) {  *(int*)out=0x3B676564, out+=4,in++;}else //'deg'  old=enwik8/9 only
+      if (U8(k)==0xc2 && U8(*(in))==0xb2 ) {  *(int*)out=0x32707573, out+=4,*out++=';',in++;}else //'sup2'  // old    
+      if (U8(k)==0xc2 && U8(*(in))==0xb3 ) {  *(int*)out=0x33707573, out+=4,*out++=';',in++;}else //'sup3'  // old   
+      if (U8(k)==0xe2 && U8(*(in))==0x82&& U8(*(in+1))==0xac ) {  *(int*)out=0x6F727565, out+=4,*out++=';',in+=2;}else //'euro'
+      if (U8(k)==0xc3 && U8(*(in))==0x97  ) {  *(int*)out=0x656D6974, out+=4,*out++='s',*out++=';',in++;}else //'times' old
+      if (U8(k)==0xe2 && U8(*(in))==0x88&& U8(*(in+1))==0x88 ) {  *(int*)out=0x6E697369, out+=4,*out++=';',in+=2;}else //'isin'
+      if (U8(k)==0xe2 && U8(*(in))==0x86&& U8(*(in+1))==0x92 ) {  *(int*)out=0x72726172, out+=4,*out++=';',in+=2;}else //'rarr'
+      if (U8(k)==0xe2 && U8(*(in))==0x88&& U8(*(in+1))==0x92 ) {  *(int*)out=0x756E696D, out+=4,*out++='s',*out++=';',in+=2;}  //'minus' old
       else *out++=k;
     }
   }
@@ -16933,7 +16967,18 @@ void hent(char *in,char *out){
       k = *(int*)in;
       if (k==0x3B706D61) { //';pma'
        *out++='&', in+=4; k=*(in);
-      if ((k=='"') || (k=='<') || (k=='>') || (k=='!') || (k=='*') || (k=='^'))*out++=3; }  else  // escape if char present
+      if ((k=='"') || (k=='<') || (k=='>') || (k=='!') || (k=='*') || (k=='^') ||
+      (U8(k)==0xc2 && U8(*(in+1))==0xb2 ) || 
+      (U8(k)==0xc2 && U8(*(in+1))==0xb3 ) || 
+      (U8(k)==0xc2 && U8(*(in+1))==0xae )  ||
+      (U8(k)==0xc2 && U8(*(in+1))==0xb0 )  ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x82&& U8(*(in+1+1))==0xac )  ||
+      (U8(k)==0xc3 && U8(*(in+1))==0x97  ) ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x88&& U8(*(in+1+1))==0x92 )  ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x88&& U8(*(in+1+1))==0x88 )  ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x86&& U8(*(in+1+1))==0x92 )  
+      
+      )    *out++=3; }  else  // sup2, escape if char present
       if (k==0x746F7571 && *(in+4)==';')  *out++='"', in+=5;  else//'touq'
       {
         k = k*256 + ' ';
@@ -16956,6 +17001,16 @@ void hent2(char *in,char *out){
         if (k==0x7073626E && *(in+4)==';')  *out++='!', in+=5;  else//'psbn'
         if (k==0x7361646E && *(in+4)=='h' && *(in+5)==';')  *out++='*', in+=6;  else//'sadn'
         if (k==0x7361646D && *(in+4)=='h' && *(in+5)==';')  *out++='^', in+=6;  else//'sadm'
+        if (k==0x3B676572  ) { *out++=0xc2,*out++=0xae, in+=4;  }  else//'reg'
+        if (k==0x3B676564  ) { *out++=0xc2,*out++=0xb0, in+=4;  }  else//'deg'
+        if (k==0x6F727565  && *(in+4)==';' ) { *out++=0xe2,*out++=0x82,*out++=0xac, in+=5;  }  else//'euro'
+        if (k==0x32707573  && *(in+4)==';' ) { *out++=0xc2,*out++=0xb2, in+=5;  }  else//'sup2'
+        if (k==0x33707573  && *(in+4)==';' ) { *out++=0xc2,*out++=0xb3, in+=5;  }  else//'sup3'
+        if (k==0x656D6974  && *(in+4)=='s'&& *(in+5)==';' ) { *out++=0xc3,*out++=0x97, in+=6;  }  else//'times'
+        if (k==0x6E697369  && *(in+4)==';' ) { *out++=0xe2,*out++=0x88,*out++=0x88, in+=5;  }  else//'isin'
+        if (k==0x72726172  && *(in+4)==';' ) { *out++=0xe2,*out++=0x86,*out++=0x92, in+=5;  }  else//'rarr'
+        
+        if (k==0x756E696D  && *(in+4)=='s'&& *(in+5)==';' ) { *out++=0xe2,*out++=0x88,*out++=0x92, in+=6;  }  else//'minus'
         {
         k = k*256 + ' ';
         if (k==0x3B746C20)  *out++='<', in+=3;  else//';tl '
@@ -17472,7 +17527,237 @@ int hentnumbers1r( char *in,char *out,char *p2,int size,int title){
       return 0;
 }
 
+//alb
+void hentalb1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
 
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+
+    if (title && move==0 && text ) {
+       move=1;
+    }
+    
+    if (move &&  j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+            
+        } else {
+        out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+}
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+
+int hentalb1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  move=0,text=0;
+    static  char *p4=p2;
+   // char *p8=out;
+    j = strlen(in);
+  
+    if (title&& move==1 && text && j){
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else{
+    if (j>13&&  size&& memcmp(in+6,"<text ",6)==0 &&  (strstr(in, "Album infobox |"))) {
+    text=move=1;
+    do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+       return 1;
+    }
+    
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+    }  
+      return 0;
+}
+
+void hentdis1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    //char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+
+    if (title && move==0 && text ) {
+       move=1;
+    }
+    
+    if (move &&  j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+            
+        } else {
+        out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+}
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+int hentdis1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  move=0,text=0;
+    static  char *p4=p2;
+    //char *p8=out;
+    j = strlen(in);
+  
+    if (title&& move==1 && text && j){
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else{
+    if (j>13&& size&& memcmp(in+6,"<text ",6)==0 &&  (strstr(in, "Disorder infobox |"))) {
+    text=move=1;
+    do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+       return 1;
+    }
+    
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+    }  
+      return 0;
+}
+
+void hentclu1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+
+    if (title && move==0 && text ) {
+       move=1;
+    }
+    
+    if (move &&  j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+            
+        } else {
+        out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+}
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+int hentclu1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  f=0,move=0,text=0;
+    static  char *p4=p2;
+    char *p8=out;
+    j = strlen(in);
+  
+    if (title&& move==1 && text && j){
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=f=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else{
+    if (j>13&& size&& memcmp(in+6,"<text ",6)==0 &&  (strstr(in, "club infobox |"))) {
+    text=f=1,move=1;
+    do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+       return 1;
+    }
+    
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+    }  
+      return 0;
+}
+// above needs global vars to remove some functions (less code)
+// 
 //wit restore
 int decode_txt_wit(File*in, U64 size, File*out, FMode mode, U64 &diffFound,int winfo){
     FileTmp out1;
@@ -17482,175 +17767,201 @@ int decode_txt_wit(File*in, U64 size, File*out, FMode mode, U64 &diffFound,int w
     U64 tsize=size-winfo; // winfo <- tail lenght
     in->setpos(tsize); // tail data pos
     //header
-    wfgets(s, 8192*8, in);    
+    wfgets(s, 16, in);    
     int headerlenght=atoi(&s[0]);
     char *h1=(char*)calloc(headerlenght+1,1);
     char *h1p=h1;
     // tag
-    wfgets(s, 8192*8, in);    
+    wfgets(s, 16, in);    
     int taglenght=atoi(&s[0]);
     char *t1=(char*)calloc(taglenght+1,1);
     // files
-    wfgets(s, 8192*8, in);    
+    wfgets(s, 16, in);    
     int fileslenght=atoi(&s[0]);
     char *f1=(char*)calloc(fileslenght+1,1);
     // numbers
-    wfgets(s, 8192*8, in);    
+    wfgets(s, 16, in);    
     int numberslenght=atoi(&s[0]);
     char *n1=(char*)calloc(numberslenght+1,1);
     //lang
-    wfgets(s, 8192*8, in);    
+    wfgets(s, 16, in);    
     int langlenght=atoi(&s[0]);
     char *p1=(char*)calloc(langlenght+1,1);
+    //alb
+    wfgets(s, 16, in);    
+    int alblenght=atoi(&s[0]);
+    char *a1=(char*)calloc(alblenght+1,1);
+    //diso
+    wfgets(s, 16, in);    
+    int disolenght=atoi(&s[0]);
+    char *d1=(char*)calloc(disolenght+1,1);
+    //clu
+    wfgets(s, 16, in);    
+    int clulenght=atoi(&s[0]);
+    char *l1=(char*)calloc(clulenght+1,1);
     
-    if(taglenght)   in->blockread((U8*)t1,U64(taglenght));  //read tag
-    if(fileslenght)   in->blockread((U8*)f1,U64(fileslenght));  //read tag
-    if(numberslenght)   in->blockread((U8*)n1,U64(numberslenght));  //read tag
+    if(clulenght)     in->blockread((U8*)l1,U64(clulenght));  //read clu
+    if(disolenght)    in->blockread((U8*)d1,U64(disolenght));  //read dis
+    if(alblenght)     in->blockread((U8*)a1,U64(alblenght));  //read alb
+    if(fileslenght)   in->blockread((U8*)f1,U64(fileslenght));  //read files
+    if(numberslenght) in->blockread((U8*)n1,U64(numberslenght));  //read numbers
+    if(taglenght)     in->blockread((U8*)t1,U64(taglenght));  //read sens    
     if(headerlenght)in->blockread((U8*)h1,U64(headerlenght));  //read header
     if(langlenght)  in->blockread((U8*)p1,U64(langlenght));  //read lang
     
     in->setpos(0);
-    int header=0,title=0,files=0,number=0;
+    int header=0,title=0,files=0,number=0,alb=0,diso=0,clu=0;
     do {
-    wfgets(s, 8192*8, in);    
-    
-    j = strlen(s);
-    if (in->curpos() > tsize ) {
-        j=j-(in->curpos()-tsize); // cut tail
-        s[j]=0;
-    }
-    
-    if (header==1){
-        int n=0;
-        int cont=0;
-        do {
+        wfgets(s, 8192*8, in);    
+        
+        j = strlen(s);
+        if (in->curpos() > tsize ) {
+            j=j-(in->curpos()-tsize); // cut tail
+            s[j]=0;
+        }
+        
+        if (header==1){
+            int n=0;
+            int cont=0;
+            do {
+                *(int*)o = 0x20202020;
+                j=4;
+                //'ider' 'iver' 'tser'
+                if (*(int*)&h1p[0]!=0x69646572 &&*(int*)&h1p[0]!=0x69766572&& *(int*)&h1p[0]!=0x74736572 && n!=0) *(int*)(o+j)= 0x20202020,j=j+2;
+                if (cont==1) *(int*)(o+j)= 0x20202020,j=j+2;
+                if (*(int*)&h1p[0]==0x6E6F632F) cont=0;//'noc/'
+                int k=(int)(strchr(h1p,10)+1-(char*)h1p);
+
+                // id  
+                if ( n==0){
+                    if ( (*(int*)&h1p[0]&0xffffff)==0x3E736E){//'>sn'
+                        o[j]='<';
+                        memcpy(o+j+1, h1p, k);
+                        int e=(strchr(h1p, '>')-h1p)+2;
+                        if (e!=k || cont==1) { //end tag
+                            o[k+j++]='<';
+                            o[k+j++]='/';
+                            memcpy(o+j+k, h1p, k);
+                            j=j+(strchr(h1p, '>')-h1p)+1;
+                        }
+                        o[k+j++]=10;
+                        o[k+j]=0;
+                        wfputs1(o,&out1);
+                    } else{
+                        
+                        n++;
+                        lastID = lastID+ atoi(&h1p[1]);
+                        sprintf(o+j, "<id>%d</id>%c",   lastID, 10);
+                        wfputs1(o,&out1);
+                    }
+                }
+                else if (*(int*)&h1p[0]==0x656D6974 ){//'emit'
+                    char *p = strchr(h1p, ':');
+                    int d = atoi(&h1p[19-7]), hms = atoi(p+1), h = hms/3600;
+                    o[0]=h1p[17-7],o[1]=h1p[18-7],o[2]=' ';
+                    int y=atoi(&o[0]);
+                    sprintf(o, "      <timestamp>%d-%02d-%02dT%02d:%02d:%02dZ</timestamp>%c",
+                    y + 2001, d/31+1, d%31+1, h, hms/60 - h*60, hms%60, 10);
+                    wfputs1(o,&out1);  
+                }
+                else if (n || cont==1){
+                    o[j]='<';
+                    memcpy(o+j+1, h1p, k);
+                    int e=(strchr(h1p, '>')-h1p)+2;
+                    if (e!=k || cont==1) { //end tag
+                        o[k+j++]='<';
+                        o[k+j++]='/';
+                        memcpy(o+j+k, h1p, k);
+                        j=j+(strchr(h1p, '>')-h1p)+1;
+                        
+                    }
+                    o[k+j++]=10;
+                    o[k+j]=0;
+                    wfputs1(o,&out1);
+                    if (*(int*)&h1p[0]==0x746E6F63) cont=1;//'tnoc'
+                }
+                h1p=h1p+k;
+                if (memcmp(&h1p[0],"contributor dele",16)==0)break;
+            }
+            while (memcmp(&h1p[0],"/contributor>",13)    );
             *(int*)o = 0x20202020;
             j=4;
-            //'ider' 'iver' 'tser'
-            if (*(int*)&h1p[0]!=0x69646572 &&*(int*)&h1p[0]!=0x69766572&& *(int*)&h1p[0]!=0x74736572 && n!=0) *(int*)(o+j)= 0x20202020,j=j+2;
-            if (cont==1) *(int*)(o+j)= 0x20202020,j=j+2;
-            if (*(int*)&h1p[0]==0x6E6F632F) cont=0;//'noc/'
+            *(int*)(o+j)= 0x20202020,j=j+2;
             int k=(int)(strchr(h1p,10)+1-(char*)h1p);
-
-        // id  
-        if ( n==0){
-            if ( (*(int*)&h1p[0]&0xffffff)==0x3E736E){//'>sn'
-                o[j]='<';
-            memcpy(o+j+1, h1p, k);
-            int e=(strchr(h1p, '>')-h1p)+2;
-            if (e!=k || cont==1) { //end tag
-               o[k+j++]='<';
-               o[k+j++]='/';
-               memcpy(o+j+k, h1p, k);
-               j=j+(strchr(h1p, '>')-h1p)+1;
-               
-            }
-            o[k+j++]=10;
-            o[k+j]=0;
-            wfputs1(o,&out1);
-            } else{
-            
-            n++;
-            lastID = lastID+ atoi(&h1p[1]);
-            sprintf(o+j, "<id>%d</id>%c",   lastID, 10);
-            wfputs1(o,&out1);
-            }
-        }
-        else if (*(int*)&h1p[0]=='emit'  ){
-             char *p = strchr(h1p, ':');
-            int d = atoi(&h1p[19-7]), hms = atoi(p+1), h = hms/3600;
-            o[0]=h1p[17-7],o[1]=h1p[18-7],o[2]=' ';
-            int y=atoi(&o[0]);
-            sprintf(o, "      <timestamp>%d-%02d-%02dT%02d:%02d:%02dZ</timestamp>%c",
-            y + 2001, d/31+1, d%31+1, h, hms/60 - h*60, hms%60, 10);
-            wfputs1(o,&out1);  
-        }
-        else if (n || cont==1){
             o[j]='<';
-            memcpy(o+j+1, h1p, k);
-            int e=(strchr(h1p, '>')-h1p)+2;
-            if (e!=k || cont==1) { //end tag
-               o[k+j++]='<';
-               o[k+j++]='/';
-               memcpy(o+j+k, h1p, k);
-               j=j+(strchr(h1p, '>')-h1p)+1;
-               
-            }
-            o[k+j++]=10;
-            o[k+j]=0;
-            wfputs1(o,&out1);
-            if (*(int*)&h1p[0]=='tnoc') cont=1;
-        }
-         h1p=h1p+k;
-         if (memcmp(&h1p[0],"contributor dele",16)==0)break;
-        }
-        while (memcmp(&h1p[0],"/contributor>",13)    );
-        *(int*)o = 0x20202020;
-        j=4;
-        *(int*)(o+j)= 0x20202020,j=j+2;
-        int k=(int)(strchr(h1p,10)+1-(char*)h1p);
-        o[j]='<';
             memcpy(o+j+1, h1p, k);
             o[k+j++]=10;
             o[k+j]=0;
             wfputs1(o,&out1);
             h1p=h1p+k;
             header=0;
+        }
+
+        {
+            if (memcmp(&s[j-9],"</title>",8)==0 && *(int*)s==0x20202020) {header=1,title= files=number=0;
+                for(i=0; i<j; i++) {
+
+                    if (s[i]==',' )  title=1;
+                    if (s[i]==':' )  files=2;
+                    char *listsp = strstr(s, "List of ");
+                    if (listsp)files=2;
+                    if (s[i]=='>' && s[i+1]!=10 && s[i+1]>'0'&& s[i+1]<='9'/*&& atoi(&s[i+1])*/)  {
+                        number = atoi(&s[i+1]);
+                        //int nlen=numlen(&s[i+1]);
+                        if (number<10 )number=0;//printf("%d, %d, %s",number,nlen,s);
+                        else {number=1;break;}
+                    } 
+                }
+                if (title && files==2) title=0;//,printf("%s",s); // active reset to files only
+                if (files==1) files=0;
+                if (number) title=files=0;
+            }
+        }
+        if (strstr(s, "<text ") && strstr(s, "Disorder infobox |")) diso=1,number= title=files=0;
+        if (strstr(s, "<text ") && strstr(s, "Album infobox |")) alb=1,number= title=files=0;
+        if (strstr(s, "<text ") && strstr(s, "club infobox |")) clu=1,number= title=files=0;
+        int m=1,n=1,q=1,w=1,z=1,x=1;
+        while (m||n||q||w||z||x){        // loop over until not
+            m=henttag1r(s,o,t1,taglenght,title);
+            n=hentfiles1r(o,s,f1,fileslenght,files);
+            q=hentnumbers1r(s,o,n1,numberslenght,number);
+            w=hentalb1r(o,s,a1,alblenght,alb);
+            z=hentdis1r(s,o,d1,disolenght,diso);
+            x=hentclu1r(o,s,l1,clulenght,clu);
+            skipline(s,o);
+            hent9(o,s);
+            henttail1(o,s,&out1,p1,langlenght);
+            if (s[0]==0) {   break;       }
+            
+            int skip=0;
+            char *p = strstr(s, "<text ");//, *w;
+            if (p)  { tf=1, p = strchr(p, '>'); assert(p);  skip= (char*)p+1-(char*)s; 
+                if(p[-1]=='/' /*|| p[2]==0*/) tf=0;  
+                
+            }
+            
+            if (strstr(s, "</text>") || strstr(s, "</revision>")|| strstr(s, "</page>")|| strstr(s, "</sha1>"))  tf=alb=diso=clu=0;
+            if (tf) {
+                restoreamp(s,o,skip);
+                skipline(o,s);
+            }
+            hent6( s,o);
+            hent1( o,s);
+            hent3( s,o);
+            wfputs1(o,&out1);
+            // printf("%s",o );
+        }
+        
     }
-
-     {
-         if (memcmp(&s[j-9],"</title>",8)==0 && *(int*)s==0x20202020) {header=1,title= files=number=0;
-            for(i=0; i<j; i++) {
-
-      if (s[i]==',' )  title=1;
-      if (s[i]==':' )  files=2;
-       if (s[i]=='>' && s[i+1]!=10 && s[i+1]>'0'&& s[i+1]<='9'/*&& atoi(&s[i+1])*/)  {
-       number = atoi(&s[i+1]);
-       //int nlen=numlen(&s[i+1]);
-       if (number<10 )number=0;//printf("%d, %d, %s",number,nlen,s);
-       else {number=1;break;}
-       } 
-      }
-      if (title && files==2) title=0;//,printf("%s",s); // active reset to files only
-      if (files==1) files=0;
-      if (number) title=files=0;
-  }
-         }
-        int m=1,n=1,q=1;
-        while (m||n||q){        
-            m=henttag1r(s,o,t1,taglenght,title);// loop over until not
-           n=hentfiles1r(o,s,f1,fileslenght,files);// loop over until not
-           q=hentnumbers1r(s,o,n1,numberslenght,number);// loop over until not
-        hent9(o,s);
-        
-        henttail1(o,s,&out1,p1,langlenght);
-        if (s[0]==0) {   break;       }
-        
-         int skip=0;
-        char *p = strstr(s, "<text ");//, *w;
-        if (p)  { tf=1, p = strchr(p, '>'); assert(p);  skip= (char*)p+1-(char*)s; 
-        if(p[-1]=='/' /*|| p[2]==0*/) tf=0;  
-        }
-        
-        if (strstr(s, "</text>") || strstr(s, "</revision>")|| strstr(s, "</page>")|| strstr(s, "</sha1>"))  tf=0;
-        if (tf) {
-        restoreamp(s,o,skip);
-        skipline(o,s);
-        }
-        hent6( s,o);
-        hent1( o,s);
-        hent3( s,o);
-        wfputs1(o,&out1);
-        //printf("%s",o );
-        }
-    
-  }
-  while (in->curpos() < tsize);
+    while (in->curpos() < tsize);
     if(taglenght)   free(t1);
     if(fileslenght)   free(f1);
     if(numberslenght)  free(n1);
     if(headerlenght)free(h1);
     if(langlenght)  free(p1);
+    if(alblenght)  free(a1);    
+    if(disolenght)  free(d1);
+    if(clulenght)  free(l1);
     int b=0,c=0;
     U64 bb=0L;
     bb=out1.curpos();
@@ -17678,13 +17989,16 @@ int encode_txt_wit(File* in, File* out, U64 len) {
     FileTmp out3; // header
     FileTmp out4; // files
     FileTmp out5; // number
+    FileTmp out6; // alb
+    FileTmp out7; // dis
+    FileTmp out8; // clu
     int i, j, f = 0, lastID = 0,tf=0;
-    int ti=0,files=0,number=0;
+    int ti=0,files=0,number=0,alb=0,diso=0,clu=0;
   do {
     wfgets(s, 8192*8, in);
     j = strlen(s);
     if (f==2) {
-        if (*(int*)&s[4]=='>sn<') { // ns
+        if (*(int*)&s[4]==0x3E736E3C) { // ns '>sn<'
             char *p =strchr(s, '>');
             if (p) {
                 p = strchr(p+1, '<');
@@ -17697,7 +18011,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
         }
         // id
         int curID = atoi(&s[8]);
-        if (*(int*)&s[4] != '>di<') return 0;// just fail it
+        if (*(int*)&s[4] != 0x3E64693C) return 0;// just fail it '>di<'
         //if (curID <= lastID)        return 0;
        sprintf(o,  ">%d%c", curID - lastID, 10);
         wfputs1(o,&out3);
@@ -17706,7 +18020,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
         continue;
     }
     if (f) {
-        if (*(int*)&s[6]=='mit<') {
+        if (*(int*)&s[6]==0x6D69743C) {//'mit<'
             int year   = atoi(&s[17]);
             int month  = atoi(&s[22]);
             int day    = atoi(&s[25]);
@@ -17727,13 +18041,13 @@ int encode_txt_wit(File* in, File* out, U64 len) {
           return 0;// just fail
         int s2=0; //lenght
         if (f==3) {
-            if (*(int*)&s[6]=='oc/<')  s2=7;
+            if (*(int*)&s[6]==0x6F632F3C)  s2=7;//'oc/<'
             else                       s2=9;
         }
         else {
-          if (*(int*)&s[4]=='ver<' || *(int*)&s[4]=='ser<'|| *(int*)&s[4]=='der<') s2=5;
+          if (*(int*)&s[4]==0x7665723C || *(int*)&s[4]==0x7365723C|| *(int*)&s[4]==0x6465723C) s2=5;//'ver<' 'ser<' 'der<'
           else                                             s2=7;
-          if (*(int*)&s[6]=='noc<') {
+          if (*(int*)&s[6]==0x6E6F633C) {//'noc<'
            f=3;
            if (f==3 && *(int*)&s[6+4+4+4]==0x6C656420)  f=0; //'led 'special case "deleted"
           }
@@ -17750,6 +18064,9 @@ int encode_txt_wit(File* in, File* out, U64 len) {
         char *p = strstr(o, "<text ");
         if (p)  { tf=1, p = strchr(p, '>'); assert(p);  skip= (char*)p+1-(char*)o;
         if(p[-1]=='/' /*|| p[2]==0*/) tf=0;  
+        if (strstr(o, "Disorder infobox |")) diso=1,ti=files=number=0;
+        if (strstr(o, "Album infobox |")) alb=1,ti=files=number=0;
+        if (strstr(o, "club infobox |")) clu=1,ti=files=number=0;
         }
         
         if (strstr(o, "</text>") || strstr(o, "</revision>")|| strstr(o, "</page>")|| strstr(o, "</sha1>"))  tf=0;
@@ -17762,16 +18079,21 @@ int encode_txt_wit(File* in, File* out, U64 len) {
         henttag1(s,o,&out2,ti);     if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
         hentfiles1(s,o,&out4,files);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
         hentnumbers1(s,o,&out5,number);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentalb1(s,o,&out6,alb);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentdis1(s,o,&out7,diso);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentclu1(s,o,&out8,clu);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
         hent9(o,s);
         wfputs(o,out);
 }
     for(i=0; i<j; i++)
       if (*(int*)&s[i]==0x69742F3C && *(int*)&s[i+4]==0x3E656C74&&*(int*)s==0x20202020) {f=2;//'it/<' '>elt'
       ti=files=number=0;
-       
+       alb=diso=clu=0;
       for(int i=0; i<j; i++){
       if (s[i]==',' )  ti=1;      
       if (s[i]==':' )  files=2;// article about files
+      char *listsp = strstr(s, "List of ");
+      if (listsp)files=2;
        if (s[i]=='>' && s[i+1]!=10 && s[i+1]>'0'&& s[i+1]<='9')  {
        number = atoi(&s[i+1]);
        if (number<10  )number=0;
@@ -17780,6 +18102,7 @@ int encode_txt_wit(File* in, File* out, U64 len) {
       }
       if (ti && files==2) ti=0;
       if (number) ti=files=0;
+      if (alb ||diso||clu)ti=files=number=0;
   }
     for(i=0; i<j; i++)
       if (*(int*)&s[i]==0x6F632F3C && *(int*)&s[i+4]==0x6972746E) f=0;//'oc/<' 'irtn'
@@ -17792,16 +18115,25 @@ int encode_txt_wit(File* in, File* out, U64 len) {
   int headersize=out3.curpos();
   int filesize=out4.curpos();
   int numbersize=out5.curpos();
-/*   FileDisk aaa,bbb,ccc,ddd;
+  int albsize=out6.curpos();
+  int disosize=out7.curpos();  
+  int clusize=out8.curpos();
+   /*FileDisk aaa,bbb,ccc,ddd,eee,fff,ggg;
    aaa.create("xxxxxxxtag");
    bbb.create("xxxxxxxlang");
    ccc.create("xxxxxxxheader");
-   ddd.create("xxxxxxxfiles");*/
+   ddd.create("xxxxxxxfiles");
+   eee.create("xxxxxxxalb");
+   fff.create("xxxxxxxdiso");
+   ggg.create("xxxxxxxclu");*/
    out1.setpos(0);
    out2.setpos(0);
    out3.setpos(0);
     out4.setpos(0);
     out5.setpos(0);
+    out6.setpos(0);
+    out7.setpos(0);
+    out8.setpos(0);
    sprintf(o, "%d%c", headersize, 10);
    j=strlen(o);
    wfputs(o,out); //header
@@ -17817,21 +18149,47 @@ int encode_txt_wit(File* in, File* out, U64 len) {
    sprintf(o, "%d%c", tsize, 10);
    j=j+strlen(o);
    wfputs(o,out); //lang
-   for(U64 i=0; i<tagsize; i++) {
-       int a=out2.getc();
+   sprintf(o, "%d%c", albsize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //alb
+   sprintf(o, "%d%c", disosize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //diso
+   sprintf(o, "%d%c", clusize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //clu
+   for(U64 i=0; i<clusize; i++) {
+       int a=out8.getc();
        out->putc(a);
-   //     aaa.putc(a);
+   //      ggg.putc(a);
+   }
+   for(U64 i=0; i<disosize; i++) {
+       int a=out7.getc();
+       out->putc(a);
+   //      fff.putc(a);
+   }
+   for(U64 i=0; i<albsize; i++) {
+       int a=out6.getc();
+       out->putc(a);
+   //      eee.putc(a);
    }
    for(U64 i=0; i<filesize; i++) {
        int a=out4.getc();
        out->putc(a);
    //     ddd.putc(a);
    }
-      for(U64 i=0; i<numbersize; i++) {
+   
+   for(U64 i=0; i<numbersize; i++) {
        int a=out5.getc();
        out->putc(a);
    //     ddd.putc(a);
    }
+   for(U64 i=0; i<tagsize; i++) {
+       int a=out2.getc();
+       out->putc(a);
+   //     aaa.putc(a);
+   }
+
    for(U64 i=0; i<headersize; i++) {
        int a=out3.getc();
        out->putc(a);
@@ -17844,8 +18202,11 @@ int encode_txt_wit(File* in, File* out, U64 len) {
     //    bbb.putc(a);
    }
    
-   //aaa.close(); bbb.close();ccc.close();ddd.close();
-    out5.close();
+  //aaa.close(); bbb.close();ccc.close();ddd.close();eee.close();fff.close();ggg.close();
+   out8.close();
+   out7.close();
+   out6.close();
+   out5.close();
    out4.close();
    out3.close();
    out2.close();
@@ -17855,10 +18216,11 @@ int encode_txt_wit(File* in, File* out, U64 len) {
   printf("file size: %d kb\n",U32(filesize/1024));
   printf("number size: %d kb\n",U32(numbersize/1024));
   printf("header size: %d kb\n",U32(headersize/1024));
-  printf("Langs size: %d kb\n",U32(tsize/1024));*/
-  tsize=tsize+j+tagsize+headersize+filesize+numbersize;
-  
-  
+  printf("Langs size: %d kb\n",U32(tsize/1024));
+  printf("Alb size: %d kb\n",U32(albsize/1024));
+  printf("Diso size: %d kb\n",U32(disosize/1024));
+  printf("Clu size: %d kb\n",U32(clusize/1024));*/
+  tsize=tsize+j+tagsize+headersize+filesize+numbersize+albsize+disosize+clusize;
   return tsize;
 }
 // end WIT
@@ -19961,7 +20323,7 @@ printf("\n");
             archive->create(archiveName.c_str());
             archive->append(PROGNAME);
             archive->putc(0);
-            archive->putc(level|            ((slow==true)?64:0));
+            archive->putc(level|            ((slow==true)?64:0)|            ((witmode==true)?128:0));
             segment.hpos= archive->curpos();
             
             for (int i=0; i<12+4+2; i++) archive->putc(0); //space for segment size in header +streams info
@@ -19987,6 +20349,7 @@ printf("\n");
             printf("%s: not a %s file\n", archiveName.c_str(), PROGNAME), quit();
             level=archive->getc();
             if (level&64) slow=true;
+            if (level&128) witmode=true;
             level=level&0xf;
             
             // Read segment data from archive end
@@ -20502,6 +20865,7 @@ printf("\n");
     }
     return 0;
 }
+
 
 
 

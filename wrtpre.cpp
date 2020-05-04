@@ -34,6 +34,7 @@
 #define CHAR_ESCAPE         3   // for encode reserved chars (CHAR_ESCAPE,CHAR_FIRSTUPPER,...)
 #define CHAR_UTFUPPER       4
 #define CHAR_EOL            5   // for enocde linefeed in EOLencoder not in wrt
+#define CHAR_NEXT           6
 #define BINARY_FIRST        128
 #define BINARY_LAST         255
 
@@ -497,7 +498,7 @@ void XWRT_Common::initializeCodeWords(int word_count,bool initMem){
         outputSet[c]=0;
     }
     for (c=0; c<256; c++){
-        if (c==CHAR_ESCAPE || c==CHAR_FIRSTUPPER || c==CHAR_UPPERWORD || /*c==CHAR_EOL ||*/ c==CHAR_UTFUPPER)
+        if (c==CHAR_ESCAPE || c==CHAR_FIRSTUPPER || c==CHAR_UPPERWORD || /*c==CHAR_EOL ||*/ c==CHAR_UTFUPPER||c==CHAR_NEXT)
         {
             reservedSet[c]=1;
             addSymbols[c]=0;
@@ -827,7 +828,9 @@ int XWRT_Decoder::WRT_decode(){
                 upperWord=UFALSE;
                 DECODE_GETC(WRTd_c);
                 continue;
-
+            case CHAR_NEXT:  
+            DECODE_GETC(WRTd_c); upperWord=UFALSE;
+             continue;
             case CHAR_UPPERWORD:
                 PRINT_CHARS(("c==CHAR_UPPERWORD\n"));
 
@@ -883,6 +886,7 @@ int XWRT_Decoder::WRT_decode(){
 
        
         if (WRTd_c>='0' && WRTd_c<='9'){
+            upperWord=UFALSE;
             rchar=WRTd_c;
             DECODE_GETC(WRTd_c);
             last_c=rchar;
@@ -1297,11 +1301,12 @@ inline int XWRT_Encoder::findShorterWord(U8* &s,int &s_size){
     int best;
     U32 hash;
     hash = 0;
-    for (i=0; i<WORD_MIN_SIZE+tryShorterBound; i++)
+    int minword=/*(staticd==true)?2:*/(WORD_MIN_SIZE+tryShorterBound);
+    for (i=0; i<minword; i++)
     hash = HASH_MULT * hash + s[i];
 
     best=-1;
-    for (i=WORD_MIN_SIZE+tryShorterBound; i<s_size; i++){ //3 vs 3 minimum
+    for (i=minword; i<s_size; i++){ //3 vs 3 minimum
         ret=checkHash(s,i,hash&(HASH_TABLE_SIZE-1));
         if (ret>=0)
         best=ret;
@@ -1409,7 +1414,7 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
                 // try to find shorter version of word in dictionary
                 i=findShorterWord(s,s_size);
                 //PRINT_CODEWORDS(("findShorterWord i=%d\n",i));
-                s[s_size+1]=0;
+                //s[s_size+1]=0;
                 //if (i>0 ) printf("findShorterWord i=%d %s\n",i, s);
                 if (i>=0){
                     size=dictlen[i];
@@ -1480,6 +1485,31 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     }
     else
     {
+        if (wordType==UPPERWORD) { encodeSpaces();ENCODE_PUTC(CHAR_UPPERWORD);
+            encodeAsText(s,s_size); return;
+        }
+        if (wordType==FIRSTUPPER) { encodeSpaces();ENCODE_PUTC(CHAR_FIRSTUPPER);
+            encodeAsText(s,s_size); return;
+        }
+        int alen=ascii_len(s,s_size);
+        if (alen=s_size && wordType==VARWORD  && (witmode==true)){//LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR
+         int lettlen=0,lettllen=0;
+            if (letterSet[s[0]]==UPPERCHAR) {
+               for (int i=0;i<s_size;i++) if (letterSet[s[i]]==UPPERCHAR) lettlen++; else break;
+               if (lettlen==1)for (int i=lettlen;i<s_size;i++) if (letterSet[s[i]]==LOWERCHAR) lettllen++; else break;
+            }
+            if(lettlen>1)encodeWord(s,lettlen,UPPERWORD,c);
+            else if (lettlen==1 && lettllen)encodeWord(s,lettlen+lettllen,FIRSTUPPER,c);
+            if(lettlen>1||lettllen){
+
+            U8* s2=s+lettlen+lettllen;
+            int s_size2=s_size-(lettlen+lettllen);
+            if (s_size2 ) {
+            ENCODE_PUTC(CHAR_NEXT);
+            encodeAsText(s2,s_size2);}
+            return;
+            }
+        }
         if (wordType==FIRSTUPPER)
         s[0]=toupper(s[0]);
         else if (wordType==UPPERWORD)
@@ -1627,7 +1657,7 @@ void XWRT_Encoder::WRT_encode(U64 filelen){
                 continue;
             }
             //detect words like and split. HiTerraMonda
-            if(s_size>2 && letterType==UPPERCHAR && letterSet[last_c]==LOWERCHAR){
+           if(s_size>2 && letterType==UPPERCHAR && letterSet[last_c]==LOWERCHAR){
                 if (s_size>2 && wordType==VARWORD){
                     if (letterSet[s[0]]==UPPERCHAR){
                         wordType=FIRSTUPPER;
