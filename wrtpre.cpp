@@ -1485,14 +1485,14 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     }
     else
     {
-        if (wordType==UPPERWORD) { encodeSpaces();ENCODE_PUTC(CHAR_UPPERWORD);
+        if (wordType==UPPERWORD&& (staticd==true)) { encodeSpaces();ENCODE_PUTC(CHAR_UPPERWORD);
             encodeAsText(s,s_size); return;
         }
-        if (wordType==FIRSTUPPER) { encodeSpaces();ENCODE_PUTC(CHAR_FIRSTUPPER);
+        if (wordType==FIRSTUPPER&& (staticd==true)) { encodeSpaces();ENCODE_PUTC(CHAR_FIRSTUPPER);
             encodeAsText(s,s_size); return;
         }
         int alen=ascii_len(s,s_size);
-        if (alen=s_size && wordType==VARWORD  && (witmode==true)){//LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR
+        if (alen==s_size && wordType==VARWORD  && (staticd==true)){//LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR
          int lettlen=0,lettllen=0;
             if (letterSet[s[0]]==UPPERCHAR) {
                for (int i=0;i<s_size;i++) if (letterSet[s[i]]==UPPERCHAR) lettlen++; else break;
