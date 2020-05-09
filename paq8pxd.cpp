@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd86"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd87"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1256,9 +1256,11 @@ U64 checksum64(const U64 hash, const int hashbits, const int checksumbits) {
 }
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
-bool slow=false;
-bool witmode=false;
-bool staticd=false;
+bool slow=false; //-x
+bool witmode=false; //-w
+bool staticd=false;  // -e
+bool doExtract=false;  // -d option
+bool doList=false;  // -l option
 U64 MEM(){
      return 0x10000UL<<level;
 }
@@ -5892,7 +5894,7 @@ public:
   int nets() {return 0;}
   int netcount() {return 0;}
   matchModel1(BlockData& bd, U32 val1=0) :
-    x(bd),buffer(bd.buf),Size( CMlimit(MEM()*4)),
+    x(bd),buffer(bd.buf),Size(level>9?0x80000000: CMlimit(MEM()*4)),
     Table(Size/sizeof(U32)),
     StateMaps{56*256, 8*256*256+1, 256*256 },
     SCM{ {8,8},{11,1},{8,8} },
@@ -6060,7 +6062,7 @@ private:
 public:
     SparseMatchModel(BlockData& bd, U32 val1=0) :
     x(bd),buffer(bd.buf),
-    Table(CMlimit(MEM()/2)),//?
+    Table(level>9?0x10000000:CMlimit(MEM()/2)),//?
     Maps{ {22, 1}, {17, 4}, {8, 1}, {19,1} },
     iCtx8{19,1},
     iCtx16{16},
@@ -6068,7 +6070,7 @@ public:
     hashes{ 0 },
     hashIndex(0),
     length(0),
-    mask(CMlimit(MEM()/2)-1),
+    mask(level>9?(0x10000000-1):CMlimit(MEM()/2)-1),
     expectedByte(0),
     valid(false)
   {
@@ -6720,7 +6722,7 @@ private:
       g_ascii_lo <<= 8;
       g_ascii_lo  |= g;
     }
- if( linespace>0) {
+ if( linespace>0 || x.dictonline==true) {
     U64 i = to_be_collapsed*8;//i=i*65;
     U32 g_a_hi=(g_ascii_lo>>32),g_a_lo=g_ascii_lo&0x00000000ffffffff;
     cm.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
@@ -6860,7 +6862,7 @@ class recordModel1: public Model {
 public:
   recordModel1( BlockData& bd,U64 msize=CMlimit(MEM()*2) ): x(bd),buf(bd.buf),  cpos1(256) , cpos2(256),
     cpos3(256), cpos4(256),wpos1(0x10000), rlen(3), rcount(2),padding(0),prevTransition(0),nTransition(0), col(0),mxCtx(0),
-    x1(0),MayBeImg24b(false),cm(32768, 3,M_RECORD), cn(32768/2, 3,M_RECORD), co(32768*2, 3,M_RECORD), cp(CMlimit(msize*2), 16,M_RECORD), nMaps ( 6),
+    x1(0),MayBeImg24b(false),cm(32768, 3,M_RECORD), cn(32768/2, 3,M_RECORD), co(32768*2, 3,M_RECORD), cp(level>9?0x10000000 :CMlimit(msize*2), 16,M_RECORD), nMaps ( 6),
     N(0), NN(0), NNN(0), NNNN(0),WxNW(0), nIndCtxs(5){
         // run length and 2 candidates
         rlen[0] = 2; 
@@ -10717,7 +10719,7 @@ class indirectModel1: public Model {
   IndirectContext<U8> iCtx8;
   StationaryMap Maps;
 public:
-  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()),15,M_INDIRECT),t1(256),
+  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(level>9?0x40000000:CMlimit(MEM()),15,M_INDIRECT),t1(256),
    t2(0x10000), t3(0x8000),t4(0x8000),iCtx{16 },iCtx8{10,2},Maps{ 10, 2 }{
   }
   int inputs() {return 15*cm.inputs()+2;}
@@ -11242,7 +11244,7 @@ class XMLModel1: public Model {
     XMLContent *Content ;
 public:
   XMLModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
-   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(CMlimit(MEM()/4), 4,M_XML) {
+   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(level>9?0x1000000:CMlimit(MEM()/4), 4,M_XML) {
        memset(&Cache, 0, sizeof(XMLTagCache));
        memset(&StateBH, 0, sizeof(StateBH));  
         
@@ -11553,8 +11555,8 @@ class normalModel1: public Model {
   Array<U32> cxt; // order 0-11 contexts
   int inpt;
 public:
-  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10,M_NORMAL), StateMaps{ 256, 256*256 },rcm7(CMlimit(MEM()/4),bd),
-  rcm9(CMlimit(MEM()/4),bd), rcm10(CMlimit(MEM()/2),bd), cxt(16){
+  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10,M_NORMAL), StateMaps{ 256, 256*256 },rcm7(CMlimit(MEM()/(level>8?8:4)),bd),
+  rcm9(CMlimit(MEM()/((level>8?8:4))),bd), rcm10(CMlimit(MEM()/(level>8?4:2)),bd), cxt(16){
  }
  int inputs() {return 10*cm.inputs() +3+2;}
  int nets() {return 0;}
@@ -11980,16 +11982,19 @@ class ppmdModel1: public Model {
   BlockData& x;
   Buf& buf;
   ppmd_Model ppmd_12_256_1;
+  ppmd_Model ppmd_6_64_2;
 public:
   ppmdModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){
     int ppmdmem=((210<<(level>8))<<(level>9))<<(level>10);
     ppmd_12_256_1.Init(12+(level>8?4:0),ppmdmem,1,0);
+    ppmd_6_64_2.Init(6,64,1,0);
  }
- int inputs() {return 1;}
+ int inputs() {return 2;}
  int nets() {return 0;}
   int netcount() {return 0;}
 int p(Mixer& m,int val1=0,int val2=0){
   m.add(stretch(4096-ppmd_12_256_1.ppmd_Predict(4096,x.y)));
+  m.add(stretch(4096-ppmd_6_64_2.ppmd_Predict(4096,x.y)));
   return 0;
 }
   virtual ~ppmdModel1(){ }
@@ -20133,8 +20138,7 @@ int main(int argc, char** argv) {
     try {
 
         // Get option
-        bool doExtract=false;  // -d option
-        bool doList=false;  // -l option
+        
         char* aopt;
         aopt=&argv[1][0];
         
@@ -20280,7 +20284,7 @@ printf("\n");
             const int arg1size=strlen(argv[1]);
             if (arg1size>prognamesize+1 && argv[1][arg1size-prognamesize-1]=='.'
                     && equals(PROGNAME, argv[1]+arg1size-prognamesize)) {
-                mode=DECOMPRESS;
+                mode=DECOMPRESS,doExtract=true;
             }
             else if (doExtract || doList)
             mode=DECOMPRESS;

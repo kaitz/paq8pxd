@@ -1,3 +1,7 @@
+v87
+    -fix decompression command line (only archive name needed again)
+    -limit mem on some models
+    -small changes
 v86
     - change jpeg
     - -w option - +9 html entities

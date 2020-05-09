@@ -401,7 +401,7 @@ inline void XWRT_Common::stringHash(const U8 *ptr, int len,int& hash){
 }
 int XWRT_Common::addWord(U8* &mem,int &i){
     int c,j;
-    if (staticd==false || detect==true){
+    if ((staticd==false && doExtract==false) || detect==true){
     
     if (i<=1 || sizeDict>=dictionary)
     return -1;
