@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd87"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd88"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -568,8 +568,9 @@ which computes 8 elements at a time, is not any faster).
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
-#include <inttypes.h> // PRIi64
 #include "zlib.h"
+
+#include <inttypes.h> // PRIi64 or #include <cinttypes> // PRIi64
 #define NDEBUG  // remove for debugging (turns on Array bound checks)
 #include <assert.h>
 
@@ -2214,7 +2215,7 @@ protected:
   const int N;  // Number of contexts
   int cxt;      // Context of last prediction
   Array<U32> t;       // cxt -> prediction in high 22 bits, count in low 10 bits
-  inline void update(int y, int limit) {
+  inline void update(const int y, int limit) {
     assert(cxt>=0 && cxt<N);
     assert(y==0 || y==1);
     U32 *p=&t[cxt], p0=p[0];
@@ -2230,7 +2231,7 @@ protected:
     p[0]=p0;
   }
   
-inline void update1(int y, int limit) {
+inline void update1(const int y, int limit) {
     assert(cxt>=0 && cxt<N);
     assert(y==0 || y==1);
     U32 *p=&t[cxt], p0=p[0];
@@ -2251,14 +2252,14 @@ public:
       t[i]=(t[i]&0xfffffc00)|min(Rate, t[i]&0x3FF);
   }
   // update bit y (0..1), predict next bit in context cx
-  int p(int cx, int y,int limit=1023) {
+  int p(int cx,const int y,int limit=1023) {
     assert(cx>=0 && cx<N);
     assert(limit>0 && limit<1024);
     assert(y==0 || y==1);
     update(y,limit);
     return t[cxt=cx]>>20;
   }
-  int p1(int cx, int y,int limit=1023) {
+  int p1(int cx,const int y,int limit=1023) {
     assert(cx>=0 && cx<N);
     assert(limit>0 && limit<1024);
     assert(y==0 || y==1);
@@ -8552,7 +8553,7 @@ int B;
  Array<U8*> cp;
   BlockData& x;
  StateMap **sm;
- U8* find(U32 i) {
+ inline U8* find(U32 i) {
     int chk=(i>>24^i>>12^i)&255;
     i&=n;
     int bi=i, b=1024;  // best replacement so far
@@ -8570,8 +8571,8 @@ int B;
     return p;
   }
 public:
-  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(N), x(bd) {
-    assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2?
+  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(n), x(bd) {
+    assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2? N((n+3)&-4),
     sm = new StateMap*[ncontext];
      
     for (U32 i=0; i<ncontext; i++) {
@@ -8581,21 +8582,34 @@ public:
   
   void update(){
       if (cp[ncontext-1]) {
-    for (int i=0; i<ncontext; ++i)
-      *cp[i]=nex(*cp[i],x.y);
+           const int y=x.y;
+      for (int i=0; i<ncontext; ++i)
+        *cp[i]=nex(*cp[i],y);
+     
    }
   }
- inline int p(int i,U32 a,bool setcontext){
+ inline int ps(int i,U32 a,const int y){
       assert(i<ncontext);
-      if (setcontext) cp[i]=find(a)+1;  // set
-      else cp[i]+=a;                    // add
-      return sm[i]->p(*cp[i],x.y);      // predict
+      cp[i]=find(a)+1;  // set
+      
+      return sm[i]->p(*cp[i],y);      // predict
   }
-  inline int p1(int i,U32 a,bool setcontext){
+  inline int p(int i,U32 a,const int y){
       assert(i<ncontext);
-      if (setcontext) cp[i]=find(a)+1;  // set
-      else cp[i]+=a;                    // add
-      return sm[i]->p1(*cp[i],x.y);      // predict
+       cp[i]+=a;                    // add
+      return sm[i]->p(*cp[i],y);      // predict
+  }
+  inline int p1s(int i,U32 a,const int y){
+      assert(i<ncontext);
+      cp[i]=find(a)+1;  // set
+      return sm[i]->p1(*cp[i],y);      // predict
+      
+  }
+  inline int p1(int i,U32 a,const int y){
+      assert(i<ncontext);
+       //cp[i]=find(a)+1;  // set
+      cp[i]+=a;
+      return sm[i]->p1(*cp[i],y);      // predict
       
   }
   ~BHMap() {
@@ -8697,7 +8711,7 @@ class jpegModelx: public Model {
     // The 7 mapped values are for context+{"", 0, 00, 01, 1, 10, 11}.
     U32 skip;
     StateMap smx;
-    U32 jmiss;
+    U32 jmiss,zux,ccount;
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
@@ -8705,8 +8719,8 @@ public:
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
-  qtab(256),qmap(10),N(35+1),cxt(N),m1(32+32+3+4+1,2050+3+1024 /*770*/,bd, 3,0,0), a1(0x20000),a2(0x20000),x(bd),buf(bd.buf),
-  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0), smx(256*256),jmiss(0) {
+  qtab(256),qmap(10),N(35+1+1),cxt(N),m1(32+32+3+4+1+1,2050+3+1024 /*770*/,bd, 3,0,0), a1(0x20000),a2(0x20000),x(bd),buf(bd.buf),
+  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(0) {
      m1.setText(true);
   }
   int inputs() {return 7+N*2+1+1;}
@@ -8925,6 +8939,7 @@ public:
             SamplingFactors[j] = hv;
             if (hv>>4>hmax) hmax=hv>>4;
             hv=(hv&15)*(hv>>4);  // number of blocks in component C
+            ccount=max(hv,ccount);
             jassert(hv>=1 && hv+mcusize<=10);
             while (hv) {
               jassert(mcusize<10);
@@ -8970,13 +8985,13 @@ public:
       }
     }
   }
-
+  const int y=x.y;
 
   // Decode Huffman
   {
     if (mcusize && buf(1+(!x.bpos))!=FF) {  // skip stuffed byte
       jassert(huffbits<=32);
-      huffcode+=huffcode+x.y;
+      huffcode+=huffcode+y;
       ++huffbits;
       if (rs<0) {
         jassert(huffbits>=1 && huffbits<=16);
@@ -9161,6 +9176,9 @@ public:
     m.set(0, 9);
     m.set(0, 1025);
     m.set(buf(1), 1024);
+         m.set(0, 4096 );
+         x.Misses+=x.Misses+1;
+   m.set((x.Misses&0xf), 16 );
     return 1;
   }
   if (rstlen>0 && rstlen==column+row*width-rstpos && mcupos==0 && (int)huffcode==(1<<huffbits)-1) {
@@ -9168,6 +9186,9 @@ public:
     m.set(0, 9);
     m.set(0, 1025); 
     m.set(buf(1), 1024);
+         m.set(0, 4096 );
+         x.Misses+=x.Misses+1;
+   m.set((x.Misses&0xf), 16 );
     return 1;
   }
   if (val1==1) {if (++hbcount>2 ) hbcount=0;return /*skip++,*/ 1;  }
@@ -9182,6 +9203,7 @@ public:
   if (++hbcount>2 || huffbits==0) hbcount=0;
   jassert(coef>=0 && coef<256);
   const int zu=zzu[mcupos&63], zv=zzv[mcupos&63];
+  zux=zux<<2;zux|=(zu>0)*2|zv>0;
     if (hbcount==0) {
     U32 n=hc*33;
     cxt[0]=hash(++n, coef, adv_pred[2]/12+(run_pred[2]<<8), ssum2>>6, prev_coef/72);
@@ -9204,22 +9226,23 @@ public:
     cxt[17]=hash(++n, rs1, mcupos&63, run_pred[1]);
     cxt[18]=hash(++n, coef, ssum2>>5, adv_pred[3]/30, (comp)?hash(prev_coef/22,prev_coef2/50):ssum/((mcupos&0x3F)+1));
     cxt[19]=hash(++n, lcp[0]/40, lcp[1]/40, adv_pred[1]/28, hash( (comp)?prev_coef/40+((prev_coef2/40)<<20):lcp[4]/22, min(7,zu+zv), ssum/(2*(zu+zv)+1) ) );
-    cxt[20]=hash(++n, zv, cbuf[cpos-blockN[mcupos>>6]], adv_pred[2]/28, run_pred[2]);
-    cxt[21]=hash(++n, zu, cbuf[cpos-blockW[mcupos>>6]], adv_pred[0]/28, run_pred[0]);
+    cxt[20]=hash(++n, ccount>1?((zv<<8)|zu):zv , cbuf[cpos-blockN[mcupos>>6]], adv_pred[2]/28, run_pred[2]);//use (zv<<8)|zu for subsampling
+    cxt[21]=hash(++n, ccount>1?((zv<<8)|zu):zu, cbuf[cpos-blockW[mcupos>>6]], adv_pred[0]/28, run_pred[0]);
     cxt[22]=hash(n, adv_pred[2]/7, run_pred[2]);
     cxt[23]=hash(n, adv_pred[0]/7, run_pred[0]);
     cxt[24]=hash(n, adv_pred[1]/7, run_pred[1]);
-    cxt[25]=hash(++n, zv, lcp[1]/14, adv_pred[2]/16, run_pred[5]);
-    cxt[26]=hash(++n, zu, lcp[0]/14, adv_pred[0]/16, run_pred[3]);
+    cxt[25]=hash(++n,  ccount>1?((zv<<8)|zu):zv , lcp[1]/14, adv_pred[2]/16, run_pred[5]);
+    cxt[26]=hash(++n,  ccount>1?((zv<<8)|zu):zu, lcp[0]/14, adv_pred[0]/16, run_pred[3]);
     cxt[27]=hash(++n, lcp[0]/14, lcp[1]/14, adv_pred[3]/16);
     cxt[28]=hash(++n, coef, prev_coef/10, prev_coef2/20);
     cxt[29]=hash(++n, coef, ssum>>2, prev_coef_rs);
     cxt[30]=hash(++n, coef, adv_pred[1]/17, hash(lcp[(zu<zv)]/24,lcp[2]/20,lcp[3]/24));
     cxt[31]=hash(++n, coef, adv_pred[3]/11, hash(lcp[(zu<zv)]/50,lcp[2+3*(zu*zv>1)]/50,lcp[3+3*(zu*zv>1)]/50));
     cxt[32]=hash(++n, hash(coef, adv_pred[2]/17),hash(coef, adv_pred[1]/11), ssum>>2,run_pred[0]);
-    cxt[33]=hash(++n, hash(zv, run_pred[2]/2),hash(coef, run_pred[5]/2), min(7,zu+zv),adv_pred[0]/12);
+    cxt[33]=hash(++n, hash(ccount>1?zux:-1,zv, run_pred[2]/2),hash(coef, run_pred[5]/2), min(7,zu+zv),adv_pred[0]/12);
     cxt[34]= hash(mcupos, column, row, hc>>2) ; // MJPEG
-    cxt[35]=hc;
+    cxt[35]=hash(hc,ccount>1?((zv<<8)|zu):zu,cbuf[cpos-blockN[mcupos>>6]], hash(adv_pred[2]/28, run_pred[2],lcp[1]/14/* art*/), hash( adv_pred[0]/28, run_pred[0],lcp[4]/14/*art*/)) ;
+    cxt[36]=hash(++n, (zv<<8)|zu,hash(lcp[0]/22, lcp[4]/30, ssum2>>6,prev_coef/28),hash(adv_pred[0]/30, adv_pred[1]/30,adv_pred[2]/30), hash(run_pred[0], run_pred[1],run_pred[2]));
   }
 
   // Predict next bit
@@ -9229,28 +9252,29 @@ public:
 #ifndef SM 
         x.count=0; //force to old statemap
 #endif
+
  switch(hbcount) {
    case 0: {
         if (x.count>JPEGLIMIT)
-           for (int i=0; i<N; ++i){  p=hmap.p1(i,cxt[i],true); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
+           for (int i=0; i<N; ++i){  p=hmap.p1s(i,cxt[i],y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
         else
-           for (int i=0; i<N; ++i){  p=hmap.p(i,cxt[i],true); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
+           for (int i=0; i<N; ++i){  p=hmap.ps(i,cxt[i],y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
         } break;
    case 1: { int hc=1+(huffcode&1)*3;
         if (x.count>JPEGLIMIT)
-           for (int i=0; i<N; ++i){ p=hmap.p1(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+           for (int i=0; i<N; ++i){ p=hmap.p1(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
         else
-            for (int i=0; i<N; ++i){ p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+            for (int i=0; i<N; ++i){ p=hmap.p(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
         } break;
    default: { int hc=1+(huffcode&1); 
             if (x.count>JPEGLIMIT)
-               for (int i=0; i<N; ++i){  p=hmap.p1(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+               for (int i=0; i<N; ++i){  p=hmap.p1(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
             else 
-               for (int i=0; i<N; ++i){  p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+               for (int i=0; i<N; ++i){  p=hmap.p(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
             } break;
   }
   
-  int sd=((smx.p((hc)&0xffff,x.y)));
+  int sd=((smx.p((hc)&0xffff,y)));
    m1.add(sd=stretch(sd));
    m.add(sd);
    
@@ -9259,16 +9283,16 @@ public:
    m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048 );
   // m1.setl(x.y);
   int pr=m1.p(1,1);
-   x.Misses+=x.Misses+((pr0>>11)!=x.y);
-   jmiss+=jmiss+((pr0>>11)!=x.y);
+   x.Misses+=x.Misses+((pr0>>11)!=y);
+   jmiss+=jmiss+((pr0>>11)!=y);
   pr0=pr;
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
   //pr=a1.p(pr,hash(hc,adv_pred[1]/16,x.Misses&0xf,jmiss&0xf)&0x1FFFF, x.y,1023);// larger files
-  pr=a1.p(pr,hash(hc,adv_pred[1]/16,(x.Misses&0xf)?(x.Misses&0xf):(jmiss&0xf),(x.Misses&0xf)?0:(jmiss&0xf))&0x1FFFF, x.y,1023);
+  pr=a1.p(pr,hash(hc,adv_pred[1]/16,(x.Misses&0xf)?(x.Misses&0xf):(jmiss&0xf),(x.Misses&0xf)?0:(jmiss&0xf))&0x1FFFF, y,1023);
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
-  pr=a2.p(pr, hash(hc&0xffff,coef,x.Misses&0xf)&0x1FFFF,x.y, 1023);
+  pr=a2.p(pr, hash(hc&0xffff,coef,x.Misses&0xf)&0x1FFFF,y, 1023);
 
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
