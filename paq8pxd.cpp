@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd88"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd89"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -570,7 +570,8 @@ which computes 8 elements at a time, is not any faster).
 #include <math.h>
 #include "zlib.h"
 
-#include <inttypes.h> // PRIi64 or #include <cinttypes> // PRIi64
+//#include <inttypes.h> // PRIi64 or 
+#include <cinttypes> // PRIi64
 #define NDEBUG  // remove for debugging (turns on Array bound checks)
 #include <assert.h>
 
@@ -8790,7 +8791,7 @@ public:
       mcusize=huffcode=huffbits=huffsize=mcupos=cpos=0, rs=-1;
       memset(&huf[0], 0, sizeof(huf));
       memset(&pred[0], 0, pred.size()*sizeof(int));
-      rstpos=rstlen=0;
+      rstpos=rstlen=ccount=0;
     }
 
     // Detect end of JPEG when data contains a marker other than RSTx

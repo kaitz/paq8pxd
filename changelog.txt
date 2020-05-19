@@ -1,3 +1,8 @@
+v89
+    - fix subsamp reset on every new jpeg 
+v88
+    - a bit faster jpeg compression
+    - add +1 context to jpeg and change some :)
 v87
     -fix decompression command line (only archive name needed again)
     -limit mem on some models
