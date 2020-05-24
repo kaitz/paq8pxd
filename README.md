@@ -87,18 +87,18 @@ Recommended compiler commands and optimizations:
 
   MINGW g++ (x86,x64):
    with multithreading:
-    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -o paq8pxd.exe 
+    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -lz -o paq8pxd.exe 
    without multithreading:
-    g++ paq8pxd.cpp -DWINDOWS -msse2 -O3 -s -static -o paq8pxd.exe 
+    g++ paq8pxd.cpp -DWINDOWS -msse2 -O3 -s -static -lz -o paq8pxd.exe 
 
   UNIX/Linux (PC x86,x64):
    with multithreading:
-    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -o paq8pxd
+    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -lz -o paq8pxd
    without multithreading:
-    g++ paq8pxd.cpp -DUNIX -msse2 -O3 -s -static -lpthread -o paq8pxd
+    g++ paq8pxd.cpp -DUNIX -msse2 -O3 -s -static -lpthread -lz -o paq8pxd
 
   Non PC (e.g. PowerPC under MacOS X)
-    g++ paq8pxd.cpp -O2 -DUNIX -s -o paq8pxd
+    g++ paq8pxd.cpp -O2 -DUNIX -s -lz -o paq8pxd
 
 
 # ARCHIVE FILE FORMAT

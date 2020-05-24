@@ -1,3 +1,104 @@
+v89
+    - fix subsamp reset on every new jpeg 
+v88
+    - a bit faster jpeg compression
+    - add +1 context to jpeg and change some :)
+v87
+    -fix decompression command line (only archive name needed again)
+    -limit mem on some models
+    -small changes
+v86
+    - change jpeg
+    - -w option - +9 html entities
+                - reorder: albums, clubs, disorders
+                - List type articles moved to ':' section
+    - wrt most upper chars converted to lower, if -w also process combined words
+    - wordmodel some changes
+v85
+    - fix rounding error
+v84
+    - adjust jpeg,im1 predictor
+    - add mod_SSE to all predictors exept jpeg
+    - add external dictionary command line option
+    - add RC to encoder (paq8pxd82sa)
+    - change ppmd mem
+    - in wordmodel process math tag (wiki)
+v83
+    - add mod_SSE to text stream predictor
+    - -w option - reorder content by title beginning with number larger then 9
+                - add &" to "  
+v82 
+    - -w option - reorder content by title selecting ',' or ':'
+v81
+    - fix str number detection &#xxxx;
+    - wit -> more escapes for lang
+
+v80
+    - Small changes in wordModel
+    - Add second option -w for direct input of wikipedia dumps
+    - WIT data type (option -w) for wikipedia 
+        no detection, malformed input gets transform fail
+     -> subtract ID, convert timestamp, convert html entities (also to UTF8)
+      | extract article header ns/id -> contributor, place after data
+      | extract langs at the end of article, place after data
+    - Move online wrt out from wordmodel
+    
+v79
+    - Change wordModel1
+       some html entities rollback
+    - Some fixes
+v78
+    - Change wordModel1,recordmodel
+v77
+    - Change TextModel (wrt)
+v76
+    - Change wordModel1 to compress pdf text (from paq8px_183fix1)
+    - Fix jpeg thumbnail compression
+    - Make online wrt work
+    - In wrt split num/utf8 chars, also some other utf8 chars. Large file mode
+    - Allow large text block detection (+2GB)
+    - Set utf8 for text if found
+    - Change wordModel1, recordmodel to use wrt column mode
+    - Change sparsemodelx
+    - Small fixes
+    - Show progress when detecting data
+v75
+    - Change wordModel1
+v74
+    - fix -x option on level 10-15
+v73
+    - Change text detection
+    - Change wordModel1
+    - Add mod_ppmd/chart model back (-x option)
+
+v72
+    - Change StationaryMap, StateMap
+    - Change jpegModel
+    - Change wordModel1
+    - remove wavModel
+    - added audio8, audio16
+
+v71
+    - small change in im8 compression
+    - reduce compression loss in v70
+v70
+    - Change StationaryMap
+    - Change im24 model, compresses faster.
+    - detect tiff change
+v69
+    -Online wrt is present and fixed, now actually decodes word if code
+      is larger then 1 byte.
+    -WordModel form paq8px_v182
+      this one is not active in any models, you have to manually add it
+      in source. Replaced in model array with blankmodel for now.
+      Online wrt is needed so one can detect presence of BT and ET 
+      for pdf mode in new WordModel.
+    -Combined models into arrays to ease mixer inputs/sets/context clutter,
+      let models to return usage.
+    -Colored console (Windows only!), based on type stream.
+    -JPEG compress improvment (APM), small gain.
+    -Detect LZW in PDF and ad to CMP stream.
+
 v68
     -update im8Mode,im24model,exemodel from paq8px_179
     -compressed stream /MZIP,EOL,ZLIB fail/

@@ -1,6 +1,6 @@
     /* paq8pxd file compressor/archiver.  Release by Kaido Orav
 
-    Copyright (C) 2008-2014 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
+    Copyright (C) 2008-2019 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
     Jan Ondrus, Andreas Morphis, Pavel L. Holoborodko, Kaido Orav, Simon Berger,
     Neill Corlett
@@ -547,10 +547,11 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd68"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd89"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 #define MT            //uncomment for multithreading, compression only
 #define SIMD_CM_R       // SIMD ContextMap byterun
+#define SM              // For faster statemap
 
 #ifdef WINDOWS                       
 #ifdef MT
@@ -568,6 +569,9 @@ which computes 8 elements at a time, is not any faster).
 #include <time.h>
 #include <math.h>
 #include "zlib.h"
+
+//#include <inttypes.h> // PRIi64 or 
+#include <cinttypes> // PRIi64
 #define NDEBUG  // remove for debugging (turns on Array bound checks)
 #include <assert.h>
 
@@ -682,8 +686,17 @@ public:
     assert(sizeof(int)==4);  
   }
   void print() const {  // print time and memory used
+#if defined(WINDOWS)  
+    HANDLE  hConsole;
+    int k;
+    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetConsoleTextAttribute(hConsole, 10);
+#endif
     printf("Time %1.2f sec, used %0lu MB (%0lu bytes) of memory\n",
       double(clock()-start_time)/CLOCKS_PER_SEC, ((maxmem)/1024)/1024,(maxmem));
+#if defined(WINDOWS)
+    SetConsoleTextAttribute(hConsole, 7);
+#endif
   }
 } programChecker;
 
@@ -1245,25 +1258,30 @@ U64 checksum64(const U64 hash, const int hashbits, const int checksumbits) {
   return hash>>(64-hashbits-checksumbits); 
 }
 /////////////////////// Global context /////////////////////////
-bool modeQuick=false;
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
+bool slow=false; //-x
+bool witmode=false; //-w
+bool staticd=false;  // -e
+bool doExtract=false;  // -d option
+bool doList=false;  // -l option
 U64 MEM(){
      return 0x10000UL<<level;
 }
-
+char *externaDict;
+int minfq=0;
 Segment segment; //for file segments type size info(if not -1)
 const int streamc=13;
 File * filestreams[streamc];
 typedef enum {STR_NONE=-1,STR_DEFAULT=0,STR_JPEG, STR_IMAGE1, STR_IMAGE4, STR_IMAGE8, STR_IMAGE24, STR_AUDIO, STR_EXE, STR_TEXT0,STR_TEXT,STR_BIGTEXT,STR_DECA,STR_CMP} Streamtype;
               
-const int datatypecount=43;
+const int datatypecount=43+1;
 typedef enum {DEFAULT=0,BINTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,
-              ZLIB,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,PNG24, PNG32,TYPELAST} Filetype;
+              ZLIB,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,PNG24, PNG32,WIT,TYPELAST} Filetype;
 typedef enum {INFO=0, STREAM,RECURSIVE} Filetypes;
 const char* typenames[datatypecount]={"default","bintext","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
                                 "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","zlib","mdf","mszip","eoltxt",
-                                "","","","tar","PNG8","PNG8G","PNG24","PNG32"};
+                                "","","","tar","PNG8","PNG8G","PNG24","PNG32","WIT"};
 static const int typet[TYPELAST][3]={
  // info, stream, recursive
   { 0, STR_DEFAULT, 0},// DEFAULT, 
@@ -1308,17 +1326,69 @@ static const int typet[TYPELAST][3]={
   { 1, STR_IMAGE8,  0},// PNG8,
   { 1, STR_IMAGE8,  0},// PNG8GRAY,
   { 1, STR_IMAGE24, 0},// PNG24,
-  { 1, STR_IMAGE24, 0}// PNG32,
+  { 1, STR_IMAGE24, 0},// PNG32,
+  { 1, STR_NONE,    1}// WIT, 
   };
 const U32 WRT_mpw[16]= { 4, 4, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0 };
-const U32 WRT_mtt[16]= { 0, 0, 1, 2, 3, 4, 5, 5,  6, 6, 6, 6, 7, 7, 7, 7 };
-const U32 tri[4]={0,4,3,7}, trj[4]={0,6,6,12};
+const U8 WRT_mtt[256]= {
+ 0,4,4,5,0,5,3,7, 0,2,4,0,0,0,0,0,
+ 0,0,0,0,0,0,0,0, 1,0,0,0,0,0,0,0,
+ 2,4,3,3,4,6,6,7, 5,4,0,4,3,4,0,1,
+ 1,1,1,1,1,1,1,1, 1,1,7,3,3,4,3,4,
+ 
+ 0,5,5,5,5,5,5,5, 5,5,5,5,5,5,5,5,
+ 5,5,5,5,5,5,5,5, 5,5,5,6,4,3,4,4,
+ 0,5,5,5,5,5,5,5, 5,5,5,5,5,5,5,5,
+ 5,5,5,5,5,5,5,5, 5,5,5,4,4,4,4,4,
 
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+ 6,6,6,6,6,6,6,6, 6,6,6,6,6,6,6,6,
+
+ 7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,
+ 7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,
+ 7,7,7,7,7,7,7,7, 7,7,7,7,7,7,7,7,
+};
+const U8 WRT_wrd1[256]={
+   0,  0,  0, 64,  0, 64,192,  0,   0,  0, 64,  0,  0,  0,  0,  0,
+   0,  0,  0,  0,  0,  0,  0,  0, 192,  0,  0,  0,  0,  0,  0,  0,
+   0,  0,192,  0,  0,  0,  0,  0,   0,  0,  0,  0,128,  0,  0,  0,
+  64, 64, 64, 64, 64, 64, 64, 64,  64, 64,  0,  0,128,  0,128,  0,
+
+   0, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64, 64, 64, 64, 64, 64,
+  64, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64,  0,192,  0,  0,  0,
+   0, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64, 64, 64, 64, 64, 64,
+  64, 64, 64, 64, 64, 64, 64, 64,  64, 64, 64,  0,  0,  0,  0,  0,
+
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+ 128,128,128,128,128,128,128,128, 128,128,128,128,128,128,128,128,
+
+ 192,192,192,192,192,192,192,192, 192,192,192,192,192,192,192,192,
+ 192,192,192,192,192,192,192,192, 192,192,192,192,192,192,192,192,
+ 192,192,192,192,192,192,192,192, 192,192,192,192,192,192,192,192,
+ };
+const U32 tri[4]={0,4,3,7}, trj[4]={0,6,6,12};
+typedef enum {M_RECORD=0,M_IM8,M_IM24,M_SPARSE,M_JPEG,M_WAV,M_MATCH,M_DISTANCE,
+              M_EXE,M_INDIRECT,M_DMC,M_NEST,M_NORMAL,M_IM1,M_XML,M_IM4,M_TEXT,
+              M_WORD,M_DEC,M_LINEAR,M_SPARSEMATCH,M_SPARSE_Y,M_PPM,M_CHART,/*M_LSTM,*/M_MODEL_COUNT} ModelTypes;
+const char* models[M_MODEL_COUNT]={"RECORD","IM8","IM24","SPARSE","JPEG","WAV","MATCH","DISTANCE",
+              "EXE","INDIRECT","DMC","NEST","NORMAL","IM1","XML","IM4","TEXT",
+              "WORD","DEC","LINEAR","SPARSEMATCH","SPARSE_Y","M_PPM","M_CHART"/*,"M_LSTM"*/};
 #define PNGFlag (1<<31)
 #define GrayFlag (1<<30)
 // Contain all global data usable between models
 class BlockData {
 public: 
+//wrt
+  U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
+  bool wrtLoaded;
+  Array<U8> wrtText;
+  int wrtTextSize,wrtstatus,wrtbytesize;
     Segment segment; //for file segments type size info(if not -1)
     int y; // Last bit, 0 or 1, set by encoder
     int c0; // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
@@ -1348,6 +1418,8 @@ public:
   struct {
     U32 length;
     U8 byte;
+    bool bypass;
+    U16 bypassprediction;
   } Match;
   struct {
     struct {
@@ -1357,14 +1429,33 @@ public:
     U8 ctx;
   } Image;
   U64 Misses;
-BlockData():y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
+  U32 count;
+  int wwords;
+  U32 tmask;
+  U64 wrtc4;
+  bool dictonline;
+  bool inpdf;
+  int wcol;
+  int utf8l,wlen;
+  bool wstat,wdecoded;
+  U32 pwords,pbc;
+  int bc4;
+  
+BlockData(): wrtpos(0),wrtfile(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtLoaded(false),wrtText(255),wrtTextSize(0),wrtstatus(0),wrtbytesize(0),
+y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
     b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
     failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),
-    wordlen(0),wordlen1(0),grp(0),Text{0},Match{0},Image{0},Misses(0){
+    wordlen(0),wordlen1(0),grp(0),/*Text{0},Match{0},Image{0},*/Misses(0),count(0),wwords(0),tmask(0),
+    wrtc4(0),dictonline(false),inpdf(false),wcol(0),utf8l(0),wlen(0),wstat(false),wdecoded(false),
+    pwords(0),pbc(0),bc4(0)
+   {
+       memset(&Image, 0, sizeof(Image));
+       memset(&Match, 0, sizeof(Match));
+       memset(&Text, 0, sizeof(Text));
         // Set globals according to option
         assert(level<=15);
         bufn.setsize(0x10000);
-        if (level>=9) buf.setsize(0x10000000); //limit 256mb
+        if (level>=11) buf.setsize(0x20000000); //limit 512mb
         else buf.setsize(MEM()*8);
        /* #ifndef NDEBUG 
         printf("\n Buf size %d bytes\n", buf.poswr);
@@ -1795,9 +1886,10 @@ private:
   bool doText; 
   Array<ErrorInfo> info; 
   Array<int> rates; // learning rates
+  int l1,l2;
 public:  
   BlockData& x;
-  Mixer(int n, int m,BlockData& bd, int s=1, int w=0);
+  Mixer(int n, int m,BlockData& bd, int s=1, int w=0,int f=0);
   
 #if defined(__AVX2__)
  int dot_product (const short* const t, const short* const w, int n) {
@@ -1971,7 +2063,7 @@ void train(short *t, short *w, int n, int err) {
     nx=base=ncxt=0;
   }
   void update2() {
-      if (nx==0) return;
+      if (nx==0) {reset();return;}
       if (x.filetype==EXE || x.filetype==IMAGE24 || x.filetype==DECA)update1();
     else     if(doText==true) train(&tx[0], &wx[0], nx, ((x.y<<12)-base)*3/2), reset();
     else             update();
@@ -2015,6 +2107,9 @@ void train(short *t, short *w, int n, int err) {
     cxt[ncxt++]=base+cx;
     base+=range;
   }
+  void setl(int cx){
+      l2=cx;
+  }
   // predict next bit
   int p(const int shift0=0, const int shift1=0) {
     while (nx&15) tx[nx++]=0;  // pad
@@ -2027,8 +2122,8 @@ void train(short *t, short *w, int n, int err) {
           pr[i]=squash(dp);
           mp->add(dp);
       }
-     if(doText==false) mp->set(0, 1);
-      return mp->p(shift0, shift1);
+     if(doText==false) mp->set(l2, l1);
+     return mp->p(shift0, shift1);
     }
     else {  // S=1 context
     if(doText==false)  
@@ -2050,9 +2145,9 @@ Mixer::~Mixer() {
   delete mp;
 }
 
-Mixer::Mixer(int n, int m, BlockData& bd, int s, int w):
+Mixer::Mixer(int n, int m, BlockData& bd, int s, int w,int f):
     N((n+15)&-16), M(m), S(s), wx(N*M),
-    cxt(S), ncxt(0), base(0), pr(S), mp(0),tx(N),nx(0),x(bd),doText(false), info(S), rates(S) {
+    cxt(S), ncxt(0), base(0), pr(S), mp(0),tx(N),nx(0),x(bd),doText(false), info(S), rates(S),l1(f+(f==0?1:0)),l2(0){
   assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
   for (i=0; i<S; ++i){
@@ -2063,7 +2158,7 @@ Mixer::Mixer(int n, int m, BlockData& bd, int s, int w):
 
   for (i=0; i<N*M; ++i)
     wx[i]=w;
-  if (S>1) mp=new Mixer(S, 1,x ,1);
+  if (S>1) mp=new Mixer(S, f==0?1:f,x ,1,0,0);
 }
 
 
@@ -2115,21 +2210,39 @@ APM1::APM1(int n,BlockData& bd): index(0), N(n), t(n*33),x(bd) {
 //     prediction.  Larger values are better for stationary sources.
 
 static int dt[1024];  // i -> 16K/(i+i+3)
-
+//Array<int,32> dt(1024);
 class StateMap {
 protected:
   const int N;  // Number of contexts
   int cxt;      // Context of last prediction
   Array<U32> t;       // cxt -> prediction in high 22 bits, count in low 10 bits
-  inline void update(int y, int limit) {
+  inline void update(const int y, int limit) {
     assert(cxt>=0 && cxt<N);
     assert(y==0 || y==1);
     U32 *p=&t[cxt], p0=p[0];
+#ifdef SM   
+    int n=p0&1023, pr=p0>>13;  // count, prediction
+    p0+=(n<limit);
+    p0+=(((y<<19)-pr))*dt[n]&0xfffffc00;
+#else
     int n=p0&1023, pr=p0>>10;  // count, prediction
-    //if (n<limit) ++p0;
-    //else p0=(p0&0xfffffc00)|limit;
     p0+=(n<limit);
     p0+=(((y<<22)-pr)>>3)*dt[n]&0xfffffc00;
+#endif
+    p[0]=p0;
+  }
+  
+inline void update1(const int y, int limit) {
+    assert(cxt>=0 && cxt<N);
+    assert(y==0 || y==1);
+    U32 *p=&t[cxt], p0=p[0];
+#ifdef SM   
+    int  pr=p0>>13;  // count, prediction
+    p0+=(((y<<19)-pr));
+#else
+    int pr=p0>>10;  // count, prediction
+    p0+=(((y<<22)-pr)>>3);
+#endif
     p[0]=p0;
   }
 
@@ -2140,18 +2253,29 @@ public:
       t[i]=(t[i]&0xfffffc00)|min(Rate, t[i]&0x3FF);
   }
   // update bit y (0..1), predict next bit in context cx
-  int p(int cx, int y,int limit=1023) {
+  int p(int cx,const int y,int limit=1023) {
     assert(cx>=0 && cx<N);
     assert(limit>0 && limit<1024);
     assert(y==0 || y==1);
     update(y,limit);
     return t[cxt=cx]>>20;
   }
+  int p1(int cx,const int y,int limit=1023) {
+    assert(cx>=0 && cx<N);
+    assert(limit>0 && limit<1024);
+    assert(y==0 || y==1);
+    update1(y,limit);
+    return t[cxt=cx]>>20;
+  }
 };
 
 StateMap::StateMap(int n): N(n), cxt(0), t(n) {
-  for (int i=0; i<N; ++i)
-    t[i]=1<<31;
+  for (U32 cx=0; cx<N; ++cx) {
+        U8 state=U8(cx&255);
+        U32 n0=nex(state,2)*3+1;
+        U32 n1=nex(state,3)*3+1;
+        t[cx] = ((n1<<20)/(n0+n1))<<12;
+  }
 }
 
 // An APM maps a probability and a context to a new probability.  Methods:
@@ -2415,23 +2539,68 @@ public:
     Context = (ctx&Mask)*Stride;
     bCount=B=0;
   }
-  void Reset( int Rate = 0 ){
+    void Reset( int Rate = 0 ){
     for (U32 i=0; i<Data.size(); ++i)
-      Data[i]=(0x7FF<<20)|min(1023,Rate);
+      Data[i]=(1<<31)|min(1023,Rate);
   }
   void mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023) {
     // update
-    U32 Count = min(min(Limit,0x3FF), ((*cp)&0x3FF)+1);
-    int Prediction = (*cp)>>10, Error = (m.x.y<<22)-Prediction;
-    Error = ((Error/8)*dt[Count])/1024;
-    Prediction = min(0x3FFFFF,max(0,Prediction+Error));
-    *cp = (Prediction<<10)|Count;
+    int Prediction,Error ;
+    /*  U32 Count = min(min(Limit,0x3FF), ((*cp)&0x3FF)+1);
+     Prediction =  (*cp)>>10, Error = (m.x.y<<22)-Prediction;
+    Error = ((Error )*dt[Count]);
+     Prediction = min(0x3FFFFF,max(0,Prediction+Error));
+    (*cp) = (Prediction<<10)|Count; //*/
+    U32 p0=cp[0];
+#ifdef SM  
+     int n=p0&1023, pr=p0>>13;  // count, prediction
+     p0+=(n<Limit);     
+     p0+=(((m.x.y<<19)-pr))*dt[n]&0xfffffc00;
+#else
+     int n=p0&1023, pr=p0>>10;  // count, prediction
+     p0+=(n<Limit);     
+     p0+=(((m.x.y<<22)-pr)>>3)*dt[n]&0xfffffc00;
+#endif    
+     cp[0]=p0;
+
     // predict
     B+=(m.x.y && B>0);
     cp=&Data[Context+B];
-    Prediction = (*cp)>>20;
-    m.add((stretch(Prediction)*Multiplier)/Divisor);
-    m.add(((Prediction-2048)*Multiplier)/(Divisor*2));
+    pr = (*cp)>>20;
+    m.add((stretch(pr)*Multiplier)/Divisor);
+    pr=((pr-2048)*Multiplier)/(Divisor*2);
+    m.add(pr);
+    bCount++; B+=B+1;
+    if (bCount==bTotal)
+      bCount=B=0;
+  }
+  void mix1(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023) {
+    // update
+    int Prediction,Error;
+    U32 p0=cp[0];
+#ifdef SM
+     int pr=p0>>13;  // count, prediction
+     if (m.x.count>0x4ffff)
+       p0+=(((m.x.y<<19)-pr));
+     else {
+       int n=p0&1023;
+       p0+=(n<Limit);     
+       p0+=(((m.x.y<<19)-pr))*dt[n]&0xfffffc00;
+     }
+#else
+     int n=p0&1023, pr=p0>>10;  // count, prediction
+     p0+=(n<Limit);     
+     p0+=(((m.x.y<<22)-pr)>>3)*dt[n]&0xfffffc00;
+#endif    
+     cp[0]=p0;
+
+    // predict
+    B+=(m.x.y && B>0);
+    cp=&Data[Context+B];
+    pr = (*cp)>>20;
+    m.add((stretch(pr)*Multiplier)/Divisor);
+    pr=((pr-2048)*Multiplier)/(Divisor*2);
+    m.add(pr);
     bCount++; B+=B+1;
     if (bCount==bTotal)
       bCount=B=0;
@@ -2474,6 +2643,7 @@ public:
       bCount=B=0;
   }
 };
+
 // Context map for large contexts.  Most modeling uses this type of context
 // map.  It includes a built in RunContextMap to predict the last byte seen
 // in the same context, and also bit-level contexts that map to a bit
@@ -2553,12 +2723,15 @@ class ContextMap {
   Random rnd;
   int mix1(Mixer& m, int cc, int bp, int c1, int y1);
     // mix() with global context passed as arguments to improve speed.
-    
+  int model;  
 public:
-  ContextMap(U64 m, int c=1);  // m = memory in bytes, a power of 2, C = c
+  ContextMap(U64 m, int c=1,int mod=-1);  // m = memory in bytes, a power of 2, C = c
   ~ContextMap();
+  void set();   // set next whole byte context to cx
   void set(U32 cx, int next=-1);   // set next whole byte context to cx
+  void set(U64 cx, int next=-1);   // set next whole byte context to cx
     // if next is 0 then set order does not matter
+  //int mix(Mixer& m) { return mix1(m, m.x.c0, m.x.bpos, m.x.buf(1), m.x.y);}
   int mix(Mixer& m) {return mix1(m, m.x.c0, m.x.bpos, m.x.buf(1), m.x.y);}
     int inputs();
 };
@@ -2678,8 +2851,8 @@ for (int i=pcount; i<7; ++i) {
 }
 
 // Construct using m bytes of memory for c contexts(c+7)&-8
-ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
-    cxt(C), runp(C), r0(C),r1(C),r0i(C),rmask(C),cn(0) {
+ContextMap::ContextMap(U64 m, int c,int mod): C(c),  t(m>>6), cp(C), cp0(C),
+    cxt(C), runp(C), r0(C),r1(C),r0i(C),rmask(C),cn(0),model(mod) {
   assert(m>=64 && (m&m-1)==0);  // power of 2?
   assert(sizeof(E)==64);
   sm=new StateMap[C];
@@ -2691,11 +2864,19 @@ ContextMap::ContextMap(U64 m, int c): C(c),  t(m>>6), cp(C), cp0(C),
  // printf("ContextMap t %0.2f mbytes\n",(((t.size()*sizeof(E)) +0.0)/1024)/1024);
  // #endif
 }
-
+#define CMBADLIMIT 8*32767
 ContextMap::~ContextMap() {
   delete[] sm;
 }
-
+inline void ContextMap::set() {
+    set(U32(0));
+  
+}
+// Set the i'th context to cx
+inline void ContextMap::set(U64 cx, int next) {
+    set(finalize64(cx,32));
+  
+}
 // Set the i'th context to cx
 inline void ContextMap::set(U32 cx, int next) {
     if (cn==C) cn=0; // model bypass FIXME
@@ -2728,16 +2909,28 @@ inline int mix2(Mixer& m, int s, StateMap& sm) {
 
   return s>0;
 }
+inline int mix3(Mixer& m, int s, StateMap& sm) {
+  int p1=sm.p1(s,m.x.y);
+  int n0=-!nex(s,2);
+  int n1=-!nex(s,3);
+  int st=stretch(p1)>>2;
+  m.add(st);
+  p1>>=4;
+  int p0=255-p1;
+  if (m.x.rm1)  m.add(p1-p0); else m.add(0);
+  m.add(st*(n1-n0));
+  m.add((p1&n0)-(p0&n1));
+  m.add((p1&n1)-(p0&n0));
 
-
+  return s>0;
+}
 // Update the model with bit y1, and predict next bit to mixer m.
 // Context: cc=c0, bp=bpos, c1=buf(1), y1=y.
 int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
   // Update model with y
   int result=0;
-
   for (int i=0; i<cn; ++i) {
-   if(cxt[i]){
+   if(cxt[i]){   
     if (cp[i]) {
       assert(cp[i]>=&t[0].bh[0][0] && cp[i]<=&t[t.size()-1].bh[6][6]);
       assert(((long long)(cp[i])&63)>=15);
@@ -2789,18 +2982,36 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
       } break;
      }
     }
-    // predict from bit context
-    int s = 0;
-    if (cp[i]) s = *cp[i];
-    if (s>0) result++;
-    mix2(m, s, sm[i]);
-
-
-  }else{
-    for (int i=0; i<(inputs()-1); i++)
-        m.add(0);     
-  }
-  }
+   }
+   }
+   if(m.x.count>0x5FFFF){
+   // for faster statemap
+   for (int i=0; i<cn; ++i) {
+       if(cxt[i]){
+            // predict from bit context
+            int s = 0;
+            if (cp[i]) s = *cp[i];
+            if (s>0) result++;
+            mix3(m, s, sm[i]);
+       }else{
+            for (int i=0; i<(inputs()-1); i++)
+                m.add(0);     
+       }
+   }
+    }else{
+       for (int i=0; i<cn; ++i) {
+       if(cxt[i]){
+            // predict from bit context
+            int s = 0;
+            if (cp[i]) s = *cp[i];
+            if (s>0) result++;
+              mix2(m, s, sm[i]);
+       }else{
+            for (int i=0; i<(inputs()-1); i++)
+                m.add(0);     
+       }
+   }
+   }
     // predict from last byte in context
      
      for (int i=0; i<cn; ++i) {
@@ -2810,7 +3021,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
          r1[i]=b;
          r0i[i]=ilog(a+1);
      }
- 
+
 #if defined(SIMD_CM_R ) && defined(__AVX2__)
     const int bsh=(8-bp);
     const int bsh1=(7-bp);
@@ -2941,6 +3152,7 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
   if (bp==7) cn=0;
   return result;
 }
+
 int ContextMap::inputs() {
     return 6;
 }
@@ -3051,6 +3263,7 @@ for (int i=pcount; i<7; ++i) {
   U32 index; // Next context to set by set()
   U32 bits;
   U8 lastByte, lastBit, bitPos;
+   int model;  
   inline void Update() {
     U64 mask = Table.size()-1;
     for (U32 i=0; i<index; i++) {
@@ -3105,7 +3318,7 @@ for (int i=pcount; i<7; ++i) {
   }
 public:
   // Construct using Size bytes of memory for Count contexts
-  ContextMap2(const U64 Size, const U32 Count) : C(Count), Table(Size>>6), BitState(Count), BitState0(Count), ByteHistory(Count), Contexts(Count), HasHistory(Count){
+  ContextMap2(const U64 Size, const U32 Count,int mod) : C(Count), Table(Size>>6), BitState(Count), BitState0(Count), ByteHistory(Count), Contexts(Count), HasHistory(Count),model(mod) {
    // assert(Size>=64 && ispowerof2(Size));
     assert(sizeof(Bucket)==64);
     Maps6b = new StateMap*[C];
@@ -3142,6 +3355,10 @@ public:
     
     
   }
+  inline void  set() {
+    set(U32(0));
+  
+}
   int mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4) {
     int result = 0;
     lastBit = m.x.y;
@@ -3150,6 +3367,7 @@ public:
     lastByte = bits&0xFF;
     if (bitPos==0)
       bits = 1;
+
     Update();
 
     for (U32 i=0; i<index; i++) {
@@ -3181,7 +3399,7 @@ public:
       
       int st=(stretch(p1)*Multiplier)/Divisor;
       m.add(st);
-      m.add(((p1-2047)*Multiplier)/(2*Divisor));
+      m.add(((p1-2048)*Multiplier)/(2*Divisor));
       if (state == 0) {
         m.add(0);
         m.add(0);
@@ -3283,6 +3501,10 @@ public:
   void Add(const T val) {
     if (index<n)
       x[index++] = F(val)-sub;
+  }
+  void AddFloat(const F val) {
+    if (index<n)
+      x[index++] = val-sub;
   }
   F Predict(const T **p) {
     F sum = 0.;
@@ -4845,350 +5067,126 @@ public:
   }
 };
 bool CAlpha2(U32 ins) {
-  int function=0;
+   static const int op10[22]= {0x40,0x00,0x02,0x49,0x09,0x0b,0x0f,0x12,0x1b,0x1d,0x60,0x20,0x22,0x69,0x29,0x2b,0x2d,0x32,0x3b,0x3d,0x4d,0x6d};
+   static const int op11[16]= {0x00,0x08,0x14,0x16,0x20,0x24,0x26,0x28,0x40,0x44,0x46,0x48,0x61,0x64,0x66,0x6c};
+   static const int op12[27]= {0x02,0x06,0x0b,0x12,0x16,0x1b,0x22,0x26,0x2b,0x30,0x31,0x32,0x34,0x36,0x39,0x3b,0x3c,0x52,0x57,0x5a,0x62,0x67,0x6a,0x72,0x77,0x7a};
+   static const int op13[5 ]= {0x40,0x00,0x60,0x20,0x30};
+   static const int op14[51]= {0x004,0x00a,0x08a,0x10a,0x18a,0x40a,0x48a,0x50a,0x58a,0x00b,0x04b,0x08b,0x0cb,0x10b,0x14b,0x18b,0x1cb,0x50b,0x54b,0x58b,0x5cb,
+                               0x70b,0x74b,0x78b,0x7cb,0x014,0x024,0x02a,0x0aa,0x12a,0x1aa,0x42a,0x4aa,0x52a,0x5aa,0x02b,0x06b,0x0ab,0x0eb,0x12b,0x16b,0x1ab,
+                               0x1eb,0x52b,0x56b,0x5ab,0x5eb,0x72b,0x76b,0x7ab,0x7eb};
+   static const int op15a[11]={0x0a5,0x4a5,0x0a6,0x4a6,0x0a7,0x4a7,0x03c,0x0bc,0x03e,0x0be};
+   static const int op15b[13]={0x000, 0x001,0x002,0x003, 0x01e,0x020,0x021,0x022,0x023,0x02c,0x02d,0x02f};
+   static const int op16a[11]={0x0a4,0x5a4,0x0a5, 0x5a5,0x0a6, 0x5a6,0x0a7,0x5a7,0x2ac,0x6ac};
+   static const int op16b[11]={0x00,0x01,0x02,0x03,0x20,0x21,0x22,0x23,0x2c,0x2f };
+   static const int op17[15]= {0x010,0x020,0x021,0x022,0x024,0x025,0x02a,0x02b,0x02c,0x02d, 0x02e,0x02f, 0x030,0x130, 0x530};
+   static const int op18[12]= {0x0000,0x0400, 0x4000,0x4400,0x8000,0xA000,0xC000,0xE000,0xE800,0xF000,0xF800,0xFC00};
+   static const int op1c[20]= {0x00,0x01,0x30,0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3a,0x3b,0x3c,0x3d,0x3e,0x3f,0x70,0x78};
+  int function=0,i=0;
   int opc=ins >> 26;
-      if (opc==0)   goto op_00;   
-      if (opc==1)   return false;
-      if (opc==2)   return false;
-      if (opc==3)   return false;
-      if (opc==4)   return false;
-      if (opc==5)   return false;
-      if (opc==6)   return false;
-      if (opc==7)   return false;
-      if (opc==0x08) return true; 
-      if (opc==0x09) return true; 
-      if (opc==0x0a) return true; 
-      if (opc==0x0b) return true; 
-      if (opc==0x0c) return true; 
-      if (opc==0x0d) return true; 
-      if (opc==0x0e) return true; 
-      if (opc==0x0f) return true; 
-      if (opc==0x10) goto op_10;
-      if (opc==0x11) goto op_11;
-      if (opc==0x12) goto op_12;
-      if (opc==0x13) goto op_13;
-      if (opc==0x14) goto op_14;
-      if (opc==0x15) goto op_15;
-      if (opc==0x16) goto op_16;
-      if (opc==0x17) goto op_17;
-      if (opc==0x18) goto op_18;
+      if (opc==0) {        // PAL
+        function = ins & 0x1fffffff;
+        if( ((function > 0x3f) && (function < 0x80)) || (function > 0xbf)){
+            return false;
+        }
+        return true;
+      }  
+      if (opc>=1 && opc<=7)   return false;
+      if (opc>=0x08 && opc<=0x0f)   return true;
+      if (opc==0x10) {        // INTA
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<22;i++){
+            if (op10[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x11) {        // INTL
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<16;i++){
+            if (op11[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x12) {        // INTS
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<27;i++){
+            if (op12[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x13) {        // INTM
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<5;i++){
+            if (op13[i]==function)return true;
+        }
+        return false;
+
+    }
+      if (opc==0x14) {        // ITFP
+        function = (ins >> 5) & 0x7ff;
+        for (i=0;i<51;i++){
+            if (op14[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x15) {        // FLTV
+        function = (ins >> 5) & 0x7ff;
+
+         for (i=0;i<11;i++){
+            if (op15a[i]==function)return true;
+        }
+        if(function & 0x200)  return false;
+        function =  (function & 0x7f);
+        for (i=0;i<13;i++){
+            if (op15b[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x16) {        // FLTI
+        function = (ins >> 5) & 0x7ff;
+        for (i=0;i<11;i++){
+            if (op16a[i]==function)return true;
+        }
+        if(((function & 0x600) == 0x200) || ((function & 0x500) == 0x400)) return false;
+        opc = function & 0x3f;
+        for (i=0;i<11;i++){
+            if (op16b[i]==opc)return true;
+        }
+        if (opc==0x3c) {
+            if((function & 0x300) == 0x100){ return false;}
+        return true;
+        }
+        if (opc==0x3e) {
+            if((function & 0x300) == 0x100){ return false;}
+        return true;
+        }
+        return false;
+    }
+      if (opc==0x17) {        // FLTL
+        function = (ins >> 5) & 0x7ff;
+        for (i=0;i<15;i++){
+            if (op17[i]==function)return true;
+        }
+        return false;
+    }
+      if (opc==0x18) {    // MISC
+        function = (ins & 0xffff);
+        for (i=0;i<12;i++){
+            if (op18[i]==function)return true;
+        }
+        return false;
+    }
       if (opc==0x19) return true;
       if (opc==0x1a) return true;
       if (opc==0x1b) return true;
-      if (opc==0x1c) goto op_1c;
-      if (opc>=0x1d && opc<=0x3f) return true;
-      return false;
-
-op_00:  // PAL
-  function = ins & 0x1fffffff;
-  if( ((function > 0x3f) && (function < 0x80)) || (function > 0xbf))                             
-  {                                                              
-    return false;                                                   
-  } 
-  return true;
-
-op_10:  // INTA
-  function = (ins >> 5) & 0x7f;
-  switch(function) {
-  case 0x40: 
-  case 0x00: 
-  case 0x02: 
-  case 0x49: 
-  case 0x09: 
-  case 0x0b: 
-  case 0x0f: 
-  case 0x12: 
-  case 0x1b: 
-  case 0x1d: 
-  case 0x60: 
-  case 0x20: 
-  case 0x22: 
-  case 0x69: 
-  case 0x29: 
-  case 0x2b: 
-  case 0x2d: 
-  case 0x32: 
-  case 0x3b: 
-  case 0x3d: 
-  case 0x4d: 
-  case 0x6d: return true;
-  default:   return false; 
-  }
-
-op_11:  // INTL
-  function = (ins >> 5) & 0x7f;
-  
-  switch(function) {
-  case 0x00: 
-  case 0x08: 
-  case 0x14: 
-  case 0x16: 
-  case 0x20: 
-  case 0x24: 
-  case 0x26: 
-  case 0x28: 
-  case 0x40: 
-  case 0x44: 
-  case 0x46: 
-  case 0x48: 
-  case 0x61: 
-  case 0x64: 
-  case 0x66: 
-  case 0x6c:  return true;
-  default:    return false; 
-  }
-
-op_12:  // INTS
-  function = (ins >> 5) & 0x7f;
-  
-  switch(function) {
-  case 0x02:  
-  case 0x06:  
-  case 0x0b:  
-  case 0x12:  
-  case 0x16:  
-  case 0x1b:  
-  case 0x22:  
-  case 0x26:  
-  case 0x2b:  
-  case 0x30:  
-  case 0x31:  
-  case 0x32:  
-  case 0x34:  
-  case 0x36:  
-  case 0x39:  
-  case 0x3b:  
-  case 0x3c:  
-  case 0x52:  
-  case 0x57:  
-  case 0x5a:  
-  case 0x62:  
-  case 0x67:  
-  case 0x6a:  
-  case 0x72:  
-  case 0x77:  
-  case 0x7a:  return true;
-  default:    return false; 
-  }
-
-op_13:  // INTM
-
-  function = (ins >> 5) & 0x7f;
-  switch(function) 
-  {
-  case 0x40: 
-  case 0x00: 
-  case 0x60: 
-  case 0x20: 
-  case 0x30:  return true;
-  default:   return false; 
-  }
-
-op_14:   // ITFP
-  function = (ins >> 5) & 0x7ff;
-  
-  switch(function) {
-  case 0x004:
-  case 0x00a:
-  case 0x08a:
-  case 0x10a:
-  case 0x18a:
-  case 0x40a:
-  case 0x48a:
-  case 0x50a:
-  case 0x58a:
-  case 0x00b:
-  case 0x04b:
-  case 0x08b:
-  case 0x0cb:
-  case 0x10b:
-  case 0x14b:
-  case 0x18b:
-  case 0x1cb:
-  case 0x50b:
-  case 0x54b:
-  case 0x58b:
-  case 0x5cb:
-  case 0x70b:
-  case 0x74b:
-  case 0x78b:
-  case 0x7cb:
-  case 0x014:
-  case 0x024:
-  case 0x02a:
-  case 0x0aa:
-  case 0x12a:
-  case 0x1aa:
-  case 0x42a:
-  case 0x4aa:
-  case 0x52a:
-  case 0x5aa:
-  case 0x02b:
-  case 0x06b:
-  case 0x0ab:
-  case 0x0eb:
-  case 0x12b:
-  case 0x16b:
-  case 0x1ab:
-  case 0x1eb:
-  case 0x52b:
-  case 0x56b:
-  case 0x5ab:
-  case 0x5eb:
-  case 0x72b:
-  case 0x76b:
-  case 0x7ab:
-  case 0x7eb:
-    return true;
-
-  default:
-    return false; 
-  }
-
-op_15:     // FLTV
-  function = (ins >> 5) & 0x7ff;
-  
-  switch(function) {
-  case 0x0a5:
-  case 0x4a5:
-  case 0x0a6:
-  case 0x4a6:
-  case 0x0a7:
-  case 0x4a7:
-  case 0x03c:
-  case 0x0bc:
-  case 0x03e:
-  case 0x0be:
-    return true;
-
-  default:
-    if(function & 0x200)  return false; 
-
-    switch(function & 0x7f) {
-    case 0x000: 
-    case 0x001: 
-    case 0x002: 
-    case 0x003: 
-    case 0x01e: 
-    case 0x020: 
-    case 0x021: 
-    case 0x022: 
-    case 0x023: 
-    case 0x02c: 
-    case 0x02d: 
-    case 0x02f: return true;
-    default:  return false; 
+      if (opc==0x1c) {           // FPTI
+        function = (ins >> 5) & 0x7f;
+        for (i=0;i<20;i++){
+            if (op1c[i]==function)return true;
+        }
+        return false;
     }
-    break;
-  }
-
-op_16:    // FLTI
-  function = (ins >> 5) & 0x7ff;  
-  switch(function) {
-  case 0x0a4:
-  case 0x5a4:
-  case 0x0a5:
-  case 0x5a5:
-  case 0x0a6:
-  case 0x5a6:
-  case 0x0a7:
-  case 0x5a7:
-  case 0x2ac:
-  case 0x6ac:
-    return true;
-
-  default:
-    if(((function & 0x600) == 0x200) || ((function & 0x500) == 0x400)) return false; 
-
-    switch(function & 0x3f) {
-    case 0x00: 
-    case 0x01: 
-    case 0x02: 
-    case 0x03: 
-    case 0x20: 
-    case 0x21: 
-    case 0x22: 
-    case 0x23: 
-    case 0x2c: 
-    case 0x2f:  return true;
-    case 0x3c:  if((function & 0x300) == 0x100){ return false;} return true;
-    case 0x3e:  if((function & 0x300) == 0x100){ return false;} return true;
-    default:    return false; 
-    }
-    break;
-  }
-
-op_17:     // FLTL
-  function = (ins >> 5) & 0x7ff;
-  switch(function) {
-  case 0x010:
-  case 0x020:
-  case 0x021:
-  case 0x022:
-  case 0x024:
-  case 0x025:
-  case 0x02a:
-  case 0x02b:
-  case 0x02c:
-  case 0x02d:
-  case 0x02e:
-  case 0x02f:
-  case 0x030:
-  case 0x130:
-  case 0x530:
-   return true;
-
-  default:
-   return false; 
-  }
-
-op_18:    // MISC
-
-  function = (ins & 0xffff);
-  switch(function) {
-  case 0x0000: 
-  case 0x0400: 
-  case 0x4000: 
-  case 0x4400: 
-  case 0x8000: 
-  case 0xA000: 
-  case 0xC000: 
-  case 0xE000: 
-  case 0xE800: 
-  case 0xF000: 
-  case 0xF800: 
-  case 0xFC00: return true;
-  default:     return false; 
-  }
-
-op_1c:   // FPTI
-  function = (ins >> 5) & 0x7f;
-  
-  switch(function) {
-  case 0x00: 
-  case 0x01: 
-  case 0x30: 
-  case 0x31: 
-  case 0x32: 
-  case 0x33: 
-  case 0x34: 
-  case 0x35: 
-  case 0x36: 
-  case 0x37: 
-  case 0x38: 
-  case 0x39: 
-  case 0x3a: 
-  case 0x3b: 
-  case 0x3c: 
-  case 0x3d: 
-  case 0x3e: 
-  case 0x3f: 
-  case 0x70: 
-  case 0x78:  return true;
-  default:    return false; 
-  }
-
-  return false;
+    if (opc>=0x1d && opc<=0x3f) return true;
+    return false;
 }
 //////////////////////////// Models //////////////////////////////
 
@@ -5246,8 +5244,11 @@ const U8 AsciiGroup[128] = {
 };
 class Model {
 public:
-  virtual  int p(Mixer& m,int val1,int val2)=0;
+  virtual  int p(Mixer& m,int val1=0,int val2=0)=0;
   virtual  int inputs()=0;
+  virtual  int nets()=0;
+  virtual  int netcount()=0;
+  virtual ~Model(){};
 };
 
 class TextModel: public Model {
@@ -5326,15 +5327,16 @@ private:
     Word WikiHead1;
     Word WikiHead2;
     Word WikiHead3;
-     Word WikiHead4;
+     Word WikiHead4;   
   } Info;
   U32 ParseCtx;
    bool doXML;
+   bool firstwasspace;
   void Update(Buf& buffer,Mixer& mixer);
   void SetContexts(Buf& buffer,Mixer& mixer);
 public:
-  TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),  Map(CMlimit(MEM()*Size), N), Stemmers(Language::Count-1), Languages(Language::Count-1),
-   WordPos(0x10000), State(Parse::Unknown), pState(State), Lang{ 0, 0, Language::Unknown, Language::Unknown }, Info{ 0 }, ParseCtx(0),doXML(false) {
+  TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),  Map(CMlimit(MEM()*Size), N,M_TEXT), Stemmers(Language::Count-1), Languages(Language::Count-1),
+   WordPos(0x10000), State(Parse::Unknown), pState(State), Lang{ 0, 0, Language::Unknown, Language::Unknown }, Info{ 0 }, ParseCtx(0),doXML(false),firstwasspace(false) {
     Stemmers[Language::English-1] = new EnglishStemmer();
     Stemmers[Language::French-1] = new FrenchStemmer();
     Stemmers[Language::German-1] = new GermanStemmer();
@@ -5356,6 +5358,8 @@ public:
     }
   }
    int inputs() {return N*Map.inputs();}
+   int nets() {return  1024+2048+4096+ 4096+2048+ 2048+ 4096+ 8192;}
+  int netcount() {return 8;}
   int p(Mixer& mixer,int val1=0, int val2=0) {
     if (mixer.x.bpos==0) {
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
@@ -5656,8 +5660,12 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
       cSegment->NumCount++, cSentence->NumCount++;
     }
   }
-  if (Info.lastNewLine==1)
-    Info.firstChar = (Lang.Id!=Language::Unknown)?c:min(c,96);
+  if (Info.lastNewLine==1) {
+    Info.firstChar = (Lang.Id!=Language::Unknown)?c:min(c,96); firstwasspace=Info.firstChar==' '?true:false;        }
+     
+        if (Info.lastNewLine>1 && firstwasspace && (Info.firstChar==' ' || Info.firstChar<4)  && buffer(1)!=' ') Info.firstChar=c;
+        if (Info.lastNewLine>1 && firstwasspace && !((Info.firstChar>='a' && Info.firstChar<='z') || (Info.firstChar>='0' && Info.firstChar<='9')|| (Info.firstChar>=128 &&(buffer(2)!=3))) ) Info.firstChar=c;  //world95
+
   if (Info.lastNest>512)
     Info.nestHash = 0;
   int leadingBitsSet = 0;
@@ -5718,9 +5726,9 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
   Map.set(hash(i++, (Info.lastLetter==0)?cWord->Hash[0]:pWord->Hash[0], c, cSegment->FirstWord.Hash[1], min(3,ilog2(cSegment->WordCount+1))));
   Map.set(hash(i++, cWord->Hash[0], c, Segments(1).FirstWord.Hash[1]));
   Map.set(hash(i++, max(31,lc), Info.masks[1]&0xFFC, (Info.spaces&0xFE)|(Info.lastPunct<Info.lastLetter), (Info.maskUpper&0xFF)|(((0x100|Info.firstLetter)*(Info.wordLength[0]>1))<<8)));
-  Map.set(hash(i++, column, min(7,ilog2(Info.lastUpper+1)), ilog2(Info.lastPunct+1)));
+  Map.set(hash(i++, column,mixer.x.wcol, min(7,ilog2(Info.lastUpper+1)), ilog2(Info.lastPunct+1)));
   Map.set(hash(++i,
-    (column&0xF8)|(Info.masks[1]&3)|((Info.prevNewLine-Info.lastNewLine>63)<<2)|
+    (((mixer.x.dictonline==true)?mixer.x.wcol:column)&0xF8)|(Info.masks[1]&3)|((Info.prevNewLine-Info.lastNewLine>63)<<2)|
     (min(3, Info.lastLetter)<<8)|
     (Info.firstChar<<10)|
     ((Info.commas>4)<<18)|
@@ -5733,7 +5741,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
     ((Info.linespace>4)<<25)
   ));
   Map.set(hash(
-    (2*column)/3,
+    (2*((mixer.x.dictonline==true)?mixer.x.wcol:column))/3,
     min(13, Info.lastPunct)+(Info.lastPunct>16)+(Info.lastPunct>32)+Info.maskPunct*16,
     ilog2(Info.lastUpper+1),
     ilog2(Info.prevNewLine-Info.lastNewLine),
@@ -5742,7 +5750,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
     ((m2<11)<<2)
   ));
    
-  Map.set(hash(i++, column>>1, Info.spaces&0xF));
+  Map.set(hash(i++, column>>1,mixer.x.wcol, Info.spaces&0xF));
   Map.set(hash(
     Info.masks[3]&0x3F,
     min((max(Info.wordLength[0],3)-2)*(Info.wordLength[0]<8),3),
@@ -5795,7 +5803,7 @@ void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
     (Info.lastPunct>=Info.lastLetter+Info.wordLength[1]+Info.wordGap)
   ));
   Map.set(hash(i++, w, c, Words[Lang.pId](1+(Info.wordLength[0]==0)).Letters[Words[Lang.pId](1+(Info.wordLength[0]==0)).Start], Info.firstLetter*(Info.wordLength[0]<7)));
-  Map.set(hash(i++, column, Info.spaces&7, Info.nestHash&0x7FF)); 
+  Map.set(hash(i++, column, mixer.x.wcol,Info.spaces&7, Info.nestHash&0x7FF)); 
   Map.set(hash(i++, cWord->Hash[0], (Info.lastUpper<column)|((Info.lastUpper<Info.wordLength[0])<<1), min(5, Info.wordLength[0])));
 }
 
@@ -5830,8 +5838,8 @@ private:
   
   void Update() {
         delta = false;
-    if (length==0 && Bypass)
-      Bypass = false; // can quit bypass mode on byte boundary only
+    if (length==0 && x.Match.bypass)
+      x.Match.bypass = false; // can quit bypass mode on byte boundary only
     // update hashes
     for (U32 i=0, minLen=MinLen+(NumHashes-1)*StepSize; i<NumHashes; i++, minLen-=StepSize) {
       hashes[i] = hash(minLen);
@@ -5882,12 +5890,14 @@ private:
   }
 public:
   bool canBypass;
-  bool Bypass;
-  U16 BypassPrediction; // prediction for bypass mode
+  //bool Bypass;
+  //U16 BypassPrediction; // prediction for bypass mode
   virtual ~matchModel1(){ }
   int inputs() {return  2+NumCtxs+3*2+3*2+2;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   matchModel1(BlockData& bd, U32 val1=0) :
-    x(bd),buffer(bd.buf),Size( CMlimit(MEM()*4)),
+    x(bd),buffer(bd.buf),Size(level>9?0x80000000: CMlimit(MEM()*4)),
     Table(Size/sizeof(U32)),
     StateMaps{56*256, 8*256*256+1, 256*256 },
     SCM{ {8,8},{11,1},{8,8} },
@@ -5899,10 +5909,12 @@ public:
     mask(Size/sizeof(U32)-1),
     expectedByte(0),
     delta(false),
-    canBypass(true),
+    canBypass(true)/*,
     Bypass(false),
-    BypassPrediction(2048)
+    BypassPrediction(2048)*/
   {
+      x.Match.bypass=false;
+      x.Match.bypassprediction=2048;
     assert((Size&(Size-1))==0);
   }
   int p(Mixer& m,int val1=0,int val2=0) {
@@ -5925,7 +5937,7 @@ public:
       }
     }
 
-    if (!(canBypass && Bypass)) {
+    if (!(canBypass && x.Match.bypass)) {
       for (U32 i=0; i<NumCtxs; i++)
         ctx[i] = 0;
       if (length>0) {
@@ -5959,18 +5971,18 @@ public:
       SCM[0].mix(m);
       SCM[1].mix(m, 6);
       SCM[2].mix(m, 5);
-      Maps[0].mix(m, 1, 4, 255);
+      Maps[0].mix(m);
       Maps[1].mix(m);
       Maps[2].mix(m);
     }
-    BypassPrediction = length==0 ? 2048 : (expectedBit==0 ? 1 : 4095);
+    x.Match.bypassprediction = length==0 ? 2048 : (expectedBit==0 ? 1 : 4095);
     x.Match.length = length;
     return ilog(length);
   }
   };
   
   
-class SparseMatchModel {
+class SparseMatchModel: public Model {
 private:
     BlockData& x;
     Buf& buffer;
@@ -6053,7 +6065,7 @@ private:
 public:
     SparseMatchModel(BlockData& bd, U32 val1=0) :
     x(bd),buffer(bd.buf),
-    Table(CMlimit(MEM()/2)),//?
+    Table(level>9?0x10000000:CMlimit(MEM()/2)),//?
     Maps{ {22, 1}, {17, 4}, {8, 1}, {19,1} },
     iCtx8{19,1},
     iCtx16{16},
@@ -6061,13 +6073,15 @@ public:
     hashes{ 0 },
     hashIndex(0),
     length(0),
-    mask(CMlimit(MEM()/2)-1),
+    mask(level>9?(0x10000000-1):CMlimit(MEM()/2)-1),
     expectedByte(0),
     valid(false)
   {
     //assert(ispowerof2(Size));
   }
   int inputs() {return  4*2+3;}
+   int nets() {return NumHashes*64+NumHashes*2048;}
+  int netcount() {return 2;}
   int p(Mixer& m,int val1=0,int val2=0) {
     const U8 B = x.c0<<(8-x.bpos);
     if (x.bpos==0)
@@ -6099,7 +6113,7 @@ public:
       }
 
       for (int i=0;i<4;i++)
-        Maps[i].mix(m, 1, 2);
+        Maps[i].mix(m);
 
     }
     else
@@ -6109,28 +6123,78 @@ public:
     return length;
   }
 };
-//#include "wrton.cpp"
+    
+U32 utf8_check(U8 *s){
+    int i=0;
+    if (*s < 0x80)      /* 0xxxxxxx */
+      return 0;
+    else if ((s[0] & 0xe0) == 0xc0) {      /* 110XXXXx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 || (s[0] & 0xfe) == 0xc0)                        /* overlong? */
+    return i;
+      else
+    i = 2;
+    } else if ((s[0] & 0xf0) == 0xe0) {      /* 1110XXXX 10Xxxxxx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 ||
+      (s[2] & 0xc0) != 0x80 ||
+      (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||    /* overlong? */
+      (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||    /* surrogate? */
+      (s[0] == 0xef && s[1] == 0xbf &&
+       (s[2] & 0xfe) == 0xbe))                      /* U+FFFE or U+FFFF? */
+    return i;
+      else
+    i = 3;
+    } else if ((s[0] & 0xf8) == 0xf0) {      /* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 ||
+      (s[2] & 0xc0) != 0x80 ||
+      (s[3] & 0xc0) != 0x80 ||
+      (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||    /* overlong? */
+      (s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) /* > U+10FFFF? */
+    return i;
+      else
+     i += 4;
+    } else
+      return i;
+  return i;
+}
+//Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
+#include "wrton.cpp"
+//#include "wrtpre.cpp" // zlib fails if included here :D
 //////////////////////////// wordModel /////////////////////////
 #define bswap(x) \
 +   ((((x) & 0xff000000) >> 24) | \
 +    (((x) & 0x00ff0000) >>  8) | \
 +    (((x) & 0x0000ff00) <<  8) | \
 +    (((x) & 0x000000ff) << 24))
+#define TAB 0x09
+#define NEW_LINE 0x0A
+#define CARRIAGE_RETURN 0x0D
 #define SPACE 0x20
+#define QUOTE 0x22
+#define APOSTROPHE 0x27
+
 // Model English text (words and columns/end of line)
 class wordModel1: public Model {
+   public:
+   BlockData& x;
+   Buf& buf;  
+private:
+   int N;
+   ContextMap cm;
+  class Info {
    BlockData& x;
    Buf& buf;
-    U32 word0, word1, word2, word3, word4, word5,word6;  // hashes
+    ContextMap  &cm;
+    U32 word0, word1, word2, word3, word4, word5,word6,word7;  // hashes
     U32 wrdhsh;
     U32 xword0,xword1,xword2,xword3,cword0,ccword,fword;
     U32 number0, number1,hq;  // hashes
-    U32 text0,N,data0,type0;  // hash stream of letters
-    ContextMap cm;
-    ContextMap cm1;
+    U32 text0,data0,type0;  // hash stream of letters
     int nl3,nl2,nl1, nl;  // previous, current newline position
     U32 mask,mask2;
     Array<int> wpos;  // last position of word
+    Array<U16> wchk ;
+    Array<U32> inkeyw;  // last position of word
+    Array<U32> inkeyw1;  // last position of word
     int w;
     bool doXML;
     U32 lastLetter,firstLetter, lastUpper, lastDigit,wordGap;
@@ -6139,21 +6203,65 @@ class wordModel1: public Model {
     EnglishStemmer StemmerEN;
     int StemIndex,same,linespace;
     int islink,istemplate;
+    bool is_letter, is_letter_pC, is_letter_ppC;
     U32 numbers,numbercount;
     U64 g_ascii_lo=0, g_ascii_hi=0; // group identifiers of 8+8 last characters
-public:
-  wordModel1( BlockData& bd,U32 val=0): x(bd),buf(bd.buf),word0(0),word1(0),word2(0),
-  word3(0),word4(0),word5(0),word6(0),wrdhsh(0),xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),number0(0),number1(0),
-  hq(0),text0(0),N(64),data0(0),type0(0),cm(CMlimit(MEM()*16), N),cm1(CMlimit(MEM()/2), 7),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),w(0),doXML(false),
+    U8 c, pC, ppC;           // last char, previous char, char before the previous char (converted to lowearcase)
+    U32 c4;
+    U32 ccount,col1;
+    bool firstwasspace;
+    U8 opened;
+    U32 line0;
+    U32 iword0;
+    U32 lastSpace;
+    bool pdft;
+    U16 chk;
+    int above, above1, above2,fl,f;
+    U32 expr0, expr1, expr2, expr3, expr4,exprlen0,expr0chars,wchar1,wchar2,wrth;  // wordtoken hashes for expressions
+    int wcol,wnl2,wnl1,wnl,wabove,scount;
+    bool scountset;
+    U32 wpword1;
+  public:
+   
+    Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm(contextmap),
+    word0(0),word1(0),word2(0), word3(0),word4(0),word5(0),word6(0),word7(0),
+    wrdhsh(0),
+    xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),
+    number0(0),number1(0),hq(0),
+    text0(0),data0(0),type0(0),nl3(-5),nl2(-4),nl1(-3), nl(-2),mask(0),mask2(0),wpos(0x10000),wchk(0x10000),inkeyw(0x10000),inkeyw1(0x10000),w(0),doXML(false),
   lastLetter(0),firstLetter(0), lastUpper(0),lastDigit(0), wordGap(0) ,StemWords(4),StemIndex(0),same(0),linespace(0),islink(0),istemplate(0),numbers(0),numbercount(0),
-  g_ascii_lo(0), g_ascii_hi(0){
-      cWord=&StemWords[0], pWord=&StemWords[3];
-   }
-   int inputs() {return N*cm.inputs()+7*cm.inputs();}
-   int p(Mixer& m,int val1=0,int val2=0)  {
-    // Update word hashes
-    if (x.bpos==0) {
-        int c=x.c4&255,pC=(U8)(x.c4>>8),f=0;
+  g_ascii_lo(0), g_ascii_hi(0), c(0), pC(0), ppC(0),c4(0),ccount(0),col1(0),firstwasspace(false),opened(0),line0(0),
+  iword0(0),lastSpace(0),pdft(false),chk(0),above(0), above1(0), above2(0),fl(0),f(0),scount(0),scountset(false),wpword1(0) {
+      reset();
+    }
+    void reset() { 
+       cWord=&StemWords[0], pWord=&StemWords[3];expr0=expr1=expr2=expr3=expr4=exprlen0=expr0chars=wchar2=wrth=0;wchar1=1;
+       is_letter=is_letter_pC=is_letter_ppC=false;
+       
+       wcol=wabove=0,wnl2,wnl1=wnl=-1;
+    }
+    // forget it
+    void shrwords() { 
+        word1=word2;
+        word2=word3;
+        word3=word4;
+        word4=word5;
+        word5=word6;
+        word6=word7;
+        word7=0;
+    }
+    void killwords() { 
+    word1=word2=word2=word3=word3=word4=0;
+        word4=word5=word5=word6=word6=word7=0;
+        word7=0;
+    }
+    void process_char(const int is_extended_char,int val1=0,int val2=0) {
+        ppC=pC; pC=c;
+        is_letter_ppC=is_letter_pC; is_letter_pC=is_letter;
+        c=x.c4&255;
+        c4=(c4<<8)|c;
+        int i=0,d=0;
+        f=0;
         if (x.spaces&0x80000000) --x.spacecount;
         if (x.words&0x80000000) --x.wordcount;
         if (numbers&0x80000000) --numbercount;
@@ -6162,8 +6270,18 @@ public:
         x.words=x.words*2;
         lastUpper=min(lastUpper+1,255);
         lastLetter=min(lastLetter+1,255);
+        lastSpace=min(lastSpace+1,1024*4);
         mask2<<=2;
-        
+        if (is_extended_char>0 || is_extended_char==-1) wchar1=(wchar1<<8)|c;
+        if (is_extended_char==0 && wchar1!=1 ) wchar2=wchar1,wchar1=1;
+        if (!(x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK || x.filetype==EXE || x.filetype==ARM)){
+           d=WRT_wrd1[c]; 
+           x.pwords=x.pwords*2;   
+           x.pbc=x.pbc*2+d/64;
+           if ((d)) {x.pwords++, wpword1^=hash(wpword1, c);}
+           else wpword1=d; 
+          // x.bc4=d<<2; 
+        }
         if (pC>='A' && pC<='Z') pC+='a'-'A';
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
         if ((c>='a' && c<='z') || c=='\'' || c=='-')
@@ -6175,45 +6293,48 @@ public:
            cWord=&StemWords[StemIndex];
            memset(cWord, 0, sizeof(Word));
         }
+        if ((c4&0xFFFF)==0x5b5b ) scountset=true;
         if (islink && (c==SPACE || c==']' || c==10  )) islink=0; //disable if not in link
-        if (istemplate && (x.c4&0xffff)==0x7d7d) istemplate=0; //'}}'
+        if (scountset &&  c=='|')  scountset=false; 
+        if ((c4&0xFFFF)==0x5d5d && cword0==-1)cword0=0;//']]'
+        if (scountset &&  (c==']' ||x.frstchar=='[') )  scountset=false,scount=cword0=0; 
+        if (istemplate && (c4&0xffff)==0x7d7d) istemplate=0; //'}}'
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
-        if ((c>='a' && c<='z') || (c>=128 &&(x.b3!=3) || (c>0 && c<4 ))) {
+        //if (doXML==true) printf("%c",c);
+        is_letter=((c>='a' && c<='z') ||(c>='0' && c<='9' && witmode==true) || x.wstat==true|| (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
+        if (is_letter) {// if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 /*&&(x.b3!=3)*/|| (c>0 && c<4))) {
             if (!x.wordlen){
                 // model syllabification with "+"  //book1 case +\n +\r\n
-                if ((lastLetter=3 && (x.c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
-                    (lastLetter=3 && (x.c4&0xFFFF00)==0x2D0A00 && buf(4)!=0x2D) || (lastLetter=4 && (x.c4&0xFFFFFF00)==0x2D0D0A00 && buf(5)!=0x2D)  ){
+                if ((lastLetter=3 && (c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
+                    (lastLetter=3 && (c4&0xFFFF00)==0x2D0A00 && buf(4)!=0x2D) || (lastLetter=4 && (c4&0xFFFFFF00)==0x2D0D0A00 && buf(5)!=0x2D)  ){
                     word0=word1;
-                    word1=word2;
-                    word2=word3;
-                    word3=word4;
-                    word4=word5;
-                    word5=0;
+                    shrwords();
                     x.wordlen = x.wordlen1;
                     if (c<128){
                        StemIndex=(StemIndex-1)&3;
                        cWord=pWord;
                        pWord=&StemWords[(StemIndex-1)&3];
                        memset(cWord, 0, sizeof(Word));
-                       for (U32 i=0;i<=x.wordlen;i++)
-                           (*cWord)+=tolower(buf(x.wordlen-i+1+2*(i!=x.wordlen)));
+                       for (U32 j=0;j<=x.wordlen;j++)
+                           (*cWord)+=tolower(buf(x.wordlen-j+1+2*(j!=x.wordlen)));
                     }
                 }else{
                       wordGap = lastLetter;
                       firstLetter = c;
                       wrdhsh = 0;
-                }   
+                }
+                if (pC==QUOTE /*||   (x.wrtc4&0xffffffffffff)==0x2671756F743B*/) { opened=QUOTE;}
             }
             lastLetter=0;
-            ++x.words, ++x.wordcount;
-             if (c>4  )word0^=hash(word0, c,0);
-             
+            if (c>4) word0^=hash(word0, c,0);
             text0=text0*997*16+c;
+            ++x.words, ++x.wordcount;
             x.wordlen++;
             x.wordlen=min(x.wordlen,45);
-            f=0;
-            w=word0&(wpos.size()-1);
+            if (x.wstat==true && x.wdecoded==true) wrth=wrth+x.utf8l>0;
+        
+        if (x.wstat==false ) wrth++;
             if ((c=='a' || c=='e' || c=='i' || c=='o' || c=='u') || (c=='y' && (x.wordlen>0 && pC!='a' && pC!='e' && pC!='i' && pC!='o' && pC!='u'))){
                 mask2++;
                 wrdhsh=wrdhsh*997*8+(c/4-22);
@@ -6222,49 +6343,88 @@ public:
                 wrdhsh=wrdhsh*271*32+(c-97);
             }else
                 wrdhsh=wrdhsh*11*32+c;
+            f=0;
+            w=word0&(wpos.size()-1);
+            chk=U16(word0>>16);
         } else {
             if (word0) { 
-            type0 = (type0<<2)|1;
-                word5=word4;
-                word4=word3;
-                word3=word2;
-                word2=word1;
-                word1=word0;
+                type0 = (type0<<2)|1;
+                if (scountset) scount=min(scount+1,5);
+                if (scountset==false && scount>0&& cword0!=-1) { // wiki: xxx xxx [[yyy yyy|xxx xxx]] -> remove yyy words
+                    x.f4=x.f4>>(4*scount);
+                    x.tt=x.tt>>(2*scount);
+                    while (scount-->0) shrwords();
+                    scount=0;
+                }
+                else if (cword0==-1) { // wiki: xxx xxx [[yyy: yyy|yyy yyy]] -> remove yyy words
+                    x.f4=x.f4>>(4*1);
+                    x.tt=x.tt>>(2*1);
+                    shrwords();
+                    scount=0;
+                }else{ 
+                    word7=word6;
+                    word6=word5;     
+                    word5=word4;
+                    word4=word3;
+                    word3=word2;
+                    word2=word1;
+                    word1=word0;
+                    x.wordlen1=x.wordlen;
+                }
+                x.wordlen=0;
+                inkeyw[w]=iword0;
                 if (fword==0) fword=word0;
-                x.wordlen1=x.wordlen;
+                
                 wpos[w]=x.blpos;
+                wrth=0;
+                wchk[w]=chk;
                 if (c==':'|| c=='=') cword0=word0;
-                //if (c==']'&& (x.frstchar!=':' || x.frstchar!='*')) xword0=word0;
-                if (c==']'&& (x.frstchar!=':') && /*linespace!=0 &&*/ doXML==true) xword0=word0; // wiki 
+                if ((c==':' && scountset==true && scount==1)) cword0=-1,shrwords(); // kill  [[xxx: ...]]
+                if (c==']'&& (x.frstchar!=':') &&  doXML==true) xword0=word0; // wiki 
                 ccword=0;
-                word0=x.wordlen=0;                
+                word0= 0;                
                 if((c=='.'||c=='!'||c=='?' ||c=='}' ||c==')') && buf(2)!=10 && x.filetype!=EXE) f=1; 
             }
-            
             if (c==SPACE &&  buf(2)!=SPACE) linespace++; // count spaces in one line, skip repeats
-            if (c==SPACE || c==10 || c==5) { 
-               ++x.spaces, ++x.spacecount; 
-               if (c==10 && linespace==0 && x.frstchar==0x5B /* && buf(2)==0x5B*/ ){
-                   xword1=xword2=xword3=0;
+            if (c==SPACE || c==10 || (c==5 && pC!='&')) { 
+              if (c==SPACE )lastSpace=0,++x.spaces, ++x.spacecount; //else  
+              if (pC=='.' || (ppC=='.' &&( pC==0x27 || pC==0x22))  ){
+              x.tt=0xfffffff8, x.f4=0;
+              } else   if  (pC=='?' || ((ppC=='?'|| ppC=='!')&&( pC==0x27 || pC==0x22))  ){
+              x.tt=(x.tt&0xfffffff8)+1, x.f4=0;
+              } 
+               if (/*c==10 &&*/ linespace==0 && x.frstchar==0x5B ){
+                   xword1=xword2=xword3=iword0=0;
                }
-               if (c==10 || c==5) /*x.spafdo=0,*/fword=linespace=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1;//,type0 = (type0<<2);
+               if (c==10 || (c==5 && pC!='&')) fword=linespace=line0=0,nl3=nl2,nl2=nl1,nl1=nl, nl=buf.pos-1,wnl2=wnl1,wnl1=wnl,wnl=x.bufn.pos-1;
             }
-            else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':') x.spafdo=0,ccword=c,mask2+=3;//,type0 = (type0<<2);
+            else if ((x.wrtc4&0xffffffff)==0x266C743B ||
+                            (x.wrtc4&0xffffffff)==0x2667743B ||
+                    (x.wrtc4&0xffffffffffff)==0x2671756F743B ||
+                    (x.wrtc4&    0xffffffffff)==0x26616D703B ||
+                                 x.wrtc4==0x26616D703B6C743B ||
+                                 x.wrtc4==0x26616D703B67743B ||
+                                 x.wrtc4==0x6D703B6E6273703B ||
+                                 x.wrtc4==0x6D703B71756F743B ||
+                                 x.wrtc4==0x703B6E646173683B ||
+                                 x.wrtc4==0x703B6D646173683B) { 
+                shrwords(); 
+       
+            }//'&lt;' '&gt;' " & 
+            else if (c=='.' || c=='!' || c=='?' || c==',' || c==';' || c==':' || c=='|'|| c=='=') x.spafdo=line0=0,ccword=c,mask2+=3;
             else { ++x.spafdo; x.spafdo=min(63,x.spafdo); }
+            if (ccword=='=' || (ccword==':' && doXML==false)) iword0=word1;
         }
-        if ((x.c4&0xffffff)==0x3A2F2F) {
-        islink=1;
-       
-    }
-     if ((x.c4&0xffff)==0x7b7b) { //'{{'
-        istemplate=1;
-       
-    }
-     
+        if ((c4&0xffffff)==0x3A2F2F) { // ://
+            islink=1,word2=13;
+        }
+        if ((c4&0xffff)==0x7b7b) { //'{{'
+            istemplate=1;
+        }
         if (doXML==true){
-            if ((x.c4&0xFFFF)==0x3D3D && x.frstchar==0x3d) xword1=word1; // ,xword2=word2; // == wiki
-            if ((x.c4&0xFFFF)==0x2727) xword2=word1;                     //,xword2=word2; // '' wiki
-            if ((x.c4&0xFFFF)==0x7D7D) xword3=word1;                     //}} wiki
+            if ((c4&0xFFFF)==0x3D3D && x.frstchar==0x3d) xword1=word1; // ,xword2=word2; // == wiki
+            if ((c4&0xFFFF)==0x2727) xword2=word1;                     //,xword2=word2; // '' wiki
+            if ((c4&0xFFFF)==0x7D7D) xword3=word1;                     //}} wiki
         }
         lastDigit=min(0xFF,lastDigit+1);
         if (c>='0' && c<='9') {
@@ -6277,133 +6437,249 @@ public:
             type0 = (type0<<2)|2;
             number1=number0;
             number0=0,ccword=0;
-
         }
-        
+        line0^=hash(line0, buf(1));
         if (!((c>='a' && c<='z') ||(c>='0' && c<='9') || (c>=128 ))){
             data0^=hash(data0, c,1);
         }else if (data0) {
             type0 = (type0<<2)|3;
             data0=0;
             }
-        
+        col1=x.col;
         x.col=min(255, buf.pos-nl);
-        int above=buf[nl1+x.col];  // text column context, first
-        int above1=buf[nl2+x.col]; // text column context, second
-        int above2=buf[nl3+x.col]; // text column context, second
+        if (x.dictonline==true){
+        
+        x.wcol=wcol=/*min(255, */x.bufn.pos-wnl;//); // (wrt mode)
+        if (wcol<0) x.wcol=wcol=2;
+        wabove=x.bufn[wnl1+wcol];  // text column context, first (wrt mode)
+        }
+        else x.wcol=wabove=0;
+         above=buf[nl1+x.col];  // text column context, first
+         above1=buf[nl2+x.col]; // text column context, second
+         above2=buf[nl3+x.col]; // text column context, 3
         if (val2) x.col=val2,above=buf[buf.pos-x.col],above1=buf[buf.pos-x.col*2];;
-        if (x.col<=2) x.frstchar=(x.col==2?min(c,126):0);
-        if (x.frstchar=='[' && c==32)    {if(buf(3)==']' || buf(4)==']' ) x.frstchar=96,xword0=0;}
-
-        //256+ hash 513+ none
-        if (x.filetype==DEFAULT || x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK){
-            for(int i=0;i<11;i++) cm.set(0);
-        }
-        else {
-            cm.set(hash(513,x.spafdo, x.spaces,ccword));
-            cm.set(hash(514,x.frstchar, c));
-            cm.set(hash(515,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
-            cm.set(hash(516,x.spaces, (x.words&255), (numbers&255)));
-        
-            cm.set(x.spaces&0x7ff);
-            cm.set(hash(257,number0, word1,wordGap, word6));
-            cm.set(hash(258,number1, c,ccword));  
-            cm.set(hash(259,number0, number1,wordGap));  
-            cm.set(hash(260,word0, number1, lastDigit<wordGap+x.wordlen));
-            cm.set(hash(274,number0, cword0));
-        }
-        U32 h=x.wordcount*64+x.spacecount+numbercount*128;
-        if (x.filetype!=DECA){
-            cm.set(hash(518,x.wordlen1,x.col));
-            cm.set(hash(519,c,x.spacecount/2,wordGap));
-            //U32 h=x.wordcount*64+x.spacecount+x.numbercount*128;
-            cm.set(hash(520,c,h,ccword));
-            cm.set(hash(517,x.frstchar,h,lastLetter));
-            cm.set(hash(data0,word1, number1,type0&0xFFF));
-            cm.set(h);
-            cm.set(hash(521,h,x.spafdo)); 
-            U32 d=x.c4&0xf0ff;
-            cm.set(hash(522,d,x.frstchar,ccword));
-        }else {
-            for(int i=0;i<8;i++) cm.set(0);
-        }
-        h=word0*271;
-        h=h+buf(1);
-     
-        cm.set(hash(262,h, 0));
-        cm.set(hash( number0*271+buf(1), 0));
-        cm.set(hash(263,word0, 0)); 
-        if (wrdhsh) cm.set(hash(wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); else cm.set(0);
-        cm.set(hash(264,h, word1)); 
-        cm.set(hash(265,word0, word1));
-        cm.set(hash(266,h, word1,word2,lastUpper<x.wordlen));
-        cm.set(hash(267,text0&0xffffff,0));
-        cm.set(text0&0xfffff);
-        U32 isfword=x.filetype==DECA?-1:fword;
-        if (doXML==true){
-            cm.set(hash(269,word0,number0, xword0));
-            cm.set(hash(270,word0,number0, xword1));  //wiki 
-            cm.set(hash(271,word0,number0, xword2));  //
-            cm.set(hash(268,word0,number0, xword3));  //
-            cm.set(hash(272,x.frstchar, xword2));
-        }else{
-            for(int i=0;i<5;i++) cm.set(0);
-        }
-        
-        cm.set(hash(273,word0, cword0,isfword));
-        cm.set(hash(275,h, word2,isfword));
-        cm.set(hash(276,h, word3));
-        cm.set(hash(277,h, word4));
-        cm.set(hash(278,h, word5));
-        cm.set(hash(279,h, word1,word3));
-        cm.set(hash(280,h, word2,word3));
-
-        cm.set(buf(1)|buf(3)<<8|buf(5)<<16); 
-        cm.set(buf(2)|buf(4)<<8|buf(6)<<16);  
-        cm.set(buf(1)|buf(4)<<8|buf(7)<<16);  
-        cm.set(x.f4&0x00000fff);
-        cm.set(x.f4); 
-        if (f) {
-            word5=word4;//*29;
-            word4=word3;//*31;
-            word3=word2;//*37;
-            word2=word1;//*41;
-            word1='.';
-        }
-        if (x.col<((U32)max(255,val2))&& x.filetype!=DECA){
-            cm.set(hash(523,x.col,buf(1),above));  
-            cm.set(hash(524,buf(1),above,above^above1 )); 
-            cm.set(hash(525,x.col,buf(1))); 
-            cm.set(hash(526,x.col,c==32));  
-        } 
-        else {
-          cm.set(0); cm.set(0); cm.set(0); cm.set(0); 
-        }
- 
-        if (x.wordlen) cm.set(hash(281, word0, llog(x.blpos-wpos[word0&(wpos.size()-1)])>>4));    
-        else cm.set(0);
-        if (x.wordlen)cm.set(hash(282,buf(1),llog(x.blpos-wpos[word0&(wpos.size()-1)])>>2));   
-        else cm.set(0);
-        cm.set(hash(283,buf(1),word0,llog(x.blpos-wpos[word2&(wpos.size()-1)])>>2));
-        
-
-        int fl = 0;
-        if ((x.c4&0xff) != 0) {
-            if (isalpha(x.c4&0xff)) fl = 1;
-            else if (ispunct(x.c4&0xff)) fl = 2;
-            else if (isspace(x.c4&0xff)) fl = 3;
-            else if ((x.c4&0xff) == 0xff) fl = 4;
-            else if ((x.c4&0xff) < 16) fl = 5;
-            else if ((x.c4&0xff) < 64) fl = 6;
+        if (x.col<=2) {x.frstchar=(x.col==2?min(c,128):0); firstwasspace=x.frstchar==' '?true:false;        }
+        if (x.col>2 && firstwasspace && (x.frstchar==' ' || x.frstchar<4)  && buf(1)!=' ') x.frstchar=c;
+        if (x.col>2 && firstwasspace && !((x.frstchar>='a' && x.frstchar<='z') || (x.frstchar>='0' && x.frstchar<='9')|| (x.frstchar>=128 &&(x.b3!=3))) ) x.frstchar=c;  //scan for real char
+        if (firstwasspace==false && x.frstchar=='[' && c==32)  { if(buf(3)==']' || buf(4)==']' ){ x.frstchar=96,xword0=0; } }
+          fl = 0;
+        if ((c4&0xff) != 0) {
+            if (isalpha(c4&0xff)) fl = 1;
+            else if (ispunct(c4&0xff)) fl = 2;
+            else if (isspace(c4&0xff)) fl = 3;
+            else if ((c4&0xff) == 0xff) fl = 4;
+            else if ((c4&0xff) < 16) fl = 5;
+            else if ((c4&0xff) < 64) fl = 6;
             else fl = 7;
         }
         mask = (mask<<3)|fl;
-            cm.set(hash(528,mask,0)); 
-            cm.set(hash(529,mask,buf(1))); 
-            cm.set(hash(530,mask&0xff,x.col)); 
-            cm.set(hash(531,mask,buf(2),buf(3))); 
-            cm.set(hash(532,mask&0x1ff,x.f4&0x00fff0)); 
-            cm.set(hash(h, llog(wordGap), mask&0x1FF, /////
+        //0x2671756F743B
+        if (c=='(' || c=='{' || c=='[' || c=='<' || (x.wrtc4&0xffffffff)==0x266C743B/*|| x.wrtc4==0x26616D703B6C743B*/ ) { opened=c;}
+        else if (c==')' || c=='}' || c==']' || c=='>' || c==QUOTE || c==APOSTROPHE ||
+        (x.wrtc4&0xffffffff)==0x2667743B /*||
+            x.wrtc4==0x26616D703B67743B||   (x.wrtc4&0xffffffffffff)==0x2671756F743B*/) {opened=0;}
+      const bool is_newline_pC = pC==NEW_LINE || pC==0;
+        if( (c>='a' && c<='z')|| c>=128 || (c>0 && c<4))  {
+        expr0chars = expr0chars<<8|c; // last 4 consecutive letters
+        expr0=hash(expr0,c);
+        exprlen0=min(exprlen0+1,48);//maxwordlen
+      } else {
+        expr0chars=0;
+        exprlen0=0;
+        if( (c==SPACE || c==10 || c==0) && (is_letter_pC || pC==APOSTROPHE || pC==QUOTE) ) {//
+          expr4=expr3;
+          expr3=expr2;
+          expr2=expr1;
+          expr1=expr0;
+          expr0=0;
+        } else if(c==APOSTROPHE || c==QUOTE || ( (c==10 || c==0) && pC==SPACE) || (c==SPACE && is_newline_pC) ) {//
+          //ignore
+        } else {
+          expr4=expr3=expr2=expr1=expr0=0;
+        }
+       
+    }
+    }
+
+    int predict(const U8 pdf_text_parser_state,int val1=0,int val2=0) {
+      if (x.bpos==0) {
+       int i=0;
+       const U32 dist =  llog(x.blpos-wpos[word0&(wpos.size()-1)]);
+       bool istext=!(x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK || x.filetype==EXE || x.filetype==ARM);
+        x.tmask=i=((c<5)<<5)|((0)<<4)| ((dist==0)<<3)| ((/*doXML=true?1:*/0)<<2)| ((opened)<<6)| ((istemplate)<<1)| islink;
+        if (x.filetype==DEFAULT || x.filetype==DECA || x.filetype==IMGUNK) i=0;
+        else i=(hash(6,i+pdf_text_parser_state*1024)>>16);
+
+ if (val2!=-1){
+        //256+ hash 513+ none
+        if ((pdf_text_parser_state!=0 || x.filetype==DECA|| x.filetype==EXE|| x.filetype==IMGUNK)){
+          if (pdf_text_parser_state!=0 ){           
+             if(exprlen0>=1) {
+             const int wl_wme_mbc=min(exprlen0,1+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, c));
+             }      else {cm.set();i++;}
+
+             if(exprlen0>=2) {
+             const int wl_wme_mbc=min(exprlen0,2+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, expr0chars&0xffff));
+             }      else {cm.set();i++;}
+
+             if(exprlen0>=3) {
+             const int wl_wme_mbc=min(exprlen0,3+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, expr0chars&0xffffff));
+             }      else {cm.set();i++;}
+
+             if(exprlen0>=4) {
+             const int wl_wme_mbc=min(exprlen0,4+3)<<2;
+             cm.set(hash(++i, wl_wme_mbc, expr0chars));
+             }   else {cm.set();i++;}
+             cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255), (x.pwords&255)));//spaces...
+             for(int j=0;j<5;j++)  {cm.set();++i;}
+          } else for(int j=0;j<10;j++)  {cm.set();++i;}
+           
+        }
+        else {
+            cm.set(hash(++i,x.spafdo, x.spaces&0x7ff ,ccword));
+            cm.set(hash(++i,line0,inkeyw[w]));
+            cm.set(hash(++i,x.frstchar, c));
+            cm.set(hash(++i,x.col, x.frstchar, (lastUpper<x.col)*4+(mask2&3)));//?
+            cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255), (x.pwords&255)));//spaces...
+        
+            //cm.set(x.spaces&0x7ff);
+           /* cm.set(hash(++i,word0, word2,wordGap, word6));
+            cm.set(hash(++i,word1, c,ccword));  
+            cm.set(hash(++i,word0, word1,inkeyw[w]));  
+            cm.set(hash(++i,word0, word6, lastDigit<wordGap+x.wordlen));
+            cm.set(hash(++i,word0, cword0,inkeyw[word1&(inkeyw.size()-1)]));*/
+            cm.set(hash(++i,number0, word1,wordGap, 0));
+            cm.set(hash(++i,number1, c,ccword));  
+            cm.set(hash(++i,number0, number1,inkeyw[w]));  
+            cm.set(hash(++i,word0, 0, lastDigit<wordGap+x.wordlen));
+            cm.set(hash(++i,number0, cword0,inkeyw[word1&(inkeyw.size()-1)]));
+        }
+        U32 h=x.wordcount*64+x.spacecount+numbercount*128;
+        if (x.filetype!=DECA){
+        if ( scountset==false /*&&!(x.frstchar=='{' && istemplate!=0)*/   ){
+       
+            cm.set(hash(++i,x.wordlen,wrth,x.col));
+            cm.set(hash(++i,c,x.spacecount/2,wordGap));
+           // U32 h=x.wordcount*64+x.spacecount+x.numbercount*128;
+            cm.set(hash(++i,c,h,ccword));
+            cm.set(hash(++i,x.frstchar,h,lastLetter));
+            cm.set(hash(data0,word1, number1,type0&0xFFF));//cm.set(hash(data0,word1,word2, type0&0xFFF));
+            cm.set(h);
+            cm.set(hash(++i,h,x.spafdo)); 
+            U32 d=c4&0xf0ff;
+            cm.set(hash(++i,d,x.frstchar,ccword));
+        }else {
+            for(int j=0;j<8;j++)  {cm.set();++i;}
+        }
+        }
+        h=word0*271;
+        h=h+buf(1);
+        if (/*x.filetype==DEFAULT||*/x.filetype==DECA){
+        cm.set(hash(++i,h));
+        cm.set(hash(++i,word0,0)); 
+        cm.set(hash(++i,data0));// ,iCtx()
+        }else if (pdf_text_parser_state>0){
+            cm.set(hash(h,pdf_text_parser_state));
+        cm.set(hash(++i,word0)); 
+        cm.set(hash(++i,data0));//  
+            }else{
+        cm.set(hash(h));
+        cm.set(hash(++i,word0,inkeyw[w],x.tmask)); 
+        cm.set(hash(++i,data0,inkeyw[w],x.tmask));//  
+        }
+        //if (wrdhsh) cm.set(hash(++i,wrdhsh,buf(wpos[word1&(wpos.size()-1)]))); else  {cm.set();++i;}
+        cm.set(hash(++i,data0,c, word1)); 
+        cm.set(hash(++i,h, word1)); 
+        cm.set(hash(++i,word0, word1));
+        cm.set(hash(++i,h, word1,word2/*,lastUpper<x.wordlen*/));
+        cm.set(hash(++i,text0&0xffffff));
+        cm.set(text0&0xfffff);
+        U32 isfword=x.filetype==DECA?-1:fword;
+        if (doXML==true && pdf_text_parser_state==0){
+            if ( scountset==false ){
+            cm.set(hash(++i,word0,number0,wpword1,xword0));
+            cm.set(hash(++i,word0,number0,wpword1, xword1));  //wiki 
+            cm.set(hash(++i,word0,number0,wpword1, xword2));  //
+            cm.set(hash(++i,word0,number0,wpword1, xword3));  //
+            cm.set(hash(++i,x.frstchar, xword2,inkeyw[w]));
+            }else {
+            for(int j=0;j<5;j++)  {cm.set();++i;}
+        }
+        }else{
+            //for(int j=0;j<5;j++)  {cm.set();++i;}
+            cm.set(hash(++i+512,nl1));    //chars occurring in this paragraph (order 0)
+     cm.set();++i;//cm.set(hash(++i+512,nl1,c));  //chars occurring in this paragraph (order 1)
+      cm.set(hash(++i+512,x.frstchar));   //chars occurring in a paragraph that began with frstchar (order 0)
+      //cm.set(hash(++i+512,x.frstchar,c)); //chars occurring in a paragraph that began with frstchar (order 1)*/
+      if (lastSpace<1024*4)       cm.set(hash(++i+512,h, word1, word4)); else cm.set();++i;
+      cm.set(hash(++i+512,x.col,x.wcol,nl1-nl));//cm.set();   ++i;
+    //  cm.set(hash(expr0,expr1,expr2,expr3,expr4));
+           
+       // cm.set(hash(++i,expr0,expr1,expr2));
+        }
+        
+        cm.set(hash(++i,word0, cword0,isfword));
+        if (lastSpace<1024*4){
+            if (witmode==true) cm.set(hash(++i,h, word2));else cm.set(hash(++i,h, word2,isfword));//,isfword fp.log
+            cm.set(hash(++i,h, word3));
+            cm.set(hash(++i,h, word4));
+            cm.set((istext==true)?wpword1:hash(++i,h, word5));
+            cm.set(hash(++i,h, word1,word3));
+            cm.set(hash(++i,h, word2,word3));
+        }else{
+            for(int j=0;j<6;j++)  {cm.set();++i;}
+        }
+        if  (x.filetype!=DECA ){
+            if (witmode==true  )  {
+                cm.set( (fword));++i;
+            cm.set(hash(++i,isfword,c));
+            }else{
+            
+            cm.set(hash(++i,isfword));
+            cm.set(hash(++i,isfword,c));}
+        }
+        cm.set(hash(++i,opened,c,dist!=0,pdf_text_parser_state));
+        //cm.set(hash(++i,opened,word0));
+        if (x.dictonline==true) cm.set(hash(buf(1),wchar1,wchar2)); else {cm.set();}
+        cm.set(x.f4&0x00000fff);
+        cm.set(x.f4); 
+        if (f) {
+            word5=word4;
+            word4=word3;
+            word3=word2;
+            word2=word1;
+            word1='.';
+        }
+        const U8 pC_above = buf[nl1+x.col-1];
+        const bool is_new_line_start = x.col==0 && nl1>0;
+        const bool is_prev_char_match_above = buf(1)==pC_above && x.col!=0 && nl1!=0;
+        const U32 above_ctx = above<<1|U32(is_prev_char_match_above);
+        if (pdf_text_parser_state==0 &&!(x.frstchar=='{' && istemplate!=0) &&scountset==false && x.col<((U32)max(255,val2))&& x.filetype!=DECA){
+            cm.set(hash(++i,((wnl1-wnl2)<<16)|nl1-nl2,(wcol<<8)|x.col,buf(1),above_ctx));  
+            cm.set(hash(++i,buf(1),above_ctx,above^above1,wabove )); 
+            cm.set(hash(++i,x.col,wcol,buf(1))); 
+            cm.set(hash(++i,x.col,wcol,c==32));  
+        } 
+        else {
+          if (x.filetype!=DECA )
+            for(int j=0;j<4;j++)  {cm.set();++i;}
+        }
+ 
+        if (x.wordlen) cm.set(hash(++i, word0, dist>>4));    
+        else  {cm.set();++i;}
+        if (x.wordlen)cm.set(hash(++i,word1, data0,dist>>2));   
+        else {cm.set();++i;}
+        cm.set(hash(++i,buf(1),word0,llog(x.blpos-wpos[word2&(wpos.size()-1)])>>2));
+       
+            cm.set(hash(++i,mask)); 
+            cm.set(hash(++i,mask,buf(1))); 
+            if (pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))    cm.set(hash(++i,mask&0x1ff,x.col,wcol)); else  {cm.set();++i;}
+            cm.set(hash(++i,mask,c4&0x00ffff00)); 
+            cm.set(hash(++i,mask&0x1ff,x.f4&0x00fff0)); 
+            cm.set(hash(++i,h, llog(wordGap), mask&0x1FF, ///// dis>30
              ((istemplate)<<9)|  
              ((islink)<<8)|
              ((linespace > 4)<<7)|
@@ -6417,10 +6693,10 @@ public:
              ));
       
         
-        if (x.wordlen1)    cm.set(hash(x.col,x.wordlen1,above,above1,x.c4&0xfF)); else cm.set(0); //wordlist
-        if (wrdhsh)  cm.set(hash(mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else cm.set(0);//?
-        hq=hash(x.col,above^above1,numbers&127,x.filetype==DECA?x.c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
-         cm.set(hash(x.col,above^above1,above2 , ((islink)<<8)|
+        if (x.wordlen1 && pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))            cm.set(hash((wcol<<8)|x.col,x.wordlen1,above,above1,c4&0xfF)); else cm.set(); //wordlist 
+        if (wrdhsh)          cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else i++,cm.set();//?
+        hq=hash((wcol<<8)|x.col,above^above1,numbers&127,x.filetype==DECA?c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
+        if (  pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0)) cm.set(hash(++i,(wcol<<8)|x.col,above^above1,above2 , ((islink)<<8)|
              ((linespace > 4)<<7)|
              ((x.wordlen1 > 3)<<6)|
              ((x.wordlen > 0)<<5)|
@@ -6428,18 +6704,18 @@ public:
              ((x.spafdo == x.wordlen + x.wordlen1 + 3)<<3)|
              ((x.spafdo >= lastLetter + x.wordlen1 + wordGap)<<2)|
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
-             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));  //wordlist((istemplate)<<9)|  
+             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));   else  {cm.set();++i;}
         cm.set(hash((*pWord).Hash[2], h));
-
+ }
     }
     if (val2==-1) return 1;
-    cm.mix(m);
+    
     if(x.bpos==0) {
 
-    U32 g=x.c4&0xff; // group identifier
+    U32 g=c4&0xff; // group identifier
          if('0'<=g && g<='9') g='0'; //all digits are in one group
     else if('A'<=g && g<='Z') g='A'; //all uppercase letters are in one group
-    else if('a'<=g && g<='z') g='a'; //all lowercase letters are in one group
+    else if('a'<=g && g<='z' || x.wstat==true) g='a'; //all lowercase letters are in one group
     else if(g>=128) g=128;
 
     const bool to_be_collapsed = (g=='0' || g=='A' || g=='a') && g == (g_ascii_lo&0xff);
@@ -6449,22 +6725,107 @@ public:
       g_ascii_lo <<= 8;
       g_ascii_lo  |= g;
     }
- if( linespace>0) { 
-    U64 i = to_be_collapsed*8;
-    cm1.set(hash( (++i), g_ascii_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
-    cm1.set(hash( (++i), g_ascii_lo ));                                 // last 8 groups
-    cm1.set(hash( (++i), g_ascii_lo&0x0000ffffffffffff));               // last 6 groups
-    cm1.set(hash( (++i), g_ascii_lo&0x00000000ffffffff));               // last 4 groups
-    cm1.set(hash( (++i), g_ascii_lo&0x000000000000ffff));               // last 2 groups
-
-    cm1.set(hash( (++i), g_ascii_lo&0x00ffffffffffffff, x.c4&0x0000ffff )); // last 7 groups + last 2 chars
-    cm1.set(hash( (++i), g_ascii_lo&0x000000ffffffffff, x.c4&0x00ffffff )); // last 5 groups + last 3 chars
- } else for(int i=0;i<7;i++) cm1.set(0);
-    //Stats->charGroup = g_ascii_lo; //group identifiers of the last 8 characters
+ if( linespace>0 || x.dictonline==true) {
+    U64 i = to_be_collapsed*8;//i=i*65;
+    U32 g_a_hi=(g_ascii_lo>>32),g_a_lo=g_ascii_lo&0x00000000ffffffff;
+    cm.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
+    cm.set(hash( (++i), g_a_hi, g_a_lo));                                  // last 8 groups
+    cm.set(hash( (++i), g_a_hi&0x0000ffff, g_a_lo ));                      // last 6 groups
+    cm.set(hash( (++i), g_a_lo));                                          // last 4 groups
+    cm.set(hash( (++i), g_a_lo&0x0000ffff));                               // last 2 groups
+    cm.set(hash( (++i), g_a_hi&0x00ffffff, g_a_lo , c4&0x0000ffff ));    // last 7 groups + last 2 chars
+    cm.set(hash( (++i), g_a_hi&0x000000ff, g_a_lo , c4&0x00ffffff ));    // last 5 groups + last 3 chars
+ } else for(int i=0;i<7;i++) cm.set();
   }
-  cm1.mix(m);
+     return hq;
+    }
+  };
+  
+  U8 pdf_text_parser_state,math_state,pre_state; // 0,1,2,3
+  Info info_normal;
+  Info info_pdf;
+  Info math;
+  Info pre;
+    U32 hq;
+public:
+  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
+  info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),pre(bd,0,cm),hq(0){
+  
+   }
+   int inputs() {return N*cm.inputs();}
+   int nets() {return 0;}
+  int netcount() {return 0;}
+
+  #define bswap64(n) ((bswap((n&0xFFFFFFFF00000000)>>32))|((bswap(n&0x00000000FFFFFFFF))<<32))
+   int p(Mixer& m,int val1=0,int val2=0)  {
+    if (x.bpos==0) {
+      const U8 c1=x.c4;
+      //extract text from pdf
+      if((x.wrtc4&0xffffffff)==0x0A62740A&& x.wrtstatus==0 && x.wrtLoaded==true||x.c4==0x0a42540a) {//  "\nBT\n"  "\nbt\n" 
+          pdf_text_parser_state=1;x.inpdf=true;
+      } // Begin Text
+      else if ((x.wrtc4&0xffffffff)==0x0A65740A && x.wrtstatus==0 && x.wrtLoaded==true||x.c4==0x0a45540a) {// "\nET\n" "\net\n" 
+          pdf_text_parser_state=0;x.inpdf=false;
+      } // End Text
+      bool do_pdf_process=true;
+      if(pdf_text_parser_state!=0) {
+        const U8 pC=x.c4>>8;
+        if(pC!='\\') {
+             if(c1=='[') {pdf_text_parser_state|=2;} //array begins
+        else if(c1==']') {pdf_text_parser_state&=(255-2);}
+        else if(c1=='(') {pdf_text_parser_state|=4; do_pdf_process=false;} //signal: start text extraction
+        else if(c1==')') {pdf_text_parser_state&=(255-4);} //signal: start pdf gap processing
+        }
+      }
+      // ':&<math& >' '|&<math& >' ' &<math& >' '\n&<math& >'
+      if(x.wrtc4==0x3A263C6D61746826|| x.wrtc4==0x20263C6D61746826||x.wrtc4==0x10263C6D61746826||/*(x.wrtc4&0xffffffff)==0x6D617468||*/ x.wrtc4==0x7C263C6D61746826 ) {//  
+          math_state=2;         
+      } // Begin math
+      else if (math_state &&(x.wrtc4&0xff)==0x26  ||(x.wrtc4&0xff)==0x20) {//  
+          math_state=0; 
+      } // End math
+      //else if (math_state==1 && ((x.c4>>8)&0xff)=='>') {//  
+      //    math_state=2; 
+      //} // End math
+      //&<pre&>
+      if((x.wrtc4&0xffffffffffffff)==0x263C707265263E ) {//  
+          pre_state=4; 
+      } // Begin pre
+      else if (pre_state &&(x.wrtc4&0xffffff)==0x263C2F  ) {// '</p' 
+          pre_state=0; 
+      } // End pre
+      const bool is_pdftext = (pdf_text_parser_state&4)!=0;
+      if(is_pdftext) {
+        if(do_pdf_process) {
+          //printf("%c ",c1);  //debug: print the extracted pdf text
+          const bool is_extended_char =x.wrtstatus==-1 || c1>=128|| (c1 <4 && c1>0 && x.wrtLoaded==true && x.wrtstatus==0);
+          info_pdf.process_char(x.wrtstatus,val1,val2);
+        }
+        hq=info_pdf.predict(pdf_text_parser_state,val1,val2);
+        }
+     else   if(math_state==2) {
+         //printf("%c ",c1); 
+          math.process_char(x.wrtstatus,val1,val2);
+      
+        hq=math.predict(math_state,val1,val2);
+        } else   if(pre_state==4) {
+         //printf("%c ",c1); 
+          pre.process_char(x.wrtstatus,val1,val2);
+      
+        hq=pre.predict(pre_state,val1,val2);
+       
+      } else {
+        const bool is_textblock = (x.filetype==TEXT||x.filetype==TEXT0|| x.filetype==TXTUTF8||x.filetype==EOLTEXT||x.filetype==DICTTXT||x.filetype==BIGTEXT||x.filetype==NOWRT);
+        const bool is_extended_char = is_textblock && c1>=128;
+        info_normal.process_char(x.wrtstatus,val1,val2);
+        hq=info_normal.predict(pdf_text_parser_state,val1,val2);
+      }
+      
+    }
+    cm.mix(m);
     return hq;
-}
+  }
+  
  virtual ~wordModel1(){ }
 };
 
@@ -6504,7 +6865,7 @@ class recordModel1: public Model {
 public:
   recordModel1( BlockData& bd,U64 msize=CMlimit(MEM()*2) ): x(bd),buf(bd.buf),  cpos1(256) , cpos2(256),
     cpos3(256), cpos4(256),wpos1(0x10000), rlen(3), rcount(2),padding(0),prevTransition(0),nTransition(0), col(0),mxCtx(0),
-    x1(0),MayBeImg24b(false),cm(32768, 3), cn(32768/2, 3), co(32768*2, 3), cp(CMlimit(msize*2), 16), nMaps ( 6),
+    x1(0),MayBeImg24b(false),cm(32768, 3,M_RECORD), cn(32768/2, 3,M_RECORD), co(32768*2, 3,M_RECORD), cp(level>9?0x10000000 :CMlimit(msize*2), 16,M_RECORD), nMaps ( 6),
     N(0), NN(0), NNN(0), NNNN(0),WxNW(0), nIndCtxs(5){
         // run length and 2 candidates
         rlen[0] = 2; 
@@ -6515,12 +6876,27 @@ public:
         rcount[1] = 0; 
    }
   int inputs() {return (3+3+3+16)*cm.inputs()+nMaps*2+2+3*2+3*2;}
+  int nets() {return 512+11*32;}
+  int netcount() {return 2;}
   int p(Mixer& m,int rrlen=0,int val2=0) {
    // Find record length
   if (!x.bpos) {
-   int w=x.c4&0xffff, c=w&255, d=w>>8;
+   int w=x.c4&0xffff, c=w&255, d=w>>8;bool dict=x.dictonline;
     if (rrlen==0){
-      int r=buf.pos-cpos1[c];
+        int r=0;
+        
+      /*  if (dict==true){ r=x.bufn.pos-cpos1[c];
+        if ( r>1) {
+        if ( r==cpos1[c]-cpos2[c]  && r==cpos2[c]-cpos3[c] && (r>32 || r==cpos3[c]-cpos4[c])
+          && (r>10 || ((c==x.bufn(r*5+1)) && c==x.bufn(r*6+1)))) {      
+          if (r==rlen[1]) ++rcount[0];
+          else if (r==rlen[2]) ++rcount[1];
+          else if (rcount[0]>rcount[1]) rlen[2]=r, rcount[1]=1;
+          else rlen[1]=r, rcount[0]=1;
+        }
+      }    
+        }else{*/
+        r=buf.pos-cpos1[c];
       if ( r>1) {
         if ( r==cpos1[c]-cpos2[c]  && r==cpos2[c]-cpos3[c] && (r>32 || r==cpos3[c]-cpos4[c])
           && (r>10 || ((c==buf(r*5+1)) && c==buf(r*6+1)))) {      
@@ -6530,7 +6906,7 @@ public:
           else rlen[1]=r, rcount[0]=1;
         }
       }    
-
+//} 
     // check candidate lengths
     for (int i=0; i < 2; i++) {
       if (rcount[i] > max(0,12-(int)ilog2(rlen[i+1]))){
@@ -6575,14 +6951,27 @@ public:
     else rlen[0]=rrlen,rcount[0]=rcount[1]=0;
     
     assert(rlen[0]>0);
+    //if (dict==true)
+    //col=x.bufn.pos%x.wcol;
+    //else 
     col=buf.pos%rlen[0];
     x1 = min(0x1F,col/max(1,rlen[0]/32));
+    if (dict==true){
+        N = x.bufn(x.wcol), NN = x.bufn(x.wcol*2), NNN = x.bufn(x.wcol*3), NNNN = x.bufn(x.wcol*4);
+    for (int i=0; i<nIndCtxs-1; iCtx[i]+=c, i++);
+    iCtx[0]=(c<<8)|N;
+    iCtx[1]=(x.bufn(x.wcol-1)<<8)|N;
+    iCtx[2]=(c<<8)|x.bufn(x.wcol-1);
+    iCtx[3]=(hash(c, N, x.bufn(x.wcol+1)));
+    }else{
+    
     N = buf(rlen[0]), NN = buf(rlen[0]*2), NNN = buf(rlen[0]*3), NNNN = buf(rlen[0]*4);
     for (int i=0; i<nIndCtxs-1; iCtx[i]+=c, i++);
     iCtx[0]=(c<<8)|N;
     iCtx[1]=(buf(rlen[0]-1)<<8)|N;
     iCtx[2]=(c<<8)|buf(rlen[0]-1);
     iCtx[3]=(hash(c, N, buf(rlen[0]+1)));
+    }
     /*
     Consider record structures that include fixed-length strings.
     These usually contain the text followed by either spaces or 0's,
@@ -6603,68 +6992,77 @@ public:
     */
     if (!col)
       nTransition = 0;
-    if ((((U16)(x.c4>>8) == (U16)(SPACE*0x010101)) && (c != SPACE)) || (!(x.c4>>8) && c && ((padding != SPACE) || (buf.pos-prevTransition > rlen[0])))){
-      prevTransition = buf.pos;
+    if ((((U16)(x.c4>>8) == (U16)(SPACE*0x010101)) && (c != SPACE)) || (!(x.c4>>8) && c && ((padding != SPACE) || ((dict==true)?x.bufn.pos:buf.pos-prevTransition > rlen[0])))){
+      prevTransition = (dict==true)?x.bufn.pos:buf.pos;
       nTransition+=(nTransition<31);
       padding = (U8)d;
     }
 
     U64 i=0;
+    if (val2!=-1) {
+   
     // Set 2 dimensional contexts
-    cm.set(hash(++i,c<<8| (min(255, buf.pos-cpos1[c])/4)));
-    cm.set(hash(++i,w<<9| llog(buf.pos-wpos1[w])>>2));
+    cm.set(hash(++i,c<<8| (min(255, (dict==true)?x.bufn.pos:buf.pos-cpos1[c])/4)));
+    if (!( x.filetype==DECA))
+    cm.set(hash(++i,w<<9| llog((dict==true)?x.bufn.pos:buf.pos-wpos1[w])>>2));
     cm.set(hash(++i,rlen[0]|N<<10|NN<<18));
 
     cn.set(hash(++i,w|rlen[0]<<8));
     cn.set(hash(++i,d|rlen[0]<<16));
     cn.set(hash(++i,c|rlen[0]<<8));
 
-    co.set(hash(++i,buf(1)<<8|min(255, buf.pos-cpos1[buf(1)])));
-    co.set(hash(++i,buf(1)<<17|buf(2)<<9|llog(buf.pos-wpos1[w])>>2));
+    co.set(hash(++i,buf(1)<<8|min(255, (dict==true)?x.bufn.pos:buf.pos-cpos1[buf(1)])));
+    co.set(hash(++i,buf(1)<<17|buf(2)<<9));
     co.set(hash(++i,buf(1)<<8|N));
-
-    cp.set(hash(++i,rlen[0]|N<<10|col<<18));
-    cp.set(hash(++i,rlen[0]|buf(1)<<10|col<<18));
-    cp.set(hash(++i,col|rlen[0]<<12));
+    
+    cp.set(hash(++i,rlen[0]|N<<10|col<<18,x.wcol));
+    cp.set(hash(++i,rlen[0]|buf(1)<<10|col<<18,x.wcol));
+    cp.set(hash(++i,col|rlen[0]<<12,x.wcol));
     if (rlen[0]>8){
-      cp.set( hash(++i, min(min(0xFF,rlen[0]),buf.pos-prevTransition), min(0x3FF,col), (w&0xF0F0)|(w==((padding<<8)|padding)), nTransition ) );
-      cp.set( hash(++i, w, (buf(rlen[0]+1)==padding && N==padding), col/max(1,rlen[0]/32) ) );
+      cp.set( hash(++i, min(min(0xFF,rlen[0]),(dict==true)?x.bufn.pos:buf.pos-prevTransition), min(0x3FF,col), (w&0xF0F0)|(w==((padding<<8)|padding)), nTransition ) );
+      cp.set( hash(++i, w, ((dict==true)?x.bufn(x.wcol+1):buf(rlen[0]+1)==padding && N==padding), col/max(1,rlen[0]/32) ) );
     }
     else
-      cp.set(0), cp.set(0);
+      cp.set(), cp.set();
 
     cp.set(hash(++i, N|((NN&0xF0)<<4)|((NNN&0xE0)<<7)|((NNNN&0xE0)<<10)|((col/max(1,rlen[0]/16))<<18) ));
-    cp.set(hash(++i, (N&0xF8)|((NN&0xF8)<<8)|(col<<16) ));
+    cp.set(hash(++i, (N&0xF8)|((NN&0xF8)<<8)|(col<<16),x.wcol ));
     cp.set(hash(++i, N, NN));
 
-    cp.set(hash(++i, col, iCtx[0]()));
-    cp.set(hash(++i, col, iCtx[1]()));
-    cp.set(hash(++i, col, iCtx[0]()&0xFF, iCtx[1]()&0xFF));
+    cp.set(hash(++i, col, x.wcol,iCtx[0]()));
+    cp.set(hash(++i, col, x.wcol,iCtx[1]()));
+    cp.set(hash(++i, col, x.wcol,iCtx[0]()&0xFF, iCtx[1]()&0xFF));
 
     cp.set(hash(++i, iCtx[2]()));  
     cp.set(hash(++i, iCtx[3]()));
     cp.set(hash(++i, iCtx[1]()&0xFF, iCtx[3]()&0xFF));
 
-    cp.set(hash(++i, N, (WxNW=c^buf(rlen[0]+1))));
+    cp.set(hash(++i, N, (WxNW=c^(dict==true)?x.bufn(x.wcol+1):buf(rlen[0]+1))));
     cp.set(hash(++i, (x.Match.length>0)?x.Match.byte:0x100|U8(iCtx[1]()), N, WxNW));//cp.set(hash(++i, (min(ilog2(x.Match.length),3)!=0)<<8 |x.Match.byte,U8(iCtx[1]()), N, WxNW));
     int k=0x300;
     if (MayBeImg24b)
       i = (col%3)<<8, Maps[0].set(Clip(((U8)(x.c4>>16))+c-(x.c4>>24))|k);
     else
       Maps[0].set(Clip(c*2-d)|k);
-    Maps[1].set(Clip(c+N-buf(rlen[0]+1))|k);
+    Maps[1].set(Clip(c+N-(dict==true)?x.bufn(x.wcol+1):buf(rlen[0]+1))|k);
     Maps[2].set(Clip(N+NN-NNN));
     Maps[3].set(Clip(N*2-NN));
     Maps[4].set(Clip(N*3-NN*3+NNN));
     iMap[0].set(N+NN-NNN);
     iMap[1].set(N*2-NN);
     iMap[2].set(N*3-NN*3+NNN);
+     }
     // update last context positions
     cpos4[c]=cpos3[c];
     cpos3[c]=cpos2[c];
     cpos2[c]=cpos1[c];
-    cpos1[c]=buf.pos;
+    /*if (dict==true){
+    cpos1[c]=x.bufn.pos;
+    wpos1[w]=x.bufn.pos;
+    }else*/
+    {cpos1[c]=buf.pos;
     wpos1[w]=buf.pos;
+    }
     mxCtx = (rlen[0]>128)?(min(0x7F,col/max(1,rlen[0]/128))):col;
   }
   U8 B = x.c0<<(8-x.bpos);
@@ -6683,7 +7081,7 @@ if (val2==-1) return rlen[0];
   }else{
   
   for (int i=0;i<nMaps;i++)
-    Maps[i].mix(m, 1, 3);
+    Maps[i].mix1(m, 1, 3);
    for (int i=0;i<3;i++)
     iMap[i].mix(m, 1, 3, 255); 
     }
@@ -6708,6 +7106,8 @@ public:
   linearPredictionModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),nOLS(3),nLnrPrd(3+2)  {
   }
   int inputs() {return nLnrPrd*2;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m,int val1=0,int val2=0){
   if (x.bpos==0) {
     const U8 W=buf(1), WW=buf(2), WWW=buf(3);
@@ -6743,9 +7143,11 @@ class sparseModely: public Model {
   ContextMap cm;
   
 public:
-  sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(40),cm(CMlimit(MEM()*2), N) {
+  sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(40),cm(CMlimit(MEM()*2), N,M_SPARSE_Y) {
   }
   int inputs() {return N*cm.inputs();}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m,int seenbefore,int howmany){//match order
   int j=0;
   if (x.bpos==0) {
@@ -6758,7 +7160,7 @@ public:
     cm.set(hash(j++,buf(1)|buf(3)<<8|buf(5)<<16));
     cm.set(hash(j++,buf(2)|buf(4)<<8|buf(6)<<16));
     if (x.c4==0){
-        for (int i=0; i<11; ++i) cm.set(0); 
+        for (int i=0; i<11; ++i) cm.set(); j++;
     }else{
     cm.set(hash(j++,x.c4&0x00f0f0ff));
     cm.set(hash(j++,x.c4&0x00ff00ff));
@@ -6796,6 +7198,8 @@ public:
   distanceModel1(BlockData& bd):  pos00(0),pos20(0),posnl(0), x(bd),buf(bd.buf),Maps{ {8}, {8}, {8} } {
     }
   int inputs() {return 3*2;}
+  int nets() {return 256*3;}
+  int netcount() {return 3;}
   int p(Mixer& m,int val1=0,int val2=0){
   if (x.bpos == 0) {
     int c=x.c4&0xff;
@@ -6929,12 +7333,13 @@ class im24bitModel1: public Model {
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},{11,1}, {11,1}, {11,1}, {11,1}};
+    Array<U32> mixCxt;
 public:
   im24bitModel1(BlockData& bd): nOLS(6),inpts(47),cm(CMlimit(MEM()*4), inpts), col(0) ,color(-1),stride(3), padding(0), x(0),xx(bd),
    buf(bd.buf), buffer(0x100000),WWW(0), WW(0), W(0),NWW(0),NW(0) ,N(0), NE(0), NEE(0), NNWW(0), NNW(0),
    NN(0), NNE(0), NNEE(0), NNN(0), px(0),filter(0),  w(0), line(0), isPNG(0),R1(0), R2(0),filterOn(false),
    c4(bd.c4),c0(bd.c0),bpos(bd.bpos),lastWasPNG(0), WWp1(0), Wp1(0), p1(0), NWp1(0),
-   Np1(0), NEp1(0), NNp1(0),p2(0),lastw(0),lastpos(0),curpos(0), MapCtxs(n2Maps1), SCMapCtxs(nSCMaps-1), pOLS(nOLS){
+   Np1(0), NEp1(0), NNp1(0),p2(0),lastw(0),lastpos(0),curpos(0), MapCtxs(n2Maps1), SCMapCtxs(nSCMaps-1), pOLS(nOLS),mixCxt(13){
   
     columns[0] = 1, columns[1]=1;
     column[0]=0,column[1]=0;
@@ -6942,6 +7347,9 @@ public:
     }
    
   int inputs() {return inpts*cm.inputs()+nSCMaps*2+100*2+1;}
+  int nets() {return 256+   256+   512+   2048+   8*32+   6*64+   256*2+   1024+   8192+   8192+   8192+   8192+  256;}
+  int netcount() {return 13;}
+   
   int p(Mixer& m,int info,int val2=0){
   if (!bpos) {
     if (xx.blpos==1  ){
@@ -6962,6 +7370,7 @@ public:
       if ( lastWasPNG!=isPNG){
         for (int i=0;i<n2Maps;i++)
           Map[i].Reset();
+          xx.count=0;
       }
       lastWasPNG = isPNG;
       buffer.Fill(0x7F);
@@ -7170,7 +7579,9 @@ public:
       SCMapCtxs[j++] = NNE+W-NN;
       SCMapCtxs[j++] = NNW+W-NNWW;
       j = 0;
+      
       for (int k=(color>0)?color-1:stride-1; j<nOLS; j++) {
+//          printf("k %d, color %d j %d \n",k,color,j);
         pOLS[j] = Clip(floor(ols[j][color].Predict(ols_ctxs[j])));
         ols[j][k].Update(p1);
       }
@@ -7285,8 +7696,8 @@ public:
         cm.set(hash(++i, buf(1+(x<2)), px));
         cm.set(hash(i>>8, buf(w+1), buf((w+1)*2), buf((w+1)*3), px));
                                                    
-        cm.set(~0x5ca1ab1e);
-        for (int j=0;j<9;j++)cm.set(0);
+        cm.set(U32(~0x5ca1ab1e));
+        for (int j=0;j<9;j++)cm.set();
 
         ctx[0] = (min(color,stride-1)<<9)|((abs(W-N)>3)<<8)|((W>N)<<7)|((W>NW)<<6)|((abs(N-NW)>3)<<5)|((N>NW)<<4)|((N>NE)<<3)|min(5, filterOn?filter+1:0);
         ctx[1] = ((LogMeanDiffQt(p1,Clip(Np1+NEp1-buffer(w*2-stride+1)))>>1)<<5)|((LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))>>1)<<2)|min(color,stride-1);
@@ -7339,25 +7750,42 @@ public:
       if (val2==1) return 1; 
     cm.mix(m);
     for (int i=0;i<n2Maps;i++)
-      Map[i].mix(m,1,3);
+      Map[i].mix1(m);
     for (int i=0;i<nSCMaps;i++)
       SCMap[i].mix(m,9,1,3);
 
     m.add(0);
+    if (bpos==0){
+        int i=0;
+        mixCxt[i++]=(((line&7)<<5));
+        mixCxt[i++]=(min(63,column[0])+((ctx[0]>>3)&0xC0));
+        mixCxt[i++]=(min(127,column[1])+((ctx[0]>>2)&0x180));
+        mixCxt[i++]=((ctx[0]&0x7FC));//
+        mixCxt[i++]=0;//(col+(isPNG?(ctx[0]&7)+1:(c0==((0x100|((N+W)/2))>>(8-bpos))))*32);
+        mixCxt[i++]=(((isPNG?p1:0)>>4)*stride+(x%stride) + min(5,filterOn?filter+1:0)*64);
+        mixCxt[i++]=( 256*(isPNG && abs(R1-128)>8));//
+        mixCxt[i++]=((ctx[1]<<2));//
+        mixCxt[i++]=(hash(LogMeanDiffQt(W,WW,5), LogMeanDiffQt(N,NN,5), LogMeanDiffQt(W,N,5), ilog2(W), color)&0x1FFF);
+        mixCxt[i++]=(hash(ctx[0], column[0]/8)&0x1FFF);
+        mixCxt[i++]=0;//(hash(LogQt(N,5), LogMeanDiffQt(N,NN,3), c0)&0x1FFF);
+        mixCxt[i++]=0;//(hash(LogQt(W,5), LogMeanDiffQt(W,WW,3), c0)&0x1FFF);
+        mixCxt[i++]=(min(255,(x+line)/32));
+    }
+    int i=0;
+    m.set(mixCxt[i++]|col, 256);
+    m.set(mixCxt[i++], 256);
+    m.set(mixCxt[i++], 512);
+    m.set(mixCxt[i++]|(bpos>>1), 2048);
+    m.set(col+(isPNG?(ctx[0]&7)+1:(c0==((0x100|((N+W)/2))>>(8-bpos))))*32, 8*32);i++;
+    m.set(mixCxt[i++], 6*64);
+    m.set(c0+mixCxt[i++], 256*2);
+    m.set(mixCxt[i++]|(bpos>>1), 1024);
+    m.set(mixCxt[i++], 8192);
+    m.set(mixCxt[i++], 8192);
+    m.set(hash(LogQt(N,5), LogMeanDiffQt(N,NN,3), c0)&0x1FFF, 8192);i++;
+    m.set(hash(LogQt(W,5), LogMeanDiffQt(W,WW,3), c0)&0x1FFF, 8192);i++;
+    m.set(mixCxt[i++], 256);
     
-    m.set(5, 6);
-    m.set(min(63,column[0])+((ctx[0]>>3)&0xC0), 256);
-    m.set(min(127,column[1])+((ctx[0]>>2)&0x180), 512);
-    m.set((ctx[0]&0x7FC)|(bpos>>1), 2048);
-    m.set(col+(isPNG?(ctx[0]&7)+1:(c0==((0x100|((N+W)/2))>>(8-bpos))))*32, 8*32);
-    m.set(((isPNG?p1:0)>>4)*stride+(x%stride) + min(5,filterOn?filter+1:0)*64, 6*64);
-    m.set(c0+256*(isPNG && abs(R1-128)>8), 256*2);
-    m.set((ctx[1]<<2)|(bpos>>1), 1024);
-    m.set(hash(LogMeanDiffQt(W,WW,5), LogMeanDiffQt(N,NN,5), LogMeanDiffQt(W,N,5), ilog2(W), color)&0x1FFF, 8192);
-    m.set(hash(ctx[0], column[0]/8)&0x1FFF, 8192);
-    m.set(hash(LogQt(N,5), LogMeanDiffQt(N,NN,3), c0)&0x1FFF, 8192);
-    m.set(hash(LogQt(W,5), LogMeanDiffQt(W,WW,3), c0)&0x1FFF, 8192);
-    m.set(min(255,(x+line)/32), 256);
   }
   else{
     m.add( -2048+((filter>>(7-bpos))&1)*4096 );
@@ -7404,7 +7832,6 @@ class im8bitModel1: public Model {
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1} };
-                                     
  SmallStationaryContextMap pltMap[nPltMaps] = { {11,1},{11,1},{11,1},{11,1} };
  IndirectMap sceneMap[5]{ {8}, {8}, {22,1}, {11,1}, {11,1} };
  IndirectContext<U8> iCtx[nPltMaps] = { 16, 16, 16, 16 };
@@ -7449,14 +7876,17 @@ public:
       NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1),   pOLS(nOLS),sceneOls(13, 1, 0.994){
 
   }
-  int inputs() {return inpts*cm.inputs()+nMaps*2+nPltMaps*2;}
+  int inputs() {return inpts*cm.inputs()+nMaps*2+nPltMaps*2+5*2;}
+  int nets() {return ( 2048+5)+    6*16+    6*32+    256+    1024+    64+    128+    256;}
+  int netcount() {return 8;}
+  
 int p(Mixer& m,int w,int val2=0){
   assert(w>3); 
   if (!bpos) {
     if (xx.blpos==1){
       isPNG=  (xx.filetype==PNG8?1:xx.filetype==PNG8GRAY?1:0);
       gray=xx.filetype==PNG8GRAY?1:xx.filetype==IMAGE8GRAY?1:0;
-      x =1; line = jump =  px= 0;
+      x =0; line = jump =  px= 0;
       filterOn = false;
       columns[0] = max(1,w/max(1,ilog2(w)*2));
       columns[1] = max(1,columns[0]/max(1,ilog2(columns[0])));
@@ -7464,6 +7894,7 @@ int p(Mixer& m,int w,int val2=0){
         if (lastPos && lastWasPNG!=isPNG){
           for (int i=0;i<nMaps;i++)
             Map[i].Reset();
+            xx.count=0;
         }
         lastWasPNG = isPNG;
       }
@@ -7639,10 +8070,10 @@ int p(Mixer& m,int w,int val2=0){
         cm.set(hash(++i, W, N,NW, px));
         cm.set(hash(++i, N, NN,NNN, px));
         cm.set(hash(++i, W, NE,NEE, px));
-        cm.set(hash(++i, hash( W,NW,N,NE), px));
-        cm.set(hash(++i,  hash(N,NE,NN,NNE), px));
-        cm.set(hash(++i,  hash(N,NW,NNW,NN), px));
-        cm.set(hash(++i,  hash(W,WW,NWW,NW), px));
+        cm.set(hash(hash( W,NW,N,NE), px));
+        cm.set(hash( hash(N,NE,NN,NNE), px));
+        cm.set(hash( hash(N,NW,NNW,NN), px));
+        cm.set(hash( hash(W,WW,NWW,NW), px));
         cm.set(hash(++i, W, NW<<8 | N, WW<<8 | NWW, px));
         cm.set(hash(++i, px, column[0]));
         cm.set(hash(++i, px));
@@ -7715,7 +8146,7 @@ int p(Mixer& m,int w,int val2=0){
       }
       
      
-        cm.set(0);
+        cm.set();
         cm.set(hash(++i, N, px));
         cm.set(hash(++i, N-px));
         cm.set(hash(++i, W, px));
@@ -7735,7 +8166,7 @@ int p(Mixer& m,int w,int val2=0){
         cm.set(hash(++i, Clip(W+N-NW)-px, column[0]));
         cm.set(hash(++i, Clamp4(N*3-NN*3+NNN,W,N,NN,NE), px, LogMeanDiffQt(W,Clip(NW*2-NNW))));
         cm.set(hash(++i, Clamp4(W*3-WW*3+WWW,W,N,NE,NEE), px, LogMeanDiffQt(N,Clip(NW*2-NWW))));
-        cm.set(hash(++i, (W+Clamp4(NE*3-NNE*3+(isPNG?buffer(w*3-1):buf(w*3-1)),W,N,NE,NEE))/2, px, LogMeanDiffQt(N,(NW+NE)/2)));
+        cm.set(hash(++i, (W+Clamp4(NE*3-NNE*3+NNNE,W,N,NE,NEE))/2, px, LogMeanDiffQt(N,(NW+NE)/2)));
         cm.set(hash(++i, (N+NNN)/8, Clip(N*3-NN*3+NNN)/4, px));
         cm.set(hash(++i, (W+WWW)/8, Clip(W*3-WW*3+WWW)/4, px));
         cm.set(hash(++i, Clip((-buffer(4)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buffer(w*3-1)*4-buffer(w*4-1),N,NE,buffer(w-2),buffer(w-3)))/5)-px));
@@ -7758,7 +8189,8 @@ int p(Mixer& m,int w,int val2=0){
     }
   }
   U8 B=(c0<<(8-bpos));
-  if (gray && (x || !isPNG)){
+  if (x || !isPNG){
+      if (gray) {
     int i=1;
     Map[i++].set((((U8)(Clip(W+N-NW)-px-B))*8+bpos)|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<11));
     
@@ -7768,9 +8200,10 @@ int p(Mixer& m,int w,int val2=0){
     for (int j=0; i<nMaps; i++, j++)
       Map[i].set((pOLS[j]-px-B)*8+bpos);
   }
-sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
+    sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
     sceneMap[3].set_direct((prvFrmPx-B)*8+bpos);
     sceneMap[4].set_direct((prvFrmPred-B)*8+bpos);
+}
   // Predict next bit
   if (x || !isPNG){
   col=(col+1)&7;
@@ -7778,7 +8211,7 @@ sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
     cm.mix(m);
     if (gray){
       for (int i=0;i<nMaps;i++)
-        Map[i].mix(m);
+        Map[i].mix1(m);
     }else {
       for (int i=0; i<nPltMaps; i++) {
         pltMap[i].set((bpos<<8)|iCtx[i]());
@@ -7826,13 +8259,16 @@ class im4bitModel1: public Model {
     U8 WW, W, NWW, NW, N, NE, NEE, NNWW, NNW, NN, NNE, NNEE;
     int col, line, run, prevColor, px;
     public:
- im4bitModel1( BlockData& bd,U32 val=0 ): x(bd),buf(bd.buf),t(CMlimit(MEM()/8)),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
+ im4bitModel1( BlockData& bd,U32 val=0 ): x(bd),buf(bd.buf),t( CMlimit((level>14?MEM()/2:MEM())/8) ),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
   NEE(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0),col(0), line(0), run(0), prevColor(0), px(0) {
    sm=new StateMap[S];
    for (int i=0;i<S;i++)
       cp[i]=t[263*i]+1;
    }
   int inputs() {return S*3+2;}
+  int nets() {return 256+   512+   512+  1024+   16+  1;}
+  int netcount() {return 6;}
+   
 int p(Mixer& m,int w=0,int val2=0)  {
   int i;
   if (x.blpos==1){//helps only on bigger files+1024kb
@@ -7887,13 +8323,13 @@ int p(Mixer& m,int w=0,int val2=0)  {
   for (int i=0; i<S; i++) {
     const U8 s = *cp[i];
     const int n0=-!nex(s, 2), n1=-!nex(s, 3);
-    const int p1 = sm[i].p(s,x.y);
+    const int p1 = sm[i].p1(s,x.y);
     const int st = stretch(p1)>>1;
     m.add(st);
-    m.add((p1-2047)>>2);
+    m.add((p1-2048)>>3);
     m.add(st*abs(n1-n0));
   }
-  m.add(stretch(map.p(px,x.y))>>1);
+  m.add(stretch(map.p(px,x.y)));
  
   m.set(W*16+px, 256);
   m.set(min(31,col/max(1,w/16))+N*32, 512);
@@ -7926,6 +8362,8 @@ public:
    cp=t1[0]+1;
    }
   int inputs() {return N+2;}
+  int nets() {return 256+256+256+256+256;}
+  int netcount() {return 5;}
 int p(Mixer& m,int w=0,int val2=0)  {
   // update the model
   int i;
@@ -7953,7 +8391,7 @@ int p(Mixer& m,int w=0,int val2=0)  {
   cxt[10]=0x13000+((r0&0x3e)^(r1&0x0c0c)^(r2&0xc800));
  
   // predict
-  for (i=0; i<N; i++) m.add(stretch(sm[i].p(t[cxt[i]],x.y)));
+  for (i=0; i<N; i++) m.add(stretch(sm[i].p1(t[cxt[i]],x.y)));
   //run
   if (cp[1]==x.y)
       m.add(((cp[1]&1)*2-1)*ilog(cp[0]+1)*8);
@@ -7969,6 +8407,8 @@ int p(Mixer& m,int w=0,int val2=0)  {
  virtual ~im1bitModel1(){  delete[] sm;}
  
 };
+
+#define JPEGLIMIT 0x3ffff  // limit in bytes when statemap switch
 //////////////////////////// jpegModel /////////////////////////
 
 // Model JPEG. Return 1 if a JPEG file is detected or else 0.
@@ -8114,7 +8554,7 @@ int B;
  Array<U8*> cp;
   BlockData& x;
  StateMap **sm;
- U8* find(U32 i) {
+ inline U8* find(U32 i) {
     int chk=(i>>24^i>>12^i)&255;
     i&=n;
     int bi=i, b=1024;  // best replacement so far
@@ -8132,8 +8572,8 @@ int B;
     return p;
   }
 public:
-  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(N), x(bd) {
-    assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2?
+  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(n), x(bd) {
+    assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2? N((n+3)&-4),
     sm = new StateMap*[ncontext];
      
     for (U32 i=0; i<ncontext; i++) {
@@ -8143,15 +8583,35 @@ public:
   
   void update(){
       if (cp[ncontext-1]) {
-    for (int i=0; i<ncontext; ++i)
-      *cp[i]=nex(*cp[i],x.y);
+           const int y=x.y;
+      for (int i=0; i<ncontext; ++i)
+        *cp[i]=nex(*cp[i],y);
+     
    }
   }
- inline int p(int i,U32 a,bool setcontext){
+ inline int ps(int i,U32 a,const int y){
       assert(i<ncontext);
-      if (setcontext) cp[i]=find(a)+1;  // set
-      else cp[i]+=a;                    // add
-      return sm[i]->p(*cp[i],x.y);      // predict
+      cp[i]=find(a)+1;  // set
+      
+      return sm[i]->p(*cp[i],y);      // predict
+  }
+  inline int p(int i,U32 a,const int y){
+      assert(i<ncontext);
+       cp[i]+=a;                    // add
+      return sm[i]->p(*cp[i],y);      // predict
+  }
+  inline int p1s(int i,U32 a,const int y){
+      assert(i<ncontext);
+      cp[i]=find(a)+1;  // set
+      return sm[i]->p1(*cp[i],y);      // predict
+      
+  }
+  inline int p1(int i,U32 a,const int y){
+      assert(i<ncontext);
+       //cp[i]=find(a)+1;  // set
+      cp[i]+=a;
+      return sm[i]->p1(*cp[i],y);      // predict
+      
   }
   ~BHMap() {
       for (U32 i=0; i<ncontext; i++) {
@@ -8170,7 +8630,7 @@ public:
 */
 }
 };
- 
+
 class jpegModelx: public Model {
      int MaxEmbeddedLevel ;
    JPEGImage  images[3];
@@ -8243,6 +8703,7 @@ class jpegModelx: public Model {
    BlockData& x;
    Buf& buf;
    int hbcount;
+   int pr0;
    int prev_coef,prev_coef2, prev_coef_rs;
    int rstpos,rstlen; // reset position
    BHMap hmap; // context hash -> bit history   
@@ -8250,17 +8711,22 @@ class jpegModelx: public Model {
     // bits of huffcode if the length (huffbits) is not a multiple of 3.
     // The 7 mapped values are for context+{"", 0, 00, 01, 1, 10, 11}.
     U32 skip;
+    StateMap smx;
+    U32 jmiss,zux,ccount;
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
-  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),
-  qtab(256),qmap(10),N(35),cxt(N),m1(32+32+3+4,2050+3 /*770*/,bd, 3), a1(0x8000),a2(0x20000),x(bd),buf(bd.buf),
-  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0) {
+  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
+  qtab(256),qmap(10),N(35+1+1),cxt(N),m1(32+32+3+4+1+1,2050+3+1024 /*770*/,bd, 3,0,0), a1(0x20000),a2(0x20000),x(bd),buf(bd.buf),
+  hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),hmap(level>11?0x10000000:(CMlimit(MEM()*2)),8,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(0) {
+     m1.setText(true);
   }
-  int inputs() {return 7+N*2+1;}
+  int inputs() {return 7+N*2+1+1;}
+  int nets() {return 9+1025+1024+4096+16;}
+  int netcount() {return 3+1+1;}
   int p(Mixer& m,int val1=0,int val2=0){
 
  if (idx < 0){
@@ -8325,7 +8791,7 @@ public:
       mcusize=huffcode=huffbits=huffsize=mcupos=cpos=0, rs=-1;
       memset(&huf[0], 0, sizeof(huf));
       memset(&pred[0], 0, pred.size()*sizeof(int));
-      rstpos=rstlen=0;
+      rstpos=rstlen=ccount=0;
     }
 
     // Detect end of JPEG when data contains a marker other than RSTx
@@ -8339,7 +8805,8 @@ public:
     if (!images[idx].jpeg) return images[idx].next_jpeg;
      //if (!images[idx].jpeg) return 0; //??
     // Detect APPx or COM field
-    if (!images[idx].data && !images[idx].app && buf(4)==FF && (((buf(3)>=0xC1) && (buf(3)<=0xCF) && (buf(3)!=DHT)) || ((buf(3)>=0xDC) && (buf(3)<=0xFE)))){
+    bool mainfileds=(( ((buf(3)>=0xC1) && (buf(3)<=0xCF) && (buf(3)!=DHT)) || ((buf(3)>=0xDC) && (buf(3)<=0xFE)) ) && idx==0);
+    if (!images[idx].data && !images[idx].app && buf(4)==FF &&  (buf(3)>>4==0xe || buf(3)==COM||mainfileds)) {//(((buf(3)>=0xC1) && (buf(3)<=0xCF) && (buf(3)!=DHT)) || ((buf(3)>=0xDC) && (buf(3)<=0xFE)))){
 //&& (buf(3)>>4==0xe || buf(3)==COM))
       images[idx].app=buf(2)*256+buf(1)+2;
    if (idx)
@@ -8473,6 +8940,7 @@ public:
             SamplingFactors[j] = hv;
             if (hv>>4>hmax) hmax=hv>>4;
             hv=(hv&15)*(hv>>4);  // number of blocks in component C
+            ccount=max(hv,ccount);
             jassert(hv>=1 && hv+mcusize<=10);
             while (hv) {
               jassert(mcusize<10);
@@ -8518,13 +8986,13 @@ public:
       }
     }
   }
-
+  const int y=x.y;
 
   // Decode Huffman
   {
     if (mcusize && buf(1+(!x.bpos))!=FF) {  // skip stuffed byte
       jassert(huffbits<=32);
-      huffcode+=huffcode+x.y;
+      huffcode+=huffcode+y;
       ++huffbits;
       if (rs<0) {
         jassert(huffbits>=1 && huffbits<=16);
@@ -8709,6 +9177,9 @@ public:
     m.set(0, 9);
     m.set(0, 1025);
     m.set(buf(1), 1024);
+         m.set(0, 4096 );
+         x.Misses+=x.Misses+1;
+   m.set((x.Misses&0xf), 16 );
     return 1;
   }
   if (rstlen>0 && rstlen==column+row*width-rstpos && mcupos==0 && (int)huffcode==(1<<huffbits)-1) {
@@ -8716,6 +9187,9 @@ public:
     m.set(0, 9);
     m.set(0, 1025); 
     m.set(buf(1), 1024);
+         m.set(0, 4096 );
+         x.Misses+=x.Misses+1;
+   m.set((x.Misses&0xf), 16 );
     return 1;
   }
   if (val1==1) {if (++hbcount>2 ) hbcount=0;return /*skip++,*/ 1;  }
@@ -8730,8 +9204,9 @@ public:
   if (++hbcount>2 || huffbits==0) hbcount=0;
   jassert(coef>=0 && coef<256);
   const int zu=zzu[mcupos&63], zv=zzv[mcupos&63];
+  zux=zux<<2;zux|=(zu>0)*2|zv>0;
     if (hbcount==0) {
-    U32 n=hc*32;
+    U32 n=hc*33;
     cxt[0]=hash(++n, coef, adv_pred[2]/12+(run_pred[2]<<8), ssum2>>6, prev_coef/72);
     cxt[1]=hash(++n, coef, adv_pred[0]/12+(run_pred[0]<<8), ssum2>>6, prev_coef/72);
     cxt[2]=hash(++n, coef, adv_pred[1]/11+(run_pred[1]<<8), ssum2>>6);
@@ -8752,236 +9227,191 @@ public:
     cxt[17]=hash(++n, rs1, mcupos&63, run_pred[1]);
     cxt[18]=hash(++n, coef, ssum2>>5, adv_pred[3]/30, (comp)?hash(prev_coef/22,prev_coef2/50):ssum/((mcupos&0x3F)+1));
     cxt[19]=hash(++n, lcp[0]/40, lcp[1]/40, adv_pred[1]/28, hash( (comp)?prev_coef/40+((prev_coef2/40)<<20):lcp[4]/22, min(7,zu+zv), ssum/(2*(zu+zv)+1) ) );
-    cxt[20]=hash(++n, zv, cbuf[cpos-blockN[mcupos>>6]], adv_pred[2]/28, run_pred[2]);
-    cxt[21]=hash(++n, zu, cbuf[cpos-blockW[mcupos>>6]], adv_pred[0]/28, run_pred[0]);
-    cxt[22]=hash(++n, adv_pred[2]/7, run_pred[2]);
+    cxt[20]=hash(++n, ccount>1?((zv<<8)|zu):zv , cbuf[cpos-blockN[mcupos>>6]], adv_pred[2]/28, run_pred[2]);//use (zv<<8)|zu for subsampling
+    cxt[21]=hash(++n, ccount>1?((zv<<8)|zu):zu, cbuf[cpos-blockW[mcupos>>6]], adv_pred[0]/28, run_pred[0]);
+    cxt[22]=hash(n, adv_pred[2]/7, run_pred[2]);
     cxt[23]=hash(n, adv_pred[0]/7, run_pred[0]);
     cxt[24]=hash(n, adv_pred[1]/7, run_pred[1]);
-    cxt[25]=hash(++n, zv, lcp[1]/14, adv_pred[2]/16, run_pred[5]);
-    cxt[26]=hash(++n, zu, lcp[0]/14, adv_pred[0]/16, run_pred[3]);
+    cxt[25]=hash(++n,  ccount>1?((zv<<8)|zu):zv , lcp[1]/14, adv_pred[2]/16, run_pred[5]);
+    cxt[26]=hash(++n,  ccount>1?((zv<<8)|zu):zu, lcp[0]/14, adv_pred[0]/16, run_pred[3]);
     cxt[27]=hash(++n, lcp[0]/14, lcp[1]/14, adv_pred[3]/16);
     cxt[28]=hash(++n, coef, prev_coef/10, prev_coef2/20);
     cxt[29]=hash(++n, coef, ssum>>2, prev_coef_rs);
     cxt[30]=hash(++n, coef, adv_pred[1]/17, hash(lcp[(zu<zv)]/24,lcp[2]/20,lcp[3]/24));
     cxt[31]=hash(++n, coef, adv_pred[3]/11, hash(lcp[(zu<zv)]/50,lcp[2+3*(zu*zv>1)]/50,lcp[3+3*(zu*zv>1)]/50));
     cxt[32]=hash(++n, hash(coef, adv_pred[2]/17),hash(coef, adv_pred[1]/11), ssum>>2,run_pred[0]);
-    cxt[33]=hash(++n, hash(zv, run_pred[2]/2),hash(coef, run_pred[5]/2), min(7,zu+zv),adv_pred[0]/12);
-    cxt[34]=(!hbcount)?hash(mcupos, column, row, hc>>2):0; // MJPEG
+    cxt[33]=hash(++n, hash(ccount>1?zux:-1,zv, run_pred[2]/2),hash(coef, run_pred[5]/2), min(7,zu+zv),adv_pred[0]/12);
+    cxt[34]= hash(mcupos, column, row, hc>>2) ; // MJPEG
+    cxt[35]=hash(hc,ccount>1?((zv<<8)|zu):zu,cbuf[cpos-blockN[mcupos>>6]], hash(adv_pred[2]/28, run_pred[2],lcp[1]/14/* art*/), hash( adv_pred[0]/28, run_pred[0],lcp[4]/14/*art*/)) ;
+    cxt[36]=hash(++n, (zv<<8)|zu,hash(lcp[0]/22, lcp[4]/30, ssum2>>6,prev_coef/28),hash(adv_pred[0]/30, adv_pred[1]/30,adv_pred[2]/30), hash(run_pred[0], run_pred[1],run_pred[2]));
   }
 
   // Predict next bit
   m1.add(128);
   assert(hbcount<=2);
   int p;
- switch(hbcount)
-  {
-   case 0: for (int i=0; i<N; ++i){  p=hmap.p(i,cxt[i],true); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);} break;
-   case 1: { int hc=1+(huffcode&1)*3; for (int i=0; i<N; ++i){ p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
-   default: { int hc=1+(huffcode&1); for (int i=0; i<N; ++i){  p=hmap.p(i,hc,false); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }} break;
-  }
+#ifndef SM 
+        x.count=0; //force to old statemap
+#endif
 
+ switch(hbcount) {
+   case 0: {
+        if (x.count>JPEGLIMIT)
+           for (int i=0; i<N; ++i){  p=hmap.p1s(i,cxt[i],y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
+        else
+           for (int i=0; i<N; ++i){  p=hmap.ps(i,cxt[i],y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
+        } break;
+   case 1: { int hc=1+(huffcode&1)*3;
+        if (x.count>JPEGLIMIT)
+           for (int i=0; i<N; ++i){ p=hmap.p1(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+        else
+            for (int i=0; i<N; ++i){ p=hmap.p(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+        } break;
+   default: { int hc=1+(huffcode&1); 
+            if (x.count>JPEGLIMIT)
+               for (int i=0; i<N; ++i){  p=hmap.p1(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+            else 
+               for (int i=0; i<N; ++i){  p=hmap.p(i,hc,y); m.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+            } break;
+  }
+  
+  int sd=((smx.p((hc)&0xffff,y)));
+   m1.add(sd=stretch(sd));
+   m.add(sd);
+   
    m1.set(firstcol, 2);
    m1.set( coef+256*min(3,huffbits), 1024 );
-   m1.set( (hc&0x1FE)*2+min(3,ilog2(zu+zv)), 1024 );
+   m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048 );
+  // m1.setl(x.y);
   int pr=m1.p(1,1);
+   x.Misses+=x.Misses+((pr0>>11)!=y);
+   jmiss+=jmiss+((pr0>>11)!=y);
+  pr0=pr;
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
-  pr=a1.p(pr, (hc&511)|(((adv_pred[1]/16)&63)<<9), x.y,1023);
+  //pr=a1.p(pr,hash(hc,adv_pred[1]/16,x.Misses&0xf,jmiss&0xf)&0x1FFFF, x.y,1023);// larger files
+  pr=a1.p(pr,hash(hc,adv_pred[1]/16,(x.Misses&0xf)?(x.Misses&0xf):(jmiss&0xf),(x.Misses&0xf)?0:(jmiss&0xf))&0x1FFFF, y,1023);
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
-  pr=a2.p(pr, (hc&511)|(coef<<9),x.y, 1023);
-  
+  pr=a2.p(pr, hash(hc&0xffff,coef,x.Misses&0xf)&0x1FFFF,y, 1023);
+
   m.add(stretch(pr)>>1);
   m.add((pr>>2)-511);
+  m.add(stretch((pr+pr0)>>1));
   m.set( 1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4, 9 );
   m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025 );
   m.set( coef+256*min(3,huffbits/2), 1024 );
+   m.set((hc)&0xfff, 4096 );
+   m.set((x.Misses&0xf), 16 );
   return 1;
   }
   virtual ~jpegModelx(){
-      //printf("Skip jpeg %d bytes",(skip/8));
    }
  
 };
 
 //////////////////////////// wavModel /////////////////////////////////
 
-// Model a 16/8-bit stereo/mono uncompressed .wav file.
-// Based on 'An asymptotically Optimal Predictor for Stereo Lossless Audio Compression'
-// by Florin Ghido.
+///////////////// Least Mean Squares predictor /////////////////
+
+template <typename F, typename T>
+class LMS {
+private:
+  F *weights, *eg, *buffer;
+  F rates[2];
+  F rho, complement, eps, prediction;
+  int S, D;
+public:
+  LMS(const int S, const int D, const F lRate, const F rRate, const F rho = 0.95, const F eps = 1e-3) : rates{ lRate, rRate }, rho(rho), complement(1. - rho), eps(eps), prediction(0.), S(S), D(D) {
+    assert(S>0 && D>0);
+    weights = new F[S+D], eg = new F[S+D], buffer = new F[S+D];
+    Reset();
+  }
+  ~LMS() {
+    delete weights, delete eg, delete buffer;
+  }
+  F Predict(const T sample)
+  {
+    memmove(&buffer[S+1], &buffer[S], (D-1) * sizeof(F));
+    buffer[S] = sample;
+    prediction = 0.;
+    for (int i=0; i<S+D; i++)
+      prediction+= weights[i] * buffer[i];
+    return prediction;
+  }
+  inline float rsqrt(const float x) {
+     float r = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(x)));
+     return (0.5f * (r + 1.0f/(x * r)));
+  }
+  void Update(const T sample)
+  {
+    const F error = sample - prediction;
+    int i=0;
+    for (; i<S; i++) {
+      const F gradient = error * buffer[i];
+      eg[i] = rho * eg[i] + complement * (gradient * gradient);
+      weights[i]+= (rates[0] * gradient * rsqrt(eg[i] + eps));
+    }
+    for (; i<S+D; i++) {
+      const F gradient = error * buffer[i];
+      eg[i] = rho * eg[i] + complement * (gradient * gradient);
+      weights[i]+= (rates[1] * gradient * rsqrt(eg[i] + eps));
+    }
+    memmove(&buffer[1], &buffer[0], (S-1) * sizeof(F));
+    buffer[0] = sample;
+  }
+  void Reset() {
+    for (int i=0; i<S+D; i++)
+      weights[i] = eg[i] = buffer[i] = 0.;
+  }
+};
+//////////////////////////// wavModel /////////////////////////////////
+
 
 class wavModel1: public Model {
-  int pr[3][2], n[2], counter[2];
-double F[49][49][2],L[49][49];
-  
-   long  double sum;
-  //const double a,a2;
-  const int SC;
-  SmallStationaryContextMap scm1, scm2, scm3, scm4, scm5, scm6, scm7;
-  ContextMap cm;
-  int bits, channels, w,rlen;
-  int z1, z2, z3, z4, z5, z6, z7;
- // int winfo;
-  int col;
-  int S,D;
-  int wmode;
   BlockData& x;
   Buf& buf;
-  int ch;
-public:
-  wavModel1(BlockData& bd): SC(0x20000),scm1(8,8), scm2(8,8), scm3(8,8),
-   scm4(8,8), scm5(8,8), scm6(8,8), scm7(8,8),cm(CMlimit(MEM()*4), 10+1),rlen(0),col(0),x(bd),buf(bd.buf),ch(0){
-  /*  bits=((winfo%4)/2)*8+8;
-    channels=winfo%2+1;
-    w=channels*(bits>>3);
-    wmode=winfo;
-    rlen=(bits/8*channels);
-    if (channels==1) S=48,D=0; else S=36,D=12;
-    for (int j=0; j<channels; j++) {
-      for (k=0; k<=S+D; k++) for (l=0; l<=S+D; l++) F[k][l][j]=0, L[k][l]=0;
-      F[1][0][j]=1;
-      n[j]=counter[j]=pr[2][j]=pr[1][j]=pr[0][j]=0;
-      z1=z2=z3=z4=z5=z6=z7=0;
-    }*/
-   // printf("%d",sizeof(long long int));
-  //  recModel=0;
-    //if (level>=4)recModel=new recordModel1(bd,CMlimit(MEM()));
-}
-int inputs() {return 11*cm.inputs()+7*2/*+(level>=4?recModel->inputs():0)*/;}
-int p(Mixer& m,int info,int val2=0){
-    int j,k,l,i=0;
-     const double a=0.996,a2=1/a;
-  if (!x.blpos && x.bpos==1) {
-    bits=((info%4)/2)*8+8;
-    channels=info%2+1;
-    w=channels*(bits>>3);
-    wmode=info;
-    rlen=(bits/8*channels);
-    if (channels==1) S=48,D=0; else S=36,D=12;
-    for (int j=0; j<channels; j++) {
-      for (k=0; k<=S+D; k++) for (l=0; l<=S+D; l++) F[k][l][j]=0, L[k][l]=0;
-      F[1][0][j]=1;
-      n[j]=counter[j]=pr[2][j]=pr[1][j]=pr[0][j]=0;
-      z1=z2=z3=z4=z5=z6=z7=0;
-    }
-  }
-  
-// Select previous samples and predicted sample as context
-  if (!x.bpos && x.blpos>=w) {
+  private:
+  class audio8{
+BlockData& x;
+   Buf& buf;
+   const int nOLS, nLMS, nLnrPrd;
+   //nLnrPrd=14
+   SmallStationaryContextMap sMap1b[14][3]{
+    {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}},
+    {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}},
+    {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}},
+    {{11,1}, {11,1}, {11,1}}, {{11,1}, {11,1}, {11,1}}
+  };
+  //nOLS=8
+  OLS<double, int8_t> ols[8][2]{
+    {{128, 24, 0.9975}, {128, 24, 0.9975}},
+    {{90, 30, 0.9965}, {90, 30, 0.9965}},
+    {{90, 31, 0.996}, {90, 31, 0.996}},
+    {{90, 32, 0.995}, {90, 32, 0.995}},
+    {{90, 33, 0.995}, {90, 33, 0.995}},
+    {{90, 34, 0.9985}, {90, 34, 0.9985}},
+    {{28, 4, 0.98}, {28, 4, 0.98}},
+    {{28, 3, 0.992}, {28, 3, 0.992}}
+  };
+  //nLMS=3
+  LMS<float, int8_t> lms[3][2]{
+    {{1280, 640, 3e-5, 2e-5}, {1280, 640, 3e-5, 2e-5}},
+    {{640, 64, 8e-5, 1e-5}, {640, 64, 8e-5, 1e-5}},
+    {{2450, 8, 1.6e-5, 1e-6}, {2450, 8, 1.6e-5, 1e-6}}
+  };
+  //nLnrPrd=14
+  int prd[14][2][2];
+  int residuals[14][2];
+    int stereo, ch;
+    U32 mask, errLog, mxCtx;
+    int S;
+  int wmode;
+    public:
+   audio8(BlockData& bd):x(bd),buf(bd.buf),nOLS(8), nLMS(3), nLnrPrd(nOLS+nLMS+3),prd{ 0 },residuals{ 0 },stereo(0), ch(0),mask(0), errLog(0), mxCtx(0),S(0),wmode(0){
       
-    ch=(x.blpos)%w;
-    const int msb=ch%(bits>>3);
-    const int chn=ch/(bits>>3);
-    if (!msb) {
-      z1=X1(1), z2=X1(2), z3=X1(3), z4=X1(4), z5=X1(5);
-      k=X1(1);
-      for (l=0; l<=min(S,counter[chn]-1); l++) { F[0][l][chn]*=a; F[0][l][chn]+=X1(l+1)*k; }
-      for (l=1; l<=min(D,counter[chn]); l++) { F[0][l+S][chn]*=a; F[0][l+S][chn]+=X2(l+1)*k; }
-      if (channels==2) {
-        k=X2(2);
-        for (l=1; l<=min(D,counter[chn]); l++) { F[S+1][l+S][chn]*=a; F[S+1][l+S][chn]+=X2(l+1)*k; }
-        for (l=1; l<=min(S,counter[chn]-1); l++) { F[l][S+1][chn]*=a; F[l][S+1][chn]+=X1(l+1)*k; }
-        z6=X2(1)+X1(1)-X2(2), z7=X2(1);
-      } else z6=2*X1(1)-X1(2), z7=X1(1);
-      if (++n[chn]==(256>>(level<9?level:8))) {
-        if (channels==1) for (k=1; k<=S+D; k++) for (l=k; l<=S+D; l++) F[k][l][chn]=(F[k-1][l-1][chn]-X1(k)*X1(l))*a2;
-        else for (k=1; k<=S+D; k++) if (k!=S+1) for (l=k; l<=S+D; l++) if (l!=S+1) F[k][l][chn]=(F[k-1][l-1][chn]-(k-1<=S?X1(k):X2(k-S))*(l-1<=S?X1(l):X2(l-S)))*a2;
-        for (i=1; i<=S+D; i++) {
-           sum=F[i][i][chn];
-           for (k=1; k<i; k++) sum-=L[i][k]*L[i][k];
-           sum=floor(sum+0.5);
-           sum=1/sum;
-           if (sum>0) {
-             L[i][i]=sqrt(sum);
-             for (j=(i+1); j<=S+D; j++) {
-               sum=F[i][j][chn];
-               for (k=1; k<i; k++) sum-=L[j][k]*L[i][k];
-               sum=floor(sum+0.5);
-               L[j][i]=sum*L[i][i];
-             }
-           } else break;
-        }
-        if (i>S+D && counter[chn]>S+1) {
-          for (k=1; k<=S+D; k++) {
-            F[k][0][chn]=F[0][k][chn];
-            for (j=1; j<k; j++) F[k][0][chn]-=L[k][j]*F[j][0][chn];
-            F[k][0][chn]*=L[k][k];
-          }
-          for (k=S+D; k>0; k--) {
-            for (j=k+1; j<=S+D; j++) F[k][0][chn]-=L[j][k]*F[j][0][chn];
-            F[k][0][chn]*=L[k][k];
-          }
-        }
-        n[chn]=0;
-      }
-      sum=0;
-      for (l=1; l<=S+D; l++) sum+=F[l][0][chn]*(l<=S?X1(l):X2(l-S));
-      pr[2][chn]=pr[1][chn];
-      pr[1][chn]=pr[0][chn];
-      pr[0][chn]=int(floor(sum));
-      counter[chn]++;
-    }
-    const int y1=pr[0][chn], y2=pr[1][chn], y3=pr[2][chn];
-    int x1=buf(1), x2=buf(2), x3=buf(3);
-    if (wmode==4 || wmode==5) x1^=128, x2^=128;
-    if (bits==8) x1-=128, x2-=128;
-    const int t=((bits==8) || ((!msb)^(wmode<6)));
-    i=ch<<4;
-    if ((msb)^(wmode<6)) {
-      cm.set(hash(++i, y1&0xff));
-      cm.set(hash(++i, y1&0xff, ((z1-y2+z2-y3)>>1)&0xff));
-      cm.set(hash(++i, x1, y1&0xff));
-      cm.set(hash(++i, x1, x2>>3, x3));
-      if (bits==8)        
-        cm.set(hash(++i, y1&0xFE, ilog2(abs((int)(z1-y2)))*2+(z1>y2) ));
-      else  cm.set(hash(++i, (y1+z1-y2)&0xff));
-      cm.set(hash(++i, x1));
-      cm.set(hash(++i, x1, x2));
-      cm.set(hash(++i, z1&0xff));
-      cm.set(hash(++i, (z1*2-z2)&0xff));
-      cm.set(hash(++i, z6&0xff));
-      cm.set(hash( ++i, y1&0xFF, ((z1-y2+z2-y3)/(bits>>3))&0xFF ));
-    } else {
-      cm.set(hash(++i, (y1-x1+z1-y2)>>8));
-      cm.set(hash(++i, (y1-x1)>>8));
-      cm.set(hash(++i, (y1-x1+z1*2-y2*2-z2+y3)>>8));
-      cm.set(hash(++i, (y1-x1)>>8, (z1-y2+z2-y3)>>9));
-      cm.set(hash(++i, z1>>12));
-      cm.set(hash(++i, x1));
-      cm.set(hash(++i, x1>>7, x2, x3>>7));
-      cm.set(hash(++i, z1>>8));
-      cm.set(hash(++i, (z1*2-z2)>>8));
-      cm.set(hash(++i, y1>>8));
-      cm.set(hash( ++i, (y1-x1)>>6 ));
-    }
-    scm1.set(t*ch);
-    scm2.set(t*((z1-x1+y1)>>9)&0xff);
-    scm3.set(t*((z1*2-z2-x1+y1)>>8)&0xff);
-    scm4.set(t*((z1*3-z2*3+z3-x1)>>7)&0xff);
-    scm5.set(t*((z1+z7-x1+y1*2)>>10)&0xff);
-    scm6.set(t*((z1*4-z2*6+z3*4-z4-x1)>>7)&0xff);
-    scm7.set(t*((z1*5-z2*10+z3*10-z4*5+z5-x1+y1)>>9)&0xff);
-  }
-
-  // Predict next bit
-  scm1.mix(m);
-  scm2.mix(m);
-  scm3.mix(m);
-  scm4.mix(m);
-  scm5.mix(m);
-  scm6.mix(m);
-  scm7.mix(m);
-  cm.mix(m);
-  if (++col>=w*8) col=0;
-  //m.set(3, 8);
-  m.set( ch+4*ilog2(col&(bits-1)), 4*8 );
-  m.set(col%bits<8, 2);
-  m.set(col%bits, bits);
-  m.set(col, w*8);
-  m.set(x.c0, 256);
-  return 0;
-  } 
-
+    }   
+    
 inline int s2(int i) { return int(short(buf(i)+256*buf(i-1))); }
 inline int t2(int i) { return int(short(buf(i-1)+256*buf(i))); }
 
@@ -9012,7 +9442,309 @@ inline int X2(int i) {
     default: return 0;
   }
 }
+
+inline int signedClip8(const int i) {
+  return max(-128, min(127, i));
+}
+
+void audio8bModel(Mixer& m, int info) {
+  const int8_t B = x.c0<<(8-x.bpos);
+   if (x.blpos==0 && x.bpos==1) {
+  //if (x.bpos==1 &&x.blpos==0) {
+      assert((info&2)==0);
+      stereo = (info&1);
+      mask = 0;
+      wmode=info;
+      for (int i=0; i<nLMS; i++)
+        lms[i][0].Reset(), lms[i][1].Reset();
+    }
+  if (x.bpos==0) {
+    ch=(stereo)?x.blpos&1:0;
+    const int8_t s = int(((wmode&4)>0)?buf(1)^128:buf(1))-128;
+    const int pCh = ch^stereo;
+    int i = 0;
+    for (errLog=0; i<nOLS; i++) {
+      ols[i][pCh].Update(s);
+      residuals[i][pCh] = s-prd[i][pCh][0];
+      const U32 absResidual = (U32)abs(residuals[i][pCh]);
+      mask+=mask+(absResidual>4);
+      errLog+=SQR(absResidual);
+    }
+    for (int j=0; j<nLMS; j++)
+      lms[j][pCh].Update(s);
+    for (; i<nLnrPrd; i++)
+      residuals[i][pCh] = s-prd[i][pCh][0];
+    errLog = min(0xF, ilog2(errLog));
+    mxCtx = ilog2(min(0x1F, BitCount(mask)))*2+ch;
+
+    int k1=90, k2=k1-12*stereo;
+    for (int j=(i=1); j<=k1; j++, i+=1<<((j>8)+(j>16)+(j>64))) ols[1][ch].Add(X1(i));
+    for (int j=(i=1); j<=k2; j++, i+=1<<((j>5)+(j>10)+(j>17)+(j>26)+(j>37))) ols[2][ch].Add(X1(i));
+    for (int j=(i=1); j<=k2; j++, i+=1<<((j>3)+(j>7)+(j>14)+(j>20)+(j>33)+(j>49))) ols[3][ch].Add(X1(i));
+    for (int j=(i=1); j<=k2; j++, i+=1+(j>4)+(j>8)) ols[4][ch].Add(X1(i));
+    for (int j=(i=1); j<=k1; j++, i+=2+((j>3)+(j>9)+(j>19)+(j>36)+(j>61))) ols[5][ch].Add(X1(i));
+    if (stereo) {
+      for (i=1; i<=k1-k2; i++) {
+        const double s = (double)X2(i);
+        ols[2][ch].AddFloat(s);
+        ols[3][ch].AddFloat(s);
+        ols[4][ch].AddFloat(s);
+      }
+    }
+    k1=28, k2=k1-6*stereo;
+    for (i=1; i<=k2; i++) {
+      const double s = (double)X1(i);
+      ols[0][ch].AddFloat(s);
+      ols[6][ch].AddFloat(s);
+      ols[7][ch].AddFloat(s);
+    }
+    for (; i<=96; i++) ols[0][ch].Add(X1(i));
+    if (stereo) {
+      for (i=1; i<=k1-k2; i++) {
+        const double s = (double)X2(i);
+        ols[0][ch].AddFloat(s);
+        ols[6][ch].AddFloat(s);
+        ols[7][ch].AddFloat(s);
+      }
+      for (; i<=32; i++) ols[0][ch].Add(X2(i));
+    }
+    else
+      for (; i<=128; i++) ols[0][ch].Add(X1(i));
+
+    for (i=0; i<nOLS; i++)
+      prd[i][ch][0] = signedClip8((int)floor(ols[i][ch].Predict()));
+    for (; i<nOLS+nLMS; i++)
+      prd[i][ch][0] = signedClip8((int)floor(lms[i-nOLS][ch].Predict(s)));
+    prd[i++][ch][0] = signedClip8(X1(1)*2-X1(2));
+    prd[i++][ch][0] = signedClip8(X1(1)*3-X1(2)*3+X1(3));
+    prd[i  ][ch][0] = signedClip8(X1(1)*4-X1(2)*6+X1(3)*4-X1(4));
+    for (i=0; i<nLnrPrd; i++)
+      prd[i][ch][1] = signedClip8(prd[i][ch][0]+residuals[i][pCh]);
+  }
+  for (int i=0; i<nLnrPrd; i++) {
+    const U32 ctx = (prd[i][ch][0]-B)*8+x.bpos;
+    sMap1b[i][0].set(ctx);
+    sMap1b[i][1].set(ctx);
+    sMap1b[i][2].set((prd[i][ch][1]-B)*8+x.bpos);
+    sMap1b[i][0].mix(m, 6, 1, 2+(i>=nOLS));
+    sMap1b[i][1].mix(m, 9, 1, 2+(i>=nOLS));
+    sMap1b[i][2].mix(m, 7, 1, 3);
+  }
+  m.set((errLog<<8)|x.c0, 4096);
+  m.set((U8(mask)<<3)|(ch<<2)|(x.bpos>>1), 2048);
+  m.set((mxCtx<<7)|(buf(1)>>1), 1280);
+  m.set((errLog<<4)|(ch<<3)|x.bpos, 256);
+  m.set(mxCtx, 10);
+}
+};
+
+//16 bit audio model
+class audio16{
+BlockData& x;
+   Buf& buf;
+   const int nOLS, nLMS, nLnrPrd;
+   //nLnrPrd=14
+   SmallStationaryContextMap sMap1b[14][4]{
+    {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}},
+    {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}},
+    {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}},
+    {{17,1},{17,1},{17,1},{17,1}}, {{17,1},{17,1},{17,1},{17,1}}
+  };
+  //nOLS=8
+  OLS<double, int16_t> ols[8][2]{
+    {{128, 24, 0.9975}, {128, 24, 0.9975}},
+    {{90, 30, 0.997}, {90, 30, 0.997}},
+    {{90, 31, 0.996}, {90, 31, 0.996}},
+    {{90, 32, 0.995}, {90, 32, 0.995}},
+    {{90, 33, 0.995}, {90, 33, 0.995}},
+    {{90, 34, 0.9985}, {90, 34, 0.9985}},
+    {{28, 4, 0.98}, {28, 4, 0.98}},
+    {{32, 3, 0.992}, {32, 3, 0.992}}
+  };
+  //nLMS=3
+  LMS<float, int16_t> lms[3][2]{
+    {{1280, 640, 5e-5f, 5e-5f}, {1280, 640, 5e-5f, 5e-5f}},
+    {{640, 64, 7e-5f, 1e-5f}, {640, 64, 7e-5f, 1e-5f}},
+    {{2450, 8, 2e-5f, 2e-6f}, {2450, 8, 2e-5f, 2e-6f}}
+  };
+  //nLnrPrd=14
+  int prd[14][2][2];
+  int residuals[14][2];
+    int stereo, ch,lsb;
+    U32 mask, errLog, mxCtx;
+    int S;
+  int wmode;
+  int16_t sample ;
+    public:
+   audio16(BlockData& bd):x(bd),buf(bd.buf),nOLS(8), nLMS(3), nLnrPrd(nOLS+nLMS+3),prd{ 0 },residuals{ 0 },stereo(0), ch(0),lsb(0),mask(0), errLog(0), mxCtx(0),S(0),wmode(0),sample(0){
+      for (int i=0; i<nLMS; i++)
+        lms[i][0].Reset(), lms[i][1].Reset();
+    }   
+    
+inline int s2(int i) { return int(short(buf(i)+256*buf(i-1))); }
+inline int t2(int i) { return int(short(buf(i-1)+256*buf(i))); }
+
+inline int X1(int i) {
+  switch (wmode) {
+    case 0: return buf(i)-128;
+    case 1: return buf(i<<1)-128;
+    case 2: return s2(i<<1);
+    case 3: return s2(i<<2);
+    case 4: return (buf(i)^128)-128;
+    case 5: return (buf(i<<1)^128)-128;
+    case 6: return t2(i<<1);
+    case 7: return t2(i<<2);
+    default: return 0;
+  }
+}
+
+inline int X2(int i) {
+  switch (wmode) {
+    case 0: return buf(i+S)-128;
+    case 1: return buf((i<<1)-1)-128;
+    case 2: return s2((i+S)<<1);
+    case 3: return s2((i<<2)-2);
+    case 4: return (buf(i+S)^128)-128;
+    case 5: return (buf((i<<1)-1)^128)-128;
+    case 6: return t2((i+S)<<1);
+    case 7: return t2((i<<2)-2);
+    default: return 0;
+  }
+}
+
+inline int signedClip16(const int i) {
+  return max(-32768, min(32767, i));
+}
+void audio16bModel(Mixer& m, int info) {
+  if (x.blpos==0 && x.bpos==1) {
+  //if (x.blpos==1 && x.bpos==1) {
+     //info|=4;  // comment this line if skipping the endianness transform
+     assert((info&2)!=0);
+      stereo = (info&1);
+      lsb = (info<4);
+      mask = 0;
+      wmode=info;
+      for (int i=0; i<nLMS; i++)
+        lms[i][0].Reset(), lms[i][1].Reset();
+    }
+  if (x.bpos==0) {
+      ch=(stereo)?(x.blpos&2)>>1:0;
+      lsb=(x.blpos&1)^(wmode<4);
+      if ((x.blpos&1)==0)
+       {
+        sample = (wmode<4)?s2(2):t2(2);
+        const int pCh = ch^stereo;
+        int i = 0;
+        for (errLog=0; i<nOLS; i++) {
+          ols[i][pCh].Update(sample);
+          residuals[i][pCh] = sample-prd[i][pCh][0];
+          const U32 absResidual = (U32)abs(residuals[i][pCh]);
+          mask+=mask+(absResidual>128);
+          errLog+=SQR(absResidual>>6);
+        }
+        for (int j=0; j<nLMS; j++){
+          lms[j][pCh].Update(sample); }
+        for (; i<nLnrPrd; i++){
+          residuals[i][pCh] = sample-prd[i][pCh][0]; }
+        errLog = min(0xF, ilog2(errLog));
+
+        if (stereo) {
+          for (int i=1; i<=24; i++) ols[0][ch].Add(X2(i));
+          for (int i=1; i<=104; i++) ols[0][ch].Add(X1(i));
+        }
+        else
+          for (int i=1; i<=128; i++) ols[0][ch].Add(X1(i));
+
+        int k1=90, k2=k1-12*stereo;
+        for (int j=(i=1); j<=k1; j++, i+=1<<((j>16)+(j>32)+(j>64))) ols[1][ch].Add(X1(i));
+        for (int j=(i=1); j<=k2; j++, i+=1<<((j>5)+(j>10)+(j>17)+(j>26)+(j>37))) ols[2][ch].Add(X1(i));       
+        for (int j=(i=1); j<=k2; j++, i+=1<<((j>3)+(j>7)+(j>14)+(j>20)+(j>33)+(j>49))) ols[3][ch].Add(X1(i));
+        for (int j=(i=1); j<=k2; j++, i+=1+(j>4)+(j>8)) ols[4][ch].Add(X1(i));
+        for (int j=(i=1); j<=k1; j++, i+=2+((j>3)+(j>9)+(j>19)+(j>36)+(j>61))) ols[5][ch].Add(X1(i));
+
+        if (stereo) {
+          for (i=1; i<=k1-k2; i++) {
+            const double s = (double)X2(i);
+            ols[2][ch].AddFloat(s);
+            ols[3][ch].AddFloat(s);
+            ols[4][ch].AddFloat(s);
+          }
+        }
+
+        k1=28, k2=k1-6*stereo;
+        for (i=1; i<=k2; i++) ols[6][ch].Add(X1(i));
+        for (i=1; i<=k1-k2; i++) ols[6][ch].Add(X2(i));
+
+        k1=32, k2=k1-8*stereo;
+        for (i=1; i<=k2; i++) ols[7][ch].Add(X1(i));
+        for (i=1; i<=k1-k2; i++) ols[7][ch].Add(X2(i));
+
+        for (i=0; i<nOLS; i++)
+          prd[i][ch][0] = signedClip16((int)floor(ols[i][ch].Predict()));
+        for (; i<nOLS+nLMS; i++)
+          prd[i][ch][0] = signedClip16((int)floor(lms[i-nOLS][ch].Predict(sample)));
+        prd[i++][ch][0] = signedClip16(X1(1)*2-X1(2));
+        prd[i++][ch][0] = signedClip16(X1(1)*3-X1(2)*3+X1(3));
+        prd[i  ][ch][0] = signedClip16(X1(1)*4-X1(2)*6+X1(3)*4-X1(4));
+        for (i=0; i<nLnrPrd; i++)
+          prd[i][ch][1] = signedClip16(prd[i][ch][0]+residuals[i][pCh]);
+      }
+      mxCtx = ilog2(min(0x1F, BitCount(mask)))*4+ch*2+lsb;
+  }
+
+  const int16_t B = int16_t( (info<4)? (lsb)?U8(x.c0<<(8-x.bpos)):(x.c0<<(16-x.bpos))|buf(1) : (lsb)?(buf(1)<<8)|U8(x.c0<<(8-x.bpos)):x.c0<<(16-x.bpos) );
+
+  for (int i=0; i<nLnrPrd; i++) {
+    const U32 ctx0 = U16(prd[i][ch][0]-B);
+    const U32 ctx1 = U16(prd[i][ch][1]-B);
+
+    sMap1b[i][0].set( (lsb<<16)|(x.bpos<<13)|(ctx0>>(3<<(!lsb))) );
+    sMap1b[i][1].set( (lsb<<16)|(x.bpos<<13)|(ctx0>>((!lsb)+(3<<(!lsb)))) );
+    sMap1b[i][2].set( (lsb<<16)|(x.bpos<<13)|(ctx0>>((!lsb)*2+(3<<(!lsb)))) );
+    sMap1b[i][3].set( (lsb<<16)|(x.bpos<<13)|(ctx1>>((!lsb)+(3<<(!lsb)))) );
+
+    sMap1b[i][0].mix(m, 7, 1/*, 2+(i>=nOLS)*/);
+    sMap1b[i][1].mix(m, 10, 1/*, 2+(i>=nOLS)*/);
+    sMap1b[i][2].mix(m, 6, 1/*, 3+(i>=nOLS)*/);
+    sMap1b[i][3].mix(m, 6, 1/*, 2+(i>=nOLS)*/);
+  }
+
+  m.set((errLog<<9)|(lsb<<8)|x.c0, 8192);
+  m.set((U8(mask)<<4)|(ch<<3)|(lsb<<2)|(x.bpos>>1), 4096);
+  m.set((mxCtx<<7)|(buf(1)>>1), 2560);
+  m.set((errLog<<4)|(ch<<3)|(lsb<<2)|(x.bpos>>1), 256);
+  m.set(mxCtx, 20);
+}
+};
+
+
+audio8 *a8mode;
+audio16 *a16mode;
+public:
+  wavModel1(BlockData& bd): x(bd),buf(bd.buf){
+    a8mode=new audio8(bd);
+    a16mode=new audio16(bd);
+}
+int inputs() {
+    return (14*4)*2;
+}
+int nets() {
+     return 8192+ 4096+ 2560+ 256+ 20;
+} 
+  int netcount() {return 5;}
+int p(Mixer& m,int info,int val2=0){
+    if ((info&2)==0) {
+    a8mode->audio8bModel(m, info);
+    } 
+    else  {
+    a16mode->audio16bModel(m, info);
+    }
+  return 0;
+  } 
+
   virtual ~wavModel1(){
+      delete a8mode;
+      delete a16mode;
    }
  
 };
@@ -9706,7 +10438,7 @@ U32 execxt(int i, int x=0) {
   return prefix|opcode<<4|modrm<<12|x<<20|sib<<(28-6);
 }
 public:
-  exeModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),N1(10), N2(10),cm(CMlimit(MEM()*4), N1+N2),iMap(20,1),
+  exeModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),N1(10), N2(10),cm(CMlimit(MEM()*4), N1+N2,M_EXE),iMap(20,1),
   pState (Start), State( Start), TotalOps(0), OpMask(0),OpCategMask(0), Context(0),BrkPoint(0),
   BrkCtx(0),Valid(false) {
       memset(&Cache, 0, sizeof(OpCache));
@@ -9714,6 +10446,8 @@ public:
       memset(&StateBH, 0, sizeof(StateBH));
   }
   int inputs() {return 2+(N1+N2)*cm.inputs();}
+  int nets() {return  1024+ 1024+ 1024+ 8192+ 8192+ 8192;}
+  int netcount() {return 6;}
 int p(Mixer& m,int val1=0,int val2=0){
     if (x.filetype==DBASE ||x.filetype==HDR || x.filetype==ARM|| x.filetype==IMGUNK /*|| x.filetype==BINTEXT*/){
         for (int i=0; i<inputs(); i++)
@@ -10011,10 +10745,15 @@ class indirectModel1: public Model {
   IndirectContext<U8> iCtx8;
   StationaryMap Maps;
 public:
-  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()),15),t1(256),
+  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(level>9?0x40000000:CMlimit(MEM()),15,M_INDIRECT),t1(256),
    t2(0x10000), t3(0x8000),t4(0x8000),iCtx{16 },iCtx8{10,2},Maps{ 10, 2 }{
   }
   int inputs() {return 15*cm.inputs()+2;}
+  int nets() {return 1024;}
+  int netcount() {return 1;}
+  void setContexts(){
+      
+  }
 int p(Mixer& m,int val1=0,int val2=0){
     int j=0;
   if (!x.bpos) {
@@ -10040,6 +10779,7 @@ int p(Mixer& m,int val1=0,int val2=0){
                                ((U8(t1[c])==U8(t3[d2]))<<1)|
                                ((U8(t1[c])==U8(t4[d3]))<<2)|
                                ((U8(t1[c])==U8(ctx0))<<3);
+    if (val2!=-1) {
     cm.set(hash(j++,t));
     cm.set(hash(j++,t0));
     cm.set(hash(j++,ta));  
@@ -10052,21 +10792,22 @@ int p(Mixer& m,int val1=0,int val2=0){
     cm.set(hash(j++,t0&0xffffff));
     cm.set(hash(j++,ta&0xffffff));
     cm.set(hash(j++,tc&0xffffff));
-    if(x.filetype==DICTTXT ||x.filetype==EXE ||  x.filetype==DECA|| x.filetype==ARM){
-     cm.set(0);
-         cm.set(0);
-         cm.set(0);
+    if(x.filetype==DICTTXT||x.filetype==TEXT0 ||x.filetype==EXE ||  x.filetype==DECA|| x.filetype==ARM){
+     cm.set();
+         cm.set();
+         cm.set();
      }else{
          cm.set(hash(j++, ctx0&0xff, c));
     cm.set(hash(j++, ctx0&0xffff));
     cm.set(hash(j++, ctx0&0x7f7fff));
     
      }
+     }
   }
   if ((x.bpos)%2==0 ){
       if (x.bpos==0) iCtx8+=x.buf(3)&3;else iCtx8+=(x.buf(4)>>x.bpos)&3;
       iCtx8=((x.buf(2)>>x.bpos)&3)<<8|(t1[x.buf(1)]&0xff);//((x.bpos>>1)<<8)
-       Maps.set(((x.buf(2)&3)<<8)|iCtx8());
+      if (val2!=-1) Maps.set(((x.buf(2)&3)<<8)|iCtx8());
   }
   if (val2==-1) return 1;
   Maps.mix(m);
@@ -10262,6 +11003,8 @@ public:
   dmcmodel3b(mem,720,bd),
   x(bd){}
   int inputs() {return 2;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m,int val1=0,int val2=0){
 
     switch(model1_state) {
@@ -10329,9 +11072,11 @@ class nestModel1: public Model {
   ContextMap cm;
 public:
   nestModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), ic(0), bc(0),
-   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(MEM()/2), 12)  {
+   pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), cm(CMlimit(level>8?0x800000 :(MEM()/2) ), 12,M_NEST)  {
   }
   int inputs() {return 12*cm.inputs();}
+  int nets() {return 0;}
+  int netcount() {return 0;}
 int p(Mixer& m,int val1=0,int val2=0){
     if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM|| x.filetype==IMGUNK){
         if (val2==-1) return 1;
@@ -10343,9 +11088,9 @@ int p(Mixer& m,int val1=0,int val2=0){
     int c=x.c4&255, matched=1, vv;
     w*=((vc&7)>0 && (vc&7)<3);
     if (c&0x80) w = w*11*32 + c;
-    const int lc = (c >= 'A' && c <= 'Z'?c+'a'-'A':c);
+    const int lc = (c >= 'A' && c <= 'Z'?c+'a'-'A':c) ;
     if (lc == 'a' || lc == 'e' || lc == 'i' || lc == 'o' || lc == 'u'){ vv = 1; w = w*997*8 + (lc/4-22); } else
-    if (lc >= 'a' && lc <= 'z'){ vv = 2; w = w*271*32 + lc-97; } else
+    if (lc >= 'a' && lc <= 'z' || c>128){ vv = 2; w = w*271*32 + lc-97; } else
     if (lc == ' ' || lc == '.' || lc == ',' || lc == '\n'|| lc == 5) vv = 3; else
     if (lc >= '0' && lc <= '9') vv = 4; else
     if (lc == 'y') vv = 5; else
@@ -10393,21 +11138,22 @@ int p(Mixer& m,int val1=0,int val2=0){
     else if (x.c4==0x2667743B) uc-=(uc>0);
     if (matched) bc = 0; else bc += 1;
     if (bc > 300) bc = ic = pc = qc = uc = 0;
-
+if (val2==-1) return 1;
     cm.set(hash( (vv>0 && vv<3)?0:(lc|0x100), ic&0x3FF, ec&0x7, ac&0x7, uc ));
     cm.set(hash(ic, w, ilog2(bc+1)));
-    cm.set((3*vc+77*pc+373*ic+qc)&0xffff);
-    cm.set((31*vc+27*pc+281*qc)&0xffff);
-    cm.set((13*vc+271*ic+qc+bc)&0xffff);
-    cm.set((17*pc+7*ic)&0xffff);
-    cm.set((13*vc+ic)&0xffff);
-    cm.set((vc/3+pc)&0xffff);
-    cm.set((7*wc+qc)&0xffff);
-    cm.set((vc&0xffff)|((x.f4&0xf)<<16));
-    cm.set(((3*pc)&0xffff)|((x.f4&0xf)<<16));
-    cm.set((ic&0xffff)|((x.f4&0xf)<<16));
+    
+    cm.set(U32((3*vc+77*pc+373*ic+qc)&0xffff));
+    cm.set(U32((31*vc+27*pc+281*qc)&0xffff));
+    cm.set(U32((13*vc+271*ic+qc+bc)&0xffff));
+    cm.set(U32((13*vc+ic)&0xffff));
+    cm.set(U32((vc/3+pc)&0xffff));
+    cm.set(U32((17*pc+7*ic)&0xffff));
+    cm.set(U32((7*wc+qc)&0xffff));
+    cm.set(U32((vc&0xffff)|((x.f4&0xf)<<16)));
+    cm.set(U32(((3*pc)&0xffff)|((x.f4&0xf)<<16)));
+    cm.set(U32((ic&0xffff)|((x.f4&0xf)<<16)));
   }
-    if (val2==-1) return 1;
+    
     cm.mix(m);
   
   return 0;
@@ -10518,26 +11264,29 @@ class XMLModel1: public Model {
   XMLState State, pState;
   U32 c8, WhiteSpaceRun, pWSRun, IndentTab, IndentStep, LineEnding,lastState;
   ContextMap cm;
-  U32 StateBH[8];
+  U32 StateBH[8],stateContext;
+  XMLTag *pTag,*Tag;
+    XMLAttribute *Attribute;
+    XMLContent *Content ;
 public:
   XMLModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
-   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(CMlimit(MEM()/4), 4) {
+   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(level>9?0x1000000:CMlimit(MEM()/4), 4,M_XML) {
        memset(&Cache, 0, sizeof(XMLTagCache));
-       memset(&StateBH, 0, sizeof(StateBH));        
+       memset(&StateBH, 0, sizeof(StateBH));  
+        
   }
   int inputs() {return 4*cm.inputs();}
-int p(Mixer& m,int val1=0,int val2=0){
-    if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM  || x.filetype==IMGUNK/*|| x.filetype==BINTEXT*/){
-        if (val2==-1) return 1;
-        for (int i=0; i<inputs(); ++i)
-        m.add(0);
-        return 0;
-    }
-    if (x.bpos==0) {
-    U8 B = (U8)x.c4;
-    XMLTag *pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], *Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
-    XMLAttribute *Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
-    XMLContent *Content = &(*Tag).Content;
+  int nets() {return 0;}
+  int netcount() {return 0;}
+  void setContexts(){
+      stateContext=0;
+      U8 B = (U8)x.c4;
+       pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
+     Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
+     Content = &(*Tag).Content;     
+    //XMLTag *pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], *Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
+    //XMLAttribute *Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
+    //XMLContent *Content = &(*Tag).Content;
     pState = State;
     c8 = (c8<<8)|buf(5);
     if ((B==0x09 || B==0x20) && (B==(U8)(x.c4>>8) || !WhiteSpaceRun)){
@@ -10551,9 +11300,13 @@ int p(Mixer& m,int val1=0,int val2=0){
       }
       WhiteSpaceRun=0;
     }
-    if (B==0x0A || B==5)
+    if (B==0x0A ||(B==5 && ((U8)(x.c4>>8)!='&')) )
       LineEnding = 1+((U8)(x.c4>>8)==0x0D);
     if(State!=None) lastState=buf.pos;
+    // if &< or &> or &</ then ignore and force to reading content, so wordmodel knows
+    if (  (x.c4&&0xffff)==0x263c || (x.c4&&0xffff)==0x263e|| (x.c4&&0xffffff)==0x263c2f){
+              State = ReadContent;
+    }
     switch (State){
       case None : {
         if (B==0x3C){
@@ -10564,13 +11317,13 @@ int p(Mixer& m,int val1=0,int val2=0){
         if ((*Tag).Level>1)
           DetectContent();
         
-        cm.set(hash(pState, State, ((*pTag).Level+1)*IndentStep - WhiteSpaceRun));
+        stateContext=(hash(pState, State, ((*pTag).Level+1)*IndentStep - WhiteSpaceRun));
         break;
       }
       case ReadTagName : {
-        if ((*Tag).Length>0 && (B==0x09 || B==0x0A || B==0x0D || B==5 || B==0x20))
+        if ((*Tag).Length>0 && (B==0x09 || B==0x0A || B==0x0D || (B==5 && ((U8)(x.c4>>8)!='&')) || B==0x20))
           State = ReadTag;
-        else if ((B>127)||(B==0x3A || (B>='A' && B<='Z') || B==0x5F|| /*B==1|| B==2 ||*/ (B>='a' && B<='z')) || ((*Tag).Length>0 && (B==0x2D || B==0x2E || (B>='0' && B<='9')))){
+        else if ((B>127)|| (B==0x3A || (B>='A' && B<='Z') || B==0x5F|| /*B==1|| B==2 ||*/ (B>='a' && B<='z')) || ((*Tag).Length>0 && (B==0x2D || B==0x2E || (B>='0' && B<='9')))){
           (*Tag).Length++;
           (*Tag).Name = (*Tag).Name * 263 * 32 + (B&0xDF);
         }
@@ -10613,7 +11366,7 @@ int p(Mixer& m,int val1=0,int val2=0){
         }
         while ( i<CacheSize && ((*pTag).EndTag || (*pTag).Empty) );
 
-        cm.set(hash(pState*8+State, (*Tag).Name, (*Tag).Level, (*pTag).Name, (*pTag).Level!=(*Tag).Level ));
+        stateContext=(hash(pState*8+State, (*Tag).Name, (*Tag).Level, (*pTag).Name, (*pTag).Level!=(*Tag).Level ));
         break;
       }
       case ReadTag : {
@@ -10631,7 +11384,7 @@ int p(Mixer& m,int val1=0,int val2=0){
           State = ReadAttributeName;
           (*Attribute).Name = B&0xDF;
         }
-        cm.set(hash(pState, State, (*Tag).Name, B, (*Tag).Attributes.Index ));
+        stateContext=(hash(pState, State, (*Tag).Name, B, (*Tag).Attributes.Index ));
         break;
       }
       case ReadAttributeName : {
@@ -10643,7 +11396,7 @@ int p(Mixer& m,int val1=0,int val2=0){
         else if (B!=0x22 && B!=0x27 && B!=0x3D)
           (*Attribute).Name = (*Attribute).Name * 263 * 32 + (B&0xDF);
 
-        cm.set(hash(pState*8+State, (*Attribute).Name, (*Tag).Attributes.Index, (*Tag).Name, (*Content).Type ));
+        stateContext=(hash(pState*8+State, (*Attribute).Name, (*Tag).Attributes.Index, (*Tag).Name, (*Content).Type ));
         break;
       }
       case ReadAttributeValue : {
@@ -10657,11 +11410,11 @@ int p(Mixer& m,int val1=0,int val2=0){
           if ((c8&0xDFDFDFDF)==0x48545450 && ((x.c4>>8)==0x3A2F2F || x.c4==0x733A2F2F)) // HTTP :// s://
             (*Content).Type |= URL;
         }
-        cm.set(hash(pState, State, (*Attribute).Name, (*Content).Type ));
+        stateContext=(hash(pState, State, (*Attribute).Name, (*Content).Type ));
         break;
       }
       case ReadContent : {
-        if (B==0x3C){
+        if (B==0x3C && ((x.c4&0xffff)!=0x263c)){ // if new tag and not escape
           State = ReadTagName;
           Cache.Index++;
           memset(&Cache.Tags[ Cache.Index&(CacheSize-1) ], 0, sizeof(XMLTag));
@@ -10673,7 +11426,7 @@ int p(Mixer& m,int val1=0,int val2=0){
 
           DetectContent();
         }
-        cm.set(hash(pState, State, (*Tag).Name, x.c4&0xC0FF ));
+        stateContext=(hash(pState, State, (*Tag).Name, x.c4&0xC0FF ));
         break;
       }
       case ReadCDATA : {
@@ -10681,7 +11434,7 @@ int p(Mixer& m,int val1=0,int val2=0){
           State = None;
           Cache.Index++;
         }
-        cm.set(hash(pState, State));
+        stateContext=(hash(pState, State));
         break;
       }
       case ReadComment : {
@@ -10689,21 +11442,37 @@ int p(Mixer& m,int val1=0,int val2=0){
           State = None;
           Cache.Index++;
         }
-        cm.set(hash(pState, State));
+        stateContext=(hash(pState, State));
         break;
       }
     }
     StateBH[pState] = (StateBH[pState]<<8)|B;
     pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ];
+  }
+int p(Mixer& m,int val1=0,int val2=0){
+    if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM  || x.filetype==IMGUNK/*|| x.filetype==BINTEXT*/){
+        if (val2==-1) return 1;
+        for (int i=0; i<inputs(); ++i)
+        m.add(0);
+        return 0;
+    }
+    
+    if (x.bpos==0) {
+    setContexts();
+    if (val2==-1) return 1;
+     pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ], Tag = &Cache.Tags[ Cache.Index&(CacheSize-1) ];
+     //*Attribute = &((*Tag).Attributes.Items[ (*Tag).Attributes.Index&3 ]);
+    // *Content = &(*Tag).Content;     
+    cm.set(stateContext);
     // set context if last state was less then 256 bytes ago
     if ((buf.pos-lastState)<256){ 
         cm.set(hash(State, (*Tag).Level, pState*2+(*Tag).EndTag, (*Tag).Name));
         cm.set(hash((*pTag).Name, State*2+(*pTag).EndTag, (*pTag).Content.Type, (*Tag).Content.Type));
         cm.set(hash(State*2+(*Tag).EndTag, (*Tag).Name, (*Tag).Content.Type, x.c4&0xE0FF));
     }else {
-        cm.set(0);
-        cm.set(0);
-        cm.set(0);
+        cm.set();
+        cm.set();
+        cm.set();
     } 
   }
    if (val2==0)  cm.mix(m);
@@ -10725,58 +11494,61 @@ class sparseModelx: public Model {
    BlockData& x;
    Buf& buf;
 public:
-  sparseModelx(BlockData& bd): cm(CMlimit(MEM()*4), 31),scm1(8,8), scm2(8,8), scm3(8,8),
+  sparseModelx(BlockData& bd): cm(CMlimit(MEM()*4), 31,M_SPARSE),scm1(8,8), scm2(8,8), scm3(8,8),
      scm4(8,8), scm5(8,8),scm6(8,8), scma(8,8),x(bd),buf(bd.buf) {
     }
     int inputs() {return 31*cm.inputs()+7*2;}
+    int nets() {return 0;}
+  int netcount() {return 0;}
   int p(Mixer& m, int seenbefore, int howmany){
   if (x.bpos==0) {
     scm5.set(seenbefore);
     scm6.set(howmany);
+    int j=x.tmask;
     U32 h=x.x4<<6;
     U32 d=x.c4&0xffff;
     if (x.c4==0 && x.x4==0){
-        cm.set(0);
-        cm.set(0);
-        cm.set(0);
-        cm.set(0);
-        cm.set(0);
-        cm.set(0);
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
+        cm.set();j++;
     }else{
     
-    cm.set(buf(1)+(h&0xffffff00));
-    cm.set(buf(1)+(h&0x00ffff00));
-    cm.set(buf(1)+(h&0x0000ff00));
+    cm.set(hash(j++,buf(1)+(h&0xffffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x00ffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x0000ff00)));
     
     h<<=6;
-    cm.set(d+(h&0xffff0000));
-    cm.set(d+(h&0x00ff0000));
+    cm.set(hash(j++,d+(h&0xffff0000)));
+    cm.set(hash(j++,d+(h&0x00ff0000)));
     h<<=6, d=x.c4&0xffffff;
-    cm.set(d+(h&0xff000000));
+    cm.set(hash(j++,d+(h&0xff000000)));
 }
     for (int i=1; i<5; ++i) { 
-      cm.set(seenbefore|buf(i)<<8);
-      cm.set((x.buf(i+3)<<8)|buf(i+1));
+      cm.set(hash(j++,U32(seenbefore|buf(i)<<8)));
+      cm.set(hash(j++,U32((x.buf(i+3)<<8)|buf(i+1))));
     }
-    cm.set(x.spaces&0x7fff);
-    cm.set(x.spaces&0xff);
-    cm.set(x.words&0x1ffff);
-    cm.set(x.f4&0x000fffff);
-    cm.set(x.tt&0x00000fff);
+    cm.set(hash(j++,x.spaces&0x7fff));
+    cm.set(hash(j++,x.spaces&0xff));
+    cm.set(hash(j++,x.words&0x1ffff));
+    cm.set(hash(j++,x.f4&0x000fffff));
+    cm.set(hash(j++,x.tt&0x00000fff));
     h=x.w4<<6;
-    cm.set(buf(1)+(h&0xffffff00));
-    cm.set(buf(1)+(h&0x00ffff00));
-    cm.set(buf(1)+(h&0x0000ff00));
+    cm.set(hash(j++,buf(1)+(h&0xffffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x00ffff00)));
+    cm.set(hash(j++,buf(1)+(h&0x0000ff00)));
     d=x.c4&0xffff;
     h<<=6;
-    cm.set(d+(h&0xffff0000));
-    cm.set(d+(h&0x00ff0000));
+    cm.set(hash(j++,d+(h&0xffff0000)));
+    cm.set(hash(j++,d+(h&0x00ff0000)));
     h<<=6, d=x.c4&0xffffff;
-    cm.set(d+(h&0xff000000));
-    cm.set(x.w4&0xf0f0f0ff);
-    cm.set((x.w4&63)*128+(5<<17));
-    cm.set((x.f4&0xffff)<<11|x.frstchar);
-    cm.set(x.spafdo*8*((x.w4&3)==1));
+    cm.set(hash(j++,d+(h&0xff000000)));
+    cm.set(hash(j++,x.w4&0xf0f0f0ff));
+    cm.set(hash(j++,(x.w4&63)*128+(5<<17)));
+    cm.set(hash(j++,(x.f4&0xffff)<<11|x.frstchar));
+    cm.set(hash(j++,x.spafdo*8*((x.w4&3)==1)));
     
     scm1.set(x.words&127);
     scm2.set((x.words&12)*16+(x.w4&12)*4+(x.f4&0xf));
@@ -10803,26 +11575,35 @@ static const int primes[17]={ 0, 257,251,241,239,233,229,227,223,211,199,197,193
 class normalModel1: public Model {
   BlockData& x;
   Buf& buf;
-   ContextMap2  cm;
+   ContextMap2   cm;
    StateMap StateMaps[2];
   RunContextMap rcm7, rcm9, rcm10;
   Array<U32> cxt; // order 0-11 contexts
   int inpt;
 public:
-  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10), StateMaps{ 256, 256*256 },rcm7(CMlimit(MEM()/4),bd),
-  rcm9(CMlimit(MEM()/4),bd), rcm10(CMlimit(MEM()/2),bd), cxt(16){
+  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10,M_NORMAL), StateMaps{ 256, 256*256 },rcm7(CMlimit(MEM()/(level>8?8:4)),bd),
+  rcm9(CMlimit(MEM()/((level>8?8:4))),bd), rcm10(CMlimit(MEM()/(level>8?4:2)),bd), cxt(16){
  }
  int inputs() {return 10*cm.inputs() +3+2;}
-int p(Mixer& m,int val1=0,int val2=0){  
-  if (x.bpos==0) {
-    int i;
-    if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && buf(3)!=10 && buf(3)!=5 && 
-    (x.filetype==DICTTXT || x.filetype==BIGTEXT)) for (i=14; i>0; --i) 
+ int nets() {return 0;}
+  int netcount() {return 0;}
+  void setContexts(){
+      int i;
+    if((buf(2)=='.'||buf(2)=='!'||buf(2)=='?' ||buf(2)=='}') && !(buf(3)==10 || buf(3)==5) && 
+    (x.filetype==DICTTXT ||x.filetype==TEXT0|| x.filetype==BIGTEXT)) for (i=14; i>0; --i) 
       cxt[i]=cxt[i-1]*primes[i];
     cxt[15]=(isalpha(buf(1)))?(cxt[15]*primes[15]+ tolower(buf(1))):0;
-    if (val2==0) cm.set(cxt[15]);  
+    // (val2==0) cm.set(cxt[15]);  
     for (i=14; i>0; --i)  // update order 0-11 context hashes
       cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
+  }
+  
+int p(Mixer& m,int val1=0,int val2=0){  
+  if (x.bpos==0) {
+      setContexts();
+     // if (val2==-1) return 1;
+    int i;
+    if (val2==0) cm.set(cxt[15]);  
     for (i=0; i<7; ++i)
       cm.set(cxt[i]);
 
@@ -10832,8 +11613,9 @@ int p(Mixer& m,int val1=0,int val2=0){
     
     rcm10.set(cxt[12]);
     cm.set(cxt[14]);
+
   }
-  if (val2==-1) return 1;
+  
   rcm7.mix(m);
   rcm9.mix(m);
   rcm10.mix(m);
@@ -10841,7 +11623,9 @@ int p(Mixer& m,int val1=0,int val2=0){
   m.add((stretch(StateMaps[1].p(x.c0|(buf(1)<<8),x.y))+1)>>1);
   return cm.mix(m);
 }
- virtual ~normalModel1(){}
+  virtual ~normalModel1(){
+
+ }
 };
 class decModel1: public Model {
   BlockData& x;
@@ -10853,9 +11637,11 @@ class decModel1: public Model {
   bool valid,pvalid;
   int opbyte;
 public:
-  decModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()), 4) ,currentOp(-1),currentFunc(-1), lastOp(-1),lastFunc(-1),valid(false),pvalid(false),opbyte(0){
+  decModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()), 7) ,currentOp(-1),currentFunc(-1), lastOp(-1),lastFunc(-1),valid(false),pvalid(false),opbyte(0){
  }
- int inputs() {return 4*cm.inputs();}
+ int inputs() {return 7*cm.inputs();}
+ int nets() {return 0;}
+  int netcount() {return 0;}
 int p(Mixer& m,int val1=0,int val2=0){  
  if (x.bpos==0) {
     U32 function=-1;
@@ -11207,6 +11993,9 @@ int p(Mixer& m,int val1=0,int val2=0){
     cm.set(hash(currentOp,function,opbyte,m.x.buf(8+opbyte)&0xFC));
     cm.set(hash(valid+16*opbyte,lastOp));
     cm.set(hash((0x100|B)*(opbyte>0),valid+256*opbyte));
+    cm.set(U32(buf(1)|buf(3)<<8|buf(5)<<16)); 
+        cm.set(U32(buf(2)|buf(4)<<8|buf(6)<<16));  
+        cm.set(U32(buf(1)|buf(4)<<8|buf(7)<<16));  
   }
   cm.mix(m);
   return valid;
@@ -11214,6 +12003,182 @@ int p(Mixer& m,int val1=0,int val2=0){
  virtual ~decModel1(){}
 };
 
+#include "mod_ppmd.inc"
+class ppmdModel1: public Model {
+  BlockData& x;
+  Buf& buf;
+  ppmd_Model ppmd_12_256_1;
+  ppmd_Model ppmd_6_64_2;
+public:
+  ppmdModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){
+    int ppmdmem=((210<<(level>8))<<(level>9))<<(level>10);
+    ppmd_12_256_1.Init(12+(level>8?4:0),ppmdmem,1,0);
+    ppmd_6_64_2.Init(6,64,1,0);
+ }
+ int inputs() {return 2;}
+ int nets() {return 0;}
+  int netcount() {return 0;}
+int p(Mixer& m,int val1=0,int val2=0){
+  m.add(stretch(4096-ppmd_12_256_1.ppmd_Predict(4096,x.y)));
+  m.add(stretch(4096-ppmd_6_64_2.ppmd_Predict(4096,x.y)));
+  return 0;
+}
+  virtual ~ppmdModel1(){ }
+};
+
+
+
+///////////////////////////// chartModel ////////////////////////////
+class chartModel: public Model {
+  BlockData& x;
+  Buf& buf;
+  ContextMap cm,cn;
+  Array<U32> chart;
+  Array<U8> indirect;
+  Array<U8> indirect2;
+  Array<U8> indirect3;
+public:
+  chartModel(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),cm(CMlimit(MEM()*4),30,M_CHART),cn(CMlimit(MEM()),20,M_CHART), 
+  chart(32), indirect(2048), indirect2(256), indirect3(0x10000) 
+ {   
+ }
+ int inputs() {return 30*cm.inputs()+20*cn.inputs();}
+int nets() {return 0;}
+  int netcount() {return 0;}
+int p(Mixer& m,int val1=0,int val2=0){
+   if (!x.bpos){
+       U32 c4=x.c4;
+    const
+      U32 w = c4&65535,
+      w0 = c4&16777215,
+      w1 = c4&255,
+      w2 = c4<<8&65280,
+      w3 = c4<<8&16711680,
+      w4 = c4<<8&4278190080,
+      a[3]={c4>>5&460551,    c4>>2&460551,   c4&197379},
+      b[3]={c4>>23&448|      c4>>18&56|      c4>>13&7,
+            c4>>20&448|      c4>>15&56|      c4>>10&7,
+            c4>>18&48 |      c4>>12&12|      c4>>8&3},
+      d[3]={c4>>15&448|      c4>>10&56|      c4>>5&7,
+            c4>>12&448|      c4>>7&56 |      c4>>2&7,
+            c4>>10&48 |      c4>>4&12 |      c4&3},
+      c[3]={c4&255,          c4>>8&255,      c4>>16&255};
+U32 p=0;
+    for (
+      int i=0,
+      j=0,
+      f=b[0],
+      e=a[0];
+
+    i<3;
+    ++i
+      
+    ){
+         j=(i<<9);
+      f=j|b[i];
+      
+      e=a[i];
+      indirect[f&0x7FF]=w1; // <--Update indirect
+      const int g =indirect[(j|d[i])&0x7FF];
+      chart[(i<<3|e>>16&255)&31]=w0; // <--Fix chart
+      chart[(i<<3|e>>8&255)&31]=w<<8; // <--Update chart
+      cn.set(U32(e&7|(((e>>8)&7)<<3)|(((e>>16)&7)<<6)));// low 3 bits of last 3 bytes
+      //Maps[p++].set(g);
+      //cn.set(e); // <--Model previous/current/next slot
+      //cn.set(g); // <--Guesses next "c4&0xFF"
+      cn.set(U32(w2|g)); // <--Guesses next "c4&0xFFFF"
+      cn.set(U32(w3|g)); // <--Guesses next "c4&0xFF00FF"
+      cn.set(U32(w4|g)); // <--Guesses next "c4&0xFF0000FF"
+      //cm.set(c[i]); // <--Models buf(1,2,3)
+    }
+
+    indirect2[buf(2)]=buf(1);
+    int g=indirect2[buf(1)];
+    cn.set(U32(g)); // <--Guesses next "c4&0xFF"
+    cn.set(U32(w2|g)); // <--Guesses next "c4&0xFFFF"
+    cn.set(U32(w3|g)); // <--Guesses next "c4&0xFF00FF"
+    cn.set(U32(w4|g)); // <--Guesses next "c4&0xFF0000FF"
+
+    indirect3[buf(3)<<8|buf(2)]=buf(1);
+    g=indirect3[buf(2)<<8|buf(1)];
+    cn.set(U32(g)); // <--Guesses next "c4&0xFF"
+    cn.set(U32(w2|g)); // <--Guesses next "c4&0xFFFF"
+    cn.set(U32(w3|g)); // <--Guesses next "c4&0xFF00FF"
+    cn.set(U32(w4|g)); // <--Guesses next "c4&0xFF0000FF"
+
+
+    for (
+      int
+      i=10,
+      s=0,
+      e=a[0],
+      k=chart[0];
+
+    i<20;
+    s=++i>>3,
+      e=a[s],
+      k=chart[i]
+    ){ // k e
+      cm.set(U32(k<<s)); // 111 000
+      cm.set(hash(e,k,s)); // 111 111
+      cm.set((hash(e&255,k>>16)^(k&255))<<s); // 101 001
+    }
+  }
+  cn.mix(m);
+  cm.mix(m);
+  return 0;
+}
+  virtual ~chartModel(){ }
+};
+
+// lstm
+/*#include "lstm.inc"
+class lstmModel1: public Model {
+  BlockData& x;
+  Buf& buf;
+  ByteModel lstm_;
+public:
+  lstmModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),lstm_(25, 3, 20, 0.05){ // num_cells, num_layers, horizon, learning_rate)
+  srand(0xDEADBEEF);
+ }
+ int inputs() {return 1;}
+ int nets() {return 0;}
+ int netcount() {return 0;}
+int p(Mixer& m,int val1=0,int val2=0){
+    lstm_.Perceive(x.y);
+    m.add(stretch(lstm_.Predict()));
+  return 0;
+}
+  virtual ~lstmModel1(){ }
+};
+*/
+//
+class blankModel1: public Model {
+  BlockData& x;
+  Buf& buf;
+public:
+  blankModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf){ }
+  int inputs() {return 0;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
+  inline int p(Mixer& m,int val1=0,int val2=0){  
+    return 0;
+  }
+  virtual ~blankModel1(){}
+};
+/*
+#include <psapi.h>
+size_t getPeakMemory(){
+#if defined(_WIN32)
+	PROCESS_MEMORY_COUNTERS info;
+	GetProcessMemoryInfo( GetCurrentProcess( ), &info, sizeof(info) );
+	return (size_t)info.PeakPagefileUsage; // recuested peak memory /PeakWorkingSetSize used memory
+#elif defined(UNIX) 
+	return (size_t)0L; //not tested
+#else
+	return (size_t)0L;
+#endif
+}*/
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
@@ -11224,70 +12189,18 @@ int p(Mixer& m,int val1=0,int val2=0){
 class Predictors {
 public:
   BlockData x; //maintains current global data block between models
-  //list of all models
-  recordModel1* recordModel;
-  im8bitModel1* im8bitModel;
-  im24bitModel1* im24bitModel;
-  sparseModelx* sparseModel1;
-  jpegModelx* jpegModel;
-  wavModel1* wavModel;
-  matchModel1* matchModel;
-  distanceModel1* distanceModel;
-  sparseModely* sparseModel;
-  wordModel1* wordModel;
-  exeModel1* exeModel;
-  indirectModel1* indirectModel;
-  dmcModel1* dmcModel;
-  nestModel1* nestModel;
-  normalModel1* normalModel;
-  im1bitModel1* im1bitModel;
-  XMLModel1* XMLModel;
-  im4bitModel1* im4bitModel;
-  TextModel *textModel;
-  decModel1 *decModel;
+  Model **models;
+
 virtual ~Predictors(){
-  if (jpegModel!=0) delete jpegModel;
-  if (sparseModel1!=0) delete sparseModel1;
-  if (im8bitModel!=0) delete im8bitModel;
-  if (im24bitModel!=0) delete im24bitModel;
-  if (exeModel!=0) delete exeModel;
-  if (recordModel!=0) delete recordModel; 
-  if (distanceModel!=0) delete distanceModel; 
-  if (sparseModel!=0) delete sparseModel; 
-  if (wordModel!=0) delete wordModel; 
-  if (indirectModel!=0) delete indirectModel; 
-  if (dmcModel!=0) delete dmcModel; 
-  if (nestModel!=0) delete nestModel; 
-  if (matchModel!=0) delete matchModel;
-  if (normalModel!=0) delete normalModel;
-  if (im1bitModel!=0) delete im1bitModel; 
-  if (XMLModel!=0) delete XMLModel; 
-  if (im4bitModel!=0) delete im4bitModel;
-  if (textModel!=0) delete textModel;
-  if (decModel!=0) delete decModel;
- 
+    //printf("Models peak memory %d mb\n",(getPeakMemory()/1024)/1024);
+    for (int i=0;i<M_MODEL_COUNT;i++) {
+        delete models[i];
+    }
+    delete[] models;
+    
    };
 Predictors(){
-  recordModel=0;
-  im8bitModel=0;
-  im24bitModel=0;
-  recordModel=0;
-  sparseModel1=0;
-  jpegModel=0;
-  matchModel=0;
-  distanceModel=0;
-  sparseModel=0;
-  wordModel=0;
-  exeModel=0;
-  indirectModel=0;
-  dmcModel=0;
-  nestModel=0;
-  normalModel=0;
-  im1bitModel=0;
-  XMLModel=0;
-  im4bitModel=0;
-  textModel=0;
-  decModel=0;
+ 
 }
   virtual int p() const =0;
   virtual void update()=0;
@@ -11298,7 +12211,6 @@ Predictors(){
         x.buf[x.buf.pos++]=x.c0;
         x.c0=1;
         ++x.blpos;
-        
       x.buf.pos=x.buf.pos&x.buf.poswr; //wrap
       x.c8=(x.c8<<8)|x.buf(5);
     }
@@ -11366,6 +12278,40 @@ int EAPM::p2(int pr0,int pr8, int r){
   return pr;
 }
 
+
+#include "mod_sse.cpp"
+using SSE_sh::M_T1;
+
+class eSSE {
+  BlockData& x;
+ SSE_sh::M_T1* sse_;
+public:
+  eSSE(BlockData& bd);
+  int p(int input) ;
+  void update() ;
+   ~eSSE(){ delete sse_;
+  }
+};
+
+eSSE::eSSE(BlockData& bd):x(bd) {
+    sse_=new M_T1();
+    sse_->M_Init();
+}
+
+int eSSE::p(int input){
+  int pr = (4096-input)*(32768/4096); //1 + (1 - input) * 32766; // 
+  if( pr<1 ) pr=1;
+  if( pr>32767 ) pr=32767;
+  pr = sse_->M_Estimate(pr);
+ /// pr = (32768-pr)/(32768/4096);
+  if( pr<1 ) pr=1;
+  if( pr>32767 ) pr=32767;
+  return pr;
+}
+void eSSE::update(){
+   sse_->M_Update( x.y);
+}
+
 //general predicor class
 class Predictor: public Predictors {
   int pr;  // next prediction
@@ -11374,44 +12320,80 @@ class Predictor: public Predictors {
   int ismatch;
   Mixer *m;
   EAPM a;
-  bool Bypass; 
-  SparseMatchModel sparseMatch;
+  bool isCompressed; 
   U32 count;
   U32 lastmiss;
-  linearPredictionModel linearPredictionModel1;
+  int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
 public:
   Predictor();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;
    ~Predictor(){
-       // printf("\n Default Count of skipped bytes %d\n",count/8);
+
+delete m;
   }
 };
 
-Predictor::Predictor(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),sparseMatch(x),count(0),lastmiss(0),linearPredictionModel1(x){
-    if (level>=4){
-        recordModel=new recordModel1(x); 
-        distanceModel=new distanceModel1(x); 
-        sparseModel=new sparseModely(x); 
-        wordModel=new wordModel1(x); 
-        indirectModel=new indirectModel1(x); 
-        dmcModel=new dmcModel1(x);
-        nestModel=new nestModel1(x); 
-        XMLModel=new XMLModel1(x);
-        exeModel=new exeModel1(x); 
-        textModel =new TextModel(x,16) ;
+Predictor::Predictor(): pr(16384),pr0(pr),order(0),ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
+ mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] =      new recordModel1(x);
+  models[M_MATCH] =       new matchModel1(x);
+  models[M_DISTANCE] =    new distanceModel1(x);
+  models[M_EXE] =         new exeModel1(x);
+  models[M_INDIRECT] =    new indirectModel1(x);
+  models[M_DMC] =         new dmcModel1(x);
+  models[M_NEST] =        new nestModel1(x);
+  models[M_NORMAL] =      new normalModel1(x);
+  models[M_XML] =         new XMLModel1(x);
+  models[M_TEXT] =        new TextModel(x,16);
+  models[M_WORD] =        new wordModel1(x);
+  models[M_LINEAR] =      new linearPredictionModel(x);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  models[M_SPARSE_Y] =    new sparseModely(x);
+  // blanks
+  models[M_DEC] =         new blankModel1(x);
+  models[M_IM8] =         new blankModel1(x);
+  models[M_IM24] =        new blankModel1(x);
+  models[M_SPARSE] =      new blankModel1(x);
+  models[M_JPEG] =        new blankModel1(x);
+  models[M_WAV] =         new blankModel1(x);
+  models[M_IM4] =         new blankModel1(x); 
+  models[M_IM1] =         new blankModel1(x);
+  if (slow==true)
+  models[M_PPM] =         new ppmdModel1(x);
+  else
+  models[M_PPM] =         new blankModel1(x); 
+  if (slow==true)
+  models[M_CHART] =         new chartModel(x);
+  else
+  models[M_CHART] =         new blankModel1(x);
+/*  if (slow==true)
+  models[M_LSTM] =         new lstmModel1(x);
+  else
+  models[M_LSTM] =         new blankModel1(x);*/
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
    }
-   matchModel=new matchModel1(x);
-   normalModel=new normalModel1(x);
-   const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
-   sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-   nestModel->inputs()+XMLModel->inputs()+exeModel->inputs()+
-   textModel->inputs()+linearPredictionModel1.inputs()+2+1 ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
-   m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*5+2048+2048+2048+1024*3+8192+8192+8192+1024+256+64+4096+4096+4096+11*32+3*256+1024+8192,x, 26+3+1+1);
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=64+    (8+1024)+    256+    1024+    256+   2048+   2048+    256+    1536;
+   mixerNetsCount+=9;
+   sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void Predictor::update()  {
     update0();
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     
     if (x.bpos==0) {
@@ -11430,52 +12412,41 @@ void Predictor::update()  {
             if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
+        x.tt=x.tt*8+WRT_mtt[b1];
         x.f4=x.f4*16+(b1>>4);
         if(x.blpos==1) {
             m->setText(false);
            if (x.filetype==DBASE) m->setText(true);
+            isCompressed=(x.filetype==CMP || x.filetype==MSZIP)?true:false;
+           
          }
+         if (x.inpdf==true ) m->setText(true); else  m->setText(false);
     }
-
     m->update();
     m->add(256);
-    Bypass=false;int rlen=0,Valid=0,xmlstate=0;
-    ismatch=matchModel->p(*m);  // Length of longest matching context
-    if ((x.Match.length>0xfff || matchModel->Bypass) && x.Misses==0 && (max(x.blpos-lastmiss,0x2000)>0x2000)) {// 
-      //count++;
-        matchModel->Bypass = Bypass = true;
-        sparseMatch.p(*m);
-        normalModel->p(*m,0,-1); 
-        xmlstate=XMLModel->p(*m,0,-1);
-        wordModel->p(*m,xmlstate&7,-1);
-        //sparseModel->p(*m,ismatch,-1);
-        nestModel->p(*m,0,-1);
-        indirectModel->p(*m,0,-1);
-        dmcModel->p(*m);
-        recordModel->p(*m,0,-1);
-        textModel->p(*m,xmlstate&7,-1);
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        return;
-    }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m);
+    int rlen=0,Valid=0,xmlstate=0;
+    ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.bpos==0)x.count++;
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     
-    if (level>=4 && (x.filetype!=CMP || x.filetype!=MSZIP)){        
+    if ( isCompressed==false){        
             int dataRecordLen=(x.filetype==DBASE)?x.finfo:(x.filetype==IMGUNK)?x.finfo:0; //force record length 
-            rlen=recordModel->p(*m,dataRecordLen);
-            wordModel->p(*m,0,x.finfo>0?x.finfo:0); //col
-            sparseModel->p(*m,ismatch,order);
-            distanceModel->p(*m);
-            indirectModel->p(*m);
-            nestModel->p(*m);
-            dmcModel->p(*m);
-            xmlstate=XMLModel->p(*m);
-            Valid=exeModel->p(*m);
-            textModel->p(*m);
-            if (x.filetype!=DBASE||x.filetype!=BINTEXT||x.filetype!=HDR)linearPredictionModel1.p(*m);
+            rlen=models[M_RECORD]->p(*m,dataRecordLen);
+            models[M_WORD]->p(*m,0,x.finfo>0?x.finfo:0); //col
+            models[M_SPARSE_Y]->p(*m,ismatch,order);
+            models[M_DISTANCE]->p(*m);
+            models[M_INDIRECT]->p(*m);
+            models[M_NEST]->p(*m);
+            models[M_DMC]->p(*m);
+            if (slow==true) models[M_PPM]->p(*m); 
+            if (slow==true) models[M_CHART]->p(*m);
+            //if (slow==true) models[M_LSTM]->p(*m);
+            xmlstate=models[M_XML]->p(*m);
+            Valid=models[M_EXE]->p(*m);
+            models[M_TEXT]->p(*m);
+            if (!(x.filetype==DBASE||x.filetype==BINTEXT||x.filetype==HDR ||x.inpdf==false )) models[M_LINEAR]->p(*m);
     } 
     m->set((order<<3)|x.bpos, 64);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
@@ -11495,6 +12466,8 @@ void Predictor::update()  {
     m->set(c, 1536);
     pr0=m->p(1,1);
     pr=a.p2(pr0,pr,7);
+    sse.update();
+    pr = sse.p(pr);
 }
 
 //general predicor class
@@ -11505,32 +12478,63 @@ class PredictorDEC: public Predictors {
   int ismatch;
   Mixer *m;
   EAPM a;   
-   bool Bypass;
-   SparseMatchModel sparseMatch; 
+  int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
 public:
   PredictorDEC();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;
    ~PredictorDEC(){
   }
 };
 
-PredictorDEC::PredictorDEC(): pr(2048),pr0(pr),order(0),ismatch(0), a(x),Bypass(false),sparseMatch(x) {
-    if (level>=4){
-        recordModel=new recordModel1(x); 
-        distanceModel=new distanceModel1(x); 
-        sparseModel=new sparseModely(x); 
-        wordModel=new wordModel1(x); 
-        indirectModel=new indirectModel1(x); 
-        dmcModel=new dmcModel1(x);
-        decModel=new decModel1(x);
+PredictorDEC::PredictorDEC(): pr(16384),pr0(pr),order(0),ismatch(0), a(x),mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new distanceModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new dmcModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new wordModel1(x);
+  models[M_DEC] = new decModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  models[M_SPARSE_Y] = new sparseModely(x);
+  //if (slow==true)
+ // models[M_PPM] =         new ppmdModel1(x);
+  //else
+  models[M_PPM] =         new blankModel1(x); 
+  if (slow==true)
+  models[M_CHART] =         new chartModel(x);
+  else
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
    }
-   matchModel=new matchModel1(x);
-   normalModel=new normalModel1(x);
-   const int tinput=1+(level>=4?(recordModel->inputs() + distanceModel->inputs() +
-   sparseModel->inputs() +wordModel->inputs()+indirectModel->inputs() + dmcModel->inputs()+
-  decModel->inputs() ):0) + matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
-   m=new Mixer(tinput,  7432+256+1024+1024+8+1024+1024+512+1024*4+2048+2048+2048-1024+512+11*32+3*256+1024+8192+256,x, 7 +2+1+1+1+4+2+1+3+1+1+1);
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+= (8+1024)+    256+    1024+    256+   1024+   2048+    256+    1536;
+   mixerNetsCount+=8;
+   sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void PredictorDEC::update()  {
@@ -11550,34 +12554,27 @@ void PredictorDEC::update()  {
             if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
+        x.tt=x.tt*8+WRT_mtt[b1];
         x.f4=x.f4*16+(b1>>4);
     }
 
     m->update();
     m->add(256);
-    Bypass=false;
-    ismatch=matchModel->p(*m);  // Length of longest matching context
-    if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        return;
-    }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m);
+    ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.bpos==0)x.count++;
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     int rlen=0,Valid=0;
-    if (level>=4){        
-            rlen=recordModel->p(*m,4);
-            wordModel->p(*m,0,4); //col
-            sparseModel->p(*m,ismatch,order);
-            distanceModel->p(*m);
-            indirectModel->p(*m);
-            dmcModel->p(*m);
-            Valid=decModel->p(*m);
-     
-    } 
+    rlen=models[M_RECORD]->p(*m,4);
+    models[M_WORD]->p(*m,0,4); //col
+    models[M_SPARSE_Y]->p(*m,ismatch,order);
+    models[M_DISTANCE]->p(*m);
+    models[M_INDIRECT]->p(*m);
+    models[M_DMC]->p(*m);
+    Valid=models[M_DEC]->p(*m);
+//if (slow==true) models[M_PPM]->p(*m); 
+            if (slow==true) models[M_CHART]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
@@ -11595,6 +12592,8 @@ void PredictorDEC::update()  {
     m->set(c, 1536);
     pr0=m->p();
     pr=a.p1(pr0,pr,7);
+    sse.update();
+    pr = sse.p(pr);
 }
 //JPEG predicor class
 class PredictorJPEG: public Predictors {
@@ -11602,62 +12601,103 @@ class PredictorJPEG: public Predictors {
   Mixer *m;
   EAPM a;
   StateMap StateMaps[2];
-   bool Bypass; 
-     U32 count;
+  bool Bypass; 
+  int mixerInputs,mixerNets,mixerNetsCount;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
-  ~PredictorJPEG(){   //printf("\n JPEG Count of skipped bytes %d\n",count/8);
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
+  ~PredictorJPEG(){   //printf("\n JPEG Count of skipped bytes %d\n",x.count);
+      
  }
-PredictorJPEG(): pr(2048), a(x), StateMaps{ 256, 256*256},Bypass(false),count(0) {
-  matchModel=new matchModel1(x); 
-  jpegModel=new jpegModelx(x); 
-  dmcModel=new dmcModel1(x);  
-  normalModel=new normalModel1(x);
-  distanceModel=new distanceModel1(x); 
-  indirectModel=new indirectModel1(x); 
-  sparseModel=new sparseModely(x); 
-  recordModel=new recordModel1(x); 
-  const int tinput=1+ matchModel->inputs() + jpegModel->inputs()+2+dmcModel->inputs()+
-  normalModel->inputs()+distanceModel->inputs()+indirectModel->inputs() +
-  sparseModel->inputs()+recordModel->inputs();
-  m=new Mixer(tinput, 2568+1024+1025+9-256-257-8+8+1024+256+256+11*32+512+3*256+1024+8192+256,x, 8+1+3+1+1+1);
+PredictorJPEG(): pr(16384), a(x), StateMaps{ 256, 256*256},Bypass(false),mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+  
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new jpegModelx(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new distanceModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new blankModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new sparseModely(x);
+  models[M_PPM] =         new blankModel1(x); 
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=3;
+   mixerNets+=  256+      (8+1024)+       256+       256+       256+       256+       1536;
+     
+   mixerNetsCount+=7;
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+    m->setText(true); 
 }
 
 void update()  {
     update0();
-    x.Misses+=x.Misses+((pr>>11)!=x.y);
+    if (x.bpos==0) {
+        x.c4=(x.c4<<8)+x.buf(1);
+        if(x.blpos==1) m->setText(true);
+    }
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
+    x.Misses+=x.Misses+((pr>>10)!=x.y);
     m->update();
     m->add(256);
     Bypass=false;
-    int ismatch=matchModel->p(*m);  // Length of longest matching context
-    if (x.Match.length>0xFF || matchModel->Bypass) {//256b
-    count++;
-        matchModel->Bypass =   Bypass =    true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        jpegModel->p(*m,1);//we found long repeating match. update, do not predict. artificial images, same partial content
+    int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.Match.length>0xFF || x.Match.bypass) {//256b
+    
+        x.Match.bypass =   Bypass =    true;
+        m->reset(); 
+        //m->setText(false); // reset back
+        pr= x.Match.bypassprediction;
+        pr=(4096-pr)*(32768/4096);
+        if(pr<1) pr=1;
+        if(pr>32767) pr=32767;
+        models[M_JPEG]->p(*m,1);//we found long repeating match. update, do not predict. artificial images, same partial content
         return;
     }
+    if (x.bpos==0)x.count++;
     m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
     m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
-    dmcModel->p(*m);
-    if (jpegModel->p(*m)) {
+    if (models[M_JPEG]->p(*m)) {
         m->set(ismatch, 256);
         pr=m->p(1,0);
     }
     else{
-        int order =normalModel->p(*m);
-        distanceModel->p(*m);
-        indirectModel->p(*m);
-        sparseModel->p(*m,ismatch,order);
-        recordModel->p(*m);
+        int order =models[M_NORMAL]->p(*m);
+        models[M_DISTANCE]->p(*m);
+        models[M_INDIRECT]->p(*m);
+        models[M_SPARSE_Y]->p(*m,ismatch,order);
+        models[M_RECORD]->p(*m);
         U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-         m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
+        m->set(ismatch, 256);
+        m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
         m->set(x.c0, 256);
         m->set(order | ((x.c4>>6)&3)<<3 | (x.bpos==0)<<5 | (c1==c2)<<6 | (1)<<7, 256);
         m->set(c2, 256);
         m->set(c3, 256);
-        m->set(ismatch, 256);
         U8 d=x.c0<<(8-x.bpos);
         if (x.bpos) {
             c=d; if (x.bpos==1)c+=c3/2;
@@ -11667,6 +12707,9 @@ void update()  {
         m->set(c, 1536);
         pr=a.p2(m->p(),pr,7);
     }
+    pr=(4096-pr)*(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>32767) pr=32767;
 }
 };
 //EXE predicor class
@@ -11675,41 +12718,75 @@ class PredictorEXE: public Predictors {
   int order;
   Mixer *m;
   EAPM a;
-  SparseMatchModel sparseMatch;
-   bool Bypass; 
-   U32 count;
+  U32 count;
+  int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
 public:
   PredictorEXE();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;
-    ~PredictorEXE(){ // printf("\n EXE Count of skipped bytes %d\n",count/8);
+    ~PredictorEXE(){
     }
 };
 
-PredictorEXE::PredictorEXE(): pr(2048),order(0),a(x),sparseMatch(x),Bypass(false),count(0) {
-  if (level>=4){
-    recordModel=new recordModel1(x); 
-    distanceModel=new distanceModel1(x); 
-    sparseModel=new sparseModely(x); 
-    wordModel=new wordModel1(x); 
-    exeModel=new exeModel1(x); 
-    indirectModel=new indirectModel1(x);
-    dmcModel=new dmcModel1(x);  
-    nestModel=new nestModel1(x); // ?
-     textModel =new TextModel(x,16) ; 
-     XMLModel=new XMLModel1(x);
-  }
-  matchModel=new matchModel1(x); 
-  normalModel=new normalModel1(x);
-  const int tinput=1+(level>=4?(recordModel->inputs()+distanceModel->inputs()+sparseModel->inputs()+
-  wordModel->inputs()+  exeModel->inputs() + indirectModel->inputs() +XMLModel->inputs()+ dmcModel->inputs()+ nestModel->inputs()+textModel->inputs() ):0)+
-  matchModel->inputs() + normalModel->inputs()+sparseMatch.inputs();
-  m=new Mixer(tinput, 6920+1024+512+8192+8192+8192+ 1024+2048+2048+2048+2048+2048+4096+256+4096+4096+4096+11*32+3*256+1024+8192,x, 25+3+1+1);
-
+PredictorEXE::PredictorEXE(): pr(16384),order(0),a(x),count(0), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
+ 
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new distanceModel1(x);
+  models[M_EXE] = new exeModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new dmcModel1(x);
+  models[M_NEST] = new nestModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  if (slow==true)
+  models[M_XML] = new blankModel1(x);
+  else
+  models[M_XML] = new XMLModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new TextModel(x,16);
+  models[M_WORD] = new wordModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  models[M_SPARSE_Y] = new sparseModely(x);
+  if (slow==true)
+  models[M_PPM] =         new ppmdModel1(x);
+  else
+  models[M_PPM] =         new blankModel1(x); 
+  if (slow==true)
+  models[M_CHART] =         new chartModel(x);
+  else
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=( 8+1024)+     256+     256+     1024+     256+     256+     256+     1536;
+   mixerNetsCount+=8;
+    sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void PredictorEXE::update()  {
     update0();
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     if (x.bpos==0) {
         int b1=x.buf(1);
@@ -11726,37 +12803,30 @@ void PredictorEXE::update()  {
             if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
+        x.tt=x.tt*8+WRT_mtt[b1];
         x.f4=x.f4*16+(b1>>4);
     }
     m->update();
     m->add(256);
-    Bypass=false;
-    int ismatch=matchModel->p(*m);  // Length of longest matching context
-    if (x.Match.length>0xFFF || matchModel->Bypass) {
-      //  count++;
-        matchModel->Bypass = Bypass =    true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        return;
-    }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m);
+     
+    int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.bpos==0)x.count++;
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     int rec=0;
-    if (level>=4 ){
-        
-        rec=recordModel->p(*m);
-        wordModel->p(*m,order);
-        nestModel->p(*m);
-        sparseModel->p(*m,ismatch,order);
-        distanceModel->p(*m);
-        indirectModel->p(*m);
-        dmcModel->p(*m);
-        exeModel->p(*m,1); //1024*2
-         XMLModel->p(*m);
-        textModel->p(*m);
-    }
+    rec=models[M_RECORD]->p(*m);
+    models[M_WORD]->p(*m,order);
+    models[M_NEST]->p(*m);
+    models[M_SPARSE_Y]->p(*m,ismatch,order);
+    models[M_DISTANCE]->p(*m);
+    models[M_INDIRECT]->p(*m);
+    models[M_DMC]->p(*m);
+    models[M_EXE] ->p(*m,1); //1024*2
+     if (slow==false) models[M_XML]->p(*m);
+    models[M_TEXT]->p(*m);
+if (slow==true) models[M_PPM]->p(*m); 
+            if (slow==true) models[M_CHART]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
@@ -11774,6 +12844,8 @@ void PredictorEXE::update()  {
     m->set(c, 1536);
     int pr0=m->p(1,1);
     pr=a.p2(pr0,pr,7);
+    sse.update();
+    pr = sse.p(pr);
 }
 
 //IMG4 predicor class
@@ -11785,17 +12857,55 @@ class PredictorIMG4: public Predictors {
       APM APMs[4];
       APM1 APM1s[2];
   } Image;
-   bool Bypass; 
+   
+    int mixerInputs,mixerNets,mixerNetsCount;
+    eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG4(){ }
 
-PredictorIMG4(): pr(2048), StateMaps{ 256, 256*256}, Image
-     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}},Bypass(false) {
-  matchModel=new matchModel1(x);   
-  im4bitModel=new im4bitModel1(x); 
-  const int tinput=1+ matchModel->inputs()+im4bitModel->inputs()+2;
-  m=new Mixer(tinput,2576-256+1,x, 6 );
+PredictorIMG4(): pr(16384), StateMaps{ 256, 256*256}, Image
+     {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8]    = new blankModel1(x);
+  models[M_IM24]   = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG]   = new blankModel1(x);
+  models[M_WAV]    = new blankModel1(x);
+  models[M_MATCH]  = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC]    = new blankModel1(x);
+  models[M_NEST]   = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_IM1]    = new blankModel1(x);
+  models[M_XML]    = new blankModel1(x);
+  models[M_IM4]    = new im4bitModel1(x);
+  models[M_TEXT]   = new blankModel1(x);
+  models[M_WORD]   = new blankModel1(x);
+  models[M_DEC]    = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_PPM] =         new blankModel1(x); 
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1+2;
+   mixerNets+=0;
+   mixerNetsCount+=0;
+   sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -11803,18 +12913,14 @@ void update()  {
   if (x.bpos==0) {
     x.c4=(x.c4<<8)+x.buf(1);
   }
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
-  Bypass=false;
-  matchModel->p(*m);  // Length of longest matching context
-  if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        return;
-    }
-  im4bitModel->p(*m,x.finfo);
+  models[M_MATCH]->p(*m);  // Length of longest matching context
+  models[M_IM4]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
   int pr0=m->p();
@@ -11830,6 +12936,8 @@ void update()  {
   pr2 = Image.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.W, x.Image.pixels.N)&0xFFFF, 6);
   pr = (pr*2+pr1+pr2+2)>>2;
   pr = (pr+pr0+1)>>1;   
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 //IMG8 predicor class
@@ -11846,20 +12954,55 @@ class PredictorIMG8: public Predictors {
     } Gray;
   } Image;
   StateMap StateMaps[2];
-   bool Bypass; 
+    int mixerInputs,mixerNets,mixerNetsCount;
+    eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG8(){ }
 
-PredictorIMG8(): pr(2048),  Image{
+PredictorIMG8(): pr(16384),  Image{
      {{0x1000, 0x10000, 0x10000, 0x10000},  {{0x10000,x}, {0x10000,x}}},
-     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256},Bypass(false){
-  matchModel=new matchModel1(x);   
-  im8bitModel=new im8bitModel1(x); 
-  
-  normalModel=new normalModel1(x);
-  const int tinput=1+ matchModel->inputs() + im8bitModel->inputs()+ normalModel->inputs()+2;
-  m=new Mixer(tinput, 3877+64+128 +256,x, 8+1 );
+     {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8] = new im8bitModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC] = new blankModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_PPM] =         new blankModel1(x); 
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1+2;
+   mixerNets+=   256;
+   mixerNetsCount+=1;
+   sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
@@ -11867,24 +13010,20 @@ void update()  {
   if (x.bpos==0) {
     x.c4=(x.c4<<8)+x.buf(1);
   }
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
-  Bypass=false;
-  int ismatch=matchModel->p(*m);  // Length of longest matching context
-  if (x.Match.length>(x.finfo) || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        im8bitModel->p(*m,x.finfo,1);
-        return;
-    }
+  if (x.bpos==0)x.count++;
+  int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
   m->set(ismatch, 256);
-  normalModel->p(*m);
-  im8bitModel->p(*m,x.finfo);
+  models[M_NORMAL]->p(*m);
+  models[M_IM8]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
-  int pr0=m->p();
+  int pr0=m->p(0,1);
    if(x.filetype== IMAGE8GRAY)  {
       int pr1, pr2, pr3;
       int limit=0x3FF>>((x.blpos<0xFFF)*4);
@@ -11908,6 +13047,8 @@ void update()  {
       pr = (pr*2+pr1+pr2+2)>>2;
       pr = (pr+pr0+1)>>1;   
   }
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 //IMG24 predicor class
@@ -11915,20 +13056,59 @@ class PredictorIMG24: public Predictors {
   int pr;  // next prediction
   Mixer *m;
   struct {
-    APM APMs[4];
+    APM APMs[1];
     APM1 APM1s[2];
   } Image;
   StateMap StateMaps[2];
-   bool Bypass; 
+    int mixerInputs,mixerNets,mixerNetsCount;
+    eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG24(){ }
 
-PredictorIMG24(): pr(2048),Image{ {0x1000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}} },StateMaps{ 256, 256*256},Bypass(false){
-  matchModel=new matchModel1(x); 
-  im24bitModel=new im24bitModel1(x);
-  const int tinput=1+matchModel->inputs() + im24bitModel->inputs()+2 ;
-  m=new Mixer(tinput, 5254+4*8192+256,x,9+4+1);
+PredictorIMG24(): pr(16384),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
+                  StateMaps{ 256, 256*256}, mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x){
+   
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new im24bitModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC] = new blankModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_PPM] =         new blankModel1(x); 
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1+2;
+   mixerNets+=  256;
+   mixerNetsCount+=1;
+   sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets+8192,x, mixerNetsCount+1);
 }
 
 void update()  {
@@ -11940,83 +13120,209 @@ void update()  {
         x.w5=x.w5*4+i;
         x.x5=(x.x5<<8)+b1;
   }
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
+  
   x.Misses+=x.Misses+((pr>>11)!=x.y);
   m->update();
   m->add(256);
-  Bypass=false;
-  int ismatch=matchModel->p(*m);  // Length of longest matching context
-  if (x.Match.length>(x.finfo) || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-         im24bitModel->p(*m,x.finfo,1);
-        return;
-    }
+  if (x.bpos==0)x.count++;
+  int ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
   m->set(ismatch,256);
-  im24bitModel->p(*m,x.finfo);
+  models[M_IM24]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
+  m->set(x.Image.ctx&0x1FFF,8192);
   int pr1, pr2, pr3;
   int pr0=x.filetype==IMAGE24? m->p(1,1): m->p();
   int limit=0x3FF>>((x.blpos<0xFFF)*4);
+ // pr=pr0;
   pr  = Image.APMs[0].p(pr0, (x.c0<<4)|(x.Misses&0xF), x.y,limit);
-  pr1 = Image.APMs[1].p(pr0, hash(x.c0, x.Image.pixels.W, x.Image.pixels.WW)&0xFFFF,  x.y,limit);
+ /* pr1 = Image.APMs[1].p(pr0, hash(x.c0, x.Image.pixels.W, x.Image.pixels.WW)&0xFFFF,  x.y,limit);
   pr2 = Image.APMs[2].p(pr0, hash(x.c0, x.Image.pixels.N, x.Image.pixels.NN)&0xFFFF, x.y, limit);
   pr3 = Image.APMs[3].p(pr0, (x.c0<<8)|x.Image.ctx, x.y, limit);
   pr0 = (pr0+pr1+pr2+pr3+2)>>2;
-
+*/
   pr1 = Image.APM1s[0].p(pr, hash(x.c0, x.Image.pixels.W, x.buf(1)-x.Image.pixels.Wp1, x.Image.plane)&0xFFFF);
   pr2 = Image.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.N, x.buf(1)-x.Image.pixels.Np1, x.Image.plane)&0xFFFF);
   pr=(pr*2+pr1*3+pr2*3+4)>>3;
   pr = (pr+pr0+1)>>1;
+  sse.update();
+    pr = sse.p(pr);
 }
 };
+
+ 
 //TEXT predicor class
 class PredictorTXTWRT: public Predictors {
+
   int pr;  // next prediction
   int pr0;
   int order;
   int rlen;
   int ismatch;
-  bool Bypass; 
   Mixer *m;
   struct {
     APM APMs[4];
     APM1 APM1s[3];
   } Text;
-  SparseMatchModel sparseMatch;
   U32 count;
   U32 blenght;
+   int mixerInputs,mixerNets,mixerNetsCount;
+   StateMap StateMaps[1];
+   wrtDecoder wr;
+  eSSE sse;
+   
 public:
   PredictorTXTWRT();
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
+  void wrt();
   void update() ;
    ~PredictorTXTWRT(){
-       //printf("\n TXTWRT Count of skipped bytes %d\n",count/8);
+      // printf("\n TXTWRT Count of skipped bytes %d\n",count/8);
   }
 };
 
-PredictorTXTWRT::PredictorTXTWRT(): pr(2048),pr0(pr),order(0),rlen(0),ismatch(0),Bypass(false),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },sparseMatch(x),count(0),blenght(1024){
-  if (level>=4){
-    recordModel=new recordModel1(x);
-    sparseModel1=new sparseModelx(x);
-    wordModel=new wordModel1(x);
-    indirectModel=new indirectModel1(x);
-    dmcModel=new dmcModel1(x);
-    nestModel=new nestModel1(x);
-    XMLModel=new XMLModel1(x);
-    textModel =new TextModel(x,16) ;
-  }
-  matchModel=new matchModel1(x);
-  normalModel=new normalModel1(x);
-  const int tinput=1+(level>=4?(recordModel->inputs() + sparseModel1->inputs() +
-  wordModel->inputs()+ indirectModel->inputs() + dmcModel->inputs()+nestModel->inputs()+
-   XMLModel->inputs()+ textModel->inputs()+1 ):0) + matchModel->inputs() + normalModel->inputs() +sparseMatch.inputs() +2;
-  m=new Mixer(tinput, 10752-512+1024*4+2048+2048+2048+ 1024*4+1024+256+512+4096+4096+4096+11*32+4096+1024+3*256+1024+8192,x, 18+1+1+3+1+1);
-  m->setText(true);
-}
+PredictorTXTWRT::PredictorTXTWRT(): pr(16384),pr0(pr),order(0),rlen(0),ismatch(0),
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x){
 
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_SPARSE] = new sparseModelx(x);
+  models[M_MATCH] = new matchModel1(x);
+  models[M_INDIRECT] = new indirectModel1(x);
+  models[M_DMC] = new dmcModel1(x);
+  models[M_NEST] = new nestModel1(x);
+  models[M_NORMAL] = new normalModel1(x);
+  models[M_XML] = new XMLModel1(x);
+  models[M_TEXT] = new TextModel(x,16);
+  models[M_WORD] =  new  wordModel1(x,16);
+  models[M_SPARSEMATCH] = new SparseMatchModel(x);
+  //blanks
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_IM1] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  if (slow==true)
+  models[M_PPM] =         new ppmdModel1(x);
+  else
+  models[M_PPM] =         new blankModel1(x); 
+  if (slow==true)
+  models[M_CHART] =         new chartModel(x);
+  else
+  models[M_CHART] =         new blankModel1(x);
+/*  if (slow==true)
+  models[M_LSTM] =         new lstmModel1(x);
+  else
+  models[M_LSTM] =         new blankModel1(x);*/
+  
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1+1;
+   mixerNets+= 4096+ 256+ 256+ 256*8+ 256*8+ 256*8+ 1536+ 2048;
+   mixerNetsCount+=8;
+   sse.p(pr); // must
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   m->setText(true);
+}
+void PredictorTXTWRT::wrt(){
+    // load wrt dictionary from file
+        // detect header//'!Pq8'
+        if (x.c4==0x21507138 && x.blpos<16){ 
+          x.wrtpos=x.blpos;
+        }
+        if (x.wrtpos>0)  { 
+          if (x.wrtpos+4+4==x.blpos){ 
+            x.wrtfile=(U64(bswap(x.c4))<<32)| bswap(x.c8);
+          }
+          //load size
+          if (x.wrtpos+4+4+3==x.blpos) { 
+          x.wrtsize=(x.c4&0xffffff);
+          if (x.wrtsize<4) x.wrtpos=0;
+          }
+          //load count
+          if (x.wrtpos+4+4+3+3==x.blpos) { 
+            x.wrtcount=(x.c4&0xffffff);
+            x.wrtcount=(x.wrtcount>>16)+((x.wrtcount&0xff)<<16)+(x.wrtcount&0xff00);
+            printf("WRT dict count %d words.\n",x.wrtcount);
+            x.wwords=x.wrtcount;
+            if (x.wrtcount==0) x.wrtpos=x.wrtsize=0;
+          }
+          if (x.wrtsize>0 && x.wrtpos+4+4+3+3+x.wrtsize+3==x.blpos && x.wrtdata==0) { 
+            if (x.buf(6)==5) {
+              x.wrtdata=x.blpos+5;
+            }
+            else x.wrtLoaded==false,x.wrtpos=x.wrtdata=x.wrtsize=0;
+          }
+          if (x.wrtdata>0 && x.blpos>=x.wrtdata &&x.wrtLoaded==false) { 
+            wr.WRT_start_decoding(x.wrtcount,x.wrtsize,&x.buf[x.buf.pos-5-3-x.wrtsize]);
+            x.wrtLoaded=x.dictonline=true;
+            printf("WRT dict online.\n");
+          }
+        }
+        if (x.wrtLoaded==true) {
+           // Returned wrtstatus values
+           // codeword size   1-3
+           // D_REGULAR_CHAR    0
+           // D_WORD_DECODED   -1     
+           // D_FIRSTUPPER     -2
+           // D_UPPERWORD      -3
+           // D_ESCAPE         -4
+           // D_UTFUPPER       -5
+          x.wrtstatus=wr.WRT_decode(x.buf(1),&x.wrtText[0],&x.wrtTextSize);
+          x.wstat=  (x.wrtstatus==-1)||  (x.wrtstatus>0);
+          x.wdecoded=false;
+          if (x.wrtstatus==-1){
+            x.wrtbytesize++;
+            x.wdecoded=true;
+            // print decoded word
+            // for (int p=0;p<x.wrtTextSize;p++)printf("%c",x.wrtText[p]);
+            x.wlen=x.wrtbytesize;
+             int y=0;
+            if (x.wrtTextSize<5 && x.wrtText[0]>'z') y=utf8_check(&x.wrtText[0]); 
+            if (y==x.wrtbytesize){
+                x.utf8l=y;
+                x.wrtc4=(x.wrtc4<<8)|x.wrtText[0];
+                x.bufn[x.bufn.pos++]=x.wrtc4&0xff;
+                x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+            }else {
+            x.utf8l=0;
+            for (int p=0;p<x.wrtTextSize;p++){
+                U8 wc=x.wrtText[p];
+                x.wrtc4=(x.wrtc4<<8)|wc;
+                x.bufn[x.bufn.pos++]=wc;
+               // printf("%c",wc);
+                x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+            }
+            }
+            x.wrtbytesize=0;
+            x.wrtTextSize=0;
+          }else if (x.wrtstatus>0){
+            x.wrtbytesize++;
+        }
+      }
+        U8 c1=x.c4;
+      if (x.wrtstatus==0 && x.wrtLoaded==true){
+          if (c1==5) c1=10;
+       x.wrtc4=(x.wrtc4<<8)|c1;//printf("%c",c1);
+        x.bufn[x.bufn.pos++]=c1;
+        x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+       }
+}
 void PredictorTXTWRT::update()  {
     update0();
     if (x.bpos==0) {
@@ -12032,54 +13338,52 @@ void PredictorTXTWRT::update()  {
         x.x4=x.x4*256+b1,x.x5=(x.x5<<8)+b1;
         if(b1=='.' || b1=='!' || b1=='?' || b1=='/'|| b1==')'|| b1=='}') {
             x.w5=(x.w5<<8)|0x3ff,x.f4=(x.f4&0xfffffff0)+2,x.x5=(x.x5<<8)+b1,x.x4=x.x4*256+b1;
-            if(b1!='!') x.w4|=12, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
+            if(b1!='!') x.w4|=12;//, x.tt=(x.tt&0xfffffff8)+1,x.b3='.';
         }
+        
+        x.tt=x.tt*8+WRT_mtt[b1];
         if (b1==32) --b1;
-        x.tt=x.tt*8+WRT_mtt[b1>>4];
         x.f4=x.f4*16+(b1>>4);
+        wrt();
+        int d=WRT_wrd1[b1]; 
+        x.bc4=x.bc4<<2|(d/64); 
     }
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
     m->add(256);
-    Bypass=false;
-    ismatch=matchModel->p(*m);  // Length of longest matching context
-    if ((x.Match.length>blenght ) || matchModel->Bypass) {//0xFFF
-    //count++;
-        matchModel->Bypass = Bypass = true;
-        
-        sparseMatch.p(*m);
-        normalModel->p(*m,0,-1); 
-        int state=XMLModel->p(*m,0,-1);
-        wordModel->p(*m,state&7,-1);
-        nestModel->p(*m,0,-1);
-        indirectModel->p(*m,0,-1);
-        dmcModel->p(*m);
-        recordModel->p(*m,0,-1);
-        textModel->p(*m,state&7,-1);
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        return;
-    }
-    sparseMatch.p(*m);
-    order=normalModel->p(*m); //ord ma
+    ismatch=models[M_MATCH]->p(*m);  // Length of longest matching context
+    if (x.bpos==0)x.count++;
+    models[M_SPARSEMATCH]->p(*m);
+    order=models[M_NORMAL]->p(*m); //ord ma
     order=order-3; 
     if(order<0) order=0;
     if(order>7) order=7;
-    if (level>=4){   
-        int state=XMLModel->p(*m);
-        m->set(wordModel->p(*m,state&7)&0xfff, 4096);    
-        sparseModel1->p(*m,ismatch,order);
-        nestModel->p(*m);
-        indirectModel->p(*m);
-        dmcModel->p(*m);
-        rlen=recordModel->p(*m);
-        textModel->p(*m,(state&7));
-    }    
+
+        int state=models[M_XML]->p(*m);
+        m->set(models[M_WORD]->p(*m,state&7)&0xfff, 4096);    
+        models[M_SPARSE]->p(*m,ismatch,order);
+        models[M_NEST]->p(*m);
+        models[M_INDIRECT]->p(*m);
+        models[M_DMC]->p(*m);
+        rlen=models[M_RECORD]->p(*m);
+        models[M_TEXT]->p(*m,(state&7));
+        if (slow==true) models[M_PPM]->p(*m);
+        if (slow==true) models[M_CHART]->p(*m);
+        //7 8 8
+        //if (slow==true) models[M_LSTM]->p(*m);
+        int dd=(pr>>9)>0+(pr>>9)>14;//+pr>7;
+        dd=(dd<<7)|(x.bc4&127);
+        dd=(dd<<8)|(x.buf(1));
+        dd=(dd<<8)|x.c0;
+         m->add((stretch(StateMaps[0].p( dd,x.y))+1)>>1);
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
         m->set(x.c0, 256);
         m->set(ismatch, 256);
-        m->set((x.w4&3)*64+c+order*256, 256*8);
+        m->set((x.bc4&3)*64+c+order*256, 256*8);
         m->set(256*order + (x.w4&240) + (x.b3>>4), 256*8);
         m->set((x.w4&255)+256*x.bpos, 256*8);
         if (x.bpos){
@@ -12094,50 +13398,89 @@ void PredictorTXTWRT::update()  {
         pr0=m->p();
         int limit=0x3FF>>((x.blpos<0xFFF)*2);
     int pr1, pr2, pr3;
+
     pr  = Text.APMs[0].p(pr0, (x.c0<<8)|(x.Text.mask&0xF)|((x.Misses&0xF)<<4), x.y, limit);
-    pr1 = Text.APMs[1].p(pr0, hash(x.bpos, x.Misses&3, x.buf(1), x.x5&0x80ff, x.Text.mask>>4)&0xFFFF, x.y, limit);
-    pr2 = Text.APMs[2].p(pr0, hash(x.c0, x.Match.byte, min(3, ilog2(x.Match.length+1)))&0xFFFF, x.y, limit);
-    pr3 = Text.APMs[3].p(pr0, hash(x.c0, x.buf(1), x.buf(2), x.Text.firstLetter)&0xFFFF, x.y, limit);
+    pr1 = Text.APMs[1].p(pr0, x.c0^hash(x.bpos, x.Misses&3, x.buf(1), x.x5&0x80ff, x.Text.mask>>4)&0xFFFF, x.y, limit);
+    pr2 = Text.APMs[2].p(pr0, x.c0^hash( x.Match.byte, min(3, ilog2(x.Match.length+1)))&0xFFFF, x.y, limit);
+    pr3 = Text.APMs[3].p(pr0, x.c0^hash( x.c4&0xffff,   x.Text.firstLetter)&0xFFFF, x.y, limit);
     pr0 = (pr0+pr1+pr2+pr3+2)>>2;
 
-    pr1 = Text.APM1s[0].p(pr0, hash(x.Match.byte, min(3, ilog2(x.Match.length+1)), x.buf(1))&0xFFFF);
-    pr2 = Text.APM1s[1].p(pr, hash(x.c0, x.buf(1), x.buf(2), x.buf(3))&0xFFFF, 6);
-    pr3 = Text.APM1s[2].p(pr, hash(x.c0, x.buf(2), x.buf(3), x.buf(4))&0xFFFF, 6);
+    pr1 = Text.APM1s[0].p(pr0, x.c0^hash(x.Match.byte, min(3, ilog2(x.Match.length+1)), x.buf(1))&0xFFFF);
+    pr2 = Text.APM1s[1].p(pr, x.c0^hash( x.c4&0x00ffffff)&0xFFFF, 6);
+    pr3 = Text.APM1s[2].p(pr, x.c0^hash( x.c4&0xffffff00)&0xFFFF, 6);
     pr = (pr+pr1+pr2+pr3+2)>>2;
-    pr = (pr+pr0+1)>>1;
+    pr = (pr+pr0)>>1;  //
+    sse.update();
+    pr = sse.p(pr);
+    
+    
 }
 
 //IMG1 predicor class
 class PredictorIMG1: public Predictors {
   int pr;  // next prediction
-   bool Bypass; 
   Mixer *m;
+   int mixerInputs,mixerNets,mixerNetsCount;
+   eSSE sse;
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG1(){ }
 
-PredictorIMG1(): pr(2048),Bypass(false)  {
-  matchModel=new matchModel1(x); 
-  im1bitModel=new im1bitModel1(x); 
-  const int tinput=1+ matchModel->inputs() + im1bitModel->inputs() ;
-  m=new Mixer(tinput,  12801+256+1,x, 7 );
+PredictorIMG1(): pr(16384), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_MATCH] = new matchModel1(x);
+  models[M_IM1]   = new im1bitModel1(x);
+  
+  models[M_RECORD] = new blankModel1(x);
+  models[M_IM8] = new blankModel1(x);
+  models[M_IM24] = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG] = new blankModel1(x);
+  models[M_WAV] = new blankModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE] = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC] = new blankModel1(x);
+  models[M_NEST] = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_XML] = new blankModel1(x);
+  models[M_IM4] = new blankModel1(x);
+  models[M_TEXT] = new blankModel1(x);
+  models[M_WORD] = new blankModel1(x);
+  models[M_DEC] = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_PPM] =         new blankModel1(x); 
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=  256;
+   mixerNetsCount+=1;
+   sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   m->setText(true);
 }
 
 void update()  {
   update0();
   m->update();
   m->add(256); 
-  Bypass=false;
-  int ismatch=matchModel->p(*m);
-  if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass =  Bypass =   true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        return;
-    }
+  int ismatch=models[M_MATCH]->p(*m);
   m->set(ismatch,256);
-  im1bitModel->p(*m, x.finfo);
+  models[M_IM1]->p(*m, x.finfo);
   pr=m->p(); 
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 
@@ -12145,33 +13488,69 @@ class PredictorAUDIO2: public Predictors {
   int pr;
   Mixer *m;
   EAPM a;
-   bool Bypass; 
+  int mixerInputs,mixerNets,mixerNetsCount;
+  eSSE sse;
   void setmixer();
 public:
-  int p()  const {assert(pr>=0 && pr<4096); return pr;} 
+  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorAUDIO2(){  }
 
-PredictorAUDIO2(): pr(2048),a(x),Bypass(false) {
-  wavModel=new wavModel1(x); 
-  matchModel=new matchModel1(x);
-  const int tinput=1+wavModel->inputs()+ matchModel->inputs() ;
-  m=new Mixer(tinput,  3095+256*7+256*8+256*7+2048+256*3-264-8+4*8+512,x, 5+1);
+PredictorAUDIO2(): pr(16384),a(x), mixerInputs(0),mixerNets(0),mixerNetsCount(0),sse(x) {
+  // create array of models
+  models = new Model*[M_MODEL_COUNT];
+  models[M_RECORD] = new recordModel1(x);
+  models[M_IM8]    = new blankModel1(x);
+  models[M_IM24]   = new blankModel1(x);
+  models[M_SPARSE] = new blankModel1(x);
+  models[M_JPEG]   = new blankModel1(x);
+  models[M_WAV]    = new wavModel1(x);
+  models[M_MATCH]  = new matchModel1(x);
+  models[M_DISTANCE] = new blankModel1(x);
+  models[M_EXE]    = new blankModel1(x);
+  models[M_INDIRECT] = new blankModel1(x);
+  models[M_DMC]    = new blankModel1(x);
+  models[M_NEST]   = new blankModel1(x);
+  models[M_NORMAL] = new blankModel1(x);
+  models[M_IM1]    = new blankModel1(x);
+  models[M_XML]    = new blankModel1(x);
+  models[M_IM4]    = new blankModel1(x);
+  models[M_TEXT]   = new blankModel1(x);
+  models[M_WORD]   = new blankModel1(x);
+  models[M_DEC]    = new blankModel1(x);
+  models[M_LINEAR] = new blankModel1(x);
+  models[M_SPARSEMATCH] = new blankModel1(x);
+  models[M_SPARSE_Y] = new blankModel1(x);
+  models[M_PPM] =         new blankModel1(x); 
+  models[M_CHART] =         new blankModel1(x);
+  //models[M_LSTM] =         new blankModel1(x);
+  // get mixer data from models
+   for (int i=0;i<M_MODEL_COUNT;i++){
+       mixerInputs+=models[i]->inputs();
+       mixerNets+=models[i]->nets();
+       mixerNetsCount+=models[i]->netcount();
+   }
+   // add extra 
+   mixerInputs+=1;
+   mixerNets+=0;
+   mixerNetsCount+=0;
+   sse.p(pr);
+   // create mixer
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
 }
 
 void update()  {
   update0();
   m->update();
   m->add(256);
-  Bypass=false;
-  matchModel->p(*m);  
-  if (x.Match.length>0xFFF || matchModel->Bypass) {
-        matchModel->Bypass = Bypass =    true;
-        m->reset();
-        pr= matchModel->BypassPrediction;
-        return;
-    }
-  wavModel->p(*m,x.finfo);
-  pr=a.p1(m->p(0,1),pr,7);
+  models[M_MATCH]->p(*m);  
+  models[M_RECORD]->p(*m);
+  models[M_WAV]->p(*m,x.finfo);
+  pr=(32768-pr)/(32768/4096);
+  if(pr<1) pr=1;
+  if(pr>4095) pr=4095;
+  pr=a.p1(m->p(((x.finfo&2)==0),1),pr,7);
+  sse.update();
+    pr = sse.p(pr);
 }
 };
 //////////////////////////// Encoder ////////////////////////////
@@ -12192,7 +13571,7 @@ void update()  {
 // setFile(f) sets alternate source to FILE* f for decompress() in COMPRESS
 //   mode (for testing transforms).
 // If level (global) is 0, then data is stored without arithmetic coding.
-
+#include "sh_v2f.inc"
 typedef enum {COMPRESS, DECOMPRESS} Mode;
 class Encoder {
 private:
@@ -12201,38 +13580,40 @@ private:
   U32 x1, x2;            // Range, initially [0, 1), scaled by 2^32
   U32 x;                 // Decompress mode: last 4 input bytes of archive
   File*alt;             // decompress() source in COMPRESS mode
-
+  Rangecoder rc; 
   // Compress bit y or return decompressed bit
   void code(int i=0) {
     int p=predictor.p();
-    p+=p==0;
-    assert(p>0 && p<4096);
-    U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
+    rc.rc_BProcess( p, i );
+    //p+=p==0;
+    //assert(p>0 && p<4096);
+    //U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
     //U32 xmid=x1 + ((((x2-x1)*U64( U32(p)))>>12));// is it really safe ?
-    assert(xmid>=x1 && xmid<x2);
+    //assert(xmid>=x1 && xmid<x2);
     predictor.x.y=i;
-    i ? (x2=xmid) : (x1=xmid+1);
+    //i ? (x2=xmid) : (x1=xmid+1);
     predictor.update();
-    while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
-      archive->putc(x2>>24);
-      x1<<=8;
-      x2=(x2<<8)+255;
-    }
+    //while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
+    ////  archive->putc(x2>>24);
+    //  x1<<=8;
+   //   x2=(x2<<8)+255;
+   // }
   }
   int decode() {
     int p=predictor.p();
-    p+=p==0;
-    assert(p>0 && p<4096);
-    U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
+   // p+=p==0;
+    //assert(p>0 && p<4096);
+    //U32 xmid=x1 + ((x2-x1)>>12)*p + (((x2-x1)&0xfff)*p>>12);
   //  U32 xmid=x1 + ((((x2-x1)*U64( U32(p)))>>12)); // is it really safe ?
-    assert(xmid>=x1 && xmid<x2);
-    x<=xmid ? (x2=xmid,predictor.x.y=1) : (x1=xmid+1,predictor.x.y=0);
+    //assert(xmid>=x1 && xmid<x2);
+   // x<=xmid ? (x2=xmid,predictor.x.y=1) : (x1=xmid+1,predictor.x.y=0);
+   predictor.x.y = rc.rc_BProcess( p, 0 );
     predictor.update();
-    while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
-      x1<<=8;
-      x2=(x2<<8)+255;
-      x=(x<<8)+(archive->getc()&255);  // EOF is OK
-    }
+   // while (((x1^x2)&0xff000000)==0) {  // pass equal leading bytes of range
+    //  x1<<=8;
+    //  x2=(x2<<8)+255;
+    //  x=(x<<8)+(archive->getc()&255);  // EOF is OK
+   // }
     return predictor.x.y;
   }
  
@@ -12279,20 +13660,24 @@ public:
 };
 
 Encoder::Encoder(Mode m, File* f,Predictors& predict):
-    mode(m), archive(f), x1(0), x2(0xffffffff), x(0), alt(0),predictor(predict) {
+    mode(m), archive(f), /*x1(0), x2(0xffffffff), x(0),*/ alt(0),predictor(predict) {
+        if(level>0) if(mode==DECOMPRESS) rc.StartDecode(f); else rc.StartEncode(f);
         
   if (level>0 && mode==DECOMPRESS) {  // x = first 4 bytes of archive
-    for (int i=0; i<4; ++i)
-      x=(x<<8)+(archive->getc()&255);
+   // for (int i=0; i<4; ++i)
+   //   x=(x<<8)+(archive->getc()&255);
   }
   for (int i=0; i<1024; ++i)
     dt[i]=16384/(i+i+3);
-
+#ifdef SM    
+    dt[1023]=1;
+    dt[0]=4095;
+#endif
 }
 
 void Encoder::flush() {
-  if (mode==COMPRESS && level>0)
-    archive->put32(x1);//putc(x1>>24),archive->putc(x1>>16),archive->putc(x1>>8),archive->putc(x1);  // Flush first unequal byte of range
+  if (mode==COMPRESS && level>0)rc.FinishEncode();
+   // archive->put32(x1);//putc(x1>>24),archive->putc(x1>>16),archive->putc(x1>>8),archive->putc(x1);  // Flush first unequal byte of range
 }
  
 /////////////////////////// Filters /////////////////////////////////
@@ -12912,14 +14297,99 @@ U64 gif,
   gray  ; 
 };  
 
-//U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
-// Detect EXE or JPEG data
-//U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
-// Detect EXE or JPEG data
+#define UTF8_ACCEPT 0
+#define UTF8_REJECT 12
+static const U8 utf8_state_table[] = {
+  // byte -> character class
+  // character_class = utf8_state_table[byte]
+  1,1,1,1,1,0,1,1,1,0,0,1,1,0,1,1,  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 00..1f  
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, // 60..7f
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
+  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
+  8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
+ 10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8, // e0..ff
+  // validating automaton
+  // new_state = utf8_state_table[256*old_state + character_class]
+   0,12,24,36,60,96,84,12,12,12,48,72, // state  0-11
+  12,12,12,12,12,12,12,12,12,12,12,12, // state 12-23
+  12, 0,12,12,12,12,12, 0,12, 0,12,12, // state 24-35
+  12,24,12,12,12,12,12,24,12,24,12,12, // state 36-47
+  12,12,12,12,12,12,12,24,12,12,12,12, // state 48-59
+  12,24,12,12,12,12,12,12,12,24,12,12, // state 60-71
+  12,12,12,12,12,12,12,36,12,36,12,12, // state 72-83
+  12,36,12,12,12,12,12,36,12,36,12,12, // state 84-95
+  12,36,12,12,12,12,12,12,12,12,12,12  // state 96-108
+};
+
+#define TEXT_MIN_SIZE 1024*64   // size of minimum allowed text block (in bytes)
+#define TEXT_MAX_MISSES 6    // threshold: max allowed number of invalid UTF8 sequences seen recently before reporting "fail"
+#define TEXT_ADAPT_RATE 256  // smaller (like 32) = illegal sequences are allowed to come more often, larger (like 1024) = more rigorous detection
+
+struct TextParserStateInfo {
+  Array<U64> _start;
+  Array<U64> _end;      // position of last char with a valid UTF8 state: marks the end of the detected TEXT block
+  Array<U32> _EOLType;  // 0: none or CR-only;   1: CRLF-only (applicable to EOL transform);   2: mixed or LF-only
+  Array<U32> _number;  // 0: none or CR-only;   1: CRLF-only (applicable to EOL transform);   2: mixed or LF-only
+  U32 invalidCount;     // adaptive count of invalid UTF8 sequences seen recently
+  U32 UTF8State;        // state of utf8 parser; 0: valid;  12: invalid;  any other value: yet uncertain (more bytes must be read)
+  U32 countUTF8;
+  TextParserStateInfo(): _start(0), _end(0), _EOLType(0),_number(0) {}
+  void reset(U64 startpos) {
+    _start.resize(1);
+    _end.resize(1);
+    _start[0]=startpos;
+    _end[0]=startpos-1;
+    _EOLType.resize(1);
+    _number.resize(1);
+    _EOLType[0]=0;
+    _number[0]=0;
+    invalidCount=0;
+    UTF8State=0;
+    countUTF8=0;
+  }
+  U64 start(){return _start[_start.size()-1];}
+  U64 end(){return _end[_end.size()-1];}
+  void setend(U64 end){_end[_end.size()-1]=end;}
+  U32 EOLType(){return _EOLType[_EOLType.size()-1];}
+  void setEOLType(U32 EOLType){_EOLType[_EOLType.size()-1]=EOLType;}
+  U32 number(){return _number[_number.size()-1];}
+  void set_number(U32 number){_number[_number.size()-1]=number;}
+  U64 validlength(){return end() - start() + 1;}
+  void next(U64 startpos) {
+    _start.push_back(startpos);
+    _end.push_back(startpos-1);
+    _EOLType.push_back(0);
+    _number.push_back(0);
+    invalidCount=0;
+    UTF8State=0;
+     countUTF8=0;
+  }
+  void removefirst() {
+    if(_start.size()==1)
+      reset(0);
+    else {
+      for(int i=0;i<(int)_start.size()-1;i++){
+        _start[i]=_start[i+1];
+        _end[i]=_end[i+1];
+        _EOLType[i]=_EOLType[i+1];
+        _number[i]=_number[i+1];
+      }
+      _start.pop_back();
+      _end.pop_back();
+      _EOLType.pop_back();
+      _number.pop_back();
+    }
+  }
+} textparser;
+void printStatus1(U64 n, U64 size) {
+fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+}
+
 Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,int s1=0) {
   U32 buf4=0,buf3=0, buf2=0, buf1=0, buf0=0;  // last 8 bytes
   U64 start= in->curpos();
-
   // For EXE detection
   Array<U64> abspos(256),  // CALL/JMP abs. addr. low byte -> last offset
     relpos(256);    // CALL/JMP relative addr. low byte -> last offset
@@ -12945,7 +14415,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   int aiffm=0,aiffs=0;  // For AIFF detection
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
-  bmpInfo bmp = {0};    // For BMP detection
+  bmpInfo bmp = {};    // For BMP detection
   U64 rgbi=0;
   int rgbx=0,rgby=0;  // For RGB detection
   U64 tga=0;
@@ -12958,7 +14428,10 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 mdfa=0;
   int cda=0,cdm=0;   // For CD sectors detection
   U32 cdf=0;
-  TextInfo text = {0}; // For TEXT
+  TextInfo text = {}; // For TEXT
+  
+  
+
  ///
    U64 uuds=0,uuds1=0,uudp=0,uudslen=0,uudh=0;//,b64i=0;
   U64 uudstart=0,uudend=0,uudline=0,uudnl=0,uudlcount=0,uuc=0;
@@ -12969,7 +14442,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 b85s=0,b85s1=0,b85p=0,b85slen=0,b85h=0;
   U64 base85start=0,base85end=0,b85line=0;
   //U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
-  gifInfo gif = {0};
+  gifInfo gif = {};
   U64 png=0, lastchunk=0, nextchunk=0;               // For PNG detection
   int pngw=0, pngh=0, pngbps=0, pngtype=0,pnggray=0; 
   //MSZip
@@ -12979,7 +14452,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 fSZDD=0; //
   LZSS* lz77;
   U8 zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
-  int zbufpos=0, histogram[256]={0};;
+  int zbufpos=0, histogram[256]={};
   U64 zzippos=-1;
   bool brute = true;
   int pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
@@ -12999,7 +14472,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 pdfi1=0,pdfiw=0,pdfih=0,pdfic=0;
   char pdfi_buf[32];
   int pdfi_ptr=0,pdfin=0;
-  
+  U64 pLzwp=0;
+  int pLzw=0;
    // For image detection
   static Array<U32> tfidf(0);
   static int tiffImages=-1;
@@ -13014,7 +14488,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   else if (deth ==-1) return  in->setpos(start),deth=0,dett;
   else if (detd) return  in->setpos( start+detd),detd=0,DEFAULT;
  
-
+  textparser.reset(0);
   for (U64 i=0; i<n; ++i) {
     int c=in->getc();
     if (c==EOF) return (Filetype)(-1);
@@ -13023,7 +14497,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     buf2=buf2<<8|buf1>>24;
     buf1=buf1<<8|buf0>>24;
     buf0=buf0<<8|c;
-
+    
+    if (!(i&0x1fffff)) printStatus1(i, n); // after every 2mb
     if  ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 || c==4 ) textbin++,info=textbin;
 
     if(tiffImages>=0){
@@ -13044,9 +14519,11 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
                  if (tiffFiles[o].bits==1  &&type!=IMAGE8 && tiffFiles[o].bits1!=14 ) return info=tiffFiles[o].width, in->setpos(start+i),IMAGE8;
                  if (tiffFiles[o].bits==1  &&type!=IMGUNK && tiffFiles[o].bits1==14  ) return info=0, in->setpos(start+i),IMGUNK;
                  else if (tiffFiles[o].bits==3 &&type!=IMAGE24 ) return info=tiffFiles[o].width, in->setpos( start+i),IMAGE24;
+                 //else if (tiffFiles[o].bits==4 &&type!=IMAGE32 ) return info=tiffFiles[o].width, in->setpos( start+i),IMAGE32;
                  else if (tiffFiles[o].bits==1 && type==IMAGE8 ) return info=tiffFiles[o].width, in->setpos(start+tiffFiles[o].size),DEFAULT;
                  else if (tiffFiles[o].bits1==14 && type==IMGUNK ) return info=tiffFiles[o].width, in->setpos( start+tiffFiles[o].size),DEFAULT;
                  else if (tiffFiles[o].bits==3 &&type==IMAGE24 ) return info=tiffFiles[o].width, in->setpos(start+tiffFiles[o].size),DEFAULT;
+                 //else if (tiffFiles[o].bits==4 &&type==IMAGE32 ) return info=tiffFiles[o].width, in->setpos(start+tiffFiles[o].size),DEFAULT;
             } 
        }
        if(tiffImageEnd>>1==tiffImages) tiffImages=-1,tiffImageEnd=0;
@@ -13284,25 +14761,25 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       }
     }
     
-    /* dBASE VERSIONS
-      '02' > FoxBase
-      '03' > dBase III without memo file
-      '04' > dBase IV without memo file
-      '05' > dBase V without memo file
-      '07' > Visual Objects 1.x
-      '30' > Visual FoxPro
-      '31' > Visual FoxPro with AutoIncrement field
-      '43' > dBASE IV SQL table files, no memo
-      '63' > dBASE IV SQL system files, no memo
-      '7b' > dBase IV with memo file
-      '83' > dBase III with memo file
-      '87' > Visual Objects 1.x with memo file
-      '8b' > dBase IV with memo file
-      '8e' > dBase IV with SQL table
-      'cb' > dBASE IV SQL table files, with memo
-      'f5' > FoxPro with memo file - tested
-      'fb' > FoxPro without memo file
-    */
+    // dBASE VERSIONS
+    //  '02' > FoxBase
+    //  '03' > dBase III without memo file
+    //  '04' > dBase IV without memo file
+    //  '05' > dBase V without memo file
+    //  '07' > Visual Objects 1.x
+    //  '30' > Visual FoxPro
+    //  '31' > Visual FoxPro with AutoIncrement field
+    //  '43' > dBASE IV SQL table files, no memo
+    //  '63' > dBASE IV SQL system files, no memo
+    //  '7b' > dBase IV with memo file
+    //  '83' > dBase III with memo file
+    //  '87' > Visual Objects 1.x with memo file
+    //  '8b' > dBase IV with memo file
+    ///  '8e' > dBase IV with SQL table
+    //  'cb' > dBASE IV SQL table files, with memo
+    //  'f5' > FoxPro with memo file - tested
+    //  'fb' > FoxPro without memo file
+    //
     if (dbasei==0 && ((c&7)==3 || (c&7)==4 || (c>>4)==3|| c==0xf5 || c==0x30) && tiffImages==-1) {
         dbasei=i+1,dbase.Version = ((c>>4)==3)?3:c&7;
         dbase.HeaderLength=dbase.Start=dbase.nRecords=dbase.RecordLength=0;
@@ -13341,7 +14818,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     
     //detect LZSS compressed data in compress.exe generated archives
     if ((buf0==0x88F02733 && buf1==0x535A4444 && !cdi  && type!=MDF) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
-    if (fSZDD  && type!=MDF && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733 && !cdi  && (i-fSZDD)==4))){
+    if (fSZDD  && type!=MDF && buf0!=0 && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733 && !cdi  && (i-fSZDD)==4))){
        int lz2=0;
         if (buf1!=0x88F02733 && (i-fSZDD)==4) lz2=2;  //+2 treshold
         U32 fsizez=bswap(buf0); //uncompressed file size
@@ -13421,14 +14898,13 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     // SOF0 (FF C0 xx xx 08) and SOS (FF DA) within a reasonable distance.
     // Detect end by any code other than RST0-RST7 (FF D9-D7) or
     // a byte stuff (FF 00).
-
     if (!soi && i>=3 && ((
     ((buf0&0xffffff00)==0xffd8ff00 && ((U8)buf0==0xC0 || (U8)buf0==0xC4 || ((U8)buf0>=0xDB && (U8)buf0<=0xFE)))
     ||(buf0&0xfffffff0)==0xffd8ffe0  ) )    
     ) soi=i, app=i+2, sos=sof=0;
     if (soi) {
       if (app==i && (buf0>>24)==0xff &&
-         ((buf0>>16)&0xff)>0xc0 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2;
+         ((buf0>>16)&0xff)>0xc0 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2,brute=false;
       if (app<i && (buf1&0xff)==0xff && (buf0&0xff0000ff)==0xc0000008) sof=i,brute=false;
       
       if (sof && sof>soi && i-sof<0x1000 && (buf0&0xffff)==0xffda) {
@@ -13446,7 +14922,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         return DEFAULT;
     }
     if (type==JPEG) continue;
-
+//if (tiffImages>=0) continue;
     // Detect .wav file header
     if (buf0==0x52494646) wavi=i,wavm=0;
     if (wavi) {
@@ -13619,15 +15095,15 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     }
     // Detect .bmp image
     if ( !(bmp.bmp || bmp.hdrless) && (((buf0&0xffff)==16973) || (!(buf0&0xFFFFFF) && ((buf0>>24)==0x28))) ) //possible 'BM' or headerless DIB
-      bmp = {0},bmp.hdrless=!(U8)buf0,bmp.of=bmp.hdrless*54,bmp.bmp=i-bmp.hdrless*16;
+      bmp = {},bmp.hdrless=!(U8)buf0,bmp.of=bmp.hdrless*54,bmp.bmp=i-bmp.hdrless*16;
     if (bmp.bmp || bmp.hdrless) {
       const int p=i-bmp.bmp;
       if (p==12) bmp.of=bswap(buf0);
-      else if (p==16 && buf0!=0x28000000) bmp = {0}; //BITMAPINFOHEADER (0x28)
+      else if (p==16 && buf0!=0x28000000) bmp = {}; //BITMAPINFOHEADER (0x28)
       else if (p==20) bmp.x=bswap(buf0),bmp.bmp=((bmp.x==0||bmp.x>0x30000)?(bmp.hdrless=0):bmp.bmp); //width
       else if (p==24) bmp.y=abs((int)bswap(buf0)),bmp.bmp=((bmp.y==0||bmp.y>0x10000)?(bmp.hdrless=0):bmp.bmp); //height
       else if (p==27) bmp.bpp=c,bmp.bmp=((bmp.bpp!=1 && bmp.bpp!=4 && bmp.bpp!=8 && bmp.bpp!=24 && bmp.bpp!=32)?(bmp.hdrless=0):bmp.bmp);
-      else if ((p==31) && buf0) bmp = {0};
+      else if ((p==31) && buf0) bmp = {};
       else if (p==36) bmp.size=bswap(buf0);
       // check number of colors in palette (4 bytes), must be 0 (default) or <= 1<<bpp.
       // also check if image is too small, since it might not be worth it to use the image models
@@ -13662,11 +15138,11 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
           else if (bmp.bpp==24) IMG_DET(IMAGE24,max(0,bmp.bmp-1),bmp.of,((bmp.x*3)+3)&-4,bmp.y);
           else if (bmp.bpp==32) IMG_DET(IMAGE32,max(0,bmp.bmp-1),bmp.of,bmp.x*4,bmp.y);
         }
-        bmp = {0};
+        bmp = {};
       }
     }
     // Detect .pbm .pgm .ppm .pam image
-    if ((buf0&0xfff0ff)==0x50300a && (i-text.start-1)<MIN_TEXT_SIZE ) { 
+    if ((buf0&0xfff0ff)==0x50300a && textparser.validlength()<TEXT_MIN_SIZE ) { 
       pgmn=(buf0&0xf00)>>8;
      if ((pgmn>=4 && pgmn<=6) || pgmn==7) pgm=i,pgm_ptr=pgmw=pgmh=pgmc=pgmcomment=pamatr=pamd=0;
     }
@@ -13709,14 +15185,14 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       if (pgmw && pgmh && pgmc && (pgmn==7 && pamd==4 && pamatr==6)) IMG_DET(IMAGE32,pgm-2,i-pgm+3,pgmw*4,pgmh);
     }
     
-   /* image in pdf
-     'BI
-      /W 86
-      /H 85
-      /BPC 1 
-      /IM true
-      ID '
-    */ 
+   // image in pdf
+   //  'BI
+   //   /W 86
+   ///   /H 85
+   //   /BPC 1 
+    //  /IM true
+   //   ID '
+   /// 
     if ((buf0)==0x42490D0A  && pdfi1==0 ) { 
         pdfi1=i,pdfi_ptr=pdfiw=pdfih=pdfic=pdfi_ptr=0;
     }
@@ -13751,6 +15227,20 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       if (pdfiw && pdfih && pdfic==1 && pdfin==5) IMG_DETP(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
       if (pdfiw && pdfih && pdfic==8 && pdfin==5) IMG_DETP(IMAGE8,pdfi1-3,i-pdfi1+4,pdfiw,pdfih);
     }
+    //detect lzw in pdf
+    //headers: /LZWDecode >>stream 0x2F4C5A57 0x4465636F 0x64650D0A 0x3E3E0D0A 0x73747265 0x616D0D0A
+    if (pLzw==0 && buf4==0x2F4C5A57 && buf3==0x4465636F && buf2==0x64650D0A && buf1==0x3E3E0D0A && buf0==0x73747265){
+        pLzw=1,pLzwp=i-(5*4);
+    }
+    else if (pLzw==1 && buf0==0x616D0D0A){
+             pLzw=2;
+         }
+    else if (pLzw==2 &&    buf1==0x0D0A656E &&    buf0==0x64737472){ //endstr
+            pLzw=0;
+            info2=0;
+            B85_DET(CMP,(pLzwp+6*4+1),0,((i-2*4) -(pLzwp+6*4+1)+2));//type startpos 0 len
+    }
+   
     
     // Detect .rgb image
     if ((buf0&0xffff)==0x01da) rgbi=i,rgbx=rgby=0;
@@ -13792,12 +15282,12 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
           int tagval=tiffMM==false?b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24):(int)bswap(b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24));;
           //printf("Tag %d  val %d\n",tag, tagval);
           if (tagfmt==3||tagfmt==4) {
-              
+              tagval= (taglen==1 && tiffMM==true)?tagval>>16:tagval;
             if (tag==256) tifx=tagval,tiffFiles[tiffImages].width=tifx;
             else if (tag==257) tify=tagval,tiffFiles[tiffImages].height=tify;
             else if (tag==258) tifzb=(tagval==12||tagval==14||tagval==16)?14:taglen==1?tagval:8,tiffFiles[tiffImages].bits1=tifzb; // bits per component
             else if (tag==259) tifc=tagval, tiffFiles[tiffImages].compression=tifc ; // 1 = no compression, 6 jpeg
-            else if (tag==273 && tagfmt==4) tifofs=tagval,tifofval=(taglen<=1),tiffFiles[tiffImages].offset=tifofs;
+            else if (tag==273 && tagfmt==4) tifofs=tagval,tifofval=(taglen<=1),tiffFiles[tiffImages].offset=tifofs&0xffff;
             else if (tag==513 && tagfmt==4) tifofs=tagval,tifofval=(taglen<=1),tiffFiles[tiffImages].offset=tifofs; //jpeg
             else if (tag==514 && tagfmt==4) tifsiz=tagval,tiffFiles[tiffImages].size=tifsiz,tiffFiles[tiffImages].compression=6; //jpeg
             else if (tag==277) tifz=tagval,tiffFiles[tiffImages].bits=tifz; // components per pixel
@@ -13855,6 +15345,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
           int tagval=tiffMM==false?b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24):(int)bswap(b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24));;
           // printf("Tag %d  val %d\n",tag, tagval);
           if (tagfmt==3||tagfmt==4) {
+              tagval= (taglen==1 && tiffMM==true)?tagval>>16:tagval;
             if (tag==256) tifx=tagval,tiffFiles[tiffImages].width=tifx;
             else if (tag==257) tify=tagval,tiffFiles[tiffImages].height=tify;
             else if (tag==258) tifzb=(tagval==12||tagval==14||tagval==16)?14:taglen==1?tagval:8,tiffFiles[tiffImages].bits1=tifzb; // bits per component
@@ -13880,11 +15371,12 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
        tiffFiles[o].offset+=tiffImageStart;
        }
        //
-      if (tifx>1 && tify && tifzb && (tifz==1 || tifz==3) && ((tifc==1) || (tifc==5/*LZW*/ && tifsiz>0)) && (tifofs && tifofs+i<n)) {
+      if (tifx>1 && tify && tifzb && (tifz==1 || tifz==3) && ((tifc==1) || (tifc==5 && tifsiz>0)) && (tifofs && tifofs+i<n)) {//tifc==5 LZW
         if (!tifofval) {
            in->setpos( start+i+tifofs-7);
           for (int j=0; j<4; j++) b[j]=in->getc();
           tifofs=b[0]+(b[1]<<8)+(b[2]<<16)+(b[3]<<24);
+          tifofs=tiffMM==false?(int)tifofs:(int)bswap(tifofs);          
         }
         if (tifofs && tifofs<(1<<18) && tifofs+i<n && tifx>1) {
             if (tifc==1) {
@@ -14054,10 +15546,10 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     //test if bl opcode and if last 3 opcodes are valid 
     // BL(4) and (ADD(1) or MOV(4)) as previous, 64 bit
     // ARMv8-A_Architecture_Reference_Manual_(Issue_A.a).pdf
-    if (op==0x25 && /*DECcount==0 &&*/
-    (((buf1)>>26==0x25 ||(buf2)>>26==0x25/*||(buf3)>>26==0x25*/ ) ||
+    if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
+    (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&& e8e9count==0 &&  !tar && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&& e8e9count==0 && textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits
@@ -14179,7 +15671,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     else if (b85s==2){
         if  ((buf0&0xff)==0x0d && b85line==0) {
             b85line=i-base85start;//,b85nl=i+2;//capture line lenght
-            if (b85line<=4 || b85line>255) b85s=0;
+            if (b85line<=25 || b85line>255) b85s=0;
         }
         
         else if ( (buf0&0xff)==0x7E)  { //if padding '~' or '=='
@@ -14194,13 +15686,12 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         }
         else     b85s=0;   
     }
-    if (b85s==2)continue;
     
     // Detect text, utf-8, eoltext and text0
     text.isLetter = tolower(c)!=toupper(c);
-    text.countLetters+=(text.isLetter)?1:0;
+    //text.countLetters+=(text.isLetter)?1:0;
     text.countNumbers+=(c>='0' && c<='9') ?1:0;
-    text.isNumbertext=text.countLetters< text.countNumbers;
+    //text.isNumbertext=text.countLetters< text.countNumbers;
     text.isUTF8 = ((c!=0xC0 && c!=0xC1 && c<0xF5) && (
         (c<0x80) ||
         // possible 1st byte of UTF8 sequence
@@ -14212,7 +15703,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         // possible 4th byte of UTF8 sequence
         ((buf0&0xF8C0C0C0)==0xF0808080 && (buf0>>24)<0xF5)
     ));
-     text.countUTF8+=((text.isUTF8 && !text.isLetter && (c>=0x80))?1:0);
+     textparser.countUTF8+=((text.isUTF8 && !text.isLetter && (c>=0x80))?1:0);
     if (text.lastNLpos==0 && c==NEW_LINE ) text.lastNLpos=i;
     else if (text.lastNLpos>0 && c==NEW_LINE ) {
         int tNL=i-text.lastNLpos;
@@ -14223,7 +15714,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         text.lastNLpos=i;
     }
     text.lastNL = (c==NEW_LINE || c==CARRIAGE_RETURN ||c==10|| c==5)?0:text.lastNL+1;
-    if (c==SPACE || c==TAB ||c==0x12 ){
+   /* if (c==SPACE || c==TAB ||c==0x12 ){
       text.lastSpace = 0;
       text.spaceRun++;
     }
@@ -14241,7 +15732,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     //  text.seenNL = true;
       //text.needsEolTransform&=(text.countNL>text.totalNL);//U8(buf0>>8)==CARRIAGE_RETURN;
     //}
-    bool tspace=(c<SPACE && c!=TAB && (text.zeroRun<2 || text.zeroRun>8) && text.lastNL!=0);
+   /* bool tspace=(c<SPACE && c!=TAB && (text.zeroRun<2 || text.zeroRun>8) && text.lastNL!=0);
     //bool tcr=((buf0&0xFF00)==(CARRIAGE_RETURN<<8) || (buf0&0xFF00)==(10<<8));
     bool tscr= (text.spaceRun>8 && text.lastNL>256 && !text.isUTF8); // utf8 line lenght can be more then 4 times longer
     bool tword=(!text.isLetter && !text.isUTF8 &&  ( text.lastNL>256 || text.lastSpace > max( text.lastNL, text.wordLength*8) || text.wordLength>32) );
@@ -14255,7 +15746,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         int length = i-text.start-1; 
         bool dtype=(png || pdfimw || cdi || soi || pgm || rgbi || tga || gif.gif || b64s||tar || bmp.bmp ||wavi ||b64s1 ||b85s1||b85s||DECcount||mrb||uuds );
         if (((length<MIN_TEXT_SIZE && text.missCount>MAX_TEXT_MISSES) || dtype)){
-          text = {0};
+          text = {};
           text.start = i+1;
         }
         else if (text.missCount>MAX_TEXT_MISSES ) {
@@ -14267,7 +15758,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         }
     }
     //disable zlib brute if text lenght is over minimum.
-    if ( (i-text.start)>MIN_TEXT_SIZE) brute=false;
+    //if ( (i-text.start)>MIN_TEXT_SIZE) brute=false;
   }
     if (n-text.start>=MIN_TEXT_SIZE && ! (png || pdfimw || cdi || soi || pgm || rgbi || tga || gif.gif || b64s||tar || bmp.bmp ||wavi ||b64s1 ||b85s1||b85s||DECcount||mrb ||uuds) ||
        (s1==0 && (n-text.start)==n && type==DEFAULT) // ignore minimum text lenght
@@ -14276,7 +15767,46 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         in->setpos(start + text.start);
         detd = n-text.start;
         if ( text.isNumbertext)     info=1;
-    return (text.needsEolTransform)?EOLTEXT:(( text.isNumbertext)?TEXT0:(text.countUTF8>MIN_TEXT_SIZE?TXTUTF8:TEXT));
+    return (text.needsEolTransform)?EOLTEXT:(( text.isNumbertext)?TEXT0:(text.countUTF8>MIN_TEXT_SIZE?TXTUTF8:TEXT));*/
+    // Detect text
+    // This is different from the above detection routines: it's a negative detection (it detects a failure)
+    //text.countNumbers+=(c>='0' && c<='9') ?1:0;
+    textparser.set_number(text.countNumbers);
+    U32 t = utf8_state_table[c];
+    textparser.UTF8State = utf8_state_table[256 + textparser.UTF8State + t];
+    if(textparser.UTF8State == UTF8_ACCEPT) { // proper end of a valid utf8 sequence
+      if (c==NEW_LINE || c==5) {
+      //  if (((buf0>>8)&0xff) != CARRIAGE_RETURN)
+      //    textparser.setEOLType(2); // mixed or LF-only
+      //  else 
+      //    if (textparser.EOLType()==0)textparser.setEOLType(1); // CRLF-only
+      if (textparser.validlength()>TEXT_MIN_SIZE*64) brute=false; //4mb
+      }
+      textparser.invalidCount=textparser.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE;
+      if(textparser.invalidCount==0){
+      textparser.setEOLType(text.countNL>text.totalNL);
+        textparser.setend(i); // a possible end of block position
+    }
+    }
+    else
+    if(textparser.UTF8State == UTF8_REJECT) { // illegal state
+    //printf("%c",c);
+      textparser.invalidCount = textparser.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE + TEXT_ADAPT_RATE;
+      textparser.UTF8State = UTF8_ACCEPT; // reset state
+      if (textparser.validlength()<TEXT_MIN_SIZE) {
+         // printf("%d",textparser.validlength());
+        textparser.reset(i+1); // it's not text (or not long enough) - start over
+        text.countNumbers=0;
+      }
+      else if (textparser.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE) {
+        if (textparser.validlength()<TEXT_MIN_SIZE)
+        {  textparser.reset(i+1); // it's not text (or not long enough) - start over
+          text.countNumbers=0;}
+        else // Commit text block validation
+          {
+          textparser.next(i+1);return type;}
+      }
+    }
   }
   return type;
 
@@ -14287,8 +15817,8 @@ typedef enum {FDECOMPRESS, FCOMPARE, FDISCARD} FMode;
 
 // Print progress: n is the number of bytes compressed or decompressed
 void printStatus(U64 n, U64 size,int tid=-1) {
-if (level>0 && tid>=0)  fprintf(stderr,"\r%2d %6.2f%%",tid, float(100)*n/(size+1)), fflush(stdout), fflush(stderr);
-else if (level>0)  fprintf(stderr,"\r%6.2f%%", float(100)*n/(size+1)), fflush(stdout), fflush(stderr);
+if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
+else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
 void encode_cd(File* in, File* out, int len, int info) {
@@ -14348,12 +15878,23 @@ int decode_cd(File*in, int size, File*out, FMode mode, U64 &diffFound) {
 
 // 24-bit image data transform:
 // simple color transform (b, g, r) -> (g, g-r, g-b)
-
+#define RGB565_MIN_RUN 63
 void encode_bmp(File* in, File* out, int len, int width) {
-  int r,g,b;
+  int r,g,b, total=0;
+  bool isPossibleRGB565 = true;
   for (int i=0; i<len/width; i++) {
     for (int j=0; j<width/3; j++) {
       b=in->getc(), g=in->getc(), r=in->getc();
+      if (isPossibleRGB565) {
+        int pTotal=total;
+        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
+        if (total>RGB565_MIN_RUN || pTotal>=RGB565_MIN_RUN) {
+          b^=(b&8)-((b>>3)&1);
+          g^=(g&4)-((g>>2)&1);
+          r^=(r&8)-((r>>3)&1);
+        }
+        isPossibleRGB565=total>0;
+      }
       out->putc(g);
       out->putc(g-r);
       out->putc(g-b);
@@ -14363,20 +15904,31 @@ void encode_bmp(File* in, File* out, int len, int width) {
 }
 
 int decode_bmp(Encoder& en, int size, int width, File*out, FMode mode, U64 &diffFound) {
-  int r,g,b,p;
+  int r,g,b,p, total=0;
+  bool isPossibleRGB565 = true;
   for (int i=0; i<size/width; i++) {
     p=i*width;
     for (int j=0; j<width/3; j++) {
-      b=en.decompress(), g=en.decompress(), r=en.decompress();
+      g=en.decompress(), r=en.decompress(), b=en.decompress();
+      r=g-r, b=g-b;
+      if (isPossibleRGB565){
+        if (total>=RGB565_MIN_RUN) {
+          b^=(b&8)-((b>>3)&1);
+          g^=(g&4)-((g>>2)&1);
+          r^=(r&8)-((r>>3)&1);
+        }
+        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
+        isPossibleRGB565=total>0;
+      }
       if (mode==FDECOMPRESS) {
-        out->putc(b-r);
         out->putc(b);
-        out->putc(b-g);
+        out->putc(g);
+        out->putc(r);
       }
       else if (mode==FCOMPARE) {
-        if (((b-r)&255)!=out->getc() && !diffFound) diffFound=p+1;
-        if (b!=out->getc() && !diffFound) diffFound=p+2;
-        if (((b-g)&255)!=out->getc() && !diffFound) diffFound=p+3;
+        if (((b)&255)!=out->getc() && !diffFound) diffFound=p+1;
+        if (g!=out->getc() && !diffFound) diffFound=p+2;
+        if (((r)&255)!=out->getc() && !diffFound) diffFound=p+3;
         p+=3;
       }
     }
@@ -14755,7 +16307,7 @@ MTFList  MTF(81);
 #define ZLIB_NUM_COMBINATIONS 81
 
 int encode_zlib(File* in, File* out, int len) {
-  const int BLOCK=1<<16, LIMIT=128;
+  const int BLOCK=1<<16, LIMIT=256;
   U8 zin[BLOCK*2],zout[BLOCK],zrec[BLOCK*2];//, diffByte[81*LIMIT];
   Array<U8>  diffByte(ZLIB_NUM_COMBINATIONS*LIMIT);
   //int diffPos[81*LIMIT];
@@ -14816,7 +16368,7 @@ int encode_zlib(File* in, File* out, int len) {
       nTrials=0;
       // Recompress/deflate block with all possible parameters
       for (int j=MTF.GetFirst(); j>=0; j=MTF.GetNext()){
-        if (diffCount[j]==LIMIT) continue;
+        if (diffCount[j]>=LIMIT) continue;
         nTrials++;
         rec_strm[j].next_in=&zout[0];  rec_strm[j].avail_in=BLOCK-main_strm.avail_out;
         rec_strm[j].next_out=&zrec[recpos[j]]; rec_strm[j].avail_out=BLOCK*2-recpos[j];
@@ -14889,7 +16441,7 @@ int encode_zlib(File* in, File* out, int len) {
 }
 
 int decode_zlib(File* in, int size, File*out, FMode mode, U64 &diffFound) {
-  const int BLOCK=1<<16, LIMIT=128;
+  const int BLOCK=1<<16, LIMIT=256;
   U8 zin[BLOCK],zout[BLOCK];
   int diffCount=min(in->getc(),LIMIT-1);
   int window=in->getc()-MAX_WBITS;
@@ -15105,7 +16657,7 @@ U64 decode_arm(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
 #include "wrtpre.cpp"
 
-void encode_txt(File* in, File* out, int len,int wrtn) {
+void encode_txt(File* in, File* out, U64 len,int wrtn) {
     assert(wrtn<2);
    XWRT_Encoder* wrt;
    wrt=new XWRT_Encoder();
@@ -15115,22 +16667,22 @@ void encode_txt(File* in, File* out, int len,int wrtn) {
 }
 
 //called only when encode_txt output was smaller then input
-int decode_txt(Encoder& en, int size, File*out, FMode mode, U64 &diffFound) {
+U64 decode_txt(Encoder& en, U64 size, File*out, FMode mode, U64 &diffFound) {
     XWRT_Decoder* wrt;
     wrt=new XWRT_Decoder();
     char c;
     int b=0;
-    int bb=0;
+    U64 bb=0L;
     FileTmp dtmp;
     //decompress file
-    for (int i=0; i<size; i++) {
+    for (U64 i=0L; i<size; i++) {
         c=en.decompress(); 
         dtmp.putc(c);    
     }
      dtmp.setpos(0);
     wrt->defaultSettings(0);
     bb=wrt->WRT_start_decoding(&dtmp);
-    for ( int i=0; i<bb; i++) {
+    for ( U64 i=0L; i<bb; i++) {
         b=wrt->WRT_decode();    
         if (mode==FDECOMPRESS) {
             out->putc(b);
@@ -15249,6 +16801,1461 @@ void encode_uud(File* in, File* out, int len,int info) {
       ptr[4]=len>>24&63; //1100 0000
   out->blockwrite(&ptr[0],   olen  );
 }
+
+// WIT
+const char UTF8bytes[256] = {
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 
+    3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5
+};
+
+// utf8 len
+int utf8len(char *s){
+    return UTF8bytes[(U32)(U8)s[0]] + 1;
+}
+
+void wfgets(char *str, int count, File  *fp) {
+    int c, i = 0;
+    while (i<count-1 && ((c=fp->getc())!=EOF)) {
+        str[i++]=c;
+        if (c=='\n')
+            break;
+    }
+    str[i]=0;
+}
+/*
+  void wfputs(   char *str,File *fp) {
+    int c, i = 0;
+i = strlen(str);
+fp->blockwrite((U8*)  &str[0],   i  );
+   
+}
+void wfputs1(   char *str,FileTmp *fp) {
+    int c, i = 0;
+i = strlen(str);
+fp->blockwrite((U8*)  &str[0],   i  ); // killer of pagefaults
+   
+}*/
+void wfputs(char *str,File *fp) {
+    for (int i = 0; *str; str++){
+        fp->putc(*str);
+    }
+}
+void wfputs1(char *str,FileTmp *fp) {
+    for (int i = 0; *str; str++){
+        fp->putc(*str);
+    }
+}
+// UTF8 to WC (USC) and reverse
+int utf8towc(char *dest, U32 ch) {
+    int val=0;
+    if (ch==1) {
+        val=(char)dest[0] ;
+        return val;
+    }
+    if (ch==2) {
+        val=dest[1]&0x3F;
+        val=val|(dest[0]&0x1F)<<6;
+        return val;
+    }
+    if (ch==3) {
+        val|=(dest[0]&0x1F)<<12;
+        val|=(dest[1]&0x3F)<<6;
+        val=val|(dest[2]&0x3F);
+        return val;
+    }
+    if (ch==4) {
+        val|=(dest[0]&0xF)<<18;
+        val|=(dest[1]&0x3F)<<12;
+        val|=(dest[2]&0x3F)<<6;
+        val=val|(dest[3]&0x3F);
+        return val;
+    }
+    return 0;
+}
+int wctoutf8(char *dest, U32 ch){
+    if (ch < 0x80) {
+        dest[0] = (char)ch;
+        return 1;
+    }
+    if (ch < 0x800) {
+        dest[0] = (ch>>6) | 0xC0;
+        dest[1] = (ch & 0x3F) | 0x80;
+        return 2;
+    }
+    if (ch < 0x10000) {
+        dest[0] = (ch>>12) | 0xE0;
+        dest[1] = ((ch>>6) & 0x3F) | 0x80;
+        dest[2] = (ch & 0x3F) | 0x80;
+        return 3;
+    }
+    if (ch < 0x110000) {
+        dest[0] = (ch>>18) | 0xF0;
+        dest[1] = ((ch>>12) & 0x3F) | 0x80;
+        dest[2] = ((ch>>6) & 0x3F) | 0x80;
+        dest[3] = (ch & 0x3F) | 0x80;
+        return 4;
+    }
+    return 0;
+}
+
+// get num string length terminated by ; or non number
+int numlen(char *str) {
+    int c, i = 0;
+    for (i = 0; *str!=';'; str++){
+        if (*str<'0' || *str>'9') return 0;
+        i++;
+    }   
+    return i;
+} 
+// reduce
+//re3
+void hent1(char *in,char *out){
+    int j, k;
+    do {
+    j=*in++; *out++=j;
+    if (j=='&') {
+        k=*in++;
+        if (k=='&')  *(int*)out=0x3B706D61, out+=4;  else//';pma'
+        if (k=='"')  *(int*)out=0x746F7571, out+=4, *out++=';';  else//'touq'
+        if (k=='<')  *(int*)out=0x203B746C, out+=3;  else//' ;tl'
+        if (k=='>')  *(int*)out=0x203B7467, out+=3;//' ;tg'
+        else   *out++=k;
+    }
+  }
+  while (j!=0);
+}
+
+void hent6(char *in,char *out){
+    int j, k;
+    do {
+    j=*in++; *out++=j;
+
+    if (j=='&') {
+        k=*in++;
+        if (k==5){// escape char
+            k=utf8len(in);
+            int nu=utf8towc(in,k);
+            *out='&';
+            sprintf(out+1, "#%d;",   nu);
+            int a=numlen(out+1+1);
+            out=out+2+a+1;
+            in=in+k;
+        }     
+        else   *out++=k;
+    }
+  }
+  while (j!=0);
+}
+//re4
+void hent3(char *in,char *out) {
+    int j, k;
+    do {
+    j=*in++; *out++=j;
+    if (j==';' && *(int*)(in-5)==0x706D6126) { //'pma&'
+      k = *in++;
+      if (k==3); else
+      if (k=='"')  *(int*)out=0x746F7571, out+=4, *out++=';';  else//'touq'
+      if (k=='<')  *(int*)out=0x203B746C, out+=3;  else//' ;tl'
+      if (k=='>')  *(int*)out=0x203B7467, out+=3;  else//' ;tg'
+      if (k=='!')  *(int*)out=0x7073626E, out+=4, *out++=';';  else//'psbn'
+      if (k=='*')  *(int*)out=0x7361646E, out+=4, *out++='h', *out++=';'; else//'sadn'
+      if (k=='^')  *(int*)out=0x7361646D, out+=4, *out++='h', *out++=';'; else //'sadm'
+      if (U8(k)==0xc2 && U8(*(in))==0xae ) {  *(int*)out=0x3B676572, out+=4,in++;}else //'reg'    
+      if (U8(k)==0xc2 && U8(*(in))==0xb0 ) {  *(int*)out=0x3B676564, out+=4,in++;}else //'deg'  old=enwik8/9 only
+      if (U8(k)==0xc2 && U8(*(in))==0xb2 ) {  *(int*)out=0x32707573, out+=4,*out++=';',in++;}else //'sup2'  // old    
+      if (U8(k)==0xc2 && U8(*(in))==0xb3 ) {  *(int*)out=0x33707573, out+=4,*out++=';',in++;}else //'sup3'  // old   
+      if (U8(k)==0xe2 && U8(*(in))==0x82&& U8(*(in+1))==0xac ) {  *(int*)out=0x6F727565, out+=4,*out++=';',in+=2;}else //'euro'
+      if (U8(k)==0xc3 && U8(*(in))==0x97  ) {  *(int*)out=0x656D6974, out+=4,*out++='s',*out++=';',in++;}else //'times' old
+      if (U8(k)==0xe2 && U8(*(in))==0x88&& U8(*(in+1))==0x88 ) {  *(int*)out=0x6E697369, out+=4,*out++=';',in+=2;}else //'isin'
+      if (U8(k)==0xe2 && U8(*(in))==0x86&& U8(*(in+1))==0x92 ) {  *(int*)out=0x72726172, out+=4,*out++=';',in+=2;}else //'rarr'
+      if (U8(k)==0xe2 && U8(*(in))==0x88&& U8(*(in+1))==0x92 ) {  *(int*)out=0x756E696D, out+=4,*out++='s',*out++=';',in+=2;}  //'minus' old
+      else *out++=k;
+    }
+  }
+  while (j!=0);
+}
+//pre3
+void hent(char *in,char *out){
+    int j, k;
+    do {
+    j=*in++; *out++=j;
+
+    if (j=='&') {
+      k = *(int*)in;
+      if (k==0x3B706D61) { //';pma'
+       *out++='&', in+=4; k=*(in);
+      if ((k=='"') || (k=='<') || (k=='>') || (k=='!') || (k=='*') || (k=='^') ||
+      (U8(k)==0xc2 && U8(*(in+1))==0xb2 ) || 
+      (U8(k)==0xc2 && U8(*(in+1))==0xb3 ) || 
+      (U8(k)==0xc2 && U8(*(in+1))==0xae )  ||
+      (U8(k)==0xc2 && U8(*(in+1))==0xb0 )  ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x82&& U8(*(in+1+1))==0xac )  ||
+      (U8(k)==0xc3 && U8(*(in+1))==0x97  ) ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x88&& U8(*(in+1+1))==0x92 )  ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x88&& U8(*(in+1+1))==0x88 )  ||
+      (U8(k)==0xe2 && U8(*(in+1))==0x86&& U8(*(in+1+1))==0x92 )  
+      
+      )    *out++=3; }  else  // sup2, escape if char present
+      if (k==0x746F7571 && *(in+4)==';')  *out++='"', in+=5;  else//'touq'
+      {
+        k = k*256 + ' ';
+        if (k==0x3B746C20) *out++='<', in+=3;  else//';tl '
+        if (k==0x3B746720) *out++='>', in+=3;//';tg '
+      }
+    }
+  }
+  while (j!=0);
+}
+//pre4
+void hent2(char *in,char *out){
+    int j, k;
+    do {
+    j=*in++; *out++=j;
+
+    if (j=='&' && *(in-2)=='&') {
+        k=*(int*)in;
+        if (k==0x746F7571 && *(in+4)==';')  *out++='"', in+=5;  else//'touq'
+        if (k==0x7073626E && *(in+4)==';')  *out++='!', in+=5;  else//'psbn'
+        if (k==0x7361646E && *(in+4)=='h' && *(in+5)==';')  *out++='*', in+=6;  else//'sadn'
+        if (k==0x7361646D && *(in+4)=='h' && *(in+5)==';')  *out++='^', in+=6;  else//'sadm'
+        if (k==0x3B676572  ) { *out++=0xc2,*out++=0xae, in+=4;  }  else//'reg'
+        if (k==0x3B676564  ) { *out++=0xc2,*out++=0xb0, in+=4;  }  else//'deg'
+        if (k==0x6F727565  && *(in+4)==';' ) { *out++=0xe2,*out++=0x82,*out++=0xac, in+=5;  }  else//'euro'
+        if (k==0x32707573  && *(in+4)==';' ) { *out++=0xc2,*out++=0xb2, in+=5;  }  else//'sup2'
+        if (k==0x33707573  && *(in+4)==';' ) { *out++=0xc2,*out++=0xb3, in+=5;  }  else//'sup3'
+        if (k==0x656D6974  && *(in+4)=='s'&& *(in+5)==';' ) { *out++=0xc3,*out++=0x97, in+=6;  }  else//'times'
+        if (k==0x6E697369  && *(in+4)==';' ) { *out++=0xe2,*out++=0x88,*out++=0x88, in+=5;  }  else//'isin'
+        if (k==0x72726172  && *(in+4)==';' ) { *out++=0xe2,*out++=0x86,*out++=0x92, in+=5;  }  else//'rarr'
+        
+        if (k==0x756E696D  && *(in+4)=='s'&& *(in+5)==';' ) { *out++=0xe2,*out++=0x88,*out++=0x92, in+=6;  }  else//'minus'
+        {
+        k = k*256 + ' ';
+        if (k==0x3B746C20)  *out++='<', in+=3;  else//';tl '
+        if (k==0x3B746720)  *out++='>', in+=3;//';tg '
+        }
+    }
+  }
+  while (j!=0);
+}
+
+//&#
+void hent5( char *in,char *out){
+    int j, k;
+    do {
+        j=*in++; *out++=j;
+        if (j=='&' && *(in)=='#' && *(in-2)=='&' && *(in+1)>'0'&& *(in+1)<='9') { //  &&#xxx; to &@UTF8
+            int n=numlen(in+1);
+            int d=atoi(&in[1]);
+            if (d>255 && n){//>2 && n<6
+                in++;
+                *(out-1)=5;// escape char
+                int e=wctoutf8(out,d);
+                out=out+e;
+                in=in+n+1;
+                // printf("Numlen: %d value: %d utflen: %d\n",n,d,e);
+            }
+        }
+  }
+  while (j!=0);
+}
+
+void hent9( char *in,char *out){
+    int j, k;
+     int t=0;
+  
+#define PROCESS(sym, src, dst, CONDITION) \
+  {\
+     char *t,  *p = src,  *q = dst,  *end = p + strlen(src);\
+    while ( (t=strchr(p, sym)) != 0) {   \
+        memcpy(q, p, t-p);  q+=t-p;      \
+        int count = 0;                   \
+        while(*t++ == sym)  ++count;     \
+        if ((CONDITION) && (count==1 || count==2))  count = 3-count;\
+        memset(q, sym, count);  q+=count;\
+        p = t-1;\
+    }\
+    memcpy(q, p, end-p);  q[end-p]=0; \
+  }
+   // breaks wordmodel
+   // PROCESS('[', in, out, 1)
+  //  PROCESS(']', out, in, 1)
+   /* PROCESS('&', in, out, 1)
+    do {
+           j=*in++; *out++=j;
+        }
+        while (j!=0); */
+
+
+}
+void skipline( char *in,char *out ){
+    int j;
+    do {
+        j=*in++; *out++=j;
+    }
+    while (j!=0);
+}
+// &" -> "   for now
+void removeamp( char *in,char *out ,int skip){
+    int j;
+    for (int i=0;i<skip;i++) {j=*in++; *out++=j;
+    }
+     do {
+        j=*in++; 
+        if (j=='"' /*|| j=='<' || j=='>'*/)  { /*assert(p[-1]=='&');*/  --out; }
+        *out++=j;
+      }
+      while (j!=0); 
+}
+void restoreamp( char *in,char *out,int skip ){
+    int j;
+    for (int i=0;i<skip;i++) {j=*in++; *out++=j;
+    }
+     do {
+        j=*in++; 
+        if (j=='"' /*|| j=='<' || j=='>'*/)  { /*assert(p[-1]=='&');*/  *out++='&'; }
+        *out++=j;
+      }
+      while (j!=0); 
+}
+
+void henttail( char *in,char *out,FileTmp *o){
+    int c, i=0,  j=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0;
+    unsigned char   *ps;
+   
+    ++lnu;
+    j = strlen(in);
+    for(i=0; i<j; ++i)  if (*(int*)&in[i]==0x7865743C)  b1 = lnu;//'xet<'
+    // parse comment tag
+    if (memcmp(&in[6],"<comment>",9)==0 && f==0) co=1;
+    for(i=0; i<j; i++) if (*(int*)&in[i]==0x6F632F3C && f==0 && co==1) {//'oc/<'
+        co=0,lnu=0,b1=0; // </co mment
+        do {
+           j=*in++; *out++=j;
+        }
+        while (j!=0); 
+        return;
+    }
+    if (f==0) {
+        
+      if (in[0]=='[' && in[1]=='[') {
+        ps = (unsigned char*)in + (in[2]==':' ? 1 : 0);
+        for (c=2; c<j; ++c)  if ( (in[c]<'a' /*&& in[c]!='-'*/) || in[c]>'z'){
+        break;
+        } 
+         if (c<j && in[c]==':' && !(in[3]==':' || in[2]==':') && co==0) {
+            if ((memcmp(&ps[2],"http:",5)==0) ||(memcmp(&ps[2],"https:",6)==0) ||
+              (memcmp(&ps[2],"user:",5)==0) || (memcmp(&ps[2],"User:",5)==0) || 
+              (memcmp(&ps[2],"media:",6)==0) ||
+              (memcmp(&ps[2],"File:",5)==0) || (memcmp(&ps[2],"file:",5)==0) ||
+              (memcmp(&ps[3], "mage:",5)==0) ||
+              (memcmp(&ps[3], "ategory:",8)==0) ||
+              (memcmp(&ps[3], "iktionary:",10)==0) ||
+              (memcmp(&ps[3], "ikipedia:",9)==0) ||
+              (memcmp(&ps[2],"Kategoria:",10)==0) ||
+              (memcmp(&ps[7],     "gorie:",6)==0) ||
+              (memcmp(&ps[2],"imagem:",7)==0) ||
+              (memcmp(&ps[2],"wikt:",5)==0) ||
+              (memcmp(&ps[2],"Categor",7)==0) ||
+              (memcmp(&ps[2],"archivo:",8)==0) ||
+              (memcmp(&ps[2],"imagen:",7)==0) ||
+              (memcmp(&ps[2],"Archivo:",8)==0) ||
+              (memcmp(&ps[2],"Wikiproyecto:",13)==0) ||
+              (memcmp(&ps[2],"Utente:",7)==0) || (memcmp(&ps[2],"utente:",7)==0) ||
+              (memcmp(&ps[2],":Immagine:",10)==0) ||
+              (memcmp(&ps[2],"plik:",5)==0) ||
+              (memcmp(&ps[2],"iarchive:",9)==0) ||
+              (memcmp(&ps[2],"Datei:",6)==0) ||(memcmp(&ps[2],"datei:",6)==0) ||
+              (memcmp(&ps[2],"commons:",8)==0) ||
+              (memcmp(&ps[2],"wikisource:",11)==0) ||
+              (memcmp(&ps[2],"doi:",4)==0) ||
+              (memcmp(&ps[2],"fichier:",8)==0) ||
+              (memcmp(&ps[2],"utilisateur:",12)==0) ||
+              (memcmp(&ps[2],"hdl:",4)==0) ||
+              (memcmp(&ps[2],"irc:",4)==0) ||
+              (memcmp(&ps[2],"wikibooks:",10)==0) ||    
+              (memcmp(&ps[2],"meta:",5)==0) || 
+              (memcmp(&ps[2],"categoria:",10)==0) || 
+              (memcmp(&ps[2],"immagine:",9)==0) || 
+              (memcmp(&ps[3], "ikipedysta:",11)==0) || 
+              (memcmp(&ps[2],"wikia:",6)==0) || 
+              (memcmp(&ps[2],"incubator:",10)==0) || 
+              (memcmp(&ps[2],"ficheiro:",9)==0) || (memcmp(&ps[2],"Ficheiro:",9)==0) ||
+              (memcmp(&ps[2],"arquivo:",8)==0) ||
+              (memcmp(&ps[2],"foundation:",11)==0) ||
+              (memcmp(&ps[2],"template:",9)==0) ||
+              (memcmp(&ps[2],"wikinews:",9)==0) ||
+              (memcmp(&ps[2],"bild:",5)==0) ||
+              (memcmp(&ps[2],"fr:Wikipédia:Aide]]",20)==0) ||
+              (memcmp(&ps[2],"de:Boogie Down Produ",20)==0) ||
+              (memcmp(&ps[2],"da:Wikipedia:Hvordan",20)==0) ||
+              (memcmp(&ps[2],"sv:Indiska musikinstrument",26)==0) ||
+              (memcmp(&ps[2],"es:Coronel Sanders",18)==0) ||
+             ((memcmp(&ps[2],"fr:Wikip",8)==0)  &&  (memcmp(&ps[10+2],"dia:Aide",8)==0) ) ||
+              (memcmp(&ps[2],"pt:Wikipedia:Artigos cu",23)==0) ||
+              (lnu-b1<4) ){
+                // skip if not lang at end
+                do {
+                 j=*in++; *out++=j;
+                 }
+                 while (j!=0); 
+                 return;
+            }
+            f=1, lc=0;
+            ++lc;
+            for(i=0; i<j; i++)  if (*(int*)&in[i]==0x65742F3C && (*(in+4+i+2)=='>'))  f=0,lnu=0,b1=0;//'et/<'
+            hent9(in,out);
+            wfputs1(in,o);
+            out[0]=0;
+            return;
+        }
+      }
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      return;
+    }
+    else if (f==1){
+     ++lc;
+     for(i=0; i<j; i++)  if (*(int*)&in[i]==0x65742F3C)  f=0,lnu=0,b1=0;//'et/<'
+     hent9(in,out);
+     wfputs1(in,o);
+     out[0]=0;
+    }
+}
+
+void henttail1( char *in,char *out,FileTmp *o,char *p2,int size){
+    int i, j, k;
+    static int c=0 ,lnu=0, f=0;
+    static  char *p4=p2;
+    char su[8192*8];
+    char *s=su;
+    char ou[8192*8];
+    ++lnu;
+    j = strlen(in);
+    for(i=0; i<j; i++) if (*(int*)&in[i]==0x7865743C) c=1, f=lnu;//'xet<'
+    for(i=0; i<j; i++) if (*(int*)&in[i]==0x65742F3C && (*(in+4+i+2)=='>' )) c=0; //'et/<' </te xt>
+
+    if ((memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</sha1>",7)==0)&& c==1 && (lnu-f>=4) /*&& *p4!=0&& (p4-p2)<size*/) {
+        c=0;
+        do {
+          k=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k;i++ ){
+            su[i]=*p4++;
+          }
+          su[k]=0;
+          // parse line 
+          hent9(s,ou);
+          if (!(strstr(s, "</text>") || strstr(s, "</revision>")|| strstr(s, "</page>")|| strstr(s, "</sha1>"))) {
+            /*  int skip=0;
+        char *p = strstr(s, "<text ");//, *w;
+        if (p)  {   p = strchr(p, '>'); assert(p);  
+        if(p[-1]=='/' || p[2]==0)  ;  
+        else  skip= (char*)p-(char*)s; }*/
+        
+          restoreamp(s,ou,0);
+          skipline(ou,s);
+          } 
+          
+          hent6( s,ou);
+          hent1( ou,s);
+          hent3( s,ou);
+          
+          wfputs1(ou,o);
+        }
+        while (memcmp(&p4[-8],"</text>",7) );
+        wfputs1(in,o); // out current line
+        out[0]=0;
+    }else{
+        do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+    }
+}
+
+// combine this
+// ,
+void henttag1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+
+    j = strlen(in);
+ 
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 ) ) text=0;
+      
+    if (title==1 && move==0 && text)   {
+       move=1;
+    }    
+    if (move && title && j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+             k1=(int)(strchr(in,'>')-(char*)p4);
+            memcpy(out, in,k1);
+            out[k1+1]=10;out[k1+2]=0;
+            k1++;
+        } else out[0]=0;
+        wfputs1(in+k1,o);
+        in[0]=0;
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+
+int henttag1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int c=0 ,lnu=0, f=0,move=0,text=0;;
+    static  char *p4=p2;
+    char *p8=out;
+
+    j = strlen(in);
+  
+    if (j>13&& title && text==0 &&  memcmp(in+6,"<text ",6)==0  ) text=f=1,k=33,move=0;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 )) text=k=f=0,move=1;
+    if (title==1 && move==0 && text)   {
+       if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</page>",7)==0/*||memcmp(&in[j-8],"</text>",7)==0*/){
+            move=1;text=0;
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      return 0; 
+        }
+    }
+  
+    
+    if (move==0 && title && text && j){
+        if (f){
+        // text line only
+        for (int i = 0; i<k;i++ ){
+            out[i]=*in++;
+          }
+          f=0;
+      }
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=0;
+            return 0;
+        } 
+        return 1;
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      
+      return 0;
+}
+
+//file
+void hentfiles1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 )) text=0;
+      
+    if (title && move==0 && text) {
+       move=1;
+    }
+    
+    if (move && title && j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+             k1=(int)(strchr(in,'>')-(char*)p4);
+            memcpy(out, in,k1);
+            out[k1+1]=10;out[k1+2]=0;
+            k1++;
+            
+        } else out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+// :
+int hentfiles1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  f=0,move=0,text=0;
+    static  char *p4=p2;
+    char *p8=out;
+    j = strlen(in);
+  
+    if (j>13&& title && text==0 &&  memcmp(in+6,"<text ",6)==0  ) text=f=1,k=33,move=0;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 ) ) text=k=f=0,move=1;
+    if (title  && move==0 && text)   {
+       if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</page>",7)==0||memcmp(&in[j-8],"</text>",7)==0){
+            move=1;text=0;
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      return 0; 
+        }
+    }  
+    
+    if (move==0 && title && text && j){
+        if (f){
+        // text line only
+        for (int i = 0; i<k;i++ ){
+            out[i]=*in++;
+          }
+          f=0;
+      
+      }
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=f=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      
+      return 0;
+}
+
+//numbers
+void hentnumbers1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 )) text=0;
+      
+    if (title && move==0 && text) {
+       move=1;
+    }
+    
+    if (move && title && j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+             k1=(int)(strchr(in,'>')-(char*)p4);
+            memcpy(out, in,k1);
+            out[k1+1]=10;out[k1+2]=0;
+            k1++;
+            
+        } else out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+// :
+int hentnumbers1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  f=0,move=0,text=0;
+    static  char *p4=p2;
+    char *p8=out;
+    j = strlen(in);
+  
+    if (j>13&& title && text==0 &&  memcmp(in+6,"<text ",6)==0  ) text=f=1,k=33,move=0;
+    if (j>18 &&title && text==1 &&   (memcmp(&in[j-8],"</text>",7)==0 || memcmp(&in[j-4]," />",3)==0 ) ) text=k=f=0,move=1;
+    if (title  && move==0 && text)   {
+       if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</page>",7)==0||memcmp(&in[j-8],"</text>",7)==0){
+            move=1;text=0;
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      return 0; 
+        }
+    }  
+    
+    if (move==0 && title && text && j){
+        if (f){
+        // text line only
+        for (int i = 0; i<k;i++ ){
+            out[i]=*in++;
+          }
+          f=0;
+      
+      }
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=f=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+      
+      return 0;
+}
+
+//alb
+void hentalb1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+
+    if (title && move==0 && text ) {
+       move=1;
+    }
+    
+    if (move &&  j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+            
+        } else {
+        out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+}
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+
+int hentalb1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  move=0,text=0;
+    static  char *p4=p2;
+   // char *p8=out;
+    j = strlen(in);
+  
+    if (title&& move==1 && text && j){
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else{
+    if (j>13&&  size&& memcmp(in+6,"<text ",6)==0 &&  (strstr(in, "Album infobox |"))) {
+    text=move=1;
+    do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+       return 1;
+    }
+    
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+    }  
+      return 0;
+}
+
+void hentdis1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    //char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+
+    if (title && move==0 && text ) {
+       move=1;
+    }
+    
+    if (move &&  j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+            
+        } else {
+        out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+}
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+int hentdis1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  move=0,text=0;
+    static  char *p4=p2;
+    //char *p8=out;
+    j = strlen(in);
+  
+    if (title&& move==1 && text && j){
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else{
+    if (j>13&& size&& memcmp(in+6,"<text ",6)==0 &&  (strstr(in, "Disorder infobox |"))) {
+    text=move=1;
+    do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+       return 1;
+    }
+    
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+    }  
+      return 0;
+}
+
+void hentclu1( char *in,char *out,FileTmp *o,int title){
+    int c, i=0,  j=0,k=0;
+    static  int lnu=0,f=0, b1=0, lc=0,co=0,move=0,text=0;
+    unsigned char   *ps;
+    char *p4=in;
+    char *p8=out;
+    char s[8192*8];
+
+    j = strlen(in);
+
+    if (j>13&& title && text==0 &&  memcmp(p4+6,"<text ",6)==0  ) text=1;
+
+    if (title && move==0 && text ) {
+       move=1;
+    }
+    
+    if (move &&  j){
+        if (memcmp(&in[j-12],"</revision>",11)==0 ||memcmp(&in[j-8],"</text>",7)==0){
+            move=text=title=0;
+        } 
+        int k1=0;
+        if (j>13 && memcmp(p4+6,"<text ",6)==0  ) {
+            do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+            
+        } else {
+        out[0]=0;
+        wfputs1(in+k1,o);in[0]=0;
+}
+    }
+    else
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+}
+int hentclu1r( char *in,char *out,char *p2,int size,int title){
+    int i, j, k=0;
+    static int  f=0,move=0,text=0;
+    static  char *p4=p2;
+    char *p8=out;
+    j = strlen(in);
+  
+    if (title&& move==1 && text && j){
+       int k1=(int)(strchr(p4,10)+1-(char*)p4);
+          for (int i = 0; i<k1;i++ ){
+            out[i+k]=*p4++;
+          }
+          out[k+k1]=0;
+       j = strlen(out);
+       if (memcmp(&out[j-12],"</revision>",11)==0 ||memcmp(&out[j-8],"</text>",7)==0){
+            move=text=title=f=0;
+            return 0;
+        } 
+        return 1;    
+    }
+    else{
+    if (j>13&& size&& memcmp(in+6,"<text ",6)==0 &&  (strstr(in, "club infobox |"))) {
+    text=f=1,move=1;
+    do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+       return 1;
+    }
+    
+      do {
+        j=*in++; *out++=j;
+      }
+      while (j!=0); 
+    }  
+      return 0;
+}
+// above needs global vars to remove some functions (less code)
+// 
+//wit restore
+int decode_txt_wit(File*in, U64 size, File*out, FMode mode, U64 &diffFound,int winfo){
+    FileTmp out1;
+    char s[8192*8];
+    char o[8192*8];
+    int i, j, f = 0, lastID = 0,tf=0;
+    U64 tsize=size-winfo; // winfo <- tail lenght
+    in->setpos(tsize); // tail data pos
+    //header
+    wfgets(s, 16, in);    
+    int headerlenght=atoi(&s[0]);
+    char *h1=(char*)calloc(headerlenght+1,1);
+    char *h1p=h1;
+    // tag
+    wfgets(s, 16, in);    
+    int taglenght=atoi(&s[0]);
+    char *t1=(char*)calloc(taglenght+1,1);
+    // files
+    wfgets(s, 16, in);    
+    int fileslenght=atoi(&s[0]);
+    char *f1=(char*)calloc(fileslenght+1,1);
+    // numbers
+    wfgets(s, 16, in);    
+    int numberslenght=atoi(&s[0]);
+    char *n1=(char*)calloc(numberslenght+1,1);
+    //lang
+    wfgets(s, 16, in);    
+    int langlenght=atoi(&s[0]);
+    char *p1=(char*)calloc(langlenght+1,1);
+    //alb
+    wfgets(s, 16, in);    
+    int alblenght=atoi(&s[0]);
+    char *a1=(char*)calloc(alblenght+1,1);
+    //diso
+    wfgets(s, 16, in);    
+    int disolenght=atoi(&s[0]);
+    char *d1=(char*)calloc(disolenght+1,1);
+    //clu
+    wfgets(s, 16, in);    
+    int clulenght=atoi(&s[0]);
+    char *l1=(char*)calloc(clulenght+1,1);
+    
+    if(clulenght)     in->blockread((U8*)l1,U64(clulenght));  //read clu
+    if(disolenght)    in->blockread((U8*)d1,U64(disolenght));  //read dis
+    if(alblenght)     in->blockread((U8*)a1,U64(alblenght));  //read alb
+    if(fileslenght)   in->blockread((U8*)f1,U64(fileslenght));  //read files
+    if(numberslenght) in->blockread((U8*)n1,U64(numberslenght));  //read numbers
+    if(taglenght)     in->blockread((U8*)t1,U64(taglenght));  //read sens    
+    if(headerlenght)in->blockread((U8*)h1,U64(headerlenght));  //read header
+    if(langlenght)  in->blockread((U8*)p1,U64(langlenght));  //read lang
+    
+    in->setpos(0);
+    int header=0,title=0,files=0,number=0,alb=0,diso=0,clu=0;
+    do {
+        wfgets(s, 8192*8, in);    
+        
+        j = strlen(s);
+        if (in->curpos() > tsize ) {
+            j=j-(in->curpos()-tsize); // cut tail
+            s[j]=0;
+        }
+        
+        if (header==1){
+            int n=0;
+            int cont=0;
+            do {
+                *(int*)o = 0x20202020;
+                j=4;
+                //'ider' 'iver' 'tser'
+                if (*(int*)&h1p[0]!=0x69646572 &&*(int*)&h1p[0]!=0x69766572&& *(int*)&h1p[0]!=0x74736572 && n!=0) *(int*)(o+j)= 0x20202020,j=j+2;
+                if (cont==1) *(int*)(o+j)= 0x20202020,j=j+2;
+                if (*(int*)&h1p[0]==0x6E6F632F) cont=0;//'noc/'
+                int k=(int)(strchr(h1p,10)+1-(char*)h1p);
+
+                // id  
+                if ( n==0){
+                    if ( (*(int*)&h1p[0]&0xffffff)==0x3E736E){//'>sn'
+                        o[j]='<';
+                        memcpy(o+j+1, h1p, k);
+                        int e=(strchr(h1p, '>')-h1p)+2;
+                        if (e!=k || cont==1) { //end tag
+                            o[k+j++]='<';
+                            o[k+j++]='/';
+                            memcpy(o+j+k, h1p, k);
+                            j=j+(strchr(h1p, '>')-h1p)+1;
+                        }
+                        o[k+j++]=10;
+                        o[k+j]=0;
+                        wfputs1(o,&out1);
+                    } else{
+                        
+                        n++;
+                        lastID = lastID+ atoi(&h1p[1]);
+                        sprintf(o+j, "<id>%d</id>%c",   lastID, 10);
+                        wfputs1(o,&out1);
+                    }
+                }
+                else if (*(int*)&h1p[0]==0x656D6974 ){//'emit'
+                    char *p = strchr(h1p, ':');
+                    int d = atoi(&h1p[19-7]), hms = atoi(p+1), h = hms/3600;
+                    o[0]=h1p[17-7],o[1]=h1p[18-7],o[2]=' ';
+                    int y=atoi(&o[0]);
+                    sprintf(o, "      <timestamp>%d-%02d-%02dT%02d:%02d:%02dZ</timestamp>%c",
+                    y + 2001, d/31+1, d%31+1, h, hms/60 - h*60, hms%60, 10);
+                    wfputs1(o,&out1);  
+                }
+                else if (n || cont==1){
+                    o[j]='<';
+                    memcpy(o+j+1, h1p, k);
+                    int e=(strchr(h1p, '>')-h1p)+2;
+                    if (e!=k || cont==1) { //end tag
+                        o[k+j++]='<';
+                        o[k+j++]='/';
+                        memcpy(o+j+k, h1p, k);
+                        j=j+(strchr(h1p, '>')-h1p)+1;
+                        
+                    }
+                    o[k+j++]=10;
+                    o[k+j]=0;
+                    wfputs1(o,&out1);
+                    if (*(int*)&h1p[0]==0x746E6F63) cont=1;//'tnoc'
+                }
+                h1p=h1p+k;
+                if (memcmp(&h1p[0],"contributor dele",16)==0)break;
+            }
+            while (memcmp(&h1p[0],"/contributor>",13)    );
+            *(int*)o = 0x20202020;
+            j=4;
+            *(int*)(o+j)= 0x20202020,j=j+2;
+            int k=(int)(strchr(h1p,10)+1-(char*)h1p);
+            o[j]='<';
+            memcpy(o+j+1, h1p, k);
+            o[k+j++]=10;
+            o[k+j]=0;
+            wfputs1(o,&out1);
+            h1p=h1p+k;
+            header=0;
+        }
+
+        {
+            if (memcmp(&s[j-9],"</title>",8)==0 && *(int*)s==0x20202020) {header=1,title= files=number=0;
+                for(i=0; i<j; i++) {
+
+                    if (s[i]==',' )  title=1;
+                    if (s[i]==':' )  files=2;
+                    char *listsp = strstr(s, "List of ");
+                    if (listsp)files=2;
+                    if (s[i]=='>' && s[i+1]!=10 && s[i+1]>'0'&& s[i+1]<='9'/*&& atoi(&s[i+1])*/)  {
+                        number = atoi(&s[i+1]);
+                        //int nlen=numlen(&s[i+1]);
+                        if (number<10 )number=0;//printf("%d, %d, %s",number,nlen,s);
+                        else {number=1;break;}
+                    } 
+                }
+                if (title && files==2) title=0;//,printf("%s",s); // active reset to files only
+                if (files==1) files=0;
+                if (number) title=files=0;
+            }
+        }
+        if (strstr(s, "<text ") && strstr(s, "Disorder infobox |")) diso=1,number= title=files=0;
+        if (strstr(s, "<text ") && strstr(s, "Album infobox |")) alb=1,number= title=files=0;
+        if (strstr(s, "<text ") && strstr(s, "club infobox |")) clu=1,number= title=files=0;
+        int m=1,n=1,q=1,w=1,z=1,x=1;
+        while (m||n||q||w||z||x){        // loop over until not
+            m=henttag1r(s,o,t1,taglenght,title);
+            n=hentfiles1r(o,s,f1,fileslenght,files);
+            q=hentnumbers1r(s,o,n1,numberslenght,number);
+            w=hentalb1r(o,s,a1,alblenght,alb);
+            z=hentdis1r(s,o,d1,disolenght,diso);
+            x=hentclu1r(o,s,l1,clulenght,clu);
+            skipline(s,o);
+            hent9(o,s);
+            henttail1(o,s,&out1,p1,langlenght);
+            if (s[0]==0) {   break;       }
+            
+            int skip=0;
+            char *p = strstr(s, "<text ");//, *w;
+            if (p)  { tf=1, p = strchr(p, '>'); assert(p);  skip= (char*)p+1-(char*)s; 
+                if(p[-1]=='/' /*|| p[2]==0*/) tf=0;  
+                
+            }
+            
+            if (strstr(s, "</text>") || strstr(s, "</revision>")|| strstr(s, "</page>")|| strstr(s, "</sha1>"))  tf=alb=diso=clu=0;
+            if (tf) {
+                restoreamp(s,o,skip);
+                skipline(o,s);
+            }
+            hent6( s,o);
+            hent1( o,s);
+            hent3( s,o);
+            wfputs1(o,&out1);
+            // printf("%s",o );
+        }
+        
+    }
+    while (in->curpos() < tsize);
+    if(taglenght)   free(t1);
+    if(fileslenght)   free(f1);
+    if(numberslenght)  free(n1);
+    if(headerlenght)free(h1);
+    if(langlenght)  free(p1);
+    if(alblenght)  free(a1);    
+    if(disolenght)  free(d1);
+    if(clulenght)  free(l1);
+    int b=0,c=0;
+    U64 bb=0L;
+    bb=out1.curpos();
+    out1.setpos(0);
+    for ( U64 i=0L; i<bb; i++) {
+        b=out1.getc();
+        if (mode==FDECOMPRESS) {
+            out->putc(b);
+        }
+        else if (mode==FCOMPARE) {
+            c=out->getc();
+            if (b!=c && !diffFound) diffFound=i;
+        }
+    }
+    out1.close();
+    in->setend(); // or it fails
+    return bb; 
+}
+
+int encode_txt_wit(File* in, File* out, U64 len) {
+    char s[8192*8];
+    char o[8192*8];
+    FileTmp out1; // lang
+    FileTmp out2; // tag
+    FileTmp out3; // header
+    FileTmp out4; // files
+    FileTmp out5; // number
+    FileTmp out6; // alb
+    FileTmp out7; // dis
+    FileTmp out8; // clu
+    int i, j, f = 0, lastID = 0,tf=0;
+    int ti=0,files=0,number=0,alb=0,diso=0,clu=0;
+  do {
+    wfgets(s, 8192*8, in);
+    j = strlen(s);
+    if (f==2) {
+        if (*(int*)&s[4]==0x3E736E3C) { // ns '>sn<'
+            char *p =strchr(s, '>');
+            if (p) {
+                p = strchr(p+1, '<');
+                if (p)  p[0] = 10,  p[1] = 0;
+            }
+            if (s[0]!=' ' ||s[1]!=' ' ||s[2]!=' ' ||s[3]!=' ')
+                return 0;// just fail
+            wfputs1(s+5,&out3);
+            continue;
+        }
+        // id
+        int curID = atoi(&s[8]);
+        if (*(int*)&s[4] != 0x3E64693C) return 0;// just fail it '>di<'
+        //if (curID <= lastID)        return 0;
+       sprintf(o,  ">%d%c", curID - lastID, 10);
+        wfputs1(o,&out3);
+        lastID = curID;
+        f = 1;
+        continue;
+    }
+    if (f) {
+        if (*(int*)&s[6]==0x6D69743C) {//'mit<'
+            int year   = atoi(&s[17]);
+            int month  = atoi(&s[22]);
+            int day    = atoi(&s[25]);
+            int hour   = atoi(&s[28]);
+            int minute = atoi(&s[31]);
+            int second = atoi(&s[34]);
+            sprintf(o, "timestamp>%02d%d:%d%c", 
+                    year-2001, month*31+day-32, hour*3600+minute*60+second, 10);
+            wfputs1(o,&out3);
+            continue;
+        }
+         char *p =strchr(s, '>');
+        if (p) {
+            p = strchr(p+1, '<');
+            if (p)  p[0] = 10,  p[1] = 0;
+        }
+        if (s[0]!=' ' ||s[1]!=' ' ||s[2]!=' ' ||s[3]!=' ')
+          return 0;// just fail
+        int s2=0; //lenght
+        if (f==3) {
+            if (*(int*)&s[6]==0x6F632F3C)  s2=7;//'oc/<'
+            else                       s2=9;
+        }
+        else {
+          if (*(int*)&s[4]==0x7665723C || *(int*)&s[4]==0x7365723C|| *(int*)&s[4]==0x6465723C) s2=5;//'ver<' 'ser<' 'der<'
+          else                                             s2=7;
+          if (*(int*)&s[6]==0x6E6F633C) {//'noc<'
+           f=3;
+           if (f==3 && *(int*)&s[6+4+4+4]==0x6C656420)  f=0; //'led 'special case "deleted"
+          }
+        }
+        if (s2){
+            wfputs1(s+s2,&out3);
+        }
+    }
+    else  {hent(s,o);
+        hent2(o,s);
+        hent5(s,o);
+        
+        int skip=0;
+        char *p = strstr(o, "<text ");
+        if (p)  { tf=1, p = strchr(p, '>'); assert(p);  skip= (char*)p+1-(char*)o;
+        if(p[-1]=='/' /*|| p[2]==0*/) tf=0;  
+        if (strstr(o, "Disorder infobox |")) diso=1,ti=files=number=0;
+        if (strstr(o, "Album infobox |")) alb=1,ti=files=number=0;
+        if (strstr(o, "club infobox |")) clu=1,ti=files=number=0;
+        }
+        
+        if (strstr(o, "</text>") || strstr(o, "</revision>")|| strstr(o, "</page>")|| strstr(o, "</sha1>"))  tf=0;
+        if (tf) {
+        removeamp(o,s,skip);
+        skipline(s,o);
+        }
+        henttail(o,s,&out1);
+        
+        henttag1(s,o,&out2,ti);     if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentfiles1(s,o,&out4,files);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentnumbers1(s,o,&out5,number);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentalb1(s,o,&out6,alb);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentdis1(s,o,&out7,diso);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hentclu1(s,o,&out8,clu);if (s[0]==0)wfputs(o,out);if (o[0]==0|| s[0]==0) continue;
+        hent9(o,s);
+        wfputs(o,out);
+}
+    for(i=0; i<j; i++)
+      if (*(int*)&s[i]==0x69742F3C && *(int*)&s[i+4]==0x3E656C74&&*(int*)s==0x20202020) {f=2;//'it/<' '>elt'
+      ti=files=number=0;
+       alb=diso=clu=0;
+      for(int i=0; i<j; i++){
+      if (s[i]==',' )  ti=1;      
+      if (s[i]==':' )  files=2;// article about files
+      char *listsp = strstr(s, "List of ");
+      if (listsp)files=2;
+       if (s[i]=='>' && s[i+1]!=10 && s[i+1]>'0'&& s[i+1]<='9')  {
+       number = atoi(&s[i+1]);
+       if (number<10  )number=0;
+       else {number=1;break;}
+       } 
+      }
+      if (ti && files==2) ti=0;
+      if (number) ti=files=0;
+      if (alb ||diso||clu)ti=files=number=0;
+  }
+    for(i=0; i<j; i++)
+      if (*(int*)&s[i]==0x6F632F3C && *(int*)&s[i+4]==0x6972746E) f=0;//'oc/<' 'irtn'
+  }
+  while (!in->eof());
+  // output tail to main file and report tail size as info
+  U64 msize=out->curpos();
+  int tsize=out1.curpos();
+  int tagsize=out2.curpos();
+  int headersize=out3.curpos();
+  int filesize=out4.curpos();
+  int numbersize=out5.curpos();
+  int albsize=out6.curpos();
+  int disosize=out7.curpos();  
+  int clusize=out8.curpos();
+   /*FileDisk aaa,bbb,ccc,ddd,eee,fff,ggg;
+   aaa.create("xxxxxxxtag");
+   bbb.create("xxxxxxxlang");
+   ccc.create("xxxxxxxheader");
+   ddd.create("xxxxxxxfiles");
+   eee.create("xxxxxxxalb");
+   fff.create("xxxxxxxdiso");
+   ggg.create("xxxxxxxclu");*/
+   out1.setpos(0);
+   out2.setpos(0);
+   out3.setpos(0);
+    out4.setpos(0);
+    out5.setpos(0);
+    out6.setpos(0);
+    out7.setpos(0);
+    out8.setpos(0);
+   sprintf(o, "%d%c", headersize, 10);
+   j=strlen(o);
+   wfputs(o,out); //header
+   sprintf(o, "%d%c", tagsize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //tag
+   sprintf(o, "%d%c", filesize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //numbersize
+   sprintf(o, "%d%c", numbersize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //filesize
+   sprintf(o, "%d%c", tsize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //lang
+   sprintf(o, "%d%c", albsize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //alb
+   sprintf(o, "%d%c", disosize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //diso
+   sprintf(o, "%d%c", clusize, 10);
+   j=j+strlen(o);
+   wfputs(o,out); //clu
+   for(U64 i=0; i<clusize; i++) {
+       int a=out8.getc();
+       out->putc(a);
+   //      ggg.putc(a);
+   }
+   for(U64 i=0; i<disosize; i++) {
+       int a=out7.getc();
+       out->putc(a);
+   //      fff.putc(a);
+   }
+   for(U64 i=0; i<albsize; i++) {
+       int a=out6.getc();
+       out->putc(a);
+   //      eee.putc(a);
+   }
+   for(U64 i=0; i<filesize; i++) {
+       int a=out4.getc();
+       out->putc(a);
+   //     ddd.putc(a);
+   }
+   
+   for(U64 i=0; i<numbersize; i++) {
+       int a=out5.getc();
+       out->putc(a);
+   //     ddd.putc(a);
+   }
+   for(U64 i=0; i<tagsize; i++) {
+       int a=out2.getc();
+       out->putc(a);
+   //     aaa.putc(a);
+   }
+
+   for(U64 i=0; i<headersize; i++) {
+       int a=out3.getc();
+       out->putc(a);
+   //     ccc.putc(a);
+   }
+   
+   for(U64 i=0; i<tsize; i++) {
+       int a=out1.getc();
+       out->putc(a);
+    //    bbb.putc(a);
+   }
+   
+  //aaa.close(); bbb.close();ccc.close();ddd.close();eee.close();fff.close();ggg.close();
+   out8.close();
+   out7.close();
+   out6.close();
+   out5.close();
+   out4.close();
+   out3.close();
+   out2.close();
+   out1.close();
+  /*printf("Main size: %d kb\n",U32(msize/1024));
+  printf("tags size: %d kb\n",U32(tagsize/1024));
+  printf("file size: %d kb\n",U32(filesize/1024));
+  printf("number size: %d kb\n",U32(numbersize/1024));
+  printf("header size: %d kb\n",U32(headersize/1024));
+  printf("Langs size: %d kb\n",U32(tsize/1024));
+  printf("Alb size: %d kb\n",U32(albsize/1024));
+  printf("Diso size: %d kb\n",U32(disosize/1024));
+  printf("Clu size: %d kb\n",U32(clusize/1024));*/
+  tsize=tsize+j+tagsize+headersize+filesize+numbersize+albsize+disosize+clusize;
+  return tsize;
+}
+// end WIT
+
 // decode/encode base64 
 static const char  table1[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 bool isbase64(unsigned char c) {
@@ -16304,8 +19311,9 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U
 
 void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
     if (type==EXE || type==DECA || type==ARM || type==CD|| type==MDF || type==IMAGE24 || type==IMAGE32  ||type==MRBR ||type==MRBR4||type==RLE || type==LZW||type==EOLTEXT||
-     (type==TEXT || type==TXTUTF8|| type==TEXT0 ) || type==BASE64 || type==BASE85 || type==UUENC||type==SZDD|| type==ZLIB|| type==GIF) {
+     (type==TEXT || type==TXTUTF8|| type==TEXT0 ) || type==WIT|| type==BASE64 || type==BASE85 || type==UUENC||type==SZDD|| type==ZLIB|| type==GIF) {
         U64 diffFound=0;
+        U32 winfo=0;
         FileTmp* tmp;
         tmp=new FileTmp;
         if (type==IMAGE24) encode_bmp(in, tmp, int(len), info);
@@ -16319,27 +19327,27 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) {
             if ( type!=TXTUTF8 ){
-            encode_txt(in, tmp, int(len),1);
+            encode_txt(in, tmp, (len),1);
             U64 txt0Size= tmp->curpos();
             //reset to text mode
              in->setpos(begin);
             tmp->close();
             tmp=new FileTmp;
-            encode_txt(in, tmp, int(len),0);
+            encode_txt(in, tmp, (len),0);
             U64 txtSize= tmp->curpos();
             tmp->close();
             in->setpos( begin);
             tmp=new FileTmp;
             if (txt0Size<txtSize && (((txt0Size*100)/txtSize)<95)) {
                 in->setpos( begin);
-                encode_txt(in, tmp, int(len),1);
+                encode_txt(in, tmp, (len),1);
                 type=TEXT0,info=1;
             }else{
-                encode_txt(in, tmp, int(len),0);
+                encode_txt(in, tmp, (len),0);
                 type=TEXT,info=0;
             }
             }
-            else encode_txt(in, tmp, int(len),info&1); 
+            else encode_txt(in, tmp, (len),info&1); 
         }
         else if (type==EOLTEXT ) diffFound=encode_txtd(in, tmp, int(len),info&1);
         else if (type==BASE64) encode_base64(in, tmp, int(len));
@@ -16350,6 +19358,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==CD) encode_cd(in, tmp, int(len), info);
         else if (type==MDF) encode_mdf(in, tmp, int(len));
         else if (type==GIF) diffFound=encode_gif(in, tmp, int(len))?0:1;
+        else if (type==WIT) winfo=encode_txt_wit(in, tmp, (len));
         if (type==EOLTEXT && diffFound) {
             // if EOL size is below 25 then drop EOL transform and try TEXT type
             diffFound=0, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),encode_txt(in, tmp, int(len),info&1); 
@@ -16360,7 +19369,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         tmp->setpos(0);
         en.setFile(tmp);
         
-        if (type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
+        if (type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
         int ts=0;
          in->setpos(begin);
         if (type==BASE64 ) decode_base64(tmp, int(tmpsize), in, FCOMPARE, diffFound);
@@ -16373,7 +19382,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==DECA) decode_dec(en, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
-        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) decode_txt(en, int(tmpsize), in, FCOMPARE, diffFound);
+        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) decode_txt(en, (tmpsize), in, FCOMPARE, diffFound);
+        else if ((type==WIT) ) decode_txt_wit(tmp, (tmpsize), in, FCOMPARE, diffFound,winfo);
+      //  else if ((type==TXTUTF8 ) ) tmp->setend();
         else if (type==EOLTEXT ) ts=decode_txtd(tmp, int(tmpsize), in, FCOMPARE, diffFound)!=len?1:0;  
         if (type==EOLTEXT && (diffFound || ts)) {
             // if fail fall back to text
@@ -16498,7 +19509,8 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             } else if (typet[type][RECURSIVE]) {
                 segment.put1(type);
                 segment.put8(tmpsize);
-                if (type==SZDD ||  type==ZLIB) segment.put4(info);else segment.put4(0);
+                if (type==SZDD ||  type==ZLIB /*|| type==WIT*/) segment.put4(info);else //segment.put4(0);
+                if (type==WIT) segment.put4(winfo);else segment.put4(0); // store tail size
                 if (type==ZLIB) {// PDF or PNG image && info
                     Filetype type2 =(Filetype)(info>>24);
                     if (it==itcount)    itcount=it+1;
@@ -16539,7 +19551,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             in->setpos(savedpos);
             if (tarend((char*)&tarh)) {
                 tarn=512+pad;
-                printf("\n %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[HDR],tarn,savedpos,savedpos+tarn-1);
+                printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[HDR],tarn,savedpos,savedpos+tarn-1);
                 typenamess[HDR][it+1]+=tarn,  typenamesc[HDR][it+1]++; 
                 direct_encode_blockstream(HDR, in, tarn, en,0,0);
                }
@@ -16554,7 +19566,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 sprintf(blstr,"%s%d",b2,blnum++);
                 int tarover=512+pad;
                 //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                printf("\n %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
+                printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]\n",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
                 typenamess[HDR][it+1]+=tarover,  typenamesc[HDR][it+1]++; 
                 if (it==itcount)    itcount=it+1;
                 direct_encode_blockstream(HDR, in, tarover, en,0,0);
@@ -16587,6 +19599,12 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
   Filetype type=DEFAULT;
   int blnum=0, info,info2;  // image width or audio type
   U64 begin= in->curpos(), end0=begin+n;
+  U64 textstart;
+  U64 textend=0;
+  U64 end=0;U64 len;
+  Filetype nextType;
+  //Filetype nextblock_type;
+  Filetype nextblock_type_bak=DEFAULT; //initialized only to suppress a compiler warning, will be overwritten
   char b2[32];
   strcpy(b2, blstr);
   if (b2[0]) strcat(b2, "-");
@@ -16595,30 +19613,91 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
     return;
   }
   s2+=n;
-
   // Transform and test in blocks
   while (n>0) {
-    Filetype nextType=detect(in, n, type, info,info2,it,s1);
-    U64 end= in->curpos();
-     in->setpos( begin);
+    if (it==0 && witmode==true) {
+      len=end=end0,info=0,type=WIT;
+    }
+    else if (it==1 && witmode==true){    
+      len=end=end0,info=0,type=TXTUTF8;
+    } else {   
+    if(type==TEXT || type==EOLTEXT || type==TXTUTF8) { // it was a split block in the previous iteration: TEXT -> DEFAULT -> ...
+      nextType=nextblock_type_bak;
+      end=textend+1;
+    }
+    else {
+      nextType=detect(in, n, type, info,info2,it,s1);
+      end=in->curpos();
+      in->setpos(begin);
+    }
+   // Filetype nextType=detect(in, n, type, info,info2,it,s1);
+   // U64 end= in->curpos();
+   //  in->setpos( begin);
+     // override (any) next block detection by a preceding text block
+    textstart=begin+textparser._start[0];
+    textend=begin+textparser._end[0];
+    if(textend>end-1)textend=end-1;
+    if(type==DEFAULT && textstart<textend) { // only DEFAULT blocks may be overridden
+     U64 nsize=0;
+      if(textstart==begin && textend == end-1) { // whole first block is text
+        type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // DEFAULT -> TEXT
+        U64 nsize=textparser.number();
+        if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
+        //if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8;
+      }
+      else if (textend - textstart + 1 >= TEXT_MIN_SIZE) { // we have one (or more) large enough text portion that splits DEFAULT
+        if (textstart != begin) { // text is not the first block 
+          end=textstart; // first block is still DEFAULT
+          nextblock_type_bak=nextType;
+          nextType=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; //next block is text
+          //if (textparser.number()>((end-begin)>>1))nextblock_type=TEXT0;
+           nsize=textparser.number();
+        if (nsize>(((end-begin)-nsize)>>1))nextType=TEXT0; 
+          textparser.removefirst();
+        } else {
+          type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // first block is text
+          nextType=DEFAULT;     // next block is DEFAULT
+          end=textend+1; 
+          //if (textparser.number()>((end-begin)>>1))type=TEXT0;
+           nsize=textparser.number();
+        if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
+        }
+      }
+      if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8,info=0;
+      // no text block is found, still DEFAULT
+      
+    }
     if (end>end0) {  // if some detection reports longer then actual size file is
       end=begin+1;
-      type=DEFAULT;
+      type=nextType=DEFAULT;
     }
-    U64 len=U64(end-begin);
+      len=U64(end-begin);
     if (begin>end) len=0;
-    if (len>=2147483646) {  // fix me, len is int, must be U32  or do not allow larger then +int block size
-      len=2147483646;
-      type=DEFAULT;
+    if (len>=2147483646) {  
+      if (!(type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0))len=2147483646,type=DEFAULT; // force to int
     }
+   }
     if (len>0) {
+    if ((type==EOLTEXT) && len<1024*64) type=TEXT;
     if (it>itcount)    itcount=it;
     if((len>>1)<(info) && type==DEFAULT && info<len) type=BINTEXT;
     typenamess[type][it]+=len,  typenamesc[type][it]++; 
       //s2-=len;
       sprintf(blstr,"%s%d",b2,blnum++);
-      
-      printf(" %-11s | %-9s |%10.0I64i [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
+      // printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
+      printf(" %-11s |",blstr);
+#if defined(WINDOWS)      
+      HANDLE  hConsole;
+      hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+      int streamcolor=getstreamid(type)+1+1;
+      if (streamcolor<1) streamcolor=7;
+      SetConsoleTextAttribute(hConsole, streamcolor);
+#endif      
+      printf(" %-9s ",typenames[type]);
+#if defined(WINDOWS)      
+      SetConsoleTextAttribute(hConsole, 7);
+#endif      
+      printf("|%10.0f [%0.0f - %0.0f]",len+0.0,begin,(end-1)+0.0);
       if (type==AUDIO) printf(" (%s)", audiotypes[(info&31)%4+(info>>7)*2]);
       else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24 || type==MRBR|| type==MRBR4|| type==IMAGE8GRAY || type==IMAGE32 ||type==GIF) printf(" (width: %d)", info&0xFFFFFF);
       else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
@@ -16657,8 +19736,8 @@ void DetectStreams(const char* filename, U64 filesize) {
 
 U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int it=0, U64 s1=0, U64 s2=0) {
     Filetype type;
-    U64 len=0L, i=0L;
-    U64 diffFound=0L;
+    U64 len,i,diffFound;
+    len=i=diffFound=0L;
     int info=-1;
     s2+=size;
     while (i<size) {
@@ -16675,9 +19754,9 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
-        else if (type==BIGTEXT) len=decode_txt(en, int(len), out, mode, diffFound);
+        else if (type==BIGTEXT) len=decode_txt(en, (len), out, mode, diffFound);
         //else if (type==EOLTEXT) len=decode_txtd(en, int(len), out, mode, diffFound);
-        else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT) {
+        else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
             FileTmp tmp;
             decompressStreamRecursive(&tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
             if (mode!=FDISCARD) {
@@ -16693,12 +19772,13 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                 else if (type==MRBR|| type==MRBR4)   len=decode_mrb(&tmp, int(len), info, out, mode, diffFound);
                 else if (type==EOLTEXT)len=decode_txtd(&tmp, int(len), out, mode, diffFound);
                 else if (type==RLE)    len=decode_rle(&tmp, len, out, mode, diffFound);
+                else if ((type==WIT) ) len=decode_txt_wit(&tmp, (len), out, mode, diffFound,info);
             }
             tmp.close();
         }
         else {
             for (U64 j=i+s1; j<i+s1+len; ++j) {
-                if (!(j&0x1fff)) printStatus(j, s2);
+                if (!(j&0x1ffff)) printStatus(j, s2);
                 if (mode==FDECOMPRESS) out->putc(en.decompress());
                 else if (mode==FCOMPARE) {
                     int a=out->getc();
@@ -16732,7 +19812,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
     f.create(filename);
     mode=FDECOMPRESS, printf("Extracting");
   }
-  printf(" %s %0lu -> \n", filename, filesize);
+  printf(" %s %0.0f -> \n", filename, filesize+0.0);
 
   // Decompress/Compare
   U64 r=decompressStreamRecursive(&f, filesize, en, mode);
@@ -16927,7 +20007,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                             delete wrt;
                             datasegmentlen= tm.curpos();
                             filestreamsize[i]=datasegmentlen;
-                            printf(" Total %0lu wrt: %0lu\n",datasegmentsize,datasegmentlen); 
+                            printf(" Total %0.0f wrt: %0.0f\n",datasegmentsize+0.0,datasegmentlen+0.0); 
                             tm.setpos(0);
                             if (level>0){
                             threadencode->predictor.x.filetype=DICTTXT;
@@ -16938,7 +20018,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                                 //#ifndef MT
                                 if (!(k&0x1fff)) printStatus(k, datasegmentlen,i);
                                 #ifndef NDEBUG 
-                                if (!(k&0xffff) && k) {
+                                if (!(k&0x3ffff) && k) {
                                     printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,k, out->curpos()-scompsize);
                                     scompsize= out->curpos();
                                 }
@@ -16946,7 +20026,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                                 //#endif
                                 threadencode->compress( tm.getc());
                             }
-                            
+                        
                             tm.close();
                             threadencode->flush();
                             //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,datasegmentlen+0.0,ftello(out)-scompsize+0.0);
@@ -16956,7 +20036,25 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                     
             if (level>0) delete threadpredict;
             delete threadencode;
-           printf("Stream(%d) compressed from %0lu to %0lu bytes\n",i,size, out->curpos());
+            printf("Stream(");
+#if defined(WINDOWS)             
+            HANDLE  hConsole;
+            hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+            SetConsoleTextAttribute(hConsole, i+2);
+#endif
+            printf("%d",i);
+#if defined(WINDOWS)       
+            SetConsoleTextAttribute(hConsole,7);
+#endif    
+            printf(") compressed from %0.0f to ",size+0.0);
+#if defined(WINDOWS)            
+            SetConsoleTextAttribute(hConsole, 9);
+#endif
+            printf("%0.0f",out->curpos()+0.0);
+#if defined(WINDOWS) 
+            SetConsoleTextAttribute(hConsole, 7);
+#endif
+            printf(" bytes\n");
 }
 
 #ifdef MT
@@ -17033,8 +20131,9 @@ thread(void *arg) {
   Job* job=(Job*)arg;
   const char* result=0;  // error message unless OK
   try {
-    if (job->command==0) 
+    if (job->command==0) {
       compressStream(job->streamid,job->datasegmentsize,job->in,job->out);
+      }
     else if (job->command==1)
       decompress(*job); 
   }
@@ -17065,8 +20164,7 @@ int main(int argc, char** argv) {
     try {
 
         // Get option
-        bool doExtract=false;  // -d option
-        bool doList=false;  // -l option
+        
         char* aopt;
         aopt=&argv[1][0];
         
@@ -17080,34 +20178,54 @@ int main(int argc, char** argv) {
                 doExtract=true;
             else if (aopt[1]=='l' && !aopt[2])
                 doList=true;
-            else if (aopt[2]>='0' && aopt[2]<='9' && strlen(aopt)==3 && aopt[1]=='s'){
+            else if (aopt[2]>='0' && aopt[2]<='9' && strlen(aopt)==3 && (aopt[1]=='s' || aopt[1]=='x')){
                 level=aopt[2]-'0';
+                slow=aopt[1]=='x'?true:false;
             }
-            else if (aopt[2]=='1' && aopt[3]>='0' && aopt[3]<='5' && strlen(aopt)==4 && aopt[1]=='s'){
+            else if (aopt[2]=='1' && aopt[3]>='0' && aopt[3]<='5' && strlen(aopt)==4 && (aopt[1]=='s' || aopt[1]=='x')){
+                slow=aopt[1]=='x'?true:false;
                 aopt[1]='-', aopt[0]=' ';
-                level=((~atol(aopt))+1);                 
+                level=((~atol(aopt))+1);
             }
 #ifdef MT 
             else if (aopt[2]>='0' && aopt[2]<='9'&& (aopt[4]<='9' && aopt[4]>'0') && strlen(aopt)==5 && 
-            (aopt[1]=='s')){
+            ((aopt[1]=='s' || aopt[1]=='x'))){
                 topt=aopt[4]-'0';
-                level=aopt[2]-'0';}
+                level=aopt[2]-'0';slow=aopt[1]=='x'?true:false;}
             else if (aopt[2]=='1' && aopt[3]>='0' && aopt[3]<='5' && 
-            (aopt[5]<='9' && aopt[5]>'0')&& strlen(aopt)==6 && aopt[1]=='s'){
+            (aopt[5]<='9' && aopt[5]>'0')&& strlen(aopt)==6 && (aopt[1]=='s' || aopt[1]=='x')){
                 topt=aopt[5]-'0';
+                slow=aopt[1]=='x'?true:false;
                 aopt[4]=0;
                 aopt[1]='-';
                 aopt[0]=' ';
-                level=((~atol(aopt))+1); 
+                level=((~atol(aopt))+1);
             }
 #endif
             else
                 quit("Valid options are -s0 through -s15, -d, -l\n");
+             
             --argc;
             ++argv;
+            if (argv[1][0]=='-' && argv[1][1]=='w')   {
+                witmode=true; printf("WIT\n");
+                --argc;
+                ++argv;
+            }
+            if (argv[1][0]=='-' && argv[1][1]=='e')   {
+                staticd=true;
+                minfq=atol(&argv[1][2]);
+                char *extd=(strchr(&argv[1][2], ','));
+                if (minfq<1) printf("BAD cmdl: min frq must be  >0\n");
+                if (extd==0) printf("BAD cmdl: dict file not found\n");
+                else externaDict=extd+1;
+                //witmode=true; printf("WIT\n");
+                --argc;
+                ++argv;
+            }
             pause=false;
         }
-
+        if (slow==true) printf("Slow mode\n");
         // Print help message quick 
         if (argc<2) {
             printf(PROGNAME " archiver (C) 2018, Matt Mahoney et al.\n"
@@ -17179,7 +20297,6 @@ printf("\n");
             DEFAULT_OPTION);
             quit();
         }
-    
         File* archive=0;               // compressed file
         int files=0;                   // number of files to compress/decompress
         Array<const char*> fname(1);   // file names (resized to files)
@@ -17193,7 +20310,7 @@ printf("\n");
             const int arg1size=strlen(argv[1]);
             if (arg1size>prognamesize+1 && argv[1][arg1size-prognamesize-1]=='.'
                     && equals(PROGNAME, argv[1]+arg1size-prognamesize)) {
-                mode=DECOMPRESS;
+                mode=DECOMPRESS,doExtract=true;
             }
             else if (doExtract || doList)
             mode=DECOMPRESS;
@@ -17236,7 +20353,7 @@ printf("\n");
             archive->create(archiveName.c_str());
             archive->append(PROGNAME);
             archive->putc(0);
-            archive->putc(level);
+            archive->putc(level|            ((slow==true)?64:0)|            ((witmode==true)?128:0));
             segment.hpos= archive->curpos();
             
             for (int i=0; i<12+4+2; i++) archive->putc(0); //space for segment size in header +streams info
@@ -17261,6 +20378,8 @@ printf("\n");
             if (strncmp(header.c_str(), PROGNAME "\0", strlen(PROGNAME)+1))
             printf("%s: not a %s file\n", archiveName.c_str(), PROGNAME), quit();
             level=archive->getc();
+            if (level&64) slow=true;
+            if (level&128) witmode=true;
             level=level&0xf;
             
             // Read segment data from archive end
@@ -17347,6 +20466,7 @@ printf("\n");
             while (*p!='\n') ++p; *(p++)='\0';
             if (mode==COMPRESS) { while (*q!='\n') ++q; *(q++)='\0'; }
         }
+
         // Compress or decompress files
         assert(fname.size()==files);
         assert(fsize.size()==files);
@@ -17360,7 +20480,7 @@ printf("\n");
                 filestreams[i]=new FileTmp();
             }
             for (int i=0; i<files; ++i) {
-                printf("\n%d/%d  Filename: %s (%0lu bytes)\n", i+1, files, fname[i], fsize[i]);
+                printf("\n%d/%d  Filename: %s (%0.0f bytes)\n", i+1, files, fname[i], fsize[i]+0.0); 
                 DetectStreams(fname[i], fsize[i]);
             }
             segment.put1(0xff); //end marker
@@ -17373,9 +20493,9 @@ printf("\n");
                 printf("\n %-2s |%-9s |%-10s |%-10s\n","TN","Type name", "Count","Total size");
                 printf("-----------------------------------------\n");
                 ttc=0,tts=0;
-                for (int i=0; i<datatypecount; ++i)   if (typenamess[i][j]) printf(" %2d |%-9s |%10d |%10.0I64i\n",i,typenames[i], typenamesc[i][j],typenamess[i][j]),ttc+=typenamesc[i][j],tts+=typenamess[i][j];
+                for (int i=0; i<datatypecount; ++i)   if (typenamess[i][j]) printf(" %2d |%-9s |%10d |%10.0" PRIi64 "\n",i,typenames[i], typenamesc[i][j],typenamess[i][j]),ttc+=typenamesc[i][j],tts+=typenamess[i][j];
                 printf("-----------------------------------------\n");
-                printf("%-13s%1d |%10d |%10.0I64i\n\n","Total level",j, ttc,tts);
+                printf("%-13s%1d |%10d |%10.0" PRIi64 "\n\n","Total level",j, ttc,tts);
             }
             
 #ifdef MT
@@ -17388,33 +20508,43 @@ printf("\n");
                  filestreams[i]->setpos( 0);
                 streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
                 if (datasegmentsize>0){                       //if segment contains data
+
+#if defined(WINDOWS) 
+                    HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+                    SetConsoleTextAttribute(hConsole, i+2);
+#endif
                     switch(i) {
                         case 0: {
-                            printf("default   stream(0).  Total %0lu\n",datasegmentsize); break;}
+                            printf("default   "); break;}
                         case 1: {
-                            printf("jpeg      stream(1).  Total %0lu\n",datasegmentsize); break;}        
+                            printf("jpeg      "); break;}        
                         case 2: {
-                            printf("image1    stream(2).  Total %0lu\n",datasegmentsize); break;}
+                            printf("image1    "); break;}
                         case 3: {
-                            printf("image4    stream(3).  Total %0lu\n",datasegmentsize); break;}    
+                            printf("image4    "); break;}    
                         case 4: {
-                            printf("image8    stream(4).  Total %0lu\n",datasegmentsize); break;}
+                            printf("image8    "); break;}
                         case 5: {
-                            printf("image24   stream(5).  Total %0lu\n",datasegmentsize); break;}        
+                            printf("image24   "); break;}        
                         case 6: {
-                            printf("audio     stream(6).  Total %0lu\n",datasegmentsize); break;}
+                            printf("audio     "); break;}
                         case 7: {
-                            printf("exe       stream(7).  Total %0lu\n",datasegmentsize); break;}
+                            printf("exe       "); break;}
                         case 8: {
-                            printf("text0 wrt stream(8).  Total %0lu\n",datasegmentsize); break;}
+                            printf("text0 wrt "); break;}
                         case 9: 
                         case 10: {
-                            printf("%stext wrt stream(%d). Total %0lu\n",i==10?"big":"",i,datasegmentsize); break;}   
+                            printf("%stext wrt ",i==10?"big":"",i); break;}   
                         case 11: {
-                            printf("dec       stream(11). Total %0lu\n",datasegmentsize); break;}
+                            printf("dec       "); break;}
                              case 12: {
-                            printf("compressed stream(12). Total %0lu\n",datasegmentsize); break;}
+                            printf("compressed "); break;}
                     }
+                    
+#if defined(WINDOWS) 
+                    SetConsoleTextAttribute(hConsole, 7);
+#endif                    
+                    printf("stream(%d).  Total %0.0f\n",i,datasegmentsize+0.0);
 #ifdef MT
                                                               // add streams to job list
                     filesmt[i]=new FileTmp();                 //open tmp file for stream output
@@ -17530,7 +20660,7 @@ printf("\n");
         if (jobs[i].state==OK) {
             filesmt[jobs[i].streamid]->setpos( 0);
             //append streams to archive
-            const int BLOCK=4096;
+            const int BLOCK=4096*16;
             U8 blk[BLOCK];
             bool readdone=false; 
             for (;;) { 
@@ -17585,8 +20715,14 @@ printf("\n");
             for (int i=0;i<streamc;i++){
                 if (filestreamsize[i]>0) archive->put64(filestreamsize[i]);
             }
-            printf("Total %0lu bytes compressed to %0lu bytes.\n", total_size,  archive->curpos()); 
-            
+#if defined(WINDOWS) 
+            HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+            SetConsoleTextAttribute(hConsole, 10);
+#endif
+            printf("Total %0.0f bytes compressed to %0.0f bytes.\n", total_size+0.0,  archive->curpos()+0.0); 
+#if defined(WINDOWS) 
+            SetConsoleTextAttribute(hConsole, 7);
+#endif
         }
         // Decompress files to dir2: paq8pxd -d dir1/archive.paq8pxd dir2
         // If there is no dir2, then extract to dir1
@@ -17719,8 +20855,8 @@ printf("\n");
                             int b=0;
                             wrt->defaultSettings(0);
                              tm.setpos( 0);
-                            int bb=wrt->WRT_start_decoding(&tm);
-                            for ( int ii=0; ii<bb; ii++) {
+                            U64 bb=wrt->WRT_start_decoding(&tm);
+                            for ( U64 ii=0; ii<bb; ii++) {
                                 b=wrt->WRT_decode();    
                                 filestreams[i]->putc(b);
                             }
@@ -17759,6 +20895,8 @@ printf("\n");
     }
     return 0;
 }
+
+
 
 
 
