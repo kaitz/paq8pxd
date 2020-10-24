@@ -65,6 +65,7 @@ are OK).
 
 # TO COMPILE
 
+
 There are 2 files: paq8pxd.cpp (C++) and wrtpre.cpp (C++).
 paq8pxd.cpp recognizes the following compiler options:
 
@@ -85,20 +86,37 @@ drag and drop on machines with less than 256 MB of memory.  Use
 
 Recommended compiler commands and optimizations:
 
-  MINGW g++ (x86,x64):
-   with multithreading:
-    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -lz -o paq8pxd.exe 
-   without multithreading:
+  MINGW g++ (x86,x64):  
+   with multithreading:  
+    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -lz -o paq8pxd.exe   
+   without multithreading:  
     g++ paq8pxd.cpp -DWINDOWS -msse2 -O3 -s -static -lz -o paq8pxd.exe 
 
-  UNIX/Linux (PC x86,x64):
-   with multithreading:
-    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -lz -o paq8pxd
-   without multithreading:
+  UNIX/Linux (PC x86,x64):  
+   with multithreading:  
+    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -lz -o paq8pxd  
+   without multithreading:  
     g++ paq8pxd.cpp -DUNIX -msse2 -O3 -s -static -lpthread -lz -o paq8pxd
 
-  Non PC (e.g. PowerPC under MacOS X)
+  Non PC (e.g. PowerPC under MacOS X):  
     g++ paq8pxd.cpp -O2 -DUNIX -s -lz -o paq8pxd
+
+Alternatively, you can use CMake to build paq8pxd.
+
+CMake recognizes the following compiler options for paq8pxd:  
+  -DUNIX: Whether to build for Unix. Otherwise, build for Windows)
+  -DNATIVECPU: Whether to build for your cpu (vs. the general public). Default is OFF)
+  -DMT: Whether to enable Multithreading. Default is OFF)
+  -DDISABLE_SM: Whether to disable faster statemaps. Default is OFF)
+  
+To build for Windows in MinGW with Multithreading and build a native executable for your CPU:  
+cmake . -G "MSYS Makefiles" -DMT=ON -DNATIVECPU=ON
+
+To build for Unix systems with Multithreading and build a native executable for your CPU:  
+cmake . -DUNIX=ON -DMT=ON -DNATIVECPU=ON
+
+Then build with make:
+make
 
 
 # ARCHIVE FILE FORMAT
