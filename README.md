@@ -104,10 +104,10 @@ Recommended compiler commands and optimizations:
 Alternatively, you can use CMake to build paq8pxd.
 
 CMake recognizes the following compiler options for paq8pxd:  
-  -DUNIX: Whether to build for Unix. Otherwise, build for Windows)
-  -DNATIVECPU: Whether to build for your cpu (vs. the general public). Default is OFF)
-  -DMT: Whether to enable Multithreading. Default is OFF)
-  -DDISABLE_SM: Whether to disable faster statemaps. Default is OFF)
+  -DUNIX: Whether to build for Unix. Otherwise, build for Windows)  
+  -DNATIVECPU: Whether to build for your cpu (vs. the general public). Default is OFF)  
+  -DMT: Whether to enable Multithreading. Default is OFF)  
+  -DDISABLE_SM: Whether to disable faster statemaps. Default is OFF)  
   
 To build for Windows in MinGW with Multithreading and build a native executable for your CPU:  
 cmake . -G "MSYS Makefiles" -DMT=ON -DNATIVECPU=ON
@@ -115,7 +115,7 @@ cmake . -G "MSYS Makefiles" -DMT=ON -DNATIVECPU=ON
 To build for Unix systems with Multithreading and build a native executable for your CPU:  
 cmake . -DUNIX=ON -DMT=ON -DNATIVECPU=ON
 
-Then build with make:
+Then build with make:  
 make
 
 
