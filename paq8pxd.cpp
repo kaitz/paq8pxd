@@ -549,9 +549,11 @@ which computes 8 elements at a time, is not any faster).
 
 #define PROGNAME "paq8pxd90"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
-#define MT            //uncomment for multithreading, compression only
+//#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
+#ifndef DISABLE_SM
 #define SM              // For faster statemap
+#endif
 
 #ifdef WINDOWS                       
 #ifdef MT
