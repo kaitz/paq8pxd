@@ -1,6 +1,6 @@
     /* paq8pxd file compressor/archiver.  Release by Kaido Orav
 
-    Copyright (C) 2008-2019 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
+    Copyright (C) 2008-2020 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
     Jan Ondrus, Andreas Morphis, Pavel L. Holoborodko, Kaido Orav, Simon Berger,
     Neill Corlett
@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd90"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd91"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1895,7 +1895,6 @@ private:
   int nx;          // Number of inputs in tx, 0 to N  
   Mixer* mp;       // points to a Mixer to combine results
   Array<int> pr;   // last result (scaled 12 bits)
-  bool doText; 
   Array<ErrorInfo> info; 
   Array<int> rates; // learning rates
   const int lrate,lshift; 
@@ -2142,8 +2141,8 @@ Mixer::~Mixer() {
 }
 
 Mixer::Mixer(int n, int m, BlockData& bd, int s, int w, int g,int h):
-    N((n+15)&-16), M(m), S(s), wx(N*M),
-    cxt(S), ncxt(0), base(0), pr(S), mp(0),tx(N),nx(0),x(bd),doText(false), info(S),
+    N((n+15)&-16), M(m), S(s),tx(N), wx(N*M),
+    cxt(S), ncxt(0), base(0),nx(0), pr(S), mp(0),x(bd), info(S),
     rates(S),lrate(S>1?7:g),lshift(S>1?1:h){
   assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
@@ -2721,34 +2720,6 @@ static  uint64_t hashes[14] = {UINT64_C(0x9E3779B97F4A7C15), UINT64_C(0x993DDEFF
                                        UINT64_C(0xDA9CC2600AE45A27), UINT64_C(0x826797AA04A65737), UINT64_C(0x2375BE54C41A08ED),
                                        UINT64_C(0xD39104E950564B37), UINT64_C(0x3091697D5E685623), UINT64_C(0x20EB84EE04A3C7E1),
                                        UINT64_C(0xF501F1D0944B2383), UINT64_C(0xE3E4E8AA829AB9B5)};
-
-#ifdef HASHCONFIGCMD
-
-static void loadHashesFromCmd(const char *hashesFromCommandline) {
-  if( strlen(hashesFromCommandline) != 16 * 14 + 13 /*237*/) {
-    quit("Bad hash config.");
-  }
-  for( int i = 0; i < 14; i++ ) { // for each specified hash value
-    uint64_t hashVal = 0;
-    for( int j = 0; j < 16; j++ ) { // for each hex char
-      uint8_t c = hashesFromCommandline[i * 17 + j];
-      if( c >= 'a' && c <= 'f' ) {
-        c = c + 'A' - 'a';
-      }
-      if( c >= '0' && c <= '9' ) {
-        c -= '0';
-      } else if( c >= 'A' && c <= 'F' ) {
-        c = c - 'A' + 10;
-      } else {
-        quit("Bad hash config.");
-      }
-      hashVal = hashVal << 4U | c;
-    }
-    hashes[i] = hashVal;
-  }
-}
-
-#endif //HASHCONFIGCMD
 
 // Golden ratio of 2^64 (not a prime)
 #define PHI64 hashes[0] // 11400714819323198485
@@ -8977,7 +8948,7 @@ public:
    {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27} },
    x(bd),buf(bd.buf),MJPEGMap( {21, 3, 128, 127}),
   hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),
-  hmap(level>11?0x10000000:(CMlimit(MEM()*2)),9,N,bd),skip(0), smx(256*256),smx1(0x4000),jmiss(0),zux(0),ccount(0) {
+  hmap(level>10?0x8000000:(CMlimit(MEM()*2)),9,N,bd),skip(0), smx(256*256),smx1(0x4000),jmiss(0),zux(0),ccount(1) {
   }
   int inputs() {return 7+N+1+1+1+2+2+2+2+2+2;}
   int nets() {return 9+1025+1024+512+4096+1024;}
@@ -9046,7 +9017,7 @@ public:
       mcusize=huffcode=huffbits=huffsize=mcupos=cpos=0, rs=-1;
       memset(&huf[0], 0, sizeof(huf));
       memset(&pred[0], 0, pred.size()*sizeof(int));
-      rstpos=rstlen=ccount=0;
+      rstpos=rstlen=ccount=1;
     }
 
     // Detect end of JPEG when data contains a marker other than RSTx
@@ -9476,8 +9447,8 @@ public:
     cxt[6]=hash(++n, adv_pred[2]/14, run_pred[2], adv_pred[0]/14, run_pred[0]);
     cxt[7]=hash(++n, cbuf[cpos-blockN[mcupos>>6]]>>4, adv_pred[3]/17, run_pred[1], run_pred[5]);
     cxt[8]=hash(++n, cbuf[cpos-blockW[mcupos>>6]]>>4, adv_pred[3]/17, run_pred[1], run_pred[3]);
-    cxt[9]=hash(++n, lcp[0]/22, lcp[1]/22, adv_pred[1]/7, run_pred[1]);
-    cxt[10]=hash(++n, lcp[0]/22, lcp[1]/22, mcupos&63, lcp[4]/30);
+    cxt[9]=hash(++n, lcp[0]/(22/ccount), lcp[1]/(22/ccount), adv_pred[1]/7, run_pred[1]);
+    cxt[10]=hash(++n, lcp[0]/(22/ccount), lcp[1]/(22/ccount), mcupos&63, lcp[4]/(30/ccount));
     cxt[11]=(zu)==0?hash(++n, prev_coef/22,prev_coef2/50):hash(++n, zu/2, lcp[0]/13, lcp[2]/30);//run_pred[2]
     cxt[12]=(zv)==0?hash(++n, ssum2>>5, mcupos&63):hash(++n, zv/2, lcp[1]/13, lcp[3]/30);
     cxt[13]=hash(++n, rs1, prev_coef/42, prev_coef2/34,  lcp[0]/(ccount>2?12:60),lcp[2]/14,lcp[1]/(ccount>2?12:60),lcp[3]/14 );
@@ -15586,10 +15557,20 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
                 lz77=new LZSS(&outf,&out2,u,lz2);
                 U32 r=lz77->compress();
                 delete lz77;
+                //compare
+                out2.setpos(0); 
+                in->setpos(savedpos); 
+                if (r!=(csize)) fSZDD=csize=0;    // reset if not same size
+                for(int i=0;i<csize;i++){
+                    U8 b=out2.getc();
+                    if (b!=in->getc() ){
+                        r=fSZDD=0; // just fail
+                        break;
+                    } 
+                }
                 out2.close();
                 outf.close();
-                if (r!=(csize)) fSZDD=0;    // reset if not same size
-                else{
+                if (fSZDD!=0) {
                      in->setpos( savedpos); //all good
                     //flag for +2 treshold, set bit 25
                     SZ_DET(SZDD,fSZDD+7-lz2,14-lz2,r,uf+(lz2?(1<<25):0)); 
@@ -17958,7 +17939,7 @@ void henttail( char *in,char *out,FileTmp *o){
               (memcmp(&ps[2],"template:",9)==0) ||
               (memcmp(&ps[2],"wikinews:",9)==0) ||
               (memcmp(&ps[2],"bild:",5)==0) ||
-              (memcmp(&ps[2],"fr:Wikipé¤©a:Aide]]",20)==0) ||
+              (memcmp(&ps[2],"fr:Wikipédia:Aide]]",20)==0) ||
               (memcmp(&ps[2],"de:Boogie Down Produ",20)==0) ||
               (memcmp(&ps[2],"da:Wikipedia:Hvordan",20)==0) ||
               (memcmp(&ps[2],"sv:Indiska musikinstrument",26)==0) ||
@@ -20986,7 +20967,7 @@ int main(int argc, char** argv) {
         if (slow==true) printf("Slow mode\n");
         // Print help message quick 
         if (argc<2) {
-            printf(PROGNAME " archiver (C) 2018, Matt Mahoney et al.\n"
+            printf(PROGNAME " archiver (C) 2020, Matt Mahoney et al.\n"
             "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n");
 #ifdef __GNUC__     
             printf("Compiled %s, compiler gcc version %d.%d.%d\n\n",__DATE__, __GNUC__, __GNUC_MINOR__,__GNUC_PATCHLEVEL__);
