@@ -1,3 +1,16 @@
+v92
+    - small fixes
+    - small adjustments
+    - detect pdf CMYK and force as IMAGE32
+v91
+    - fix jpeg compression on larger levels
+    - fix SZDD recompression (fail if error)
+v90
+    - Add DEC Alpha model/detect from paq8px193fix2
+    - Small changes in mixer, statemap, apm, indirectmap, contextmap2
+    - Change matchmodel, recordmodel, jpegmodel
+    - Fix jpegmodel on thumnail images (or full image fails to compress)
+    - Adjust predictors
 v89
     - fix subsamp reset on every new jpeg 
 v88
