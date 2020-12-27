@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd91"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd92"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -2257,7 +2257,7 @@ inline void update1(const int y, int limit) {
     p[0]=p0;
   }
 public:
-  StateMap(int n=256-3);
+  StateMap(int n=256);
   ~StateMap();
   void Reset(int Rate=0){
     for (int i=0; i<N; ++i)
@@ -3569,7 +3569,10 @@ public:
       // predict from bit context
       int state = (BitState[i])?*BitState[i]:0;
       //result+=(state>0);
-      int p1 = state?Maps8b[i]->p(state,m.x.y):0;
+      int p1=0 ;
+      if (state){
+          if (m.x.count>0x5FFFF) p1=Maps8b[i]->p1(state,m.x.y);else p1=Maps8b[i]->p(state,m.x.y);
+      } 
       int n0=nex(state, 2), n1=nex(state, 3), k=-~n1;
       const int bitIsUncertain = int(n0 != 0 && n1 != 0);
       k = (k*64)/(k-~n0);
@@ -6795,7 +6798,7 @@ private:
         }
         }
         h=word0*271;
-        h=h+buf(1);
+        h=h+buf(1);U32 isfword=x.filetype==DECA?-1:fword;
         if (/*x.filetype==DEFAULT||*/x.filetype==DECA){
         cm.set(hash(++i,h));
         cm.set(hash(++i,word0,0)); 
@@ -6816,7 +6819,7 @@ private:
         cm.set(hash(++i,h, word1,word2/*,lastUpper<x.wordlen*/));
         cm.set(hash(++i,text0&0xffffff));
         cm.set(text0&0xfffff);
-        U32 isfword=x.filetype==DECA?-1:fword;
+         
         if (doXML==true && pdf_text_parser_state==0){
             if ( scountset==false ){
             cm.set(hash(++i,word0,number0,wpword1,xword0));
@@ -6865,13 +6868,7 @@ private:
         if (x.dictonline==true) cm.set(hash(buf(1),wchar1,wchar2)); else {cm.set();}
         cm.set(x.f4&0x00000fff);
         cm.set(x.f4); 
-        if (f) {
-            word5=word4;
-            word4=word3;
-            word3=word2;
-            word2=word1;
-            word1='.';
-        }
+        
         const U8 pC_above = buf[nl1+x.col-1];
         const bool is_new_line_start = x.col==0 && nl1>0;
         const bool is_prev_char_match_above = buf(1)==pC_above && x.col!=0 && nl1!=0;
@@ -6925,6 +6922,13 @@ private:
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
              (lastUpper < x.wordlen + x.wordlen1 + wordGap)));   else  {cm.set();++i;}
         cm.set(hash((*pWord).Hash[2], h));
+        if (f) {
+            word5=word4;
+            word4=word3;
+            word3=word2;
+            word2=word1;
+            word1='.';
+        }
  }
     }
     if (val2==-1) return 1;
@@ -7859,8 +7863,8 @@ public:
         cm.set(hash(++i, color, W+p1-Wp1));
         cm.set(hash(++i, color, N, p1-Np1));
         cm.set(hash(++i, color, N+p1-Np1));
-        cm.set(hash(++i, color, buf(w*3-stride), buf(w*3-stride*2)));
-        cm.set(hash(++i, color, buf(w*3+stride), buf(w*3+stride*2)));
+        cm.set(hash(++i, color, NNNE, NNNEE)); //buf(w*3-stride),buf(w*3-stride*2)
+        cm.set(hash(++i, color, NNNW, NNNWW ));//buf(w*3+stride), buf(w*3+stride*2)
 
         cm.set(hash(++i, mean, logvar>>4));
 
@@ -11845,15 +11849,15 @@ class normalModel1: public Model {
   BlockData& x;
   Buf& buf;
    ContextMap2   cm;
-   StateMap StateMaps[3];
+   StateMap StateMaps[4];
   RunContextMap rcm7, rcm9, rcm10;
   Array<U64> cxt; // order 0-11 contexts
   int inpt;
 public:
-  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10,M_NORMAL), StateMaps{ 256, 256*256,256*256 },rcm7(CMlimit(MEM()/(level>8?8:4)),bd),
+  normalModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), cm(CMlimit(MEM()*32), 10,M_NORMAL), StateMaps{ 256, 256*256,256*256,256*256 },rcm7(CMlimit(MEM()/(level>8?8:4)),bd),
   rcm9(CMlimit(MEM()/((level>8?8:4))),bd), rcm10(CMlimit(MEM()/(level>8?4:2)),bd), cxt(16){
  }
- int inputs() {return 10*cm.inputs() +3+2+2;}
+ int inputs() {return 10*cm.inputs() +3+2+2+1;}
  int nets() {return 0;}
   int netcount() {return 0;}
   void setContexts(){
@@ -11864,7 +11868,8 @@ public:
     cxt[15]=(isalpha(buf(1)))?(cxt[15]*primes[15]+ tolower(buf(1))):0;
     // (val2==0) cm.set(cxt[15]);  
     for (i=14; i>0; --i)  // update order 0-11 context hashes
-      cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
+      //cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
+      cxt[i] = hash(cxt[i - 1], (x.c4&255) + (i << 10));
   }
   
 int p(Mixer& m,int val1=0,int val2=0){  
@@ -11890,7 +11895,8 @@ int p(Mixer& m,int val1=0,int val2=0){
   rcm10.mix(m);
   m.add((stretch(StateMaps[0].p(x.c0-1,x.y)))>>2);
   m.add((stretch(StateMaps[1].p((x.c0-1)|(buf(1)<<8),x.y)))>>2);
-  m.add((stretch(StateMaps[1].p((x.c0-1)|(buf(1)<<8),x.y,64)))>>2);
+  m.add((stretch(StateMaps[2].p((x.c0-1)|(buf(1)<<8),x.y,64)))>>2);
+  m.add((stretch(StateMaps[3].p((x.c0-1)|(buf(2)<<8),x.y,64)))>>2);
   return cm.mix(m);
 }
   virtual ~normalModel1(){
@@ -13834,9 +13840,6 @@ void update()  {
   if (x.bpos==0) {
     int b1=x.buf(1);
     x.c4=(x.c4<<8)+b1;
-        int i=WRT_mpw[b1>>4];
-        x.w5=x.w5*4+i;
-        x.x5=(x.x5<<8)+b1;
   }
   pr=(32768-pr)/(32768/4096);
   if(pr<1) pr=1;
@@ -15427,6 +15430,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         if (pdfimw>0 && pdfimw<0x1000000 && pdfimh>0) {
           if (pdfimb==8 && (int)strm.total_out==pdfimw*pdfimh) info=((pdfgray?IMAGE8GRAY:IMAGE8)<<24)|pdfimw;
           if (pdfimb==8 && (int)strm.total_out==pdfimw*pdfimh*3) info=(IMAGE24<<24)|pdfimw*3;
+          if (pdfimb==8 && (int)strm.total_out==pdfimw*pdfimh*4) info=(IMAGE32<<24)|pdfimw*4;
           if (pdfimb==4 && (int)strm.total_out==((pdfimw+1)/2)*pdfimh) info=(IMAGE4<<24)|((pdfimw+1)/2);
           if (pdfimb==1 && (int)strm.total_out==((pdfimw+7)/8)*pdfimh) info=(IMAGE1<<24)|((pdfimw+7)/8);
           pdfgray=0;
