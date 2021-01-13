@@ -1,3 +1,9 @@
+v95
+    -jpeg model: 
+         -more context in Map1  (20)
+         -more inputs from main context
+         -2 main mixer inputs + 1 apm
+         -cleanup
 v94
     -change jpeg model
     -fix/change detection (tiff,text)

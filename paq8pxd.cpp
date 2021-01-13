@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd94"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd95"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -2212,7 +2212,6 @@ protected:
   const int N;  // Number of contexts
   int cxt;      // Context of last prediction
   Array<U32> t;       // cxt -> prediction in high 22 bits, count in low 10 bits
-  U32 err;
   inline void update(const int y, int limit) {
     assert(cxt>=0 && cxt<N);
     assert(y==0 || y==1);
@@ -2220,7 +2219,7 @@ protected:
 #ifdef SM   
     int n=p0&1023, pr=p0>>13;  // count, prediction
     p0+=(n<limit);
-    err=(y<<19)-pr;
+    U32 err=(y<<19)-pr;
     p0+=((err))*dt[n]&0xfffffc00;
 
 #else
@@ -2234,16 +2233,15 @@ protected:
 inline void update1(const int y, int limit) {
     assert(cxt>=0 && cxt<N);
     assert(y==0 || y==1);
-    U32 *p=&t[cxt], p0=p[0];
+    U32   p0=t[cxt];
 #ifdef SM   
-    int  pr=p0>>13;  // count, prediction
-    err=(y<<19)-pr;
-    p0+=err;
+    // count, prediction
+    p0+=(y<<19)-(p0>>13);
 #else
     int pr=p0>>10;  // count, prediction
     p0+=(((y<<22)-pr)>>3);
 #endif
-    p[0]=p0;
+    t[cxt]=p0;
   }
   inline void update2(const int y, int limit) {
     assert(cxt>=0 && cxt<N);
@@ -2263,7 +2261,6 @@ public:
     for (int i=0; i<N; ++i)
       t[i]=(t[i]&0xfffffc00)|min(Rate, t[i]&0x3FF);
   }
-  int error(){ return err;}
   // update bit y (0..1), predict next bit in context cx
   int p(int cx,const int y,int limit=1023) {
     assert(cx>=0 && cx<N);
@@ -8627,7 +8624,6 @@ int p(Mixer& m,int w=0,int val2=0)  {
  
 };
 
-#define JPEGLIMIT 0x2ffff  // limit in bytes when statemap switch
 //////////////////////////// jpegModel /////////////////////////
 
 // Model JPEG. Return 1 if a JPEG file is detected or else 0.
@@ -8773,7 +8769,7 @@ struct JPEGImage{
  Array<U8*> cp;
  BlockData& x;
  StateMap **sm;
- 
+ int n0,n1,iy;
  inline U8* find(U32 i) {
     int chk=(i>>24^i>>12^i)&255;
     i&=n;
@@ -8792,7 +8788,7 @@ struct JPEGImage{
     return p;
   }
 public:
-  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(n), x(bd) {
+  BHMap(U32 i,U32 b,int N, BlockData& bd): t(i*b), n(i-1),B(b),ncontext(N),cp(n), x(bd),n0(0),n1(0),iy(0) {
     assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2? N((n+3)&-4),
     sm = new StateMap*[ncontext];
 
@@ -8808,30 +8804,28 @@ public:
         *cp[i]=nex(*cp[i],y);
    }
   }
-
+ int sn0() {return n0;}
+ int sn1() {return n1;}
+ int siy() {return iy;}
  inline int ps(int i,U32 a,const int y){
       assert(i<ncontext);
       cp[i]=find(a)+1;  // set
-      return sm[i]->p(*cp[i],y); 
+      const int s=*cp[i];
+      iy = int(s <= 2);
+      n0=-!nex(s,2);
+      n1=-!nex(s,3);
+      return sm[i]->p1(s,y);
   }
   inline int p(int i,U32 a,const int y){
       assert(i<ncontext);
-       cp[i]+=a;                    // add
-      return sm[i]->p(*cp[i],y); 
+      cp[i]+=a;                    // add
+      const int s=*cp[i];
+      iy = int(s <= 2);
+      n0=-!nex(s,2);
+      n1=-!nex(s,3);
+      return sm[i]->p1(s,y);
   }
-  inline int p1s(int i,U32 a,const int y){
-      assert(i<ncontext);
-      cp[i]=find(a)+1;  // set
-      return sm[i]->p1(*cp[i],y); 
-      
-  }
-  inline int p1(int i,U32 a,const int y){
-      assert(i<ncontext);
-      cp[i]+=a;
-      return sm[i]->p1(*cp[i],y); 
-      
-  }
-
+  
 
   ~BHMap() {
       for (U32 i=0; i<ncontext; i++) {
@@ -8906,7 +8900,7 @@ class jpegModelx: public Model {
     // sum of S in RS codes in block and sum of S in first component
 
    IntBuf cbuf2;
-   Array<int> adv_pred, run_pred, sumu, sumv ;
+   Array<int> adv_pred,adv_pred1,adv_pred2, run_pred, sumu, sumv ;
    Array<int> ls;  // block -> distance to previous block
    Array<int> lcp, zpos;
    Array<int> blockW, blockN,/* nBlocks,*/ SamplingFactors;
@@ -8919,7 +8913,7 @@ class jpegModelx: public Model {
    const int N,M; // size of t, number of contexts
    Array<U64> cxt;  // context hashes
    Mixer m1;
-   APM apm[8];
+   APM apm[9];
    BlockData& x;
    Buf& buf;
    IndirectMap MJPEGMap;
@@ -8934,27 +8928,30 @@ class jpegModelx: public Model {
     U32 skip;
     StateMap smx;
     U32 jmiss,zux,ccount,lma,ama;
-    StationaryMap Map1[34-5] = { {16,3},{16,3},{16,3},{16,3} ,{15,3},{15,3},{15,3},{15,3},{15,3},
+    StationaryMap Map1[34-5+6+1+1+1+1+1+1+3+1+2+1+2+2+3+3] = { 
+    {16,3},{16,3},{16,3},{16,3}, {16,3},{16,3},{16,3},   {15,3},{15,3},{15,3},{15,3},{15,3},
     {15,3},{15,3},{15,3},{15,3},{15,3} ,{15,3},{15,3},{15,3} ,{15,3} ,{15,3},{15,3} ,{15,3},{15,3},
-    {15,3},{15,3},{15,3},{14,3},{15,3},{15,3},{15,3}
+    {15,3},{15,3},{15,3},{14,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},
+     {15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3}
     };
+
 public:
   jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
-  cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4), run_pred(6),
+  cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4),adv_pred1(3),adv_pred2(3), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
-  qtab(256),qmap(10),N(35+1+1+1+1+1+1),M(29),cxt(N),m1(32+32+3+4+1+1+1+1+N*2+1+2*M,2050+3+1024+64+1024 +256+16+64,bd, 3+1+1+1+1+1,0,7,5),
+  qtab(256),qmap(10),N(41),M(58),cxt(N),m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 3+1+1+1+1+1,0,7,5),
    apm{{0x40000,20-4},{0x40000,20-4},{0x20000,20-4},
-   {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27} },
+   {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27},{0x20000,20-4}},
    x(bd),buf(bd.buf),MJPEGMap( {21, 3, 128, 127}),
   hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),
   hmap(level>10?0x8000000:(CMlimit(MEM()*2)),9,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(1),lma(0),ama(0) {
   }
-  int inputs() {return 7+N+1+1+2+2+2+2+2+2+M;}
-  int nets() {return 9+1025+1024+512+4096+1024;}
-  int netcount() {return 3+1+1+1;}
+  int inputs() {return 7+3*N+1+1+2+2+2+2+2+2+M+2+1;}
+  int nets() {return 9 + 1025 + 1024 + 512 + 4096 + 64 + 4096 + 1024;}
+  int netcount() {return 8;}
   int p(Mixer& m,int val1=0,int val2=0){
 
  if (idx < 0){
@@ -9336,6 +9333,8 @@ public:
                 p/=(images[idx].qtab[q+zz2]+1)*185*(16+zzv[zz2])*(16+zzu[zz2])/128;
                 if (zz2==0 && (norst || ls[acomp]==64)) p-=cbuf2[cpos_dc-ls[acomp]];
                 p=(p<0?-1:+1)*ilog(abs(p)+1);
+                if (st==1)  adv_pred1[i]=p;
+                if (st==2)  adv_pred2[i]=p;
                 if (st==0) {
                   adv_pred[i]=p;
                 }
@@ -9417,6 +9416,8 @@ public:
     x.Misses+=x.Misses ;
     m.set(0, 4096 ); 
     m.set(0, 64);
+    m.set(0, 4096);
+    m.set(0, 1024);
     return 2;
   }
   if (rstlen>0 && rstlen==column+row*width-rstpos && mcupos==0 && (int)huffcode==(1<<huffbits)-1) {
@@ -9428,6 +9429,8 @@ public:
     x.Misses+=x.Misses;
     m.set(0, 4096 );
     m.set(0, 64);
+    m.set(0, 4096);
+    m.set(0, 1024);
     return 2;
   }
   if (val1==1) {if (++hbcount>2 ) hbcount=0;return /*skip++,*/ 1;  }
@@ -9449,9 +9452,9 @@ public:
     cxt[0]=hash(++n, coef, adv_pred[2]/12+(run_pred[2]<<8), ssum2>>6, prev_coef/72);
     cxt[1]=hash(++n, coef, adv_pred[0]/12+(run_pred[0]<<8), ssum2>>6, prev_coef/72);
     cxt[2]=hash(++n, coef, adv_pred[1]/11+(run_pred[1]<<8), ssum2>>6);
-    cxt[3]=hash(++n, rs1, adv_pred[2]/7, run_pred[5]/2, prev_coef/10);
-    cxt[4]=hash(++n, rs1, adv_pred[0]/7, run_pred[3]/2, prev_coef/10);
-    cxt[5]=hash(++n, rs1, adv_pred[1]/11, run_pred[4]);
+    cxt[3]=hash(++n, rs1, adv_pred[2]/7,adv_pred1[2]/11, adv_pred2[2]/11,run_pred[5]/2, prev_coef/10);
+    cxt[4]=hash(++n, rs1, adv_pred[0]/7, adv_pred1[0]/11,adv_pred2[0]/11,run_pred[3]/2, prev_coef/10);
+    cxt[5]=hash(++n, rs1, adv_pred[1]/11,adv_pred1[1]/11,adv_pred2[1]/11, run_pred[4]);
     cxt[6]=hash(++n, adv_pred[2]/14, run_pred[2], adv_pred[0]/14, run_pred[0]);
     cxt[7]=hash(++n, cbuf[cpos-blockN[mcupos>>6]]>>4, adv_pred[3]/17, run_pred[1], run_pred[5]);
     cxt[8]=hash(++n, cbuf[cpos-blockW[mcupos>>6]]>>4, adv_pred[3]/17, run_pred[1], run_pred[3]);
@@ -9468,9 +9471,9 @@ public:
     cxt[19]=hash(++n, lcp[0]/40, lcp[1]/40, adv_pred[1]/28,   (comp)?prev_coef/40+((prev_coef2/40)<<20):lcp[4]/22, min(7,zu+zv), ssum/(2*(zu+zv)+1)   );
     cxt[20]=hash(++n, ccount>1?((zv<<8)|zu):zv , cbuf[cpos-blockN[mcupos>>6]], adv_pred[2]/28, run_pred[2]);//use (zv<<8)|zu for subsampling
     cxt[21]=hash(++n, ccount>1?((zv<<8)|zu):zu, cbuf[cpos-blockW[mcupos>>6]], adv_pred[0]/28, run_pred[0]);
-    cxt[22]=hash(n, adv_pred[2]/7, run_pred[2]);
-    cxt[23]=hash(n, adv_pred[0]/7, run_pred[0],ccount>2?(lcp[zu<zv]/14):-1);
-    cxt[24]=hash(n, adv_pred[1]/7, run_pred[1],ccount>2?(lcp[zu<zv]/14):-1);
+    cxt[22]=hash(n, adv_pred[2]/7,adv_pred1[2]/7,adv_pred2[2]/7, run_pred[2]);
+    cxt[23]=hash(n, adv_pred[0]/7,adv_pred1[0]/7,adv_pred2[0]/7, run_pred[0],ccount>2?(lcp[zu<zv]/14):-1);
+    cxt[24]=hash(n, adv_pred[1]/7,adv_pred1[1]/7,adv_pred2[1]/7, run_pred[1],ccount>2?(lcp[zu<zv]/14):-1);
     cxt[25]=hash(++n,  ccount>1?((zv<<8)|zu):zv , lcp[1]/14, adv_pred[2]/16, run_pred[5]);
     cxt[26]=hash(++n,  ccount>1?((zv<<8)|zu):zu, lcp[0]/14, adv_pred[0]/16, run_pred[3]);
     cxt[27]=hash(++n, lcp[0]/14, lcp[1]/14, adv_pred[3]/16);
@@ -9493,32 +9496,52 @@ public:
   m1.add(128);
   assert(hbcount<=2);
   int p;
-  /*
-#ifndef SM 
-      x.count=0; //force to old statemap 
-#endif
-*/
+
 if (slow==true) x.count=0;
- switch(hbcount) {
-   case 0: {
-        if (x.count>JPEGLIMIT)
-           for (int i=0; i<N; ++i){  p=hmap.p1s(i,finalize64(cxt[i],32),y );m1.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
-        else
-           for (int i=0; i<N; ++i){  p=hmap.ps(i,finalize64(cxt[i],32),y); m1.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1);}
+    switch(hbcount) {
+    case 0: {int p1=0;
+            
+            for (int i=0; i<N; ++i){  
+                p1=p=hmap.ps(i,finalize64(cxt[i],32),y); 
+                const int n0=hmap.sn0(), n1=hmap.sn1();
+                m1.add((p-2048)>>3); 
+                m1.add(p=stretch(p)); 
+                m.add(p>>(1+hmap.siy())); 
+                m.add((p>>2)*(n1-n0));
+                int p0=4095-p1;
+                m.add((((p1&n0)-(p0&n1))*1)/(4*4));
+                m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
+            }
         } break;
-   case 1: { int hc=1+(huffcode&1)*3;
-        if (x.count>JPEGLIMIT)
-           for (int i=0; i<N; ++i){ p=hmap.p1(i,hc,y); m1.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
-        else
-            for (int i=0; i<N; ++i){ p=hmap.p(i,hc,y); m1.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
+    case 1: { int hc=1+(huffcode&1)*3;int p1=0;
+            
+            for (int i=0; i<N; ++i){
+                p1=p=hmap.p(i,hc,y); 
+                const int n0=hmap.sn0(), n1=hmap.sn1();
+                m1.add((p-2048)>>3); 
+                m1.add(p=stretch(p)); 
+                m.add(p>>(1+hmap.siy())); 
+                m.add((p>>2)*(n1-n0));
+                int p0=4095-p1;
+                m.add((((p1&n0)-(p0&n1))*1)/(4*4));
+                m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
+            }
         } break;
-   default: { int hc=1+(huffcode&1); 
-            if (x.count>JPEGLIMIT)
-            for (int i=0; i<N; ++i){  p=hmap.p1(i,hc,y); m1.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
-            else 
-               for (int i=0; i<N; ++i){  p=hmap.p(i,hc,y); m1.add((p-2048)>>3); m1.add(p=stretch(p)); m.add(p>>1); }
-            } break;
-  }
+    default: { int hc=1+(huffcode&1); int p1=0;
+            
+            for (int i=0; i<N; ++i){  
+                p1=p=hmap.p(i,hc,y); 
+                const int n0=hmap.sn0(), n1=hmap.sn1();
+                m1.add((p-2048)>>3); 
+                m1.add(p=stretch(p)); 
+                m.add(p>>(1+hmap.siy())); 
+                m.add((p>>2)*(n1-n0));
+                int p0=4095-p1;
+                m.add((((p1&n0)-(p0&n1))*1)/(4*4));
+                m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
+            }
+        } break;
+    }
     x.JPEG.state =0x1000u |
      ((hc2 & 0xFF) << 4) |
      (static_cast<int>(ama> 0) << 3) |
@@ -9531,6 +9554,9 @@ if (slow==true) x.count=0;
       Map1[i++].set(hash(hc>> 2,coef, adv_pred[1]/11));
       Map1[i++].set(hash(hc>> 2,coef, adv_pred[2]/11));
       Map1[i++].set(hash(hc>> 2,coef, adv_pred[3]/11));
+      Map1[i++].set(hash(hc>> 2,coef, adv_pred1[0]/11));  
+      Map1[i++].set(hash(hc>> 2,coef, adv_pred1[1]/11));
+      Map1[i++].set(hash(hc>> 2,coef, adv_pred1[2]/11));
       Map1[i++].set(hash(hc>> 2,coef, lcp[0]/7));
       Map1[i++].set(hash(hc>> 2,coef, lcp[1]/7));
       if (ccount==1){
@@ -9554,29 +9580,56 @@ if (slow==true) x.count=0;
       Map1[i++].set(hash(hc>> 2,coef, ssum2>>2));
       Map1[i++].set(hash(hc>> 2,coef, ssum3>>2)); 
       Map1[i++].set(hash(hc>> 2,coef, prev_coef_rs));
-      Map1[i++].set(hash(hc>> 2,adv_pred[0]/16,run_pred[0]));
-      Map1[i++].set(hash(hc>> 2,adv_pred[1]/16,run_pred[1]));
+      Map1[i++].set(hash(hc>> 2,adv_pred[0]/16,adv_pred1[0]/16,adv_pred2[0]/16,run_pred[0]));
+      Map1[i++].set(hash(hc>> 2,adv_pred[1]/16,adv_pred1[0]/16,adv_pred2[0]/16,run_pred[1]));
       Map1[i++].set(hash(hc>> 2,lcp[0]/14, lcp[1]/14));
       Map1[i++].set(hash(hc>> 2,lcp[2]/14, lcp[3]/14));
       Map1[i++].set(hash(hc>> 2,lcp[3]/14, lcp[4]/14));
       Map1[i++].set(hash(hc>> 2, adv_pred[3]/17, run_pred[1], run_pred[5]));
-      Map1[i++].set(hash(hc>> 2, adv_pred[3]/17, run_pred[1], run_pred[3]));
-      Map1[i++].set(x.JPEG.state);
+      Map1[i++].set(hash(hc>> 2, adv_pred2[2]/17, run_pred[1], run_pred[3]));
+      Map1[i++].set(hash(hc>> 2, adv_pred[2]/17, run_pred[0], run_pred[4]));
       Map1[i++].set(hash(hc>> 2, cbuf[cpos-blockN[mcupos>>6]]));
       Map1[i++].set(hash(hc>> 2, cbuf[cpos-blockW[mcupos>>6]]));
       Map1[i++].set(hash(hc>> 2, zu,zv));
-      /*Map1[i++].set(hash(hc>> 2, adv_pred[2]/17, run_pred[0], run_pred[4]));
-      Map1[i++].set(hash(hc>> 2, adv_pred[2]/17, run_pred[0], run_pred[2]));
+      Map1[i++].set(hash(hc>> 2, ssum>>1, prev_coef2/10));
+      Map1[i++].set(hash(hc>> 2, coef, ssum1>>2));
+      Map1[i++].set(hash(hc>> 2, adv_pred[2]/17, run_pred[0], run_pred[4]));
+      Map1[i++].set(hash(hc>> 2, adv_pred1[2]/17, run_pred[0], run_pred[2]));
       Map1[i++].set(hash(hc>> 2, adv_pred[1]/16,  run_pred[3]));
-      Map1[i++].set(hash(hc>> 2, adv_pred[0]/16, run_pred[1]));*/
+      Map1[i++].set(hash(hc>> 2, adv_pred[0]/16, run_pred[1]));
+      Map1[i++].set(hash(hc>> 2, rs,rs1));
+      Map1[i++].set(hash(hc>> 2, ssum2>>2,prev_coef2/42));
+      Map1[i++].set(hash(hc>> 2, ssum3>>2,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred[1]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred[0]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred[2]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred[3]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred[0]/7,rs1));
+      Map1[i++].set(hash(hc>> 2, adv_pred[2]/7,rs1));
+      Map1[i++].set(hash(hc>> 2, rs1, mcupos&63));
+      Map1[i++].set(hash(hc>> 2, coef,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2,lcp[0]/10, min(5+2*(!comp),zu+zv)));
+      Map1[i++].set(hash(hc>> 2,coef,min(5+2*(!comp),zu+zv)));
+      Map1[i++].set(hash(hc>> 2,rs1,run_pred[0]));
+      Map1[i++].set(hash(hc>> 2,rs1,run_pred[1]));
+      Map1[i++].set(hash(hc>> 2,rs1,run_pred[2]));
+      Map1[i++].set(hash(hc>> 2,rs1,run_pred[3]));
+      Map1[i++].set(hash(hc>> 2, adv_pred1[1]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred1[0]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred2[2]/16,prev_coef/42));
 
       // etc
     MJPEGMap.set(hash(mcupos, column, row, hc >> 2));
   }
-  for (int i=0; i<M; ++i) m.add(stretch(Map1[i].mix(m1))>>1);
+  
+  for (int i=0; i<M; ++i){
+      int p=stretch(Map1[i].mix(m1));
+      
+      m.add(p>>1);m1.add(p>>1);
+  } 
   
   MJPEGMap.mix2( m1);
- 
+
   int sd=((smx.p((hc)&0xffff,y)));
    m1.add(sd=stretch(sd));
    m.add(sd);
@@ -9596,7 +9649,7 @@ if (slow==true) x.count=0;
   pr0=pr;
   m.add(stretch(pr)>>1);
   m.add((pr-2048)>>3);
-  pr=apm[0].p(pr,hash(hc,abs(adv_pred[1])/16,(x.Misses&0xf)?(x.Misses&0xf):(jmiss&0xf),(x.Misses&0xf)?0:(jmiss&0xf))&0x3FFFF, y,1023);
+  pr=apm[0].p(pr,hash(hc,abs(adv_pred[1])/16,abs(adv_pred1[1])/16,(x.Misses&0xf)?(x.Misses&0xf):(jmiss&0xf),(x.Misses&0xf)?0:(jmiss&0xf))&0x3FFFF, y,1023);
   m.add(stretch(pr)>>1);
   m.add((pr-2048)>>3);
   pr=apm[1].p(pr, hash(hc&0xffff,coef,x.Misses&0xf,hbcount)&0x3FFFF,y, 1023);
@@ -9622,15 +9675,21 @@ if (slow==true) x.count=0;
   pr=apm[7].p(pr, hash(hc&511,abs(adv_pred[0])/16,x.Misses&0xf,hbcount)&0x1FFFF    ,y, 1023);
      m.add(stretch(pr)>>1);
      m.add((pr-2048)>>3);
+  pr=apm[8].p(pr, hash(rs,rs1,abs(lcp[0])/22,abs(lcp[1])/22,hbcount)&0x1FFFF,y, 1023);
+     m.add(stretch(pr)>>1);
+     m.add((pr-2048)>>3);   
+
   m.set( 1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4, 9 );
   m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025 );
   m.set( coef+256*min(3,huffbits/2), 1024 );
   m.set((hc)&511, 512 );
 
-  m.set( (((abs(adv_pred[1]) / 16) & 63U)<<6) |(x.Misses&0x38)|((lma)!=0)*4|(comp == 0)*2 |(min(3,ilog2(zu+zv))>1), 4096 );
+  m.set( (((abs(adv_pred[1]) / 16) )<<6) |(x.Misses&0x38)|((lma)!=0)*4|(comp == 0)*2 |(min(3,ilog2(zu+zv))>1), 4096 );
   int colCtx1=(width>64)?(min(63, column/max(1, width/64))):column;
   m.set(colCtx1, 64);
 
+  m.set(( (((abs(lcp[2]) / 16 )&15)<<8)| (((abs(lcp[1]) / 16 )&15)<<4) | (abs(lcp[0]) / 16)&15  ) , 4096 );
+  m.set(( (((abs(adv_pred[1]) / 16) )<<6) |  (((abs(adv_pred[0]) / 16) )<<2) | min(3,huffbits)),1024);
   return 1;
   }
   virtual ~jpegModelx(){
@@ -13463,7 +13522,6 @@ void update()  {
         m->reset(); 
         return;
     } 
-    if (x.bpos==0)x.count++;
     if (models[M_JPEG]->p(*m)) {
         if (slow==true) models[M_NORMAL]->p(*m);
         pr=m->p(1,0);
@@ -20182,9 +20240,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==DECA) decode_dec(en, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
-        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) decode_txt(en, (tmpsize), in, FCOMPARE, diffFound);
+        else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) decode_txt(en, (tmpsize), in, FCOMPARE, diffFound);
         else if ((type==WIT) ) decode_txt_wit(tmp, (tmpsize), in, FCOMPARE, diffFound,winfo);
-      //  else if ((type==TXTUTF8 ) ) tmp->setend();
+        else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
         else if (type==EOLTEXT ) ts=decode_txtd(tmp, int(tmpsize), in, FCOMPARE, diffFound)!=len?1:0;  
         if (type==EOLTEXT && (diffFound || ts)) {
             // if fail fall back to text
