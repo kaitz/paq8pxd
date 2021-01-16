@@ -1,3 +1,7 @@
+v96
+    -add some context from paq8pxd_v200 sparse model
+    -adjust DEC Alpha predictor/model
+    -do BZip2 recompression
 v95
     -jpeg model: 
          -more context in Map1  (20)

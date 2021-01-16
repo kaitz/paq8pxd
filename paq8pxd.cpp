@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd95"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd96"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1276,13 +1276,13 @@ const int streamc=13;
 File * filestreams[streamc];
 typedef enum {STR_NONE=-1,STR_DEFAULT=0,STR_JPEG, STR_IMAGE1, STR_IMAGE4, STR_IMAGE8, STR_IMAGE24, STR_AUDIO, STR_EXE, STR_TEXT0,STR_TEXT,STR_BIGTEXT,STR_DECA,STR_CMP} Streamtype;
               
-const int datatypecount=43+1;
+const int datatypecount=45;
 typedef enum {DEFAULT=0,BINTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
-              CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,
+              CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,BZIP2,
               ZLIB,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,PNG24, PNG32,WIT,TYPELAST} Filetype;
 typedef enum {INFO=0, STREAM,RECURSIVE} Filetypes;
 const char* typenames[datatypecount]={"default","bintext","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
-                                "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","zlib","mdf","mszip","eoltxt",
+                                "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","bzip2","zlib","mdf","mszip","eoltxt",
                                 "","","","tar","PNG8","PNG8G","PNG24","PNG32","WIT"};
 static const int typet[TYPELAST][3]={
  // info, stream, recursive
@@ -1317,6 +1317,7 @@ static const int typet[TYPELAST][3]={
   { 0, STR_NONE,    0},// MRBR4,
   { 0, STR_NONE,    0},// RLE,
   { 0, STR_NONE,    0},// LZW,
+  { 1, STR_NONE,    1},// BZIP2,
   { 1, STR_NONE,    1},// ZLIB, 
   { 0, STR_NONE,    1},// MDF, 
   { 0, STR_CMP,     0},// MSZIP,   
@@ -2075,7 +2076,7 @@ void train(short *t, short *w, int n, int err) {
   }
   void update2() {
       if (nx==0) {reset();return;}
-      if (x.filetype==EXE /*|| x.filetype==IMAGE24*/ || x.filetype==DECA)update1();
+      if (x.filetype==EXE /*|| x.filetype==IMAGE24 || x.filetype==DECA*/)update1();
     else             update();
   }
   // Input x (call up to N times)
@@ -2681,7 +2682,7 @@ public:
     B+=(m.x.y && B>0);
     cp=&Data[Context+B];
     const U8 state = *cp;
-    const int p1 = Map.p(state,m.x.y, Limit);
+    const int p1 = Map.p1(state,m.x.y, Limit);
     m.add((stretch(p1)*scale  )>> 8U);
     m.add(((p1-2048)*scale  )>> 9U);
     bCount++; B+=B+1;
@@ -7357,16 +7358,25 @@ class sparseModely: public Model {
   Buf& buf;
   U32 N;
   ContextMap cm;
-  
+  U32 ctx;
 public:
-  sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(40),cm(CMlimit(MEM()*2), N,M_SPARSE_Y) {
+  sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(40+2),cm(CMlimit(MEM()*2), N,M_SPARSE_Y),ctx(0) {
   }
   int inputs() {return N*cm.inputs();}
-  int nets() {return 0;}
-  int netcount() {return 0;}
+  int nets() {return 4 * 256;}
+  int netcount() {return 1;}
   int p(Mixer& m,int seenbefore,int howmany){//match order
   int j=0;
   if (x.bpos==0) {
+    //context for 4-byte structures and 
+    //positions of zeroes in the last 16 bytes
+    ctx <<= 1;
+    ctx |= (x.c4 & 0xff) == x.buf(5); //column matches in a 4-byte fixed structure
+    ctx <<= 1;
+    ctx |= (x.c4 & 0xff) == 0; //zeroes
+    cm.set(hash(j++, ctx)); // calgary/obj2, calgary/pic, cantenbury/kennedy.xls, cantenbury/sum, etc.
+    //special model for some 4-byte fixed length structures
+    cm.set(hash(j++, x.c4 & 0xffe00000 | (ctx&0xff))); 
     cm.set(hash(j++,seenbefore));
     cm.set(hash(j++,howmany==-1?0:howmany));
     cm.set(hash(j++,buf(1)|buf(5)<<8));
@@ -7398,6 +7408,7 @@ public:
   }
   if (howmany==-1) return 1;
   cm.mix(m);
+   m.set((x.blpos & 3)<<8 | (ctx&0xff), 4 * 256);
   return 0;
 }
 virtual ~sparseModely(){ }
@@ -12819,7 +12830,7 @@ int p(Mixer& m,int val1=0,int val2=0){
       }
     }    
    
-    maps0[state].mix(m);
+    maps0[state].mix1(m);
     for (std::uint32_t i = 0u; i < nMaps - 1u; i++) {
       if (((maps_mask[i] >> state) & 1u) != 0u)
         maps[i][map_state(i, state)].mix1(m);
@@ -13346,13 +13357,13 @@ PredictorDEC::PredictorDEC(): pr(16384),pr0(pr),order(0),ismatch(0),
   models[M_EXE] = new blankModel1(x);
   models[M_INDIRECT] = new indirectModel1(x);
   models[M_DMC] = new dmcModel1(x);
-  models[M_NEST] = new blankModel1(x);
+  models[M_NEST] = new nestModel1(x);
   models[M_NORMAL] = new normalModel1(x);
   models[M_IM1] = new blankModel1(x);
   models[M_XML] = new blankModel1(x);
   models[M_IM4] = new blankModel1(x);
-  models[M_TEXT] = new blankModel1(x);
-  models[M_WORD] = new blankModel1(x);
+models[M_TEXT] = new TextModel(x,16);
+  models[M_WORD] = new wordModel1(x);
   models[M_DEC] = new decModel1(x);
   models[M_LINEAR] = new blankModel1(x);
   models[M_SPARSEMATCH] = new SparseMatchModel(x);
@@ -13378,7 +13389,7 @@ PredictorDEC::PredictorDEC(): pr(16384),pr0(pr),order(0),ismatch(0),
    mixerNetsCount+=7;
    sse.p(pr);
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,7,1);
+   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2);
 }
 
 void PredictorDEC::update()  {
@@ -13410,6 +13421,8 @@ void PredictorDEC::update()  {
     order=models[M_NORMAL]->p(*m);
     order=order-2; if(order<0) order=0;if(order>7) order=7;
     models[M_RECORD]->p(*m,4 );
+    models[M_TEXT]->p(*m );
+  models[M_WORD]->p(*m );models[M_NEST]->p(*m );
     models[M_SPARSE_Y]->p(*m,ismatch,order);
     models[M_DISTANCE]->p(*m);
     models[M_INDIRECT]->p(*m);
@@ -13430,7 +13443,7 @@ void PredictorDEC::update()  {
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     m->set(c, 1536);
-    pr0=m->p(); //0,1
+    pr0=m->p(0,1); //0,1
     int const limit = 0x3FFu >> ((x.blpos < 0xFFFu) * 4);
     pr = DEC.APMs[0].p(pr0, (x.DEC.state * 26u) + x.DEC.bcount, x.y,limit);
     pr = (pr * 4 + pr0 * 2 + 3) / 6;
@@ -13986,7 +13999,6 @@ void update()  {
 }
 };
 
- 
 //TEXT predicor class
 class PredictorTXTWRT: public Predictors {
 
@@ -14006,7 +14018,6 @@ class PredictorTXTWRT: public Predictors {
    StateMap StateMaps[1];
    wrtDecoder wr;
   eSSE sse;
-   
 public:
   PredictorTXTWRT();
   int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
@@ -15218,6 +15229,79 @@ void printStatus1(U64 n, U64 size) {
 fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
+#include "bzlib.h"
+#define BZ2BLOCK 100*1024*100
+
+int bzip2compress(File* im, File* out,int level, int size) {
+  bz_stream stream;
+  Array<char> bzin(BZ2BLOCK);
+  Array<char> bzout(BZ2BLOCK);
+  stream.bzalloc=NULL;
+  stream.bzfree=NULL;
+  stream.opaque=NULL;
+  stream.next_in=NULL;
+  stream.avail_in=0U;
+  stream.avail_out=0U;
+  int p=0,usize=size,part,ret,status;
+  ret=BZ2_bzCompressInit(&stream, level, 0, 0);
+  if (ret!=BZ_OK) return ret;  
+  do {
+    stream.avail_in =im->blockread((U8*) &bzin[0], min(BZ2BLOCK,usize));
+    status = usize<BZ2BLOCK?BZ_FINISH:BZ_RUN;
+    usize=usize-stream.avail_in;
+    stream.next_in=(char*) &bzin[0] ;
+    do {
+      stream.avail_out=BZ2BLOCK;
+      stream.next_out=(char*)&bzout[0] ;
+      ret=BZ2_bzCompress(&stream, status);
+      part=BZ2BLOCK-stream.avail_out;
+      if (part>0) p+=part,out->blockwrite((U8*) &bzout[0],part);
+    } while (stream.avail_in != 0);
+
+  }  while (status!=BZ_FINISH);
+  (void)BZ2_bzCompressEnd(&stream);
+  return p;
+}
+int bzip2decompress(File* in, File* out, int compression_level, int& csize) {
+  bz_stream stream;
+  Array<char> bzin(BZ2BLOCK);
+  Array<char> bzout(BZ2BLOCK);
+  stream.bzalloc=NULL;
+  stream.bzfree=NULL;
+  stream.opaque=NULL;
+  stream.avail_in=0;
+  stream.next_in=NULL;
+  int dsize=0;
+  int inbytes,part,ret;
+  int blockz=csize?csize:BZ2BLOCK;
+  csize = 0;
+  ret = BZ2_bzDecompressInit(&stream, 0, 0);
+  if (ret!=BZ_OK) return ret;
+  do {
+    stream.avail_in=in->blockread((U8*) &bzin[0], min(BZ2BLOCK,blockz));
+    inbytes=stream.avail_in;
+    if (stream.avail_in==0) break;
+    stream.next_in=(char*)&bzin[0];
+    do {
+      stream.avail_out=BZ2BLOCK;
+      stream.next_out=(char*)&bzout[0];
+      ret=BZ2_bzDecompress(&stream);
+      if ((ret!=BZ_OK) && (ret!=BZ_STREAM_END)) {
+        (void)BZ2_bzDecompressEnd(&stream);
+        return ret;
+      }
+      csize+=(inbytes-stream.avail_in);
+      inbytes=stream.avail_in;
+      part=BZ2BLOCK-stream.avail_out;
+      out->blockwrite((U8*) &bzout[0], part);
+      dsize+=part;
+
+    } while (stream.avail_out == 0);
+  } while (ret != BZ_STREAM_END);
+  (void)BZ2_bzDecompressEnd(&stream);
+  if (ret == BZ_STREAM_END) return dsize; else return 0;
+}
+
 Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,int s1=0) {
   U32 buf4=0,buf3=0, buf2=0, buf1=0, buf0=0;  // last 8 bytes
   static U64 start=0;
@@ -15310,6 +15394,11 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   int pdfi_ptr=0,pdfin=0;
   U64 pLzwp=0;
   int pLzw=0;
+  //BZip2
+  U64 BZip2=0;
+  bz_stream stream;
+  char bzin[512],bzout[512];
+  static int bzlevel=0;
    // For image detection
   static Array<U32> tfidf(0);
   static int tiffImages=-1;
@@ -15365,7 +15454,68 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
        if(tiffImageEnd>>1==tiffImages) tiffImages=-1,tiffImageEnd=0;
        }
     }  
-     // detect PNG images
+    // BZhx = 0x425A68xx header, xx = level '1'-'9'
+    if ((buf0&0xffffff00)==0x425A6800 && type!=BZIP2){
+        bzlevel=c-'0';
+        if ((bzlevel>=1) && (bzlevel<=9)) {
+            BZip2=i;
+            U64 savepos=0;
+            stream.bzalloc=NULL;
+            stream.bzfree=NULL;
+            stream.opaque=NULL;
+            stream.avail_in=0;
+            stream.next_in=NULL;
+            int ret=BZ2_bzDecompressInit(&stream, 0, 0);
+            if (ret==BZ_OK){
+                savepos=in->curpos();
+                in->setpos(savepos-4);
+                stream.avail_in = in->blockread((U8*) &bzin, 512  );
+                stream.next_in = (char*)&bzin;
+                stream.avail_out=512;
+                stream.next_out = (char*)&bzout;
+                ret = BZ2_bzDecompress(&stream);
+                if ((ret==BZ_OK) || (ret==BZ_STREAM_END)) {
+                    in->setpos(savepos);
+                   (void)BZ2_bzDecompressEnd(&stream);
+                   return in->setpos(start+BZip2-3),BZIP2;
+                }
+            }
+            in->setpos(savepos);
+            BZip2=bzlevel=0;
+        }
+    }
+    if (type==BZIP2){
+        int csize=0;
+        FileTmp outf, reout; 
+        U64 savepos=in->curpos();
+        info=bzlevel;
+        in->setpos(savepos-1);
+        int dsize=bzip2decompress(in,&outf, bzlevel, csize);
+        if (dsize>0){
+            in->setpos(savepos);
+            U64 diffFound=0;
+            outf.setpos(0);
+            csize=bzip2compress(&outf, &reout, bzlevel, dsize);
+            in->setpos(savepos-1);
+            outf.setpos(0);reout.setpos(0);
+            for (int i=0; i<csize; i++){
+                if (in->getc()!=reout.getc()){
+                   diffFound=i;
+                   break;
+                }
+            }
+            outf.close();
+            reout.close();
+            if (diffFound==0){
+                return in->setpos(start+csize),DEFAULT;
+            }
+        }
+        in->setpos(savepos);        
+        type=DEFAULT;
+        BZip2=bzlevel=0;
+    }
+    
+    // detect PNG images
     if (!png && buf3==0x89504E47 && buf2==0x0D0A1A0A && buf1==0x0000000D && buf0==0x49484452) png=i, pngtype=-1, lastchunk=buf3;//%PNG
     if (png){
       const int p=i-png;
@@ -17160,6 +17310,21 @@ U64 decode_exe(Encoder& en, int size, File*out, FMode mode, U64 &diffFound, int 
   return size;
 }
 
+int encode_bzip2(File* in, File* out, int len,int level) {
+    int compressed_stream_size=len;
+    return bzip2decompress(in,out, level, compressed_stream_size);;
+}
+
+int decode_bzip2(File* in, int size, File*out, FMode mode, U64 &diffFound,int info) {
+    FileTmp o;
+    int filelen=0;
+    if (mode==FCOMPARE)   filelen=bzip2compress(in, &o, info, size);
+    else                  filelen=bzip2compress(in, out, info, size);
+    if (mode==FCOMPARE) for (int j=0; j<filelen; j++){
+       U8 b=out->getc();
+    }
+    return filelen;
+}
 MTFList  MTF(81);
 
 #define ZLIB_NUM_COMBINATIONS 81
@@ -20169,7 +20334,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U
 
 void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
     if (type==EXE || type==DECA || type==ARM || type==CD|| type==MDF || type==IMAGE24 || type==IMAGE32  ||type==MRBR ||type==MRBR4||type==RLE || type==LZW||type==EOLTEXT||
-     (type==TEXT || type==TXTUTF8|| type==TEXT0 ) || type==WIT|| type==BASE64 || type==BASE85 || type==UUENC||type==SZDD|| type==ZLIB|| type==GIF) {
+     (type==TEXT || type==TXTUTF8|| type==TEXT0 ) || type==WIT|| type==BASE64 || type==BASE85 || type==UUENC||type==SZDD|| type==ZLIB|| type==GIF|| type==BZIP2) {
         U64 diffFound=0;
         U32 winfo=0;
         FileTmp* tmp;
@@ -20213,6 +20378,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==BASE85) encode_ascii85(in, tmp, int(len));
         else if (type==SZDD) encode_szdd(in, tmp, info);
         else if (type==ZLIB) diffFound=encode_zlib(in, tmp, int(len))?0:1;
+        else if (type==BZIP2) encode_bzip2(in, tmp, int(len),info);
         else if (type==CD) encode_cd(in, tmp, int(len), info);
         else if (type==MDF) encode_mdf(in, tmp, int(len));
         else if (type==GIF) diffFound=encode_gif(in, tmp, int(len))?0:1;
@@ -20222,18 +20388,18 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             diffFound=0, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),encode_txt(in, tmp, int(len),info&1); 
         }
         const U64 tmpsize= tmp->curpos();
-        
         int tfail=0;
         tmp->setpos(0);
         en.setFile(tmp);
         
-        if (type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
+        if (type==BZIP2 || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
         int ts=0;
          in->setpos(begin);
         if (type==BASE64 ) decode_base64(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==UUENC ) decode_uud(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==BASE85 ) decode_ascii85(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ZLIB && !diffFound) decode_zlib(tmp, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==BZIP2  )             decode_bzip2(tmp, int(tmpsize), in, FCOMPARE, diffFound,info);
         else if (type==GIF && !diffFound) decode_gif(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==MRBR || type==MRBR4) decode_mrb(tmp, int(tmpsize), info, in, FCOMPARE, diffFound);
         else if (type==RLE)                 decode_rle(tmp, tmpsize, in, FCOMPARE, diffFound);
@@ -20255,7 +20421,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             printf(" Transform fails at %0lu, skipping...\n", diffFound-1);
              in->setpos(begin);
              Filetype type2;
-             if (type==ZLIB)  type2=CMP; else type2=DEFAULT;
+             if (type==ZLIB || (type==BZIP2))  type2=CMP; else type2=DEFAULT;
               
             direct_encode_blockstream(type2, in, len, en, s1, s2);
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
@@ -20352,7 +20518,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             } else if (typet[type][RECURSIVE]) {
                 segment.put1(type);
                 segment.put8(tmpsize);
-                if (type==SZDD ||  type==ZLIB /*|| type==WIT*/) segment.put4(info);else //segment.put4(0);
+                if (type==SZDD ||  type==ZLIB  || type==BZIP2) segment.put4(info);else //segment.put4(0);
                 if (type==WIT) segment.put4(winfo);else segment.put4(0); // store tail size
                 if (type==ZLIB) {// PDF or PNG image && info
                     Filetype type2 =(Filetype)(info>>24);
@@ -20394,7 +20560,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             in->setpos(savedpos);
             if (tarend((char*)&tarh)) {
                 tarn=512+pad;
-                printf(" %-11s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[HDR],tarn,savedpos,savedpos+tarn-1);
+                printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[HDR],tarn,savedpos,savedpos+tarn-1);
                 typenamess[HDR][it+1]+=tarn,  typenamesc[HDR][it+1]++; 
                 direct_encode_blockstream(HDR, in, tarn, en,0,0);
                }
@@ -20409,7 +20575,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 sprintf(blstr,"%s%d",b2,blnum++);
                 int tarover=512+pad;
                 //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                printf(" %-11s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]\n",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
+                printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]\n",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
                 typenamess[HDR][it+1]+=tarover,  typenamesc[HDR][it+1]++; 
                 if (it==itcount)    itcount=it+1;
                 direct_encode_blockstream(HDR, in, tarover, en,0,0);
@@ -20528,7 +20694,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
       //s2-=len;
       sprintf(blstr,"%s%d",b2,blnum++);
       // printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
-      printf(" %-11s |",blstr);
+      printf(" %-16s |",blstr);
 #if defined(WINDOWS)      
       HANDLE  hConsole;
       hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -20599,7 +20765,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) len=decode_txt(en, (len), out, mode, diffFound);
         //else if (type==EOLTEXT) len=decode_txtd(en, int(len), out, mode, diffFound);
-        else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
+        else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==BZIP2 || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
             FileTmp tmp;
             decompressStreamRecursive(&tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
             if (mode!=FDISCARD) {
@@ -20609,6 +20775,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                 else if (type==BASE85) len=decode_ascii85(&tmp, int(len), out, mode, diffFound);
                 else if (type==SZDD)   len=decode_szdd(&tmp,info,info ,out, mode, diffFound);
                 else if (type==ZLIB)   len=decode_zlib(&tmp,int(len),out, mode, diffFound);
+                else if (type==BZIP2)  len=decode_bzip2(&tmp,int(len),out, mode, diffFound,info);
                 else if (type==CD)     len=decode_cd(&tmp, int(len), out, mode, diffFound);
                 else if (type==MDF)    len=decode_mdf(&tmp, int(len), out, mode, diffFound);
                 else if (type==GIF)    len=decode_gif(&tmp, int(len), out, mode, diffFound);
