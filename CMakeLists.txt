@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(paq8pxd)
 
 find_package(ZLIB)
+find_package(BZip2)
 
 option(UNIX "Whether to build for Unix. Otherwise, build for Windows" OFF)
 option(NATIVECPU "Whether to build for your cpu (vs. the general public)" OFF)
@@ -35,4 +36,4 @@ set(CMAKE_CXX_FLAGS "-O3 -floop-strip-mine -funroll-loops -ftree-vectorize -fgcs
 
 add_executable(paq8pxd paq8pxd.cpp)
 
-target_link_libraries(paq8pxd ${ZLIB_LIBRARIES})
+target_link_libraries(paq8pxd ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES})
