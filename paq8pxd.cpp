@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd97"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd98"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -15232,7 +15232,7 @@ fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 #include "bzlib.h"
 #define BZ2BLOCK 100*1024*100
 
-int bzip2compress(File* im, File* out,int level, int size) {
+U64 bzip2compress(File* im, File* out,int level, U64 size) {
   bz_stream stream;
   Array<char> bzin(BZ2BLOCK);
   Array<char> bzout(BZ2BLOCK);
@@ -15242,7 +15242,8 @@ int bzip2compress(File* im, File* out,int level, int size) {
   stream.next_in=NULL;
   stream.avail_in=0U;
   stream.avail_out=0U;
-  int p=0,usize=size,part,ret,status;
+  U64 p=0,usize=size;
+  int part,ret,status;
   ret=BZ2_bzCompressInit(&stream, level, 0, 0);
   if (ret!=BZ_OK) return ret;  
   do {
@@ -15262,7 +15263,7 @@ int bzip2compress(File* im, File* out,int level, int size) {
   (void)BZ2_bzCompressEnd(&stream);
   return p;
 }
-int bzip2decompress(File* in, File* out, int compression_level, int& csize) {
+U64 bzip2decompress(File* in, File* out, int compression_level, U64& csize, bool save=true) {
   bz_stream stream;
   Array<char> bzin(BZ2BLOCK);
   Array<char> bzout(BZ2BLOCK);
@@ -15271,7 +15272,7 @@ int bzip2decompress(File* in, File* out, int compression_level, int& csize) {
   stream.opaque=NULL;
   stream.avail_in=0;
   stream.next_in=NULL;
-  int dsize=0;
+  U64 dsize=0;
   int inbytes,part,ret;
   int blockz=csize?csize:BZ2BLOCK;
   csize = 0;
@@ -15293,7 +15294,7 @@ int bzip2decompress(File* in, File* out, int compression_level, int& csize) {
       csize+=(inbytes-stream.avail_in);
       inbytes=stream.avail_in;
       part=BZ2BLOCK-stream.avail_out;
-      out->blockwrite((U8*) &bzout[0], part);
+      if (save==true)out->blockwrite((U8*) &bzout[0], part);
       dsize+=part;
 
     } while (stream.avail_out == 0);
@@ -15315,8 +15316,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   U64 e8e9pos=0;    // offset of first CALL or JMP instruction
   U64 e8e9last=0;   // offset of most recent CALL or JMP
   // For ARM detection
-  Array<U64> absposARM(0xff+1),  // CALL/JMP abs. addr. low byte -> last offset
-    relposARM(0xff+1);    // CALL/JMP relative addr. low byte -> last offset
+  Array<U64> absposARM(256),  // CALL/JMP abs. addr. low byte -> last offset
+    relposARM(256);    // CALL/JMP relative addr. low byte -> last offset
   int ARMcount=0;  // number of consecutive CALL/JMPs
   U64 ARMpos=0;    // offset of first CALL or JMP instruction
   U64 ARMlast=0;   // offset of most recent CALL or JMP
@@ -15469,7 +15470,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
             if (ret==BZ_OK){
                 savepos=in->curpos();
                 in->setpos(savepos-4);
-                stream.avail_in = in->blockread((U8*) &bzin, 512  );
+                stream.avail_in = in->blockread((U8*) &bzin, 512);
                 stream.next_in = (char*)&bzin;
                 stream.avail_out=512;
                 stream.next_out = (char*)&bzout;
@@ -15485,30 +15486,16 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         }
     }
     if (type==BZIP2){
-        int csize=0;
-        FileTmp outf, reout; 
+        U64 csize=0;
+        FileTmp outf;
         U64 savepos=in->curpos();
         info=bzlevel;
         in->setpos(savepos-1);
-        int dsize=bzip2decompress(in,&outf, bzlevel, csize);
+        U64 dsize=bzip2decompress(in,&outf, bzlevel, csize, false); // decompress only (false)
         if (dsize>0){
             in->setpos(savepos);
-            U64 diffFound=0;
-            outf.setpos(0);
-            csize=bzip2compress(&outf, &reout, bzlevel, dsize);
-            in->setpos(savepos-1);
-            outf.setpos(0);reout.setpos(0);
-            for (int i=0; i<csize; i++){
-                if (in->getc()!=reout.getc()){
-                   diffFound=i;
-                   break;
-                }
-            }
             outf.close();
-            reout.close();
-            if (diffFound==0){
-                return in->setpos(start+csize),DEFAULT;
-            }
+            return in->setpos(start+csize),DEFAULT;
         }
         in->setpos(savepos);        
         type=DEFAULT;
@@ -17310,18 +17297,25 @@ U64 decode_exe(Encoder& en, int size, File*out, FMode mode, U64 &diffFound, int 
   return size;
 }
 
-int encode_bzip2(File* in, File* out, int len,int level) {
-    int compressed_stream_size=len;
+U64 encode_bzip2(File* in, File* out, U64 len,int level) {
+    U64 compressed_stream_size=len;
     return bzip2decompress(in,out, level, compressed_stream_size);;
 }
 
-int decode_bzip2(File* in, int size, File*out, FMode mode, U64 &diffFound,int info) {
-    FileTmp o;
+U64 decode_bzip2(File* in, U64 size, File*out, FMode mode, U64 &diffFound,int info) {
     int filelen=0;
-    if (mode==FCOMPARE)   filelen=bzip2compress(in, &o, info, size);
-    else                  filelen=bzip2compress(in, out, info, size);
-    if (mode==FCOMPARE) for (int j=0; j<filelen; j++){
-       U8 b=out->getc();
+    if (mode==FDECOMPRESS){
+            filelen=bzip2compress(in, out, info, size);
+        }
+    else if (mode==FCOMPARE){
+        FileTmp o;
+        filelen=bzip2compress(in, &o, info, size);
+        o.setpos(0);
+        for(int i=0;i<filelen;i++){
+            U8 b=o.getc();
+            if (b!=out->getc() && !diffFound) diffFound= out->curpos();
+        }
+        o.close();
     }
     return filelen;
 }
@@ -20378,7 +20372,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==BASE85) encode_ascii85(in, tmp, int(len));
         else if (type==SZDD) encode_szdd(in, tmp, info);
         else if (type==ZLIB) diffFound=encode_zlib(in, tmp, int(len))?0:1;
-        else if (type==BZIP2) encode_bzip2(in, tmp, int(len),info);
+        else if (type==BZIP2) encode_bzip2(in, tmp, len,info);
         else if (type==CD) encode_cd(in, tmp, int(len), info);
         else if (type==MDF) encode_mdf(in, tmp, int(len));
         else if (type==GIF) diffFound=encode_gif(in, tmp, int(len))?0:1;
@@ -20399,7 +20393,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==UUENC ) decode_uud(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==BASE85 ) decode_ascii85(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ZLIB && !diffFound) decode_zlib(tmp, int(tmpsize), in, FCOMPARE, diffFound);
-        else if (type==BZIP2  )             decode_bzip2(tmp, int(tmpsize), in, FCOMPARE, diffFound,info);
+        else if (type==BZIP2  )             decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info);
         else if (type==GIF && !diffFound) decode_gif(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==MRBR || type==MRBR4) decode_mrb(tmp, int(tmpsize), info, in, FCOMPARE, diffFound);
         else if (type==RLE)                 decode_rle(tmp, tmpsize, in, FCOMPARE, diffFound);
@@ -20518,8 +20512,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             } else if (typet[type][RECURSIVE]) {
                 segment.put1(type);
                 segment.put8(tmpsize);
-                if (type==SZDD ||  type==ZLIB  || type==BZIP2) segment.put4(info);else //segment.put4(0);
-                if (type==WIT) segment.put4(winfo);else segment.put4(0); // store tail size
+                if (type==SZDD ||  type==ZLIB  || type==BZIP2) segment.put4(info);
+                else if (type==WIT) segment.put4(winfo);
+                else segment.put4(0);
                 if (type==ZLIB) {// PDF or PNG image && info
                     Filetype type2 =(Filetype)(info>>24);
                     if (it==itcount)    itcount=it+1;
@@ -20546,7 +20541,6 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
 #define tarpad  //remove for filesize padding \0 and add to default stream as hdr        
         //do tar recursion, no transform
         if (type==TAR){
-        //printf(  "\n");
         int tarl=int(len),tarn=0,blnum=0,pad=0;;
         TARheader tarh;
         char b2[32];
@@ -20575,7 +20569,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 sprintf(blstr,"%s%d",b2,blnum++);
                 int tarover=512+pad;
                 //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]\n",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1);
+                printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[HDR],tarover,savedpos,savedpos+tarover-1,tarh.name);
                 typenamess[HDR][it+1]+=tarover,  typenamesc[HDR][it+1]++; 
                 if (it==itcount)    itcount=it+1;
                 direct_encode_blockstream(HDR, in, tarover, en,0,0);
@@ -20596,7 +20590,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
              }
              printf("\n");
         }else {
-            const int i1=(typet[type][INFO])?info:-1;/*type==IMAGE1 || type==IMAGE8 || type==IMAGE4  ||type==PNG8|| type==PNG8GRAY|| type==PNG24 || type==PNG32|| type==IMAGE8GRAY || type==AUDIO || type==DBASE ||type==IMGUNK*/
+            const int i1=(typet[type][INFO])?info:-1;
             direct_encode_blockstream(type, in, len, en, s1, s2, i1);
         }
     }
@@ -20683,7 +20677,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
       len=U64(end-begin);
     if (begin>end) len=0;
     if (len>=2147483646) {  
-      if (!(type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0 ||type==EOLTEXT))len=2147483646,type=DEFAULT; // force to int
+      if (!(type==BZIP2||type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0 ||type==EOLTEXT))len=2147483646,type=DEFAULT; // force to int
     }
    }
     if (len>0) {

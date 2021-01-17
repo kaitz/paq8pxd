@@ -1,3 +1,6 @@
+v98
+    -change BZip2 detection, test transform correctly
+    -if in tar output filename
 v97
     -fix tar detection (BZip2 to agressive)
 v96
