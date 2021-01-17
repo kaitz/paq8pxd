@@ -1,3 +1,5 @@
+v97
+    -fix tar detection (BZip2 to agressive)
 v96
     -add some context from paq8pxd_v200 sparse model
     -adjust DEC Alpha predictor/model

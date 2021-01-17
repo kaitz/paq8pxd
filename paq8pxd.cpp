@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd96"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd97"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -15455,7 +15455,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
        }
     }  
     // BZhx = 0x425A68xx header, xx = level '1'-'9'
-    if ((buf0&0xffffff00)==0x425A6800 && type!=BZIP2){
+    if ((buf0&0xffffff00)==0x425A6800 && type!=BZIP2 && tarl==0){
         bzlevel=c-'0';
         if ((bzlevel>=1) && (bzlevel<=9)) {
             BZip2=i;
