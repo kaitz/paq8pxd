@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd98"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd99"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1236,6 +1236,11 @@ public:
     if (pos>=b.size()) setsize(pos+1);
     b[pos++]=num;
   }
+  void putdata(U8 a, U64 b, U32 c){
+      put1(a);
+      put8(b);
+      put4(c);
+  }
   int size() const {
     return b.size();
   }
@@ -1275,62 +1280,64 @@ Segment segment; //for file segments type size info(if not -1)
 const int streamc=13;
 File * filestreams[streamc];
 typedef enum {STR_NONE=-1,STR_DEFAULT=0,STR_JPEG, STR_IMAGE1, STR_IMAGE4, STR_IMAGE8, STR_IMAGE24, STR_AUDIO, STR_EXE, STR_TEXT0,STR_TEXT,STR_BIGTEXT,STR_DECA,STR_CMP} Streamtype;
+typedef enum {TR_NONE=0,TR_INFO=1,TR_RECURSIVE=2,TR_TRANSFORM=4, TR_FORWARD=8, TR_REVERSE=16} Streamtypeinfo;
               
-const int datatypecount=45;
-typedef enum {DEFAULT=0,BINTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
+const int datatypecount=46;
+typedef enum {DEFAULT=0,BINTEXT,ISOTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,BZIP2,
               ZLIB,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,PNG24, PNG32,WIT,TYPELAST} Filetype;
-typedef enum {INFO=0, STREAM,RECURSIVE} Filetypes;
-const char* typenames[datatypecount]={"default","bintext","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
+typedef enum {STREAM=0,HASINFO=1} Filetypes;
+const char* typenames[datatypecount]={"default","bintext","ISO text","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
                                 "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","bzip2","zlib","mdf","mszip","eoltxt",
                                 "","","","tar","PNG8","PNG8G","PNG24","PNG32","WIT"};
-static const int typet[TYPELAST][3]={
- // info, stream, recursive
-  { 0, STR_DEFAULT, 0},// DEFAULT, 
-  { 1, STR_DEFAULT, 0},// BINTEXT, 
-  { 1, STR_DEFAULT, 0},// DBASE, 
-  { 0, STR_JPEG,    0},// JPEG,
-  { 0, STR_DEFAULT, 0},// HDR,  
-  { 0, STR_CMP,     0},// CMP, compressed data
-  { 1, STR_DEFAULT, 0},// IMGUNK
-  { 1, STR_IMAGE1,  0},// IMAGE1,  
-  { 1, STR_IMAGE4,  0},// IMAGE4, 
-  { 1, STR_IMAGE8,  0},// IMAGE8,    
-  { 1, STR_IMAGE8,  0},// IMAGE8GRAY,
-  { 1, STR_IMAGE24, 0},// IMAGE24,
-  { 1, STR_IMAGE24, 0},// IMAGE32,
-  { 1, STR_AUDIO,   0},// AUDIO, 
-  { 0, STR_EXE,     0},// EXE,
-  { 0, STR_DECA,    0},// DECA, 
-  { 0, STR_DEFAULT, 0},// ARM, 
-  { 0, STR_NONE,    1},//  CD,
-  { 0, STR_TEXT,    0},// TEXT,  
-  { 0, STR_TEXT0,   0},// TEXT0,
-  { 0, STR_TEXT,    0},// TXTUTF8,  
-  { 0, STR_DEFAULT, 0},// NESROM,  
-  { 0, STR_NONE,    1},// BASE64, 
-  { 0, STR_NONE,    1},// BASE85,   
-  { 0, STR_NONE,    1},// UUENC, 
-  { 0, STR_NONE,    0},// GIF,    
-  { 1, STR_NONE,    1},// SZDD,  
-  { 0, STR_NONE,    0},// MRBR, 
-  { 0, STR_NONE,    0},// MRBR4,
-  { 0, STR_NONE,    0},// RLE,
-  { 0, STR_NONE,    0},// LZW,
-  { 1, STR_NONE,    1},// BZIP2,
-  { 1, STR_NONE,    1},// ZLIB, 
-  { 0, STR_NONE,    1},// MDF, 
-  { 0, STR_CMP,     0},// MSZIP,   
-  { 0, STR_NONE,    1},// EOLTEXT,
-  { 0, STR_TEXT,    0},// DICTTXT,
-  { 0, STR_BIGTEXT, 0},// BIGTEXT,
-  { 0, STR_BIGTEXT, 0},// NOWRT, 
-  { 0, STR_NONE,    0},// TAR,  
-  { 1, STR_IMAGE8,  0},// PNG8,
-  { 1, STR_IMAGE8,  0},// PNG8GRAY,
-  { 1, STR_IMAGE24, 0},// PNG24,
-  { 1, STR_IMAGE24, 0},// PNG32,
-  { 1, STR_NONE,    1}// WIT, 
+static const int typet[TYPELAST][2]={
+// info,    stream, recursive, transform
+  { STR_DEFAULT,         TR_NONE},// DEFAULT, 
+  { STR_DEFAULT,         TR_INFO},// BINTEXT, 
+  { STR_TEXT,            TR_NONE|TR_TRANSFORM},// BINTEXT,
+  { STR_DEFAULT,         TR_INFO},// DBASE, 
+  { STR_JPEG,            TR_NONE},// JPEG,
+  { STR_DEFAULT,         TR_NONE},// HDR,  
+  { STR_CMP,             TR_NONE},// CMP, compressed data
+  { STR_DEFAULT,         TR_INFO},// IMGUNK
+  { STR_IMAGE1,          TR_INFO},// IMAGE1,  
+  { STR_IMAGE4,          TR_INFO},// IMAGE4, 
+  { STR_IMAGE8,          TR_INFO},// IMAGE8,    
+  { STR_IMAGE8,          TR_INFO},// IMAGE8GRAY,
+  { STR_IMAGE24,         TR_INFO|TR_TRANSFORM},// IMAGE24,
+  { STR_IMAGE24,         TR_INFO|TR_TRANSFORM},// IMAGE32,
+  { STR_AUDIO,           TR_INFO},// AUDIO, 
+  { STR_EXE,             TR_NONE|TR_TRANSFORM},// EXE,
+  { STR_DECA,            TR_NONE|TR_TRANSFORM},// DECA, 
+  { STR_DEFAULT,         TR_NONE|TR_TRANSFORM},// ARM, 
+  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},//  CD,
+  { STR_TEXT,            TR_NONE|TR_TRANSFORM},// TEXT,  
+  { STR_TEXT0,           TR_NONE|TR_TRANSFORM},// TEXT0,
+  { STR_TEXT,            TR_NONE|TR_TRANSFORM},// TXTUTF8,  
+  { STR_DEFAULT,         TR_NONE},// NESROM,  
+  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// BASE64, 
+  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// BASE85,   
+  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// UUENC, 
+  { STR_NONE,            TR_NONE|TR_TRANSFORM},// GIF,    
+  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM},// SZDD,  
+  { STR_NONE,            TR_NONE|TR_TRANSFORM},// MRBR, 
+  { STR_NONE,            TR_NONE|TR_TRANSFORM},// MRBR4,
+  { STR_NONE,            TR_NONE|TR_TRANSFORM},// RLE,
+  { STR_NONE,            TR_NONE|TR_TRANSFORM},// LZW,
+  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM},// BZIP2,
+  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM},// ZLIB, 
+  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// MDF, 
+  { STR_CMP,             TR_NONE},// MSZIP,   
+  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// EOLTEXT,
+  { STR_TEXT,            TR_NONE},// DICTTXT,
+  { STR_BIGTEXT,         TR_NONE},// BIGTEXT,
+  { STR_BIGTEXT,         TR_NONE},// NOWRT, 
+  { STR_NONE,            TR_NONE},// TAR,  
+  { STR_IMAGE8,          TR_INFO},// PNG8,
+  { STR_IMAGE8,          TR_INFO},// PNG8GRAY,
+  { STR_IMAGE24,         TR_INFO},// PNG24,
+  { STR_IMAGE24,         TR_INFO},// PNG32,
+  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM} // WIT, 
   };
 const U32 WRT_mpw[16]= { 4, 4, 3, 2, 2, 2, 1, 1,  1, 1, 1, 1, 0, 0, 0, 0 };
 const U8 WRT_mtt[256]= {
@@ -1452,13 +1459,14 @@ public:
   struct {
         std::uint16_t state;
       } JPEG;
+      bool istex,ishtml;
 BlockData(): wrtpos(0),wrtfile(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtLoaded(false),wrtText(255),wrtTextSize(0),wrtstatus(0),wrtbytesize(0),
 y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
     b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
     failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),
     wordlen(0),wordlen1(0),grp(0),Misses(0),count(0),wwords(0),tmask(0),
     wrtc4(0),dictonline(false),inpdf(false),wcol(0),utf8l(0),wlen(0),wstat(false),wdecoded(false),
-    pwords(0),pbc(0),bc4(0)
+    pwords(0),pbc(0),bc4(0),istex(true),ishtml(false)
    {
        memset(&Image, 0, sizeof(Image));
        memset(&Match, 0, sizeof(Match));
@@ -1898,7 +1906,7 @@ private:
   Array<int> pr;   // last result (scaled 12 bits)
   Array<ErrorInfo> info; 
   Array<int> rates; // learning rates
-  const int lrate,lshift; 
+  int lrate,lshift; 
 public:  
   BlockData& x;
   Mixer(int n, int m,BlockData& bd, int s=1, int w=0,int g=7,int h=1);
@@ -2108,6 +2116,11 @@ void train(short *t, short *w, int n, int err) {
     assert(base+cx<M);
     cxt[ncxt++]=base+cx;
     base+=range;
+  }
+  
+  void setl(int l, int r) {   
+   if (mp) mp->setl(l,r);
+   else lrate=l,lshift=r;
   }
 
   // predict next bit
@@ -6493,7 +6506,7 @@ private:
            d=WRT_wrd1[c]; 
            x.pwords=x.pwords*2;   
            x.pbc=x.pbc*2+d/64;
-           if ((d)) {x.pwords++, wpword1^=hash(wpword1, c);}
+           if ((d)) {x.pwords++, wpword1=(wpword1<<8)+c;}//hash(wpword1, c);}
            else wpword1=d; 
           // x.bc4=d<<2; 
         }
@@ -6520,9 +6533,12 @@ private:
         is_letter=((c>='a' && c<='z') ||(c>='0' && c<='9' && witmode==true) || x.wstat==true|| (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
         if (is_letter) {// if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 /*&&(x.b3!=3)*/|| (c>0 && c<4))) {
             if (!x.wordlen){
-                // model syllabification with "+"  //book1 case +\n +\r\n
+                // model syllabification with:
+                //       "+"  //book1 case +\n +\r\n
+                //       "="  quoted-printable 
                 if ((lastLetter=3 && (c4&0xFFFF00)==0x2B0A00 && buf(4)!=0x2B) || (lastLetter=4 && (c4&0xFFFFFF00)==0x2B0D0A00 && buf(5)!=0x2B) ||
-                    (lastLetter=3 && (c4&0xFFFF00)==0x2D0A00 && buf(4)!=0x2D) || (lastLetter=4 && (c4&0xFFFFFF00)==0x2D0D0A00 && buf(5)!=0x2D)  ){
+                    (lastLetter=3 && (c4&0xFFFF00)==0x2D0A00 && buf(4)!=0x2D) || (lastLetter=4 && (c4&0xFFFFFF00)==0x2D0D0A00 && buf(5)!=0x2D) ||
+                    (lastLetter=3 && (c4&0xFFFF00)==0x3D0A00 && buf(4)!=0x3D) || (lastLetter=4 && (c4&0xFFFFFF00)==0x3D0D0A00 && buf(5)!=0x3D)  ){
                     word0=word1;
                     shrwords();
                     x.wordlen = x.wordlen1;
@@ -6664,14 +6680,16 @@ private:
         x.col=min(255, buf.pos-nl);
         if (x.dictonline==true){
         
-        x.wcol=wcol=/*min(255, */x.bufn.pos-wnl;//); // (wrt mode)
+        x.wcol=wcol= x.bufn.pos-wnl; // (wrt mode)
         if (wcol<0) x.wcol=wcol=2;
         wabove=x.bufn[wnl1+wcol];  // text column context, first (wrt mode)
+        int lasllen=(wnl-wnl1);
+        if (wcol>lasllen)wabove=0;
         }
         else x.wcol=wabove=0;
-         above=buf[nl1+x.col];  // text column context, first
-         above1=buf[nl2+x.col]; // text column context, second
-         above2=buf[nl3+x.col]; // text column context, 3
+         above=buf[nl1+x.col];if (x.col>(nl-nl1)) above=0; // text column context, first
+         above1=buf[nl2+x.col];if (x.col>(nl1-nl2)) above1=0; // text column context, second
+         above2=buf[nl3+x.col];if (x.col>(nl2-nl3)) above2=0; // text column context, 3
         if (val2) x.col=val2,above=buf[buf.pos-x.col],above1=buf[buf.pos-x.col*2];;
         if (x.col<=2) {x.frstchar=(x.col==2?min(c,128):0); firstwasspace=x.frstchar==' '?true:false;        }
         if (x.col>2 && firstwasspace && (x.frstchar==' ' || x.frstchar<4)  && buf(1)!=' ') x.frstchar=c;
@@ -6862,13 +6880,13 @@ private:
         cm.set(x.f4&0x00000fff);
         cm.set(x.f4); 
         
-        const U8 pC_above = buf[nl1+x.col-1];
+        const U8 pC_above = (x.col>(nl-nl1))?0: buf[nl1+x.col-1];
         const bool is_new_line_start = x.col==0 && nl1>0;
         const bool is_prev_char_match_above = buf(1)==pC_above && x.col!=0 && nl1!=0;
         const U32 above_ctx = above<<1|U32(is_prev_char_match_above);
         if (pdf_text_parser_state==0 &&!(x.frstchar=='{' && istemplate!=0) &&scountset==false && x.col<((U32)max(255,val2))&& x.filetype!=DECA){
             cm.set(hash(++i,((wnl1-wnl2)<<16)|nl1-nl2,(wcol<<8)|x.col,buf(1),above_ctx));  
-            cm.set(hash(++i,buf(1),above_ctx,above^above1,wabove )); 
+            cm.set(hash(++i,buf(1),above_ctx,above^above1,wabove ));
             cm.set(hash(++i,x.col,wcol,buf(1))); 
             cm.set(hash(++i,x.col,wcol,c==32));  
         } 
@@ -6962,10 +6980,11 @@ private:
   Info info_pdf;
   Info math;
   Info pre;
+  Info xhtml;
     U32 hq;
 public:
   wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
-  info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),pre(bd,0,cm),hq(0){
+  info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),pre(bd,0,cm),xhtml(bd,0,cm),hq(0){
   
    }
    int inputs() {return N*cm.inputs();}
@@ -7018,25 +7037,21 @@ public:
           info_pdf.process_char(x.wrtstatus,val1,val2);
         }
         hq=info_pdf.predict(pdf_text_parser_state,val1,val2);
-        }
-     else   if(math_state==2) {
-         //printf("%c ",c1); 
+      } else   if(math_state==2) {
           math.process_char(x.wrtstatus,val1,val2);
-      
-        hq=math.predict(math_state,val1,val2);
-        } else   if(pre_state==4) {
-         //printf("%c ",c1); 
+          hq=math.predict(math_state,val1,val2);
+      } else   if(pre_state==4) {
           pre.process_char(x.wrtstatus,val1,val2);
-      
-        hq=pre.predict(pre_state,val1,val2);
-       
+          hq=pre.predict(pre_state,val1,val2);
+      } else   if( x.istex==false && x.ishtml==true) {
+          xhtml.process_char(x.wrtstatus,val1,val2);
+          hq=xhtml.predict(0,val1,val2);
       } else {
         const bool is_textblock = (x.filetype==TEXT||x.filetype==TEXT0|| x.filetype==TXTUTF8||x.filetype==EOLTEXT||x.filetype==DICTTXT||x.filetype==BIGTEXT||x.filetype==NOWRT);
         const bool is_extended_char = is_textblock && c1>=128;
         info_normal.process_char(x.wrtstatus,val1,val2);
         hq=info_normal.predict(pdf_text_parser_state,val1,val2);
-      }
-      
+      }      
     }
     cm.mix(m);
     return hq;
@@ -7173,12 +7188,12 @@ public:
     col=buf.pos%rlen[0];
     x1 = min(0x1F,col/max(1,rlen[0]/32));
     if (dict==true){
-        N = x.bufn(x.wcol), NN = x.bufn(x.wcol*2), NNN = x.bufn(x.wcol*3), NNNN = x.bufn(x.wcol*4);
+        N = x.bufn(x.wcol&0xffff), NN = x.bufn((x.wcol*2)&0xffff), NNN = x.bufn((x.wcol*3)&0xffff), NNNN = x.bufn((x.wcol*4)&0xffff);
     for (int i=0; i<nIndCtxs-1; iCtx[i]+=c, i++);
     iCtx[0]=(c<<8)|N;
-    iCtx[1]=(x.bufn(x.wcol-1)<<8)|N;
-    iCtx[2]=(c<<8)|x.bufn(x.wcol-1);
-    iCtx[3]=(hash(c, N, x.bufn(x.wcol+1)));
+    iCtx[1]=((x.wcol>1?x.bufn((x.wcol-1)&0xffff):0)<<8)|N;
+    iCtx[2]=(c<<8)|(x.wcol>1?x.bufn((x.wcol-1)&0xffff):0);
+    iCtx[3]=(hash(c, N, x.bufn((x.wcol+1)&0xffff)));
     }else{
     
     N = buf(rlen[0]), NN = buf(rlen[0]*2), NNN = buf(rlen[0]*3), NNNN = buf(rlen[0]*4);
@@ -7236,7 +7251,7 @@ public:
     cp.set(hash(++i,col|rlen[0]<<12,x.wcol));
     if (rlen[0]>8){
       cp.set( hash(++i, min(min(0xFF,rlen[0]),(dict==true)?x.bufn.pos:buf.pos-prevTransition), min(0x3FF,col), (w&0xF0F0)|(w==((padding<<8)|padding)), nTransition ) );
-      cp.set( hash(++i, w, ((dict==true)?x.bufn(x.wcol+1):buf(rlen[0]+1)==padding && N==padding), col/max(1,rlen[0]/32) ) );
+      cp.set( hash(++i, w, ((dict==true)?x.bufn((x.wcol+1)&0xffff):buf(rlen[0]+1)==padding && N==padding), col/max(1,rlen[0]/32) ) );
     }
     else
       cp.set(), cp.set();
@@ -7253,14 +7268,14 @@ public:
     cp.set(hash(++i, iCtx[3]()));
     cp.set(hash(++i, iCtx[1]()&0xFF, iCtx[3]()&0xFF));
 
-    cp.set(hash(++i, N, (WxNW=c^(dict==true)?x.bufn(x.wcol+1):buf(rlen[0]+1))));
+    cp.set(hash(++i, N, (WxNW=c^(dict==true)?x.bufn((x.wcol+1)&0xffff):buf(rlen[0]+1))));
     cp.set(hash(++i,(x.Match.length3!= 0) << 8U | x.Match.byte,U8(iCtx[1]()), N, WxNW));//cp.set(hash(++i, (min(ilog2(x.Match.length),3)!=0)<<8 |x.Match.byte,U8(iCtx[1]()), N, WxNW));
     int k=0x300;
     if (MayBeImg24b)
       i = (col%3)<<8, Maps[0].set(Clip(((U8)(x.c4>>16))+c-(x.c4>>24))|k);
     else
       Maps[0].set(Clip(c*2-d)|k);
-    Maps[1].set(Clip(c+N-(dict==true)?x.bufn(x.wcol+1):buf(rlen[0]+1))|k);
+    Maps[1].set(Clip(c+N-(dict==true)?x.bufn((x.wcol+1)&0xffff):buf(rlen[0]+1))|k);
     Maps[2].set(Clip(N+NN-NNN));
     Maps[3].set(Clip(N*2-NN));
     Maps[4].set(Clip(N*3-NN*3+NNN));
@@ -13271,6 +13286,8 @@ void Predictor::update()  {
             isCompressed=(x.filetype==CMP || x.filetype==MSZIP)?true:false;
            
          }
+        if(x.filetype==BINTEXT) m->setl(3,2);
+        else m->setl(7,1);
     }
     m->update();
     m->add(256);
@@ -14018,6 +14035,8 @@ class PredictorTXTWRT: public Predictors {
    StateMap StateMaps[1];
    wrtDecoder wr;
   eSSE sse;
+  int decodedTextLen,lasttag;
+  int counttags,lState;
 public:
   PredictorTXTWRT();
   int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
@@ -14029,7 +14048,9 @@ public:
 };
 
 PredictorTXTWRT::PredictorTXTWRT(): pr(16384),pr0(pr),order(0),rlen(0),ismatch(0),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x){
+Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },
+count(0),blenght(1024*4), mixerInputs(0),mixerNets(0),mixerNetsCount(0),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x),
+decodedTextLen(0),lasttag(0),counttags(0),lState(0){
 
   models = new Model*[M_MODEL_COUNT];
   models[M_RECORD] = new recordModel1(x);
@@ -14083,6 +14104,10 @@ Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,
    m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2);
 }
 void PredictorTXTWRT::wrt(){
+        U8 c1=x.c4;
+        if (x.wrtLoaded==true) {
+           if (c1=='<' && x.ishtml==true ) x.istex=false; // open
+        }
     // load wrt dictionary from file
         // detect header//'!Pq8'
         if (x.c4==0x21507138 && x.blpos<16){ 
@@ -14148,23 +14173,38 @@ void PredictorTXTWRT::wrt(){
                 U8 wc=x.wrtText[p];
                 x.wrtc4=(x.wrtc4<<8)|wc;
                 x.bufn[x.bufn.pos++]=wc;
-               // printf("%c",wc);
                 x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
             }
             }
+            decodedTextLen=x.wrtTextSize;
             x.wrtbytesize=0;
             x.wrtTextSize=0;
           }else if (x.wrtstatus>0){
             x.wrtbytesize++;
+          }
+          // if line starts with <someword>
+          if ((x.buf(decodedTextLen)=='<' || x.bufn(decodedTextLen+1)=='<' /*|| (x.bufn(decodedTextLen+1)=='<' && x.bufn(decodedTextLen+2)=='&')*/) && c1=='>'){
+              counttags++;lasttag=x.blpos;
+          }
+          if ( c1 >'@' && lState==0)  lState=1;
+          if ((c1=='<' && lState==0)) lState=2;
+          if ((c1==10 || c1==5) && counttags && lState==2) {
+              x.ishtml=true;
+              counttags=0;
+          } else if (c1==10 || c1==5){ 
+               counttags=lState=0;
+               if ((x.blpos-lasttag)>256*4 && x.ishtml==true) x.ishtml=false;// standard break 1k
+          }
         }
-      }
-        U8 c1=x.c4;
-      if (x.wrtstatus==0 && x.wrtLoaded==true){
+
+        if (x.wrtstatus==0 && x.wrtLoaded==true){
           if (c1==5) c1=10;
-       x.wrtc4=(x.wrtc4<<8)|c1;//printf("%c",c1);
-        x.bufn[x.bufn.pos++]=c1;
-        x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
-       }
+          x.wrtc4=(x.wrtc4<<8)|c1;// printf("%c",c1);
+          x.bufn[x.bufn.pos++]=c1;
+          x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+        }
+        if (c1=='>') x.istex=true;  //close
+        //if (x.c4==0x10103d3d) x.ishtml=false,x.istex=true;  // w - fast break
 }
 void PredictorTXTWRT::update()  {
     update0();
@@ -15385,7 +15425,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   TARheader tarh;
   U32 op=0;//DEC A
   U64 nesh=0,nesp=0,nesc=0;
-  int textbin=0; //if 1/3 is text
+  int textbin=0,txtpdf=0; //if 1/3 is text
   dBASE dbase;
   U64 dbasei=0;
   memset(&dbase, 0, sizeof(dBASE));
@@ -15425,8 +15465,15 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     buf0=buf0<<8|c;
     
     if (!(i&0x1fffff)) printStatus1(i, n); // after every 2mb
-    if  ((c<128 && c>=32) || c==10 || c==13 || c==0x12 || c==9 || c==4 ) textbin++,info=textbin;
-
+    bool isStandard=  ((c<128 && c>=32) || c==10 || c==13|| c==0x12 || c==12 || c==9 || c==4 );
+    U8 lasc=buf0>>8;
+    bool lastisc=((lasc<128 && lasc>=32) || lasc==10 || lasc==13|| lasc==0x12 || lasc==12 || lasc==9 || lasc==4 );
+    lasc=buf0>>16;
+    bool lastlastisc= ((lasc<128 && lasc>=32) || lasc==10 || lasc==13 || lasc==0x12|| lasc==12 || lasc==9 || lasc==4 );
+    bool isExtended= (    (lastisc ||lastlastisc )&&
+    ((c>=0xd0 && c<=0xdf) ||(c>=0xc0 && c<=0xcf)||(c>=0xe0 && c<=0xef)||(c>=0xf0 && c<=0xff)));  //ISO latin
+    if (isStandard || isExtended) textbin++,info=textbin;
+    
     if(tiffImages>=0){
         brute=false;
         textbin=0;
@@ -16767,6 +16814,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     textparser.set_number(text.countNumbers);
     U32 t = utf8_state_table[c];
     textparser.UTF8State = utf8_state_table[256 + textparser.UTF8State + t];
+
     if(textparser.UTF8State == UTF8_ACCEPT) { // proper end of a valid utf8 sequence
       if (c==NEW_LINE || c==5) {
       //  if (((buf0>>8)&0xff) != CARRIAGE_RETURN)
@@ -20317,9 +20365,7 @@ bool isstreamtype(Filetype type,int streamid){
 
 void direct_encode_blockstream(Filetype type, File*in, U64 len, Encoder &en, U64 s1, U64 s2, int info=0) {
   assert(s1<(s1+len));
-  segment[segment.pos++]=type&0xff;
-  segment.put8(len);
-  segment.put4(info);
+  segment.putdata(type,len,info);
   int srid=getstreamid(type);
   for (U64 j=s1; j<s1+len; ++j) filestreams[srid]->putc(in->getc());
 }
@@ -20327,8 +20373,7 @@ void direct_encode_blockstream(Filetype type, File*in, U64 len, Encoder &en, U64
 void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U64 s2);
 
 void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
-    if (type==EXE || type==DECA || type==ARM || type==CD|| type==MDF || type==IMAGE24 || type==IMAGE32  ||type==MRBR ||type==MRBR4||type==RLE || type==LZW||type==EOLTEXT||
-     (type==TEXT || type==TXTUTF8|| type==TEXT0 ) || type==WIT|| type==BASE64 || type==BASE85 || type==UUENC||type==SZDD|| type==ZLIB|| type==GIF|| type==BZIP2) {
+    if (typet[type][HASINFO]&TR_TRANSFORM) {
         U64 diffFound=0;
         U32 winfo=0;
         FileTmp* tmp;
@@ -20342,7 +20387,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==EXE) encode_exe(in, tmp, int(len), int(begin));
         else if (type==DECA) encode_dec(in, tmp, int(len), int(begin));
         else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
-        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0) ) {
+        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
             if ( type!=TXTUTF8 ){
             encode_txt(in, tmp, (len),1);
             U64 txt0Size= tmp->curpos();
@@ -20429,9 +20474,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             } else if (type==IMAGE24 || type==IMAGE32) {
                 direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2, info);
             } else if (type==MRBR || type==MRBR4) {
-                segment.put1(type);
-                segment.put8(tmpsize);
-                segment.put4(0);
+                segment.putdata(type,tmpsize,0);
                 int hdrsize=( tmp->getc()<<8)+(tmp->getc());
                 Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
                 hdrsize=4+hdrsize*4+4;
@@ -20442,9 +20485,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 typenamess[type2][it+1]+=tmpsize,  typenamesc[type2][it+1]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, en, s1, s2, info);
             } else if (type==RLE) {
-                segment.put1(type);
-                segment.put8(tmpsize);
-                segment.put4(0);
+                segment.putdata(type,tmpsize,0);
                 int hdrsize=( 4);
                 Filetype type2 =(Filetype)(info>>24);
                 tmp->setpos(0);
@@ -20454,9 +20495,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, en, s1, s2, info);
             } else if (type==LZW) {
-                segment.put1(type);
-                segment.put8(tmpsize);
-                segment.put4(0);
+                segment.putdata(type,tmpsize,0);
                 int hdrsize=( 0);
                 Filetype type2 =(Filetype)(info>>24);
                 tmp->setpos(0);
@@ -20464,20 +20503,15 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, en, s1, s2, info&0xffffff);
             }else if (type==GIF) {
-                segment.put1(type);
-                segment.put8(tmpsize);
-                segment.put4(0);
-                int hdrsize=tmp->getc();
-                hdrsize=(hdrsize<<8)+tmp->getc();
+                segment.putdata(type,tmpsize,0);
+                int hdrsize=(tmp->getc()<<8)+tmp->getc();
                 tmp->setpos(0);
                 typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
                 direct_encode_blockstream(HDR, tmp, hdrsize, en,0, s2);
                 typenamess[info>>24][it+1]+=tmpsize-hdrsize,  typenamesc[IMAGE8][it+1]++;
                 direct_encode_blockstream((Filetype)(info>>24), tmp, tmpsize-hdrsize, en, s1, s2,info&0xffffff);
             } else if (type==AUDIO) {
-                segment.put1(type);
-                segment.put8(len); //original lenght
-                segment.put4(info2); 
+                segment.putdata(type,len,info2); //original lenght
                 direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2, info);
             } else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0)  ) {
                    if ( len>0xA00000){ //if WRT is smaller then original block 
@@ -20498,9 +20532,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                         direct_encode_blockstream(NOWRT, in, len, en, s1, s2);
                    }
             }else if (type==EOLTEXT) {
-                segment.put1(type);
-                segment.put8(tmpsize);
-                segment.put4(0);
+                segment.putdata(type,tmpsize,0);
                 int hdrsize=tmp->get32();
                 hdrsize=tmp->get32();
                 hdrsize=hdrsize+12;
@@ -20509,12 +20541,11 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 direct_encode_blockstream(CMP, tmp, hdrsize, en,0, s2);
                 typenamess[TEXT][it+1]+=tmpsize-hdrsize,  typenamesc[TEXT][it+1]++;
                 transform_encode_block(TEXT,  tmp, tmpsize-hdrsize, en, -1,-1, blstr, it, s1, s2, hdrsize); 
-            } else if (typet[type][RECURSIVE]) {
-                segment.put1(type);
-                segment.put8(tmpsize);
-                if (type==SZDD ||  type==ZLIB  || type==BZIP2) segment.put4(info);
-                else if (type==WIT) segment.put4(winfo);
-                else segment.put4(0);
+            } else if (typet[type][HASINFO]&TR_RECURSIVE) {
+                int isinfo=0;
+                if (type==SZDD ||  type==ZLIB  || type==BZIP2) isinfo=info;
+                else if (type==WIT) isinfo=winfo;
+                segment.putdata(type,tmpsize,isinfo);
                 if (type==ZLIB) {// PDF or PNG image && info
                     Filetype type2 =(Filetype)(info>>24);
                     if (it==itcount)    itcount=it+1;
@@ -20576,7 +20607,31 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 pad=0;
                 if (a!=0){
                     #ifdef tarpad
+                        int filenamesize=strlen(tarh.name);
+                        U64 ext=0;
+                        if( filenamesize>4) for (int i=5;i>0;i--) {
+                            U8 ch=tarh.name[filenamesize-i];
+                            if (ch>='A' && ch<='Z') ch+='a'-'A';
+                            ext=(ext<<8)+ch;
+                        }
+                        
+                        if( filenamesize>3 && (
+                        (ext&0xffff)==0x2E63 ||  // .c
+                        (ext&0xffff)==0x2E68||   //.h
+                        (ext&0xffffffff)==0x2E747874 ||   //.txt
+                        (ext&0xffffffffff)==0x2E68746D6C ||  //.html
+                        (ext&0xffffffff)==0x2E637070 ||   //.cpp
+                        (ext&0xffffff)==0x2E706F // .po
+                       // ((tarh.name[filenamesize-1]=='c' || tarh.name[filenamesize-1]=='h') && tarh.name[filenamesize-2]=='.') ||
+                      //  (tarh.name[filenamesize-4]=='.' && tarh.name[filenamesize-3]=='t' && tarh.name[filenamesize-2]=='x' &&  tarh.name[filenamesize-1]=='t')
+                        )){
+                            printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
+                             direct_encode_blockstream(TEXT, in, a, en,0,0);
+                        }else{
+                        
+ 
                         DetectRecursive(in, a, en, blstr, 0, 0, a);
+                        }
                         pad=tarn-a; 
                         tarn=a+512;
                     #else
@@ -20590,7 +20645,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
              }
              printf("\n");
         }else {
-            const int i1=(typet[type][INFO])?info:-1;
+            const int i1=(typet[type][HASINFO]&TR_INFO)?info:-1;
             direct_encode_blockstream(type, in, len, en, s1, s2, i1);
         }
     }
@@ -20684,6 +20739,8 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
     if ((type==EOLTEXT) && (len<1024*64 || len>0x1FFFFFFF)) type=TEXT;
     if (it>itcount)    itcount=it;
     if((len>>1)<(info) && type==DEFAULT && info<len) type=BINTEXT;
+    if(len==info && type==DEFAULT ) type=ISOTEXT;
+    if(len<=TEXT_MIN_SIZE && type==TEXT0 ) type=TEXT;
     typenamess[type][it]+=len,  typenamesc[type][it]++; 
       //s2-=len;
       sprintf(blstr,"%s%d",b2,blnum++);

@@ -1,3 +1,8 @@
+v99
+    -xml/html like content processed separately in wordmodel
+    -adjust some wordmodel parameters
+    -attempt to detect ISO latin text
+    -some changes in detection (cleanup)
 v98
     -change BZip2 detection, test transform correctly
     -if in tar output filename
