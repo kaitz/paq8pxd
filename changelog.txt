@@ -1,3 +1,41 @@
+v99
+    -xml/html like content processed separately in wordmodel
+    -adjust some wordmodel parameters
+    -attempt to detect ISO latin text
+    -some changes in detection (cleanup)
+v98
+    -change BZip2 detection, test transform correctly
+    -if in tar output filename
+v97
+    -fix tar detection (BZip2 to agressive)
+v96
+    -add some context from paq8pxd_v200 sparse model
+    -adjust DEC Alpha predictor/model
+    -do BZip2 recompression
+v95
+    -jpeg model: 
+         -more context in Map1  (20)
+         -more inputs from main context
+         -2 main mixer inputs + 1 apm
+         -cleanup
+v94
+    -change jpeg model
+    -fix/change detection (tiff,text)
+v93
+    -change jpeg model
+v92
+    - small fixes
+    - small adjustments
+    - detect pdf CMYK and force as IMAGE32
+v91
+    - fix jpeg compression on larger levels
+    - fix SZDD recompression (fail if error)
+v90
+    - Add DEC Alpha model/detect from paq8px193fix2
+    - Small changes in mixer, statemap, apm, indirectmap, contextmap2
+    - Change matchmodel, recordmodel, jpegmodel
+    - Fix jpegmodel on thumnail images (or full image fails to compress)
+    - Adjust predictors
 v89
     - fix subsamp reset on every new jpeg 
 v88
