@@ -1,3 +1,12 @@
+v100
+    -add lstm model back (active on -x option)
+        -used on all predictors exept audio
+    -add matchModel from paq8px_v201 as second model
+    -adjust old matchModel parameters
+    -tar header as bintext
+    -add back 1 mixer context if DECA
+    -in sparsemodel (default) add 2 contexts
+    -adjust normalModel
 v99
     -xml/html like content processed separately in wordmodel
     -adjust some wordmodel parameters
