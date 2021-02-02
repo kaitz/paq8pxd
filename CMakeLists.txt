@@ -36,4 +36,12 @@ set(CMAKE_CXX_FLAGS "-O3 -floop-strip-mine -funroll-loops -ftree-vectorize -fgcs
 
 add_executable(paq8pxd paq8pxd.cpp)
 
-target_link_libraries(paq8pxd ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES})
+if (UNIX)
+    if (MT)
+        target_link_libraries(paq8pxd ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} pthread)
+    else ()
+        target_link_libraries(paq8pxd ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES})
+    endif (MT)
+else ()
+    target_link_libraries(paq8pxd ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES})
+endif (UNIX)
