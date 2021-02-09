@@ -1,3 +1,19 @@
+v101
+    -lstm +1 apm
+    -in ContextMap2 add another input from run lenght
+    -in ContextMap2 allow to select individual inputs for mixer
+    -change option -e:
+        -e0 - on text file do only capital letter conversion and escapes (file will be larger)
+        -eX - where X > 0 use as minimum dynamic word frequency.
+              -e19 recomended for files >1MB, -e124 for <1MB
+              if wrt file is larger from source then transform is ignored
+        -eX,dictionary - X selects frequency for words in dictionary file,
+                         dynamic word frequency is fixed (-e19 files >1MB, -e124  <1MB)
+        -e  - defaults to -e19
+    -change wrt
+    -remove model creation from predictors and add to main base predictor class
+    -change exe, im24, indirect models
+    -some cleanup
 v100
     -add lstm model back (active on -x option)
         -used on all predictors exept audio
