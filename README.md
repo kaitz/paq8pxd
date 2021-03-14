@@ -65,6 +65,13 @@ are OK).
 
 # TO COMPILE
 
+Make sure bzip2 libraries are present
+
+  MINGW g++
+    pacman -S mingw-w64-x86_64-bzip2
+
+  UNIX/Linux
+    sudo apt-get install libbz2-dev
 
 There are 2 files: paq8pxd.cpp (C++) and wrtpre.cpp (C++).
 paq8pxd.cpp recognizes the following compiler options:
@@ -88,18 +95,18 @@ Recommended compiler commands and optimizations:
 
   MINGW g++ (x86,x64):  
    with multithreading:  
-    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -lz -o paq8pxd.exe   
+    g++ paq8pxd.cpp -DWINDOWS -DMT -msse2 -O3 -s -static -lz -lbz2 -o paq8pxd.exe   
    without multithreading:  
-    g++ paq8pxd.cpp -DWINDOWS -msse2 -O3 -s -static -lz -o paq8pxd.exe 
+    g++ paq8pxd.cpp -DWINDOWS -msse2 -O3 -s -static -lz -lbz2 -o paq8pxd.exe 
 
   UNIX/Linux (PC x86,x64):  
    with multithreading:  
-    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -lz -o paq8pxd  
+    g++ paq8pxd.cpp -DUNIX -DMT -msse2 -O3 -s -static -lpthread -lz -lbz2 -o paq8pxd  
    without multithreading:  
-    g++ paq8pxd.cpp -DUNIX -msse2 -O3 -s -static -lpthread -lz -o paq8pxd
+    g++ paq8pxd.cpp -DUNIX -msse2 -O3 -s -static -lpthread -lz -lbz2 -o paq8pxd
 
   Non PC (e.g. PowerPC under MacOS X):  
-    g++ paq8pxd.cpp -O2 -DUNIX -s -lz -o paq8pxd
+    g++ paq8pxd.cpp -O2 -DUNIX -s -lz -lbz2 -o paq8pxd
 
 Alternatively, you can use CMake to build paq8pxd.
 
