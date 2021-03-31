@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd101"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd102"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1923,6 +1923,7 @@ private:
   Array<short, 32> tx; // N inputs from add()  
   Array<short, 32> wx; // N*M weights
   Array<U32> cxt;  // S contexts
+  Array<U32> mrate;  // S contexts
   int ncxt;        // number of contexts (0 to S)
   int base;        // offset of next context
 public:
@@ -2073,7 +2074,9 @@ void train(short *t, short *w, int n, int err) {
   // Adjust weights to minimize coding cost of last prediction
   void update() {
     for (int i=0; i<ncxt; ++i) {
-      int err=((x.y<<12)-pr[i])*lrate/lshift;
+      int err;
+     if (ncxt>1)  err=((x.y<<12)-pr[i])*mrate[i]/2;
+     else  err=((x.y<<12)-pr[i])*lrate/lshift;
       assert(err>=-32768 && err<32768);
       train(&tx[0], &wx[cxt[i]*N], nx, err);
     }
@@ -2138,12 +2141,13 @@ void train(short *t, short *w, int n, int err) {
     tx[nx++]=p;
   }
   // Set a context (call S times, sum of ranges <= M)
-  void set(int cx, int range) {
+  void set(int cx, int range,int mr=14) {
     assert(range>=0);
     assert(ncxt<S);
     assert(cx>=0);
     assert(cx<range);
     assert(base+cx<M);
+    mrate[ncxt]=mr;
     cxt[ncxt++]=base+cx;
     base+=range;
   }
@@ -2186,7 +2190,7 @@ Mixer::~Mixer() {
 
 Mixer::Mixer(int n, int m, BlockData& bd, int s, int w, int g,int h):
     N((n+15)&-16), M(m), S(s),tx(N), wx(N*M),
-    cxt(S), ncxt(0), base(0),nx(0), pr(S), mp(0),x(bd), info(S),
+    cxt(S),mrate(S), ncxt(0), base(0),nx(0), pr(S), mp(0),x(bd), info(S),
     rates(S),lrate(S>1?7:g),lshift(S>1?1:h){
   assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
@@ -3220,6 +3224,7 @@ inline U64 CMlimit(U64 size){
     if (size>(0x80000000UL)) return (0x80000000UL); //limit to 2GB
     return (size);
 }
+int n0n1[256];
 class ContextMap {
   const int C;  // max number of contexts
   class E {  // hash element, 64 bytes
@@ -3393,6 +3398,7 @@ ContextMap::ContextMap(U64 m, int c,int mod): C(c),  t(m>>6), cp(C), cp0(C),
 #define CMBADLIMIT 8*32767
 ContextMap::~ContextMap() {
   delete[] sm;
+  
 }
 inline void ContextMap::set() {
     set(U32(0));
@@ -3422,33 +3428,36 @@ inline void ContextMap::set(U32 cx, int next) {
 
 inline int mix2(Mixer& m, int s, StateMap& sm) {
   int p1=sm.p(s,m.x.y);
-  int n0=-!nex(s,2);
-  int n1=-!nex(s,3);
-  int st=stretch(p1)>>2;
-  m.add(st);
-  p1>>=4;
-  int p0=255-p1;
-  if (m.x.rm1)  m.add(p1-p0); else m.add(0);
-  m.add(st*(n1-n0));
-  m.add((p1&n0)-(p0&n1));
-  m.add((p1&n1)-(p0&n0));
-
+  if (s==0){
+    m.add(0); m.add(0);m.add(0);m.add(0);m.add(48+16);
+    return 0;
+  }else{
+  //int n0=-!nex(s,2);
+  //int n1=-!nex(s,3);
+    int st=stretch(p1)>>2;
+    m.add(st);
+    p1>>=4;
+    int p0=255-p1;
+    if (m.x.rm1)  m.add(p1-p0); else m.add(0); // ??
+    //m.add(st*(n1-n0));
+    //m.add((p1&n0)-(p0&n1));
+    //m.add((p1&n1)-(p0&n0));
+    int n01=n0n1[s];
+    if (n01){
+        p0=(n01<2)?255:0;
+        m.add((p1)-(p0));
+        if (n0n1[s]==2){ // -1
+              m.add((-st));
+        }else{
+              m.add((st));
+        }
+     }else {
+        m.add(0);
+        m.add(0);
+     }
+     m.add(0);
   return s>0;
-}
-inline int mix3(Mixer& m, int s, StateMap& sm) {
-  int p1=sm.p1(s,m.x.y);
-  int n0=-!nex(s,2);
-  int n1=-!nex(s,3);
-  int st=stretch(p1)>>2;
-  m.add(st);
-  p1>>=4;
-  int p0=255-p1;
-  if (m.x.rm1)  m.add(p1-p0); else m.add(0);
-  m.add(st*(n1-n0));
-  m.add((p1&n0)-(p0&n1));
-  m.add((p1&n1)-(p0&n0));
-
-  return s>0;
+  }
 }
 
 // Update the model with bit y1, and predict next bit to mixer m.
@@ -3457,7 +3466,6 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
   // Update model with y
   int result=0;
   for (int i=0; i<cn; ++i) {
-   if(cxt[i]){   
     if (cp[i]) {
       assert(cp[i]>=&t[0].bh[0][0] && cp[i]<=&t[t.size()-1].bh[6][6]);
       assert(((long long)(cp[i])&63)>=15);
@@ -3510,23 +3518,9 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
      }
     }
    }
-   }
-   if(m.x.count>0x5FFFF){
-   // for faster statemap
-   for (int i=0; i<cn; ++i) {
-       if(cxt[i]){
-            // predict from bit context
-            int s = 0;
-            if (cp[i]) s = *cp[i];
-            if (s>0) result++;
-            mix3(m, s, sm[i]);
-       }else{
-            for (int i=0; i<(inputs()-1); i++)
-                m.add(0);     
-       }
-   }
-    }else{
-       for (int i=0; i<cn; ++i) {
+  
+    
+    for (int i=0; i<cn; ++i) {
        if(cxt[i]){
             // predict from bit context
             int s = 0;
@@ -3538,7 +3532,8 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
                 m.add(0);     
        }
    }
-   }
+ 
+
     // predict from last byte in context
      
      for (int i=0; i<cn; ++i) {
@@ -3964,8 +3959,6 @@ public:
          int p0=4095-p1;
         if (param&CM_MAIN4) m.add((((p1&n0)-(p0&n1))*Multiplier)/(4*Divisor));
         if (param&CM_MAIN5) m.add(0);//
-        p1>>=4;
-         p0=255-p1;
         if (param&CM_E1) m.add(0);// 
         if (param&CM_E2) m.add(0);
         if (param&CM_E3) m.add(0);
@@ -4217,13 +4210,19 @@ public:
       }
     }
 
-    void set(const uint64_t contextHash, const uint8_t c) {
+    void set( uint64_t contextHash, const uint8_t c) {
+      contextHash=contextHash*987654323;
+      contextHash=contextHash<<16|contextHash>>16;
+      contextHash=contextHash*123456791;
       assert(c < (1 << inputBits));
       uint32_t* ptr = data[finalize64(contextHash, hashBits)].find(checksum16(contextHash, hashBits), nullptr);
       *ptr = (*ptr) << inputBits | c;
     };
 
-    uint32_t get(const uint64_t contextHash) {
+    uint32_t get(  uint64_t contextHash) {
+      contextHash=contextHash*987654323;
+      contextHash=contextHash<<16|contextHash>>16;
+      contextHash=contextHash*123456791;
       return *data[finalize64(contextHash, hashBits)].find(checksum16(contextHash, hashBits), nullptr);
     };
 
@@ -7229,6 +7228,7 @@ class wordModel1: public Model {
 private:
    int N;
    ContextMap cm;
+   ContextMap cm1;
   class Info {
    BlockData& x;
    Buf& buf;
@@ -7310,6 +7310,13 @@ private:
         c=x.c4&255;
         c4=(c4<<8)|c;
         int i=0,d=0;
+        if (f) {
+            word5=word4;
+            word4=word3;
+            word3=word2;
+            word2=word1;
+            word1='.';
+        }
         f=0;
         if (x.spaces&0x80000000) --x.spacecount;
         if (x.words&0x80000000) --x.wordcount;
@@ -7754,13 +7761,7 @@ private:
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
              (lastUpper < x.wordlen + x.wordlen1 + wordGap)));   else  {cm.set();++i;}
         cm.set(hash((*pWord).Hash[2], h));
-        if (f) {
-            word5=word4;
-            word4=word3;
-            word3=word2;
-            word2=word1;
-            word1='.';
-        }
+        
  }
     }
     if (val2==-1) return 1;
@@ -7804,11 +7805,11 @@ private:
   Info xhtml;
   U32 hq;
 public:
-  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
+  wordModel1( BlockData& bd,U32 val=16): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),cm1(CMlimit(MEM()), 1,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
   info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),pre(bd,0,cm),xhtml(bd,0,cm),hq(0){
   
    }
-   int inputs() {return N*cm.inputs();}
+   int inputs() {return N*cm.inputs()+7;}
    int nets() {return 0;}
   int netcount() {return 0;}
 
@@ -7873,8 +7874,10 @@ public:
         info_normal.process_char(x.wrtstatus,val1,val2);
         hq=info_normal.predict(pdf_text_parser_state,val1,val2);
       }      
+      cm1.set(x.w4);
     }
     cm.mix(m);
+    cm1.mix(m);
     return hq;
   }
   
@@ -9806,7 +9809,7 @@ public:
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4),adv_pred1(3),adv_pred2(3), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
-  qtab(256),qmap(10),N(41),M(58),cxt(N),m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 3+1+1+1+1+1,0,7,5),
+  qtab(256),qmap(10),N(41),M(58),cxt(N),m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 3+1+1+1+1+1,0,3,2),
    apm{{0x40000,20-4},{0x40000,20-4},{0x20000,20-4},
    {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27},{0x20000,20-4}},
    x(bd),buf(bd.buf),MJPEGMap( {21, 3, 128, 127}),
@@ -10499,15 +10502,15 @@ if (slow==true) x.count=0;
    m.add(sd);
    
    m1.set(firstcol, 2);
-   m1.set( coef+256*min(3,huffbits), 1024 );
-   m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048 );
+   m1.set( coef+256*min(3,huffbits), 1024,13 );
+   m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048,13 );
    m1.set(mcupos&63, 64 );
    int colCtx=(width>1024)?(min(1023, column/max(1, width/1024))):column;
    m1.set(colCtx, 1024); 
    m1.set(lma, 256); 
    m1.set(ama, 16); 
 
-  int pr=m1.p(1,1);
+  int pr=m1.p(1,0);
    x.Misses+=x.Misses+((pr0>>11)!=y);
    jmiss+=jmiss+((pr0>>11)!=y);
   pr0=pr;
@@ -10543,17 +10546,17 @@ if (slow==true) x.count=0;
      m.add(stretch(pr)>>1);
      m.add((pr-2048)>>3);   
 
-  m.set( 1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4, 9 );
-  m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025 );
-  m.set( coef+256*min(3,huffbits/2), 1024 );
-  m.set((hc)&511, 512 );
+  m.set( 1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4, 9 ,15);
+  m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025,9 );
+  m.set( coef+256*min(3,huffbits/2), 1024 ,13);
+  m.set((hc)&511, 512);
 
-  m.set( (((abs(adv_pred[1]) / 16) )<<6) |(x.Misses&0x38)|((lma)!=0)*4|(comp == 0)*2 |(min(3,ilog2(zu+zv))>1), 4096 );
+  m.set( (((abs(adv_pred[1]) / 16) )<<6) |(x.Misses&0x38)|((lma)!=0)*4|(comp == 0)*2 |(min(3,ilog2(zu+zv))>1), 4096);
   int colCtx1=(width>64)?(min(63, column/max(1, width/64))):column;
-  m.set(colCtx1, 64);
+  m.set(colCtx1, 64,10);
 
-  m.set(( (((abs(lcp[2]) / 16 )&15)<<8)| (((abs(lcp[1]) / 16 )&15)<<4) | (abs(lcp[0]) / 16)&15  ) , 4096 );
-  m.set(( (((abs(adv_pred[1]) / 16) )<<6) |  (((abs(adv_pred[0]) / 16) )<<2) | min(3,huffbits)),1024);
+  m.set(( (((abs(lcp[2]) / 16 )&15)<<8)| (((abs(lcp[1]) / 16 )&15)<<4) | (abs(lcp[0]) / 16)&15  ) , 4096,13 );
+  m.set(( (((abs(adv_pred[1]) / 16) )<<6) |  (((abs(adv_pred[0]) / 16) )<<2) | min(3,huffbits)),1024,13);
   return 1;
   }
   virtual ~jpegModelx(){
@@ -12001,25 +12004,42 @@ class indirectModel1: public Model {
   BlockData& x;
   Buf& buf;
   const int N;
-  ContextMap cm;
+  const int mem;
+  ContextMap cm2;
+  ContextMap cm3;
+  ContextMap cm4;
+  ContextMap cm5;
+  ContextMap cmt;
+  ContextMap cm0;
+  ContextMap cma;
+  ContextMap cmc;
   Array<U32> t1;
   Array<U16> t2;
   Array<U16> t3;
   Array<U16> t4;
   Array<U32> t5; // 256K
   IndirectContext<U32> iCtx;
-  IndirectContext<U8> iCtx8;
-  StationaryMap Maps;
   LargeIndirectContext<uint32_t> iCtxLarge{ 18,8 }; // 11MB // hashBits, inputBits
   U32 chars4; 
 public:
-  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),N(15+1+9),
-  cm(level>9?0x40000000:CMlimit(MEM()),N,M_INDIRECT),t1(256),
-   t2(0x10000), t3(0x8000),t4(0x8000),t5(256*256),iCtx{16,8 },iCtx8{10,2},Maps{ 10, 2 },chars4(0){
+  indirectModel1(BlockData& bd,U32 val=0):x(bd),buf(bd.buf),N(15+1+9-13),mem(0x1000000*(level>9?1:1)),
+
+  cm2((mem/4),4,M_INDIRECT),
+  cmt((mem/2),3,M_INDIRECT),
+    cm0((mem/2),3,M_INDIRECT), 
+    cma((mem/4),3,M_INDIRECT), 
+    cmc((mem/4),3,M_INDIRECT), 
+    cm3((mem/4),3,M_INDIRECT), 
+    cm4((mem/4),3,M_INDIRECT), 
+    cm5((mem/4),3,M_INDIRECT), 
+   t1(256),
+   t2(0x10000), t3(0x8000),t4(0x8000),t5(256*256),
+   iCtx{16,8 },
+   chars4(0){
   }
-  int inputs() {return N*cm.inputs()+2;}
-  int nets() {return 1024;}
-  int netcount() {return 1;}
+  int inputs() {return (4*3+13)*cm2.inputs()+2;}
+  int nets() {return 0;}
+  int netcount() {return 0;}
   void setContexts(){
       
   }
@@ -12030,8 +12050,6 @@ int p(Mixer& m,int val1=0,int val2=0){
     U8 c=d&255;
     U32 d2=(x.buf(1)&31)+   32*(x.buf(2)&31)+   1024*(x.buf(3)&31);
     U32 d3=(x.buf(1)>>3&31)+32*(x.buf(3)>>3&31)+1024*(x.buf(4)>>3&31);
-    
-    
     
     U32& r1=t1[d>>8];
     r1=r1<<8|c;
@@ -12052,18 +12070,21 @@ int p(Mixer& m,int val1=0,int val2=0){
                                ((U8(t1[c])==U8(t3[d2]))<<1)|
                                ((U8(t1[c])==U8(t4[d3]))<<2)|
                                ((U8(t1[c])==U8(ctx0))<<3);
-    cm.set(hash(j++,t));
-    cm.set(hash(j++,t0));
-    cm.set(hash(j++,ta));  
-    cm.set(hash(j++,tc));
-    cm.set(hash(j++,t&0xff00, mask));
-    cm.set(hash(j++,t0&0xff0000));
-    cm.set(hash(j++,ta&0xff0000));
-    cm.set(hash(j++,tc&0xff0000));
-    cm.set(hash(j++,t&0xffff));
-    cm.set(hash(j++,t0&0xffffff));
-    cm.set(hash(j++,ta&0xffffff));
-    cm.set(hash(j++,tc&0xffffff));
+    cmt.set(t);
+    cmt.set( (t&0xff00)| mask);
+    cmt.set(t&0xffff);
+    
+    cm0.set(t0);
+    cm0.set(t0&0xffffff);
+    cm0.set((t0<<9)|x.frstchar);
+    
+    cma.set(ta); 
+    cma.set(ta&0xffffff);
+    cma.set((ta<<9)|x.frstchar);
+    
+    cmc.set(tc);
+    cmc.set((tc<<9)|x.frstchar);
+    cmc.set(buf(1) + ((32 * x.tt) & 0x1FFFFF00));
     
      // context with 2 characters converted to lowercase (context table: t5, byte history: h5)
     U32 c1=c;
@@ -12074,46 +12095,45 @@ int p(Mixer& m,int val1=0,int val2=0){
     U32& r5 = t5[(chars4 >> 8) & 0xffff];
     r5 = r5 << 8 | c;
 
-    cm.set(hash(++j, (h5 & 0xff) | c << 8)); //last char + 1 history char
-    cm.set(hash(++j, h5 & 0xffff)); //2 history chars
-    cm.set(hash(++j, h5 & 0xffffff)); //3 history chars
-    cm.set(hash(++j, h5)); //4 history chars
+    cm2.set( (h5 & 0xff) | (c << 8)); //last char + 1 history char
+    cm2.set(  h5 & 0xffff); //2 history chars
+    cm2.set(  h5 & 0xffffff); //3 history chars
+    cm2.set(  h5 ); //4 history chars
 
     // large contexts (with hashtable)
     //
     U32 context, h6;
 
-    iCtxLarge.set(hash(j, x.c4 >> 8), c1);
+    iCtxLarge.set( x.c4 >> 8, c1);
     context = x.c4 & 0xffffff; //24 bits
-    h6 = iCtxLarge.get(hash(j, context));
-    cm.set(hash(++j, h6 & 0xff, context & 0xff));
-    cm.set(hash(++j, h6 & 0xff, context & 0xffff));
-    cm.set(hash(++j, h6, context & 0xff)); //without context is also OK (not for news and obj2 however)
+    h6 = iCtxLarge.get( context);
+    cm3.set(( h6 & 0xff)<<8+(context & 0xff));
+    cm3.set( ( h6 & 0xff) + (((32 * x.tt) & 0x1FFFFF00)));
+    cm3.set( h6<<8+ (context & 0xff)); //without context is also OK (not for news and obj2 however)
 
-    iCtxLarge.set(hash(j, chars4 >> 8), c1);
+    iCtxLarge.set( chars4 >> 8, c1);
     context = chars4 & 0xffffff; //24 bits lowercase
-    h6 = iCtxLarge.get(hash(j, context));
-    cm.set(hash(++j, h6 & 0xff, context));
-    cm.set(hash(++j, h6 & 0xffff, context));
-    cm.set(hash(++j, h6));
+    h6 = iCtxLarge.get( context);
+    cm4.set((( h6 & 0xff)<<24)+  (context &0xffff));
+    cm4.set((h6 & 0xffff)+ context);
+    cm4.set( h6 );
 
-    iCtxLarge.set(hash(j, buf(5) << 24 | x.c4 >> 8), c1);
+    iCtxLarge.set( buf(5) << 24 | x.c4 >> 8, c1);
     context = x.c4; //32 bits
-    h6 = iCtxLarge.get(hash(j, context));
-    cm.set(hash(++j, h6 & 0xff, context &0xffff));
-    cm.set(hash(++j, h6 & 0xffff, context & 0xff));
-    cm.set(hash(++j, h6));
+    h6 = iCtxLarge.get( context);
+    cm5.set(( h6 & 0xff)<<16+  (context &0xffff));
+    cm5.set(( h6 & 0xffff)<<8+(context &0xff));
+    cm5.set(  h6 );
   }
-    if ((x.bpos)%2==0 ){
-      if (x.bpos==0) iCtx8+=x.buf(3)&3;else iCtx8+=(x.buf(4)>>x.bpos)&3;
-      iCtx8=((x.buf(2)>>x.bpos)&3)<<8|(t1[x.buf(1)]&0xff);//((x.bpos>>1)<<8)
-      if (val2!=-1) Maps.set(((x.buf(2)&3)<<8)|iCtx8());
-  }
-  if (val2==-1) return 1;
-  Maps.mix(m);
- if(   x.filetype==DECA )  m.set(((x.bpos>>1)<<8)|(t1[iCtx8()]&0xff),1024);
- else  m.set(((x.bpos>>1)<<8)|iCtx8(),1024);
-  cm.mix(m);
+  
+  cm2.mix(m);
+  cm3.mix(m);
+  cm4.mix(m);
+  cm5.mix(m);
+   cmt.mix(m);
+    cm0.mix(m);
+    cma.mix(m); 
+    cmc.mix(m); 
   return 0;
 }
 virtual ~indirectModel1(){ }
@@ -12377,8 +12397,8 @@ public:
    cm(CMlimit(level>8?0x800000 :(MEM()/2) ), N,M_NEST)  {
   }
   int inputs() {return N*cm.inputs();}
-  int nets() {return 0;}
-  int netcount() {return 0;}
+  int nets() {return 512;}
+  int netcount() {return 1;}
 int p(Mixer& m,int val1=0,int val2=0){
     if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM|| x.filetype==IMGUNK){
         if (val2==-1) return 1;
@@ -12457,7 +12477,7 @@ if (val2==-1) return 1;
   }
     
     cm.mix(m);
-  
+    m.set(vc&511,512);
   return 0;
 }
 virtual ~nestModel1(){ }
@@ -22109,6 +22129,16 @@ printf("\n");
             DEFAULT_OPTION);
             quit();
         }
+
+        for (int i=0;i<256;i++) {
+            int n0=-!nex(i,2);
+            int n1=-!nex(i,3);
+            int r=0;
+            if ((n1-n0)==1 ) r=2;
+            if ((n1-n0)==-1 ) r=1;
+            n0n1[i]=r;
+        }
+
         File* archive=0;               // compressed file
         int files=0;                   // number of files to compress/decompress
         Array<const char*> fname(1);   // file names (resized to files)

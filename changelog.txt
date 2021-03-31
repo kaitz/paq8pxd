@@ -1,3 +1,10 @@
+v102
+    -change ContextMap
+    -adjust jpegModel mixer update
+    -one context in WordModel
+    -change indirectModel
+        - split context into individual ContextMaps
+    -add one mixer input in nestModel
 v101
     -lstm +1 apm
     -in ContextMap2 add another input from run lenght
