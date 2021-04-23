@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd102"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd103"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -5911,6 +5911,7 @@ public:
   virtual  int inputs()=0;
   virtual  int nets()=0;
   virtual  int netcount()=0;
+  virtual  void setword(U8 *w,int len=0){} ;
   virtual ~Model(){};
 };
 
@@ -5928,6 +5929,7 @@ private:
   Cache<Paragraph, 2> Paragraphs;
   Array<U32> WordPos;
   U32 BytePos[256];
+  Word xWord;
   Word *cWord, *pWord; // current word, previous word
   Segment1 *cSegment; // current segment
   Sentence *cSentence; // current sentence
@@ -6028,6 +6030,9 @@ public:
       delete Stemmers[i];
       delete Languages[i];
     }
+  }
+  void setword(U8 *w,int len)     {
+      for (int i=0;i<len;i++) xWord+=w[i];
   }
   int inputs()   {return N*Map.inputs();}
   int nets()     {return  1024+2048+4096+ 4096+2048+ 2048+ 4096+ 8192;}
@@ -6156,8 +6161,8 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
         Lang.Count[i-1]-=(Lang.Mask[i-1]>>63), Lang.Mask[i-1]<<=1;
         if (i!=Lang.Id)
           memcpy(&Words[i](0), cWord, sizeof(Word));
-        if (Stemmers[i-1]->Stem(&Words[i](0)))
-          Lang.Count[i-1]++, Lang.Mask[i-1]|=1;
+        if (Stemmers[i-1]->Stem(&xWord))//&Words[i](0)
+          Lang.Count[i-1]++, Lang.Mask[i-1]|=1,Words[i](0).Type=xWord.Type;
       }      
       Lang.Id = Language::Unknown;
       U32 best = MIN_RECOGNIZED_WORDS;
@@ -6182,6 +6187,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
       Lang.pId = Lang.Id;
       pWord = &Words[Lang.Id](1), cWord = &Words[Lang.Id](0);
       memset(cWord, 0, sizeof(Word));
+      memset(&xWord,0, sizeof(Word));
       WordPos[pWord->Hash[0]&(WordPos.size()-1)] = mixer.x.blpos;
       if (cSegment->WordCount==0)
         memcpy(&cSegment->FirstWord, pWord, sizeof(Word));
@@ -15007,6 +15013,7 @@ void PredictorTXTWRT::wrt(){
             x.wdecoded=true;
             // print decoded word
             // for (int p=0;p<x.wrtTextSize;p++)printf("%c",x.wrtText[p]);
+            models[M_TEXT]->setword(&x.wrtText[0],x.wrtTextSize);
             x.wlen=x.wrtbytesize;
              int y=0;
             if (x.wrtTextSize<5 && x.wrtText[0]>'z') y=utf8_check(&x.wrtText[0]); 

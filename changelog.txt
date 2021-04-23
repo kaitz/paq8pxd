@@ -1,3 +1,5 @@
+v103
+    -in textModel use decoded word in stemmer to get real word type
 v102
     -change ContextMap
     -adjust jpegModel mixer update
