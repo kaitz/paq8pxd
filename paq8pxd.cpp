@@ -17340,7 +17340,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     if ((type == DEFAULT) && (DEC_ALPHA.branches[DEC_ALPHA.idx] >= 16u))
       return in->setpos(start + DEC_ALPHA.offset - (start + DEC_ALPHA.offset) % 4), DECA;    
    
-    if ((static_cast<std::uint64_t>(i) > DEC_ALPHA.last + (type==DECA ? 0x8000ull : 0x4000ull)) && (DEC_ALPHA.count[DEC_ALPHA.offset & 3] == 0u)) {
     if ((i + 1 == n) ||(static_cast<std::uint64_t>(i) > DEC_ALPHA.last + (type==DECA ? 0x8000ull : 0x4000ull)) && (DEC_ALPHA.count[DEC_ALPHA.offset & 3] == 0u)) {
       if (type == DECA)
         return in->setpos(start + DEC_ALPHA.last - (start + DEC_ALPHA.last) % 4), DEFAULT;
