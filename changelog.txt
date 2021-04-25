@@ -1,3 +1,7 @@
+v104
+    -in textModel also use regular word in stemmer
+    -in wordModel, textModel use upper char flag from wrt 
+    -DEC Alpha block-end fix from paq8px_v202
 v103
     -in textModel use decoded word in stemmer to get real word type
 v102

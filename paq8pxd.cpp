@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd103"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd104"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -6091,7 +6091,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
   if (g>4 || g!=(Info.masks[4]&0x1F))
     Info.masks[4]<<=5, Info.masks[4]|=g;
   BytePos[c] = mixer.x.blpos;
-  if (c!=pC) {
+  if (c!=pC || mixer.x.wrtLoaded==true && c==1 ) {
     c = pC;
     Info.lastUpper = 0, Info.maskUpper|=1;
   }
@@ -6161,8 +6161,8 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
         Lang.Count[i-1]-=(Lang.Mask[i-1]>>63), Lang.Mask[i-1]<<=1;
         if (i!=Lang.Id)
           memcpy(&Words[i](0), cWord, sizeof(Word));
-        if (Stemmers[i-1]->Stem(&xWord))//&Words[i](0)
-          Lang.Count[i-1]++, Lang.Mask[i-1]|=1,Words[i](0).Type=xWord.Type;
+        if (Stemmers[i-1]->Stem((xWord.Length()>0)?&xWord:&Words[i](0)))//
+          Lang.Count[i-1]++, Lang.Mask[i-1]|=1,(xWord.Length()>0)?Words[i](0).Type=xWord.Type:0;
       }      
       Lang.Id = Language::Unknown;
       U32 best = MIN_RECOGNIZED_WORDS;
@@ -7346,6 +7346,7 @@ private:
         }
         if (pC>='A' && pC<='Z') pC+='a'-'A';
         if (c>='A' && c<='Z') c+='a'-'A', lastUpper=0;
+        if (x.wrtLoaded==true && c==1 ) lastUpper=0;
         if ((c>='a' && c<='z') || c=='\'' || c=='-')
            (*cWord)+=c;
         else if ((*cWord).Length()>0){
@@ -17340,6 +17341,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
       return in->setpos(start + DEC_ALPHA.offset - (start + DEC_ALPHA.offset) % 4), DECA;    
    
     if ((static_cast<std::uint64_t>(i) > DEC_ALPHA.last + (type==DECA ? 0x8000ull : 0x4000ull)) && (DEC_ALPHA.count[DEC_ALPHA.offset & 3] == 0u)) {
+    if ((i + 1 == n) ||(static_cast<std::uint64_t>(i) > DEC_ALPHA.last + (type==DECA ? 0x8000ull : 0x4000ull)) && (DEC_ALPHA.count[DEC_ALPHA.offset & 3] == 0u)) {
       if (type == DECA)
         return in->setpos(start + DEC_ALPHA.last - (start + DEC_ALPHA.last) % 4), DEFAULT;
       DEC_ALPHA.last = 0u, DEC_ALPHA.offset = 0u;
