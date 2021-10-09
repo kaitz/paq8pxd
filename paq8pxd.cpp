@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd104"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd105"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -16147,7 +16147,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   char pgm_buf[32];
   U64 cdi=0;
   U64 mdfa=0;
-  int cda=0,cdm=0;   // For CD sectors detection
+  int cda=0,cdm=0,cdif=0;   // For CD sectors detection
   U32 cdf=0;
   TextInfo text = {}; // For TEXT
   
@@ -16683,12 +16683,13 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
          in->setpos( savedpos); // seek back if no mdf
         if (cdm && cda!=10 && (cdm==1 || buf0==buf1)) {
           if (type!=CD) return info=cdm, in->setpos( start+cdi-7), CD;
+          cdif=cdm;
           cda=(data[12]<<16)+(data[13]<<8)+data[14];
           if (cdm!=1 && i-cdi>2352 && buf0!=cdf) cda=10;
           if (cdm!=1) cdf=buf0;
         } else cdi=0;
       }
-      if (!cdi && type==CD) return  in->setpos( start+i-p-7), DEFAULT;
+      if (!cdi && type==CD) return info=cdif, in->setpos( start+i-p-7), DEFAULT;
     }
     if (type==CD) continue;
  
@@ -16869,14 +16870,19 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
         CompressedOffset=bswap(CompressedOffset);
         HotspotOffset=bswap(HotspotOffset);
         mrbsize=mrbcsize+ in->curpos()-mrbTell+10+(1<<BitCount)*4; // ignore HotspotSize
+        int pixelBytes = (mrbw * mrbh * BitCount) >> 3;
+        mrbTell=mrbTell+2;
+            in->setpos(mrbTell);
         if (!(BitCount==8 || BitCount==4)|| mrbw<4 || mrbw>1024 || mrbPackingMethod==2|| mrbPackingMethod==3|| mrbPackingMethod==0) {
             if ((type==CMP ) &&   (mrbPackingMethod==2|| mrbPackingMethod==2) && mrbsize){
                return  in->setpos(start+mrbsize),DEFAULT;
             }      
             if( mrbPackingMethod==2 || mrbPackingMethod==2) MRBRLE_DET(CMP,mrb-1, mrbsize-mrbcsize, mrbcsize, mrbw, mrbh);
             mrbPictureType=mrb=mrbsize=mrbmulti=0;
-            mrbTell=mrbTell+2;
-            in->setpos(mrbTell);
+            
+        }else if (mrbPackingMethod <= 1 && pixelBytes < 360) {
+            //printf("MRB: skipping\n");
+            mrbPictureType=mrb=mrbsize=mrbmulti=0; // block is too small to be worth processing as a new block
         }
        } else mrbPictureType=mrb=mrbsize=0;
        }
