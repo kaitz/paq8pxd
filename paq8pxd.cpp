@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd105"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd106"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -1923,7 +1923,8 @@ private:
   Array<short, 32> tx; // N inputs from add()  
   Array<short, 32> wx; // N*M weights
   Array<U32> cxt;  // S contexts
-  Array<U32> mrate;  // S contexts
+  Array<int> mrate;  // S contexts
+  Array<int> merr; 
   int ncxt;        // number of contexts (0 to S)
   int base;        // offset of next context
 public:
@@ -2078,6 +2079,7 @@ void train(short *t, short *w, int n, int err) {
      if (ncxt>1)  err=((x.y<<12)-pr[i])*mrate[i]/2;
      else  err=((x.y<<12)-pr[i])*lrate/lshift;
       assert(err>=-32768 && err<32768);
+      if(err>=-merr[i] && err<=merr[i]) err=0;
       train(&tx[0], &wx[cxt[i]*N], nx, err);
     }
     reset();
@@ -2141,13 +2143,14 @@ void train(short *t, short *w, int n, int err) {
     tx[nx++]=p;
   }
   // Set a context (call S times, sum of ranges <= M)
-  void set(int cx, int range,int mr=14) {
+  void set(int cx, int range,int mr=14,int me=7*2) {
     assert(range>=0);
     assert(ncxt<S);
     assert(cx>=0);
     assert(cx<range);
     assert(base+cx<M);
     mrate[ncxt]=mr;
+    merr[ncxt]=me;
     cxt[ncxt++]=base+cx;
     base+=range;
   }
@@ -2190,13 +2193,14 @@ Mixer::~Mixer() {
 
 Mixer::Mixer(int n, int m, BlockData& bd, int s, int w, int g,int h):
     N((n+15)&-16), M(m), S(s),tx(N), wx(N*M),
-    cxt(S),mrate(S), ncxt(0), base(0),nx(0), pr(S), mp(0),x(bd), info(S),
+    cxt(S),mrate(S),merr(S), ncxt(0), base(0),nx(0), pr(S), mp(0),x(bd), info(S),
     rates(S),lrate(S>1?7:g),lshift(S>1?1:h){
   assert(n>0 && N>0 && (N&15)==0 && M>0);
    int i;
   for (i=0; i<S; ++i){
     pr[i]=2048; //initial p=0.5
     rates[i] = DEFAULT_LEARNING_RATE;
+    mrate[i]=14;
     memset(&info[i], 0, sizeof(ErrorInfo));
   }
 
@@ -9774,7 +9778,7 @@ class jpegModelx: public Model {
     // sum of S in RS codes in block and sum of S in first component
 
    IntBuf cbuf2;
-   Array<int> adv_pred,adv_pred1,adv_pred2, run_pred, sumu, sumv ;
+   Array<int> adv_pred,adv_pred1,adv_pred2,adv_pred3, run_pred, sumu, sumv ;
    Array<int> ls;  // block -> distance to previous block
    Array<int> lcp, zpos;
    Array<int> blockW, blockN,/* nBlocks,*/ SamplingFactors;
@@ -9802,11 +9806,12 @@ class jpegModelx: public Model {
     U32 skip;
     StateMap smx;
     U32 jmiss,zux,ccount,lma,ama;
-    StationaryMap Map1[34-5+6+1+1+1+1+1+1+3+1+2+1+2+2+3+3] = { 
+    StationaryMap Map1[66] = { 
     {16,3},{16,3},{16,3},{16,3}, {16,3},{16,3},{16,3},   {15,3},{15,3},{15,3},{15,3},{15,3},
     {15,3},{15,3},{15,3},{15,3},{15,3} ,{15,3},{15,3},{15,3} ,{15,3} ,{15,3},{15,3} ,{15,3},{15,3},
     {15,3},{15,3},{15,3},{14,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},
-     {15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3}
+     {15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},
+     {15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3}
     };
 
 public:
@@ -9814,16 +9819,16 @@ public:
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
-  cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4),adv_pred1(3),adv_pred2(3), run_pred(6),
+  cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4),adv_pred1(3),adv_pred2(3),adv_pred3(3), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
-  qtab(256),qmap(10),N(41),M(58),cxt(N),m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 3+1+1+1+1+1,0,3,2),
+  qtab(256),qmap(10),N(41),M(66),cxt(N),m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 8,0,3,2),
    apm{{0x40000,20-4},{0x40000,20-4},{0x20000,20-4},
    {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27},{0x20000,20-4}},
    x(bd),buf(bd.buf),MJPEGMap( {21, 3, 128, 127}),
   hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),
   hmap(level>10?0x8000000:(CMlimit(MEM()*2)),9,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(1),lma(0),ama(0) {
   }
-  int inputs() {return 7+3*N+1+1+2+2+2+2+2+2+M+2+1;}
+  int inputs() {return 2*N+24+M;}
   int nets() {return 9 + 1025 + 1024 + 512 + 4096 + 64 + 4096 + 1024;}
   int netcount() {return 8;}
   int p(Mixer& m,int val1=0,int val2=0){
@@ -10209,6 +10214,7 @@ public:
                 p=(p<0?-1:+1)*ilog(abs(p)+1);
                 if (st==1)  adv_pred1[i]=p;
                 if (st==2)  adv_pred2[i]=p;
+                if (st==3)  adv_pred3[i]=p;
                 if (st==0) {
                   adv_pred[i]=p;
                 }
@@ -10326,9 +10332,9 @@ public:
     cxt[0]=hash(++n, coef, adv_pred[2]/12+(run_pred[2]<<8), ssum2>>6, prev_coef/72);
     cxt[1]=hash(++n, coef, adv_pred[0]/12+(run_pred[0]<<8), ssum2>>6, prev_coef/72);
     cxt[2]=hash(++n, coef, adv_pred[1]/11+(run_pred[1]<<8), ssum2>>6);
-    cxt[3]=hash(++n, rs1, adv_pred[2]/7,adv_pred1[2]/11, adv_pred2[2]/11,run_pred[5]/2, prev_coef/10);
-    cxt[4]=hash(++n, rs1, adv_pred[0]/7, adv_pred1[0]/11,adv_pred2[0]/11,run_pred[3]/2, prev_coef/10);
-    cxt[5]=hash(++n, rs1, adv_pred[1]/11,adv_pred1[1]/11,adv_pred2[1]/11, run_pred[4]);
+    cxt[3]=hash(++n, rs1, adv_pred[2]/7,adv_pred1[2]/11, adv_pred2[2]/11, adv_pred3[2]/11,run_pred[5]/2, prev_coef/10);
+    cxt[4]=hash(++n, rs1, adv_pred[0]/7, adv_pred1[0]/11,adv_pred2[0]/11,adv_pred3[0]/11,run_pred[3]/2, prev_coef/10);
+    cxt[5]=hash(++n, rs1, adv_pred[1]/11,adv_pred1[1]/11,adv_pred2[1]/11,adv_pred3[1]/11, run_pred[4]);
     cxt[6]=hash(++n, adv_pred[2]/14, run_pred[2], adv_pred[0]/14, run_pred[0]);
     cxt[7]=hash(++n, cbuf[cpos-blockN[mcupos>>6]]>>4, adv_pred[3]/17, run_pred[1], run_pred[5]);
     cxt[8]=hash(++n, cbuf[cpos-blockW[mcupos>>6]]>>4, adv_pred[3]/17, run_pred[1], run_pred[3]);
@@ -10381,7 +10387,6 @@ if (slow==true) x.count=0;
                 m1.add((p-2048)>>3); 
                 m1.add(p=stretch(p)); 
                 m.add(p>>(1+hmap.siy())); 
-                m.add((p>>2)*(n1-n0));
                 int p0=4095-p1;
                 m.add((((p1&n0)-(p0&n1))*1)/(4*4));
                 m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
@@ -10395,7 +10400,6 @@ if (slow==true) x.count=0;
                 m1.add((p-2048)>>3); 
                 m1.add(p=stretch(p)); 
                 m.add(p>>(1+hmap.siy())); 
-                m.add((p>>2)*(n1-n0));
                 int p0=4095-p1;
                 m.add((((p1&n0)-(p0&n1))*1)/(4*4));
                 m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
@@ -10409,7 +10413,6 @@ if (slow==true) x.count=0;
                 m1.add((p-2048)>>3); 
                 m1.add(p=stretch(p)); 
                 m.add(p>>(1+hmap.siy())); 
-                m.add((p>>2)*(n1-n0));
                 int p0=4095-p1;
                 m.add((((p1&n0)-(p0&n1))*1)/(4*4));
                 m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
@@ -10491,6 +10494,15 @@ if (slow==true) x.count=0;
       Map1[i++].set(hash(hc>> 2, adv_pred1[1]/16,prev_coef/42));
       Map1[i++].set(hash(hc>> 2, adv_pred1[0]/16,prev_coef/42));
       Map1[i++].set(hash(hc>> 2, adv_pred2[2]/16,prev_coef/42));
+      
+      Map1[i++].set(hash(hc>> 2, adv_pred1[2]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred2[2]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred2[1]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred2[0]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred2[1]/7,rs1));
+      Map1[i++].set(hash(hc>> 2, adv_pred3[2]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred3[1]/16,prev_coef/42));
+      Map1[i++].set(hash(hc>> 2, adv_pred3[0]/16,prev_coef/42));
 
       // etc
     MJPEGMap.set(hash(mcupos, column, row, hc >> 2));
@@ -10508,9 +10520,9 @@ if (slow==true) x.count=0;
    m1.add(sd=stretch(sd));
    m.add(sd);
    
-   m1.set(firstcol, 2);
-   m1.set( coef+256*min(3,huffbits), 1024,13 );
-   m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048,13 );
+   m1.set(firstcol, 2,14,250);
+   m1.set( coef+256*min(3,huffbits), 1024,13,250*2 );
+   m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048,13,250*2 );
    m1.set(mcupos&63, 64 );
    int colCtx=(width>1024)?(min(1023, column/max(1, width/1024))):column;
    m1.set(colCtx, 1024); 
@@ -10553,8 +10565,8 @@ if (slow==true) x.count=0;
      m.add(stretch(pr)>>1);
      m.add((pr-2048)>>3);   
 
-  m.set( 1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4, 9 ,15);
-  m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025,9 );
+  m.set( 1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4, 9 ,15,250);
+  m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025,9 ,250);
   m.set( coef+256*min(3,huffbits/2), 1024 ,13);
   m.set((hc)&511, 512);
 

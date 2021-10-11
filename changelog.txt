@@ -1,3 +1,11 @@
+v106
+    -Change mixer, so that there is minimum limit for update.
+    -Add more StationaryMap contexts to jpegModel
+    -Use larger update limit for some mixer context in jpegModel
+    -Update lstm to v3
+v105
+    -Fix CD detection.
+    -Fix MRB detection.
 v104
     -in textModel also use regular word in stemmer
     -in wordModel, textModel use upper char flag from wrt 
