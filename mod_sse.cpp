@@ -150,6 +150,23 @@ uint WExtrap( int _p1, int C ) {
   if( _p1>SCALE ) _p1=SCALE;
   return _p1+hSCALE;
 }
+word t_p0[SCALE];
+word t_p1[SCALE];
+word st_p0[SCALE];
+word st_px0[SCALE];
+word st_p2[SCALE]; 
+
+uint Init_ST_p0( void ) {
+  for( int i=1; i<SCALE; i++ ){ 
+    t_p0[i] = Extrap(t_st[i],7935);
+    t_p1[i] = Extrap(t_st[i],9592);
+    st_p0[i] = t_sq[Extrap(t_st[i],10240)];
+    st_px0[i] = t_sq[Extrap(t_st[i],8200)];
+    st_p2[i] = Extrap(t_st[i],7677);
+}
+return 0;
+}
+uint unused_1 = Init_ST_p0();
 
 struct Mixer {
   int w;
@@ -270,15 +287,13 @@ uint M_Estimate( uint p ) {
   mix1 = (mix1*79) + M_mx1mask0[j];
 
   p0 = p;
-  p1 = s6[sm6x].SSE_Pred( t_sq[Extrap(t_st[p0],M_f0C)], su6 );
-  s0 = t_st[p0]; s0 = Extrap(s0,M_f1C);
-  s1 = t_st[p1]; s1 = Extrap(s1,M_f2C);
-  mix1_s0=s0; mix1_s1=s1;
+  p1 = s6[sm6x].SSE_Pred( st_p0[p0], su6 );
+  mix1_s0=t_p0[p0]; mix1_s1=t_p1[p1];
   s2 = x1[mix1].Mixup( x1[mix1].w, mix1_s0, mix1_s1 ); s2 = Extrap(s2,M_sm6C1);
   mix1_p = t_sq[s2];
 
-  p2 = s7[sm7x].SSE_Pred( t_sq[Extrap(t_st[p0],M_f3C)], su7 );
-  s4 = t_st[p2]; s4 = Extrap(s4,M_f4C);
+  p2 = s7[sm7x].SSE_Pred( st_px0[p0]  , su7 );
+  s4 = st_p2[p2];
   mix2_s0=s2; mix2_s1=s4;
   s5 = x2[mix2].Mixup( x2[mix2].w, mix2_s0, mix2_s1 ); s5 = Extrap(s5,M_sm7C1);
   mix2_p = t_sq[s5];
