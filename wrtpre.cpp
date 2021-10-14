@@ -1734,7 +1734,17 @@ void XWRT_Encoder::WRT_encode(U64 filelen){
                      (a1==0xE5 && b1==0xB9 && c==0xB4) || //year   E5B9B4
                      (a1==0xE4 && b1==0xBA && c==0xBA) || //people E4BABA
                      (a1==0xE6 && b1==0x9C && c==0x88) || //month  E69C88
-                     (a1==0xE6 && b1==0x97 && c==0xA5) ){   //day    E697A5
+                     (a1==0xE6 && b1==0x97 && c==0xA5) ||   //day    E697A5
+                     (a1==0xE3 && b1==0x83 && c==0xBC) || // - E383BC
+                     (a1==0xE3 && (b1==0x80 || b1==0x81 || b1==0x82|| b1==0x83 || b1==0x84)  && (c>=0x80 && c<=0xbf))  || // , E3 80 81/82
+                     (a1==0xEf && (b1==0xa4 || b1==0xa5) && (c>=0x80 && c<=0xbf))||//ef a4 80 ef a5 bf
+                     (a1==0xEf && (b1==0xbc || b1==0xbd) && (c>=0x80 && c<=0xbf))||//ef a4 80 ef a5 bf
+                     ((a1==0xE4 ) && ((b1>=0xbc && b1<=0xbf) ) && c>=0x80 )||//(a1==0xEF && b1==0xBC && c==0x88) ||   // (
+                     ((a1==0xE5) && ((b1>=0xbc && b1<=0xbf)|| (b1>=0xa4 && b1<=0xa5) || (b1>=0x97 && b1<=0xa2)) && c>=0x80 )||
+                     (a1==0xE6 && (b1>=0x87 && b1<=0x96) && c>=0x80 ) ||//a1==0xEF && b1==0xBC && c==0x89) || //EF BC 89  // )
+                     (a1==0xE6 && (b1>=0xa8 && b1<=0xab) && c>=0x80 ) ||
+                     (a1==0xE7 && (b1>=0x94 && b1<=0x97) && c>=0x80 ) //(a1==0xEF && b1==0xBC && c==0x9a)// EF BC 9A // :
+                     ){
                     s_size=s_size-3;
                     s[s_size]=0;
                     int cc=s[s_size-1];
