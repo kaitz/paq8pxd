@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd106"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd107"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -9783,7 +9783,7 @@ class jpegModelx: public Model {
    Array<int> lcp, zpos;
    Array<int> blockW, blockN,/* nBlocks,*/ SamplingFactors;
     //for parsing Quantization tables
-   int dqt_state , dqt_end , qnum;
+   int dqt_state , dqt_end , qnum,qnum16,qnum16b;
    Array<U8> qtab; // table
    Array<int> qmap; // block -> table number
 
@@ -9820,7 +9820,7 @@ public:
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4),adv_pred1(3),adv_pred2(3),adv_pred3(3), run_pred(6),
-  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),pr0(0),
+  sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),qnum16(0),qnum16b(0),pr0(0),
   qtab(256),qmap(10),N(41),M(66),cxt(N),m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 8,0,3,2),
    apm{{0x40000,20-4},{0x40000,20-4},{0x20000,20-4},
    {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27},{0x20000,20-4}},
@@ -9845,7 +9845,7 @@ public:
   if (x.bpos && !images[idx].jpeg) return images[idx].next_jpeg;
   if (!x.bpos && images[idx].app>0){
     --images[idx].app;
-    if (idx<MaxEmbeddedLevel && buf(4)==FF && (buf(3)==SOI && buf(2)==FF && (buf(1)==0xC0 || buf(1)==0xC4 || (buf(1)>=0xDB && buf(1)<=0xFE)) ))
+    if (idx<MaxEmbeddedLevel && buf(4)==FF && (buf(3)==SOI && buf(2)==FF && ((buf(1)& 0xFE)==0xC0 || buf(1)==0xC4 || (buf(1)>=0xDB && buf(1)<=0xFE)) ))
       memset(&images[++idx], 0, sizeof(JPEGImage));
   }
   if (images[idx].app>0) return images[idx].next_jpeg;
@@ -9888,7 +9888,7 @@ public:
     // FF 00 is interpreted as FF (to distinguish from RSTx, DNL, EOI).
 
     // Detect JPEG (SOI followed by a valid marker)
-    if (!images[idx].jpeg && buf(4)==FF && buf(3)==SOI && buf(2)==FF && ((buf(1)==0xC0 || buf(1)==0xC4 || (buf(1)>=0xDB && buf(1)<=0xFE))||(buf(1)>>4==0xe || buf(1)==0xdb)) ){
+    if (!images[idx].jpeg && buf(4)==FF && buf(3)==SOI && buf(2)==FF && (( (buf(1) & 0xFE)==0xC0 || buf(1)==0xC4 || (buf(1)>=0xDB && buf(1)<=0xFE))||(buf(1)>>4==0xe || buf(1)==0xdb)) ){
       images[idx].jpeg=1;
       images[idx].offset = buf.pos-4;
       images[idx].sos=images[idx].sof=images[idx].htsize=images[idx].data=0, images[idx].app=(buf(1)>>4==0xE)*2;
@@ -9923,23 +9923,37 @@ public:
         images[idx].sos=buf.pos-5, images[idx].data=images[idx].sos+len+2, images[idx].jpeg=2;
     }
     if (buf(4)==FF && buf(3)==DHT && images[idx].htsize<8) images[idx].ht[images[idx].htsize++]=buf.pos-4;
-    if (buf(4)==FF && buf(3)==SOF0) images[idx].sof=buf.pos-4;
+    if (buf(4)==FF && (buf(3)& 0xFE)==SOF0) images[idx].sof=buf.pos-4;
     if (buf(4)==FF && buf(3)==0xc3) images[idx].jpeg=images[idx].next_jpeg=0; //sof3
     // Parse Quantizazion tables
-    if (buf(4)==FF && buf(3)==DQT)
-      dqt_end=buf.pos+buf(2)*256+buf(1)-1, dqt_state=0;
+    if (buf(4)==FF && buf(3)==DQT) {
+      dqt_end=buf.pos+buf(2)*256+buf(1)-1, dqt_state=0,qnum16b=0,qnum16=0;
+  }
     else if (dqt_state>=0) {
       if (buf.pos>=dqt_end)
         dqt_state = -1;
-      else {
-        if (dqt_state%65==0)
-          qnum = buf(1);
-        else {
+      else if (qnum16 ){
+        if (dqt_state%65==0){
+          qnum = buf(1);qnum16b=0;
+          qnum16=qnum>>4;qnum=qnum&0xf;
+           } else if ((qnum16b&1)==0) {
           jassert(buf(1)>0);
           jassert(qnum>=0 && qnum<4);
           images[idx].qtab[qnum*64+((dqt_state%65)-1)]=buf(1)-1;
         }
-        dqt_state++;
+        if((qnum16b&1)==0)dqt_state++;
+        qnum16b++;
+      }
+      else {
+        if (dqt_state%65==0){
+          qnum = buf(1);qnum16b=0;
+          qnum16=qnum>>4;qnum=qnum&0xf;
+           } else {
+          jassert(buf(1)>0);
+          jassert(qnum>=0 && qnum<4);
+          images[idx].qtab[qnum*64+((dqt_state%65)-1)]=buf(1)-1;
+        }
+        dqt_state++;qnum16b++;
       }
     }
 
@@ -10076,7 +10090,6 @@ public:
       jassert(width>0);
       mcusize*=64;  // coefficients per MCU
       row=column=0;
-      
       
       // we can have more blocks than components then we have subsampling
       int x=0, y=0; 
@@ -16709,14 +16722,14 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
     // SOF0 (FF C0 xx xx 08) and SOS (FF DA) within a reasonable distance.
     // Detect end by any code other than RST0-RST7 (FF D9-D7) or
     // a byte stuff (FF 00).
-    if (!soi && i>=3 && ((
-    ((buf0&0xffffff00)==0xffd8ff00 && ((U8)buf0==0xC0 || (U8)buf0==0xC4 || ((U8)buf0>=0xDB && (U8)buf0<=0xFE)))
+     if (!soi && i>=3 && ((
+    ((buf0&0xffffff00)==0xffd8ff00 && ((buf0&0xfe)==0xC0 || (U8)buf0==0xC4 || ((U8)buf0>=0xDB && (U8)buf0<=0xFE)))
     ||(buf0&0xfffffff0)==0xffd8ffe0  ) )    
     ) soi=i, app=i+2, sos=sof=0;
     if (soi) {
       if (app==i && (buf0>>24)==0xff &&
-         ((buf0>>16)&0xff)>0xc0 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2,brute=false;
-      if (app<i && (buf1&0xff)==0xff && (buf0&0xff0000ff)==0xc0000008) sof=i,brute=false;
+         ((buf0>>16)&0xff)>0xc1 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2,brute=false;
+      if (app<i && (buf1&0xff)==0xff && (buf0&0xfe0000ff)==0xc0000008) sof=i,brute=false;
       
       if (sof && sof>soi && i-sof<0x1000 && (buf0&0xffff)==0xffda) {
         sos=i;

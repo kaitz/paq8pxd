@@ -1,3 +1,5 @@
+v107
+    -Fix detection and compression on some jpeg files.
 v106
     -Change mixer, so that there is minimum limit for update.
     -Add more StationaryMap contexts to jpegModel
