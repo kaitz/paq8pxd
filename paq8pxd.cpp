@@ -16316,7 +16316,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
                 stream.avail_out=512;
                 stream.next_out = (char*)&bzout;
                 ret = BZ2_bzDecompress(&stream);
-                printf("%d \n",ret);
                 if ((ret==BZ_OK) || (ret==BZ_STREAM_END)) {
                     in->setpos(savepos);
                    (void)BZ2_bzDecompressEnd(&stream);
