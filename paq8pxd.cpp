@@ -19063,7 +19063,7 @@ void henttail( char *in,char *out,FileTmp *o){
               (memcmp(&ps[2],"template:",9)==0) ||
               (memcmp(&ps[2],"wikinews:",9)==0) ||
               (memcmp(&ps[2],"bild:",5)==0) ||
-              (memcmp(&ps[2],"fr:Wikipï¿½dia:Aide]]",20)==0) ||
+              (memcmp(&ps[2],"fr:Wikipédia:Aide]]",20)==0) ||
               (memcmp(&ps[2],"de:Boogie Down Produ",20)==0) ||
               (memcmp(&ps[2],"da:Wikipedia:Hvordan",20)==0) ||
               (memcmp(&ps[2],"sv:Indiska musikinstrument",26)==0) ||
