@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd107"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd108"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -16232,6 +16232,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
   bz_stream stream;
   char bzin[512],bzout[512];
   static int bzlevel=0;
+  bool isBSDIFF=false;
    // For image detection
   static Array<U32> tfidf(0);
   static int tiffImages=-1;
@@ -16294,8 +16295,9 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
        if(tiffImageEnd>>1==tiffImages) tiffImages=-1,tiffImageEnd=0;
        }
     }  
+    if (i==7 && buf1==0x42534449 && buf0==0x46463430/*-35*/) isBSDIFF=true;
     // BZhx = 0x425A68xx header, xx = level '1'-'9'
-    if ((buf0&0xffffff00)==0x425A6800 && type!=BZIP2 && tarl==0){
+    if (isBSDIFF==false && (buf0&0xffffff00)==0x425A6800 && type!=BZIP2 && tarl==0){
         bzlevel=c-'0';
         if ((bzlevel>=1) && (bzlevel<=9)) {
             BZip2=i;
@@ -16314,6 +16316,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,
                 stream.avail_out=512;
                 stream.next_out = (char*)&bzout;
                 ret = BZ2_bzDecompress(&stream);
+                printf("%d \n",ret);
                 if ((ret==BZ_OK) || (ret==BZ_STREAM_END)) {
                     in->setpos(savepos);
                    (void)BZ2_bzDecompressEnd(&stream);

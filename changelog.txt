@@ -1,3 +1,6 @@
+v108
+    -Merge VLI fix.
+    -Fix BZ detection https://encode.su/threads/1464-Paq8pxd-dict?p=83831&viewfull=1#post83831
 v107
     -Fix detection and compression on some jpeg files.
 v106
