@@ -547,7 +547,7 @@ which computes 8 elements at a time, is not any faster).
 
 */
 
-#define PROGNAME "paq8pxd108"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd109"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #define SIMD_CM_R       // SIMD ContextMap byterun
@@ -689,17 +689,17 @@ public:
     assert(sizeof(int)==4);  
   }
   void print() const {  // print time and memory used
-#if defined(WINDOWS)  
-    HANDLE  hConsole;
-    int k;
-    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleTextAttribute(hConsole, 10);
-#endif
+//#if defined(WINDOWS)  
+//    HANDLE  hConsole;
+//    int k;
+//    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+//    SetConsoleTextAttribute(hConsole, 10);
+//#endif
     printf("Time %1.2f sec, used %0" PRIi64 " MB (%0" PRIi64 " bytes) of memory\n",
       double(clock()-start_time)/CLOCKS_PER_SEC, ((maxmem)/1024)/1024,(maxmem));
-#if defined(WINDOWS)
-    SetConsoleTextAttribute(hConsole, 7);
-#endif
+////#if defined(WINDOWS)
+//    SetConsoleTextAttribute(hConsole, 7);
+//#endif
   }
 } programChecker;
 
@@ -1290,6 +1290,7 @@ bool witmode=false; //-w
 bool staticd=false;  // -e
 bool doExtract=false;  // -d option
 bool doList=false;  // -l option
+int verbose=2;
 U64 MEM(){
      return 0x10000UL<<level;
 }
@@ -21257,7 +21258,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         }
         // Test fails, compress without transform
         if (tfail) {
-            printf(" Transform fails at %0lu, skipping...\n", diffFound-1);
+            if (verbose>2) printf(" Transform fails at %0lu, skipping...\n", diffFound-1);
              in->setpos(begin);
              Filetype type2;
              if (type==ZLIB || (type==BZIP2))  type2=CMP; else type2=DEFAULT;
@@ -21385,7 +21386,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             in->setpos(savedpos);
             if (tarend((char*)&tarh)) {
                 tarn=512+pad;
-                printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[BINTEXT],tarn,savedpos,savedpos+tarn-1);
+                if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[BINTEXT],tarn,savedpos,savedpos+tarn-1);
                 typenamess[BINTEXT][it+1]+=tarn,  typenamesc[BINTEXT][it+1]++; 
                 direct_encode_blockstream(BINTEXT, in, tarn, en,0,0);
                }
@@ -21400,7 +21401,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 sprintf(blstr,"%s%d",b2,blnum++);
                 int tarover=512+pad;
                 //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[BINTEXT],tarover,savedpos,savedpos+tarover-1,tarh.name);
+                if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[BINTEXT],tarover,savedpos,savedpos+tarover-1,tarh.name);
                 typenamess[BINTEXT][it+1]+=tarover,  typenamesc[BINTEXT][it+1]++; 
                 if (it==itcount)    itcount=it+1;
                 direct_encode_blockstream(BINTEXT, in, tarover, en,0,0);
@@ -21425,7 +21426,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                        // ((tarh.name[filenamesize-1]=='c' || tarh.name[filenamesize-1]=='h') && tarh.name[filenamesize-2]=='.') ||
                       //  (tarh.name[filenamesize-4]=='.' && tarh.name[filenamesize-3]=='t' && tarh.name[filenamesize-2]=='x' &&  tarh.name[filenamesize-1]=='t')
                         )){
-                            printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
+                           if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
                              direct_encode_blockstream(TEXT, in, a, en,0,0);
                         }else{
                         
@@ -21443,7 +21444,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
              }
              tarl-=tarn;
              }
-             printf("\n");
+             if (verbose>2) printf("\n");
         }else {
             const int i1=(typet[type][HASINFO]&TR_INFO)?info:-1;
             direct_encode_blockstream(type, in, len, en, s1, s2, i1);
@@ -21545,7 +21546,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
       //s2-=len;
       sprintf(blstr,"%s%d",b2,blnum++);
       // printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
-      printf(" %-16s |",blstr);
+      if (verbose>2) printf(" %-16s |",blstr);
 #if defined(WINDOWS)      
       HANDLE  hConsole;
       hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -21553,16 +21554,19 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
       if (streamcolor<1) streamcolor=7;
       SetConsoleTextAttribute(hConsole, streamcolor);
 #endif      
-      printf(" %-9s ",typenames[type]);
+      if (verbose>2) printf(" %-9s ",typenames[type]);
 #if defined(WINDOWS)      
       SetConsoleTextAttribute(hConsole, 7);
 #endif      
+      if (verbose>2) {
+      
       printf("|%12.0f [%0.0f - %0.0f]",len+0.0,begin+0.0,(end-1)+0.0);
       if (type==AUDIO) printf(" (%s)", audiotypes[(info&31)%4+(info>>7)*2]);
       else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24 || type==MRBR|| type==MRBR4|| type==IMAGE8GRAY || type==IMAGE32 ||type==GIF) printf(" (width: %d)", info&0xFFFFFF);
       else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
       else if (type==ZLIB && (info>>24) > 0) printf(" (%s)",typenames[info>>24]);
       printf("\n");
+      }
       transform_encode_block(type, in, len, en, info,info2, blstr, it, s1, s2, begin);
       
       s1+=len;
@@ -21587,7 +21591,7 @@ void DetectStreams(const char* filename, U64 filesize) {
   assert(filename && filename[0]);
   FileDisk in;
   in.open(filename,true);
-  printf("Block segmentation:\n");
+  if (verbose>2) printf("Block segmentation:\n");
   char blstr[32]="";
   DetectRecursive(&in, filesize, en, blstr);
   in.close();
@@ -21872,9 +21876,9 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                             // -e0 option ignores larger wrt size
                             if (datasegmentlen>=datasegmentsize && minfq!=0){
                                dictFail=true; //wrt size larger
-                               printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize ); 
+                               if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize ); 
                             }else{                            
-                               printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
+                               if (verbose>0)printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
                             }
                             tm.setpos(0);
                             in->setpos(0);
@@ -21891,7 +21895,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                                 if (!(k&0x1fff)) printStatus(k, datasegmentlen,i);
                                 #ifndef NDEBUG 
                                 if (!(k&0x3ffff) && k) {
-                                    printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,k, out->curpos()-scompsize);
+                                    if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,k, out->curpos()-scompsize);
                                     scompsize= out->curpos();
                                 }
                                 #endif
@@ -22093,6 +22097,13 @@ int main(int argc, char** argv) {
                 if (extd==0) printf("WARNING: dictionary file not found.\n");
                 else externaDict=extd+1;
                 //witmode=true; printf("WIT\n");
+                --argc;
+                ++argv;
+            }
+            if (argv[1][0]=='-' && argv[1][1]=='v')   {
+                verbose=atol(&argv[1][2]);
+                if (verbose>3 || verbose<0) printf("BAD verbose level\n"),quit();
+                printf("Verbose: level %d.\n",verbose);
                 --argc;
                 ++argv;
             }
@@ -22367,7 +22378,9 @@ printf("\n");
                 DetectStreams(fname[i], fsize[i]);
             }
             segment.put1(0xff); //end marker
-            printf("\n Segment data size: %d bytes\n",segment.pos);
+            if (verbose>1) {
+            
+             printf("\n Segment data size: %d bytes\n",segment.pos);
             
             //Display Level statistics
             U32 ttc;
@@ -22380,7 +22393,7 @@ printf("\n");
                 printf("-----------------------------------------\n");
                 printf("%-13s%1d |%10d |%10.0" PRIi64 "\n\n","Total level",j, ttc,tts);
             }
-            
+        }
 #ifdef MT
             std::vector<Job> jobs;
 #endif
@@ -22391,7 +22404,8 @@ printf("\n");
                  filestreams[i]->setpos( 0);
                 streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
                 if (datasegmentsize>0){                       //if segment contains data
-
+                    if (verbose>0) {
+                
 #if defined(WINDOWS) 
                     HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
                     SetConsoleTextAttribute(hConsole, i+2);
@@ -22428,6 +22442,7 @@ printf("\n");
                     SetConsoleTextAttribute(hConsole, 7);
 #endif                    
                     printf("stream(%d).  Total %0" PRIi64 "\n",i,datasegmentsize);
+                    }
 #ifdef MT
                                                               // add streams to job list
                     filesmt[i]=new FileTmp();                 //open tmp file for stream output
@@ -22582,10 +22597,10 @@ printf("\n");
             delete segpredict;
             delete segencode;
             archive->put32(segment.pos);     // write segment data size
-            printf(" Segment data compressed from %d",segment.pos);
+            if (verbose>0) printf(" Segment data compressed from %d",segment.pos);
             segment.pos=tmp.curpos();
             segment.setsize(segment.pos);
-            printf(" to %d bytes\n ",segment.pos);
+            if (verbose>0) printf(" to %d bytes\n ",segment.pos);
             tmp.setpos( 0); 
             if (tmp.blockread(&segment[0], segment.pos)<segment.pos) quit("Segment data corrupted.");
             tmp.close();
@@ -22598,14 +22613,14 @@ printf("\n");
             for (int i=0;i<streamc;i++){
                 if (filestreamsize[i]>0) archive->putVLI(filestreamsize[i]);
             }
-#if defined(WINDOWS) 
-            HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-            SetConsoleTextAttribute(hConsole, 10);
-#endif
+//#if defined(WINDOWS) 
+//            HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+//            SetConsoleTextAttribute(hConsole, 10);
+//#endif
             printf("Total %0" PRIi64 " bytes compressed to %0" PRIi64 " bytes.\n", total_size,  archive->curpos()); 
-#if defined(WINDOWS) 
-            SetConsoleTextAttribute(hConsole, 7);
-#endif
+//#if defined(WINDOWS) 
+//            SetConsoleTextAttribute(hConsole, 7);
+//#endif
         }
         // Decompress files to dir2: paq8pxd -d dir1/archive.paq8pxd dir2
         // If there is no dir2, then extract to dir1

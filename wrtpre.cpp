@@ -2125,7 +2125,7 @@ void XWRT_Encoder::WRT_detectFinish(){
     if (sizeDict>maxDictSize)
     sizeDict=maxDictSize;
     if (minWordFreq2==0 && staticd==true)sizeDict=0;
-    if(isDetected==true) printf("  static reduced %d (freq>=%d)\n  dynamic words %d (dynamic freq>=%d)\n  total words %d  \n",reducedStaticDict,minfq,sizeDict-reducedStaticDict,minWordFreq2,sizeDict);
+    if(isDetected==true &&  (verbose>0)) printf("  static reduced %d (freq>=%d)\n  dynamic words %d (dynamic freq>=%d)\n  total words %d  \n",reducedStaticDict,minfq,sizeDict-reducedStaticDict,minWordFreq2,sizeDict);
     PRINT_DICT(("reduced to %d words (freq>=%d)\n",sizeDict,minWordFreq));
     sortDict(sizeDict,reducedStaticDict);
 }
