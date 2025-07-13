@@ -689,17 +689,8 @@ public:
     assert(sizeof(int)==4);  
   }
   void print() const {  // print time and memory used
-//#if defined(WINDOWS)  
-//    HANDLE  hConsole;
-//    int k;
-//    hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-//    SetConsoleTextAttribute(hConsole, 10);
-//#endif
     printf("Time %1.2f sec, used %0" PRIi64 " MB (%0" PRIi64 " bytes) of memory\n",
       double(clock()-start_time)/CLOCKS_PER_SEC, ((maxmem)/1024)/1024,(maxmem));
-////#if defined(WINDOWS)
-//    SetConsoleTextAttribute(hConsole, 7);
-//#endif
   }
 } programChecker;
 
@@ -22089,11 +22080,11 @@ int main(int argc, char** argv) {
             }
             if (argv[1][0]=='-' && argv[1][1]=='e')   {
                 staticd=true;
-                if (argv[1][2]==0) minfq=19;
+                if (argv[1][2]==0) minfq=0;
                 else minfq=atol(&argv[1][2]);
                 char *extd=(strchr(&argv[1][2], ','));
                 if (minfq<0) printf("BAD command line: minimum word frequency must be >=0\n"),quit();
-                if (minfq<1) printf("WARNING: minimum word frequency =0\n");
+                if (minfq<1) printf("WARNING: minimum word frequency=0, using static words only.\n");
                 if (extd==0) printf("WARNING: dictionary file not found.\n");
                 else externaDict=extd+1;
                 //witmode=true; printf("WIT\n");
@@ -22613,14 +22604,7 @@ printf("\n");
             for (int i=0;i<streamc;i++){
                 if (filestreamsize[i]>0) archive->putVLI(filestreamsize[i]);
             }
-//#if defined(WINDOWS) 
-//            HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-//            SetConsoleTextAttribute(hConsole, 10);
-//#endif
             printf("Total %0" PRIi64 " bytes compressed to %0" PRIi64 " bytes.\n", total_size,  archive->curpos()); 
-//#if defined(WINDOWS) 
-//            SetConsoleTextAttribute(hConsole, 7);
-//#endif
         }
         // Decompress files to dir2: paq8pxd -d dir1/archive.paq8pxd dir2
         // If there is no dir2, then extract to dir1

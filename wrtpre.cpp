@@ -1964,9 +1964,10 @@ int XWRT_Encoder::WRT_detectFileType(U64 filelen){
                      checkWord(s,s_size,c);  
                } while (s[0]!=0);
                fclose(in);
-               if (minfq==0) minfq=1;
-            }else{
+               if (sizeDict==1) sizeDict=0,minfq=19;
+            } else {
                sizeDict=0;
+               if (minfq==0) minfq=19;
             } 
             s_size=0;            
             staticDict=sizeDict;
@@ -2059,73 +2060,89 @@ void XWRT_Encoder::WRT_detectFinish(){
     int num;
     int minWordFreq2;
     if (minWordFreq<6*2)
-    minWordFreq2=minWordFreq;
+        minWordFreq2=minWordFreq;
     else
-    minWordFreq2=minWordFreq-2;
+        minWordFreq2=minWordFreq-2;
     if (staticd==true && staticDict==0) minWordFreq2=minWordFreq=minfq;
     reducedStaticDict=newstaticsize=0;
-    if (staticd==true){
-        //reduce static dict and compact it
-    for (i=0; i<staticDict; i++){
-        num=dictfreq[i];
-        
-        if (num>minfq)  // from command line
-       // printf("%.*s %d\n", dictlen[i], dict[i],dictfreq[i]); // print string and its frq
-       ;
-        else
-        dictfreq[i]=0;
-    }
-    int n = 0;
-    for (i = 0; i<staticDict; i++)    {
-        if (dictfreq[i] != 0)
-        {
-            dictfreq[n] = dictfreq[i];
-            dict[n]=dict[i];
-        dictlen[n]=dictlen[i];
-        dict[i]=0;
-        dictfreq[i]=0;
-        n++;
+    if (minfq!=0) {
+        if (staticd==true) {
+            //reduce static dict and compact it
+            for (i=0; i<staticDict; i++) {
+                num=dictfreq[i];
+                
+                if (num>minfq)  // from command line
+                // printf("%.*s %d\n", dictlen[i], dict[i],dictfreq[i]); // print string and its frq
+                ;
+                else
+                dictfreq[i]=0;
+            }
+            int n=0;
+            for (i=0; i<staticDict; i++) {
+                if (dictfreq[i]!=0) {
+                    dictfreq[n]=dictfreq[i];
+                    dict[n]=dict[i];
+                    dictlen[n]=dictlen[i];
+                    dict[i]=0;
+                    dictfreq[i]=0;
+                    n++;
+                }
+            }
+            newstaticsize=n;
+        }
+        for (i=staticDict; i<sizeDict-1; i++) {
+            num=dictfreq[i];
+            if (staticd==true && staticDict>0) {
+                if ( utf8len((char*)dict[i])>1|| (num>=minWordFreq*(staticd==true?2:1) && (staticd==true?((dictlen[i]>3)?1:0):1)) || (num>=minWordFreq2*(staticd==true?2:1) && (dictlen[i]>=7)) 
+                        )  
+                //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
+                ;
+                else
+                dictfreq[i]=0;
+            } else {
+                if (num>=minWordFreq || (num>=minWordFreq2 && (dictlen[i]>=7))) ;
+                //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
+                else
+                dictfreq[i]=0;
+            }
+        }
+        for (i=1, j=sizeDict-2; i<j; i++) {
+            if (dictfreq[i]>0)
+            continue;
+            while (j>0 && dictfreq[j]==0) j--;
+            if (i>j)
+            break;
+            dict[i]=dict[j];
+            dictlen[i]=dictlen[j];
+            dictfreq[i]=dictfreq[j];
+            dictfreq[j--]=0;
+        }
+    } else {
+        // static dictionary only
+        int n=0;
+        for (i=0; i<staticDict; i++) {
+            if (dictfreq[i]!= 0) {
+                dictfreq[n] = dictfreq[i];
+                dict[n]=dict[i];
+                dictlen[n]=dictlen[i];
+                dict[i]=0;
+                dictfreq[i]=0;
+                n++;
+            }
+        }
+        newstaticsize=n;
+        for (i=0; i<newstaticsize; i++) {
+            std::string str=(char*)dict[i];
+            sortedDict.push_back(str);
         }
     }
-      newstaticsize=n;
-  }
-    for (i=staticDict; i<sizeDict-1; i++){
-        num=dictfreq[i];
-        if (staticd==true && staticDict>0){
-            
-         if ( utf8len((char*)dict[i])>1|| (num>=minWordFreq*(staticd==true?2:1) && (staticd==true?((dictlen[i]>3)?1:0):1)) || (num>=minWordFreq2*(staticd==true?2:1) && (dictlen[i]>=7)) 
-            )  
-        //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
-        ;
-        else
-        dictfreq[i]=0;
-    }else{
-        if (num>=minWordFreq || (num>=minWordFreq2 && (dictlen[i]>=7))) ;
-        
-        //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
-       
-        else
-        dictfreq[i]=0;
-    }
-    }
-    for (i=1, j=sizeDict-2; i<j; i++){
-        if (dictfreq[i]>0)
-        continue;
-        while (j>0 && dictfreq[j]==0) j--;
-        if (i>j)
-        break;
-        dict[i]=dict[j];
-        dictlen[i]=dictlen[j];
-        dictfreq[i]=dictfreq[j];
-        dictfreq[j--]=0;
-    }
-   
     sizeDict=i;
     reducedStaticDict=newstaticsize;
     if (sizeDict>maxDictSize)
     sizeDict=maxDictSize;
     if (minWordFreq2==0 && staticd==true)sizeDict=0;
-    if(isDetected==true &&  (verbose>0)) printf("  static reduced %d (freq>=%d)\n  dynamic words %d (dynamic freq>=%d)\n  total words %d  \n",reducedStaticDict,minfq,sizeDict-reducedStaticDict,minWordFreq2,sizeDict);
+    if(isDetected==true && (verbose>0) && minfq!=0) printf("  static reduced %d (freq>=%d)\n  dynamic words %d (dynamic freq>=%d)\n  total words %d  \n",reducedStaticDict,minfq,sizeDict-reducedStaticDict,minWordFreq2,sizeDict);
+    else if(isDetected==true && (verbose>0) && minfq==0) printf("  static words %d\n",reducedStaticDict);
     PRINT_DICT(("reduced to %d words (freq>=%d)\n",sizeDict,minWordFreq));
-    sortDict(sizeDict,reducedStaticDict);
+    if (minfq!=0) sortDict(sizeDict,reducedStaticDict);
 }
