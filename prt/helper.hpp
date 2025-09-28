@@ -16,3 +16,8 @@ FILE* tmpfile2(void);
 U32 utf8_check(U8 *s);
 U64 MEM();
     U64 CMlimit(U64 size);
+    
+template<typename T>
+constexpr auto isPowerOf2(T x) -> bool {
+  return ((x & (x - 1)) == 0);
+}
