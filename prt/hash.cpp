@@ -52,3 +52,17 @@ U32 combine(U32 seed, const U32 x) {
   seed^=seed>>6;
   return seed;
 }
+
+
+Random1::Random1() {
+  _state = 0;
+}
+// This pseudo random number generator is a 
+// Mixed Congruential Generator with a period of 2^64
+// https://en.wikipedia.org/wiki/Linear_congruential_generator
+
+auto Random1::operator()(int numberOfBits) -> uint32_t {
+  assert(numberOfBits > 0 && numberOfBits <= 32);
+  _state = (_state + 1) * PHI64;
+  return static_cast<uint32_t>(_state >> (64 - numberOfBits));
+}
