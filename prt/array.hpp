@@ -66,7 +66,7 @@ template<class T, const int Align> void Array<T,Align>::create(U64 requested_siz
   ptr=(char*)calloc(bytes_to_allocate,1);
   if(!ptr){
       printf("Requested size %0" PRIi64 " MB\n",((bytes_to_allocate)/1024)/1024);
-      quit("Out of memory.");
+      throw "Out of memory."; 
   }
   U64 pad=padding();
   data=(T*)(((uintptr_t)ptr+pad) & ~(uintptr_t)pad);

@@ -1,3 +1,4 @@
+#include "helper.hpp"
 #include <assert.h>
 #ifdef WINDOWS
 #include <windows.h>
@@ -5,10 +6,10 @@
 #include <sys/stat.h>
 #include <string>
 #include <stdio.h>
-
+extern U8 level;
 // Error handler: print message if any, and exit
-void quit(const char* message=0) {
-  throw message;
+void quit(const char* message) {
+  throw message; 
 }
 
 // strings are equal ignoring case?
@@ -54,7 +55,7 @@ void makedirectories(const char* filename) {
       int created = makedir(dirname);
       if (created==0) {
         printf("Unable to create directory %s\n", dirname);
-        quit();
+        quit("");
       }
       if(created==1)
        // printf("Created directory %s\n", dirname);
@@ -113,3 +114,46 @@ FILE* maketmpfile(void) {
 #endif
 }*/
 
+U32 utf8_check(U8 *s) {
+    int i=0;
+    if (*s < 0x80)      /* 0xxxxxxx */
+      return 0;
+    else if ((s[0] & 0xe0) == 0xc0) {      /* 110XXXXx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 || (s[0] & 0xfe) == 0xc0)                        /* overlong? */
+    return i;
+      else
+    i = 2;
+    } else if ((s[0] & 0xf0) == 0xe0) {      /* 1110XXXX 10Xxxxxx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 ||
+      (s[2] & 0xc0) != 0x80 ||
+      (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||    /* overlong? */
+      (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||    /* surrogate? */
+      (s[0] == 0xef && s[1] == 0xbf &&
+       (s[2] & 0xfe) == 0xbe))                      /* U+FFFE or U+FFFF? */
+    return i;
+      else
+    i = 3;
+    } else if ((s[0] & 0xf8) == 0xf0) {      /* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
+      if ((s[1] & 0xc0) != 0x80 ||
+      (s[2] & 0xc0) != 0x80 ||
+      (s[3] & 0xc0) != 0x80 ||
+      (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||    /* overlong? */
+      (s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) /* > U+10FFFF? */
+    return i;
+      else
+     i += 4;
+    } else
+      return i;
+  return i;
+}
+
+
+U64 CMlimit(U64 size){
+    //if (size>(0x100000000UL)) return (0x100000000UL); //limit to 4GB, using this will consume lots of memory above level 11
+    if (size>(0x80000000UL)) return (0x80000000UL); //limit to 2GB
+    return (size);
+}
+
+U64 MEM(){
+     return 0x10000UL<<level;
+}

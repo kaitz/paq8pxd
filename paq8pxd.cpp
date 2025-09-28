@@ -122,6 +122,11 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "prt/indirectcontext.hpp"
 #include "prt/ols.hpp"
 #include "prt/largestationarymap.hpp"
+#include "prt/sscm.hpp"
+#include "prt/stationarymap.hpp"
+#include "prt/mft.hpp"
+#include "models/model.hpp"
+#include "models/sparsematch.hpp"
 
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
@@ -131,9 +136,7 @@ bool staticd=false;  // -e
 bool doExtract=false;  // -d option
 bool doList=false;  // -l option
 int verbose=2;
-U64 MEM(){
-     return 0x10000UL<<level;
-}
+
 char *externaDict;
 int minfq=19;
 Segment segment; //for file segments type size info(if not -1)
@@ -361,146 +364,6 @@ public:
   }
 };
 
-/*
-Map for modelling contexts of (nearly-)stationary data.
-The context is looked up directly. For each bit modelled, a 16bit prediction is stored.
-The adaptation rate is controlled by the caller, see mix().
-
-- BitsOfContext: How many bits to use for each context. Higher bits are discarded.
-- InputBits: How many bits [1..8] of input are to be modelled for each context.
-New contexts must be set at those intervals.
-
-Uses (2^(BitsOfContext+1))*((2^InputBits)-1) bytes of memory.
-*/
-
-class SmallStationaryContextMap {
-  Array<U16> Data;
-  int Context, Mask, Stride, bCount, bTotal, B;
-  U16 *cp;
-public:
-  SmallStationaryContextMap(int BitsOfContext, int InputBits = 8) : Data((1ull<<BitsOfContext)*((1ull<<InputBits)-1)), Context(0), Mask((1<<BitsOfContext)-1), Stride((1<<InputBits)-1), bCount(0), bTotal(InputBits), B(0) {
-    assert(BitsOfContext<=16);
-    assert(InputBits>0 && InputBits<=8);
-    Reset();
-    cp=&Data[0];
-  }
-  void set(U32 ctx) {
-    Context = (ctx&Mask)*Stride;
-    bCount=B=0;
-  }
-  void Reset() {
-    for (U32 i=0; i<Data.size(); ++i)
-      Data[i]=0x7FFF;
-  }
-  void mix(Mixer& m, const int rate = 7, const int Multiplier = 1, const int Divisor = 4) {
-    *cp+=((m.x.y<<16)-(*cp)+(1<<(rate-1)))>>rate;
-    B+=(m.x.y && B>0);
-    cp = &Data[Context+B];
-    int Prediction = (*cp)>>4;
-    m.add((stretch(Prediction)*Multiplier)/Divisor);
-    m.add(((Prediction-2048)*Multiplier)/(Divisor*2));
-    bCount++; B+=B+1;
-    if (bCount==bTotal)
-      bCount=B=0;
-  }
-};
-
-/*
-  Map for modelling contexts of (nearly-)stationary data.
-  The context is looked up directly. For each bit modelled, a 32bit element stores
-  a 22 bit prediction and a 10 bit adaptation rate offset.
-
-  - BitsOfContext: How many bits to use for each context. Higher bits are discarded.
-  - InputBits: How many bits [1..8] of input are to be modelled for each context.
-    New contexts must be set at those intervals.
-  - Rate: Initial adaptation rate offset [0..1023]. Lower offsets mean faster adaptation.
-    Will be increased on every occurrence until the higher bound is reached.
-
-    Uses (2^(BitsOfContext+2))*((2^InputBits)-1) bytes of memory.
-*/
-
-class StationaryMap {
-  Array<U32> Data;
-  int Context, Mask, Stride, bCount, bTotal, B;
-  U32 *cp;
-public:
-  StationaryMap(int BitsOfContext, int InputBits = 8, int Rate = 0): Data((1ull<<BitsOfContext)*((1ull<<InputBits)-1)), Context(0), Mask((1<<BitsOfContext)-1), Stride((1<<InputBits)-1), bCount(0), bTotal(InputBits), B(0) {
-    assert(InputBits>0 && InputBits<=8);
-    assert(BitsOfContext+InputBits<=24);
-    Reset(Rate);
-    cp=&Data[0];
-  }
-  void set(U32 ctx) {
-    Context = (ctx&Mask)*Stride;
-    bCount=B=0;
-  }
-    void Reset( int Rate = 0 ){
-    for (U32 i=0; i<Data.size(); ++i)
-      Data[i]=(1<<31)|min(1023,Rate);
-  }
-  int mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023) {
-    // update
-    int Prediction,Error ;
-    U32 p0=cp[0];
-#ifdef SM  
-     int n=p0&1023, pr=p0>>13;  // count, prediction
-     p0+=(n<Limit);     
-     p0+=(((m.x.y<<19)-pr))*dt[n]&0xfffffc00;
-#else
-     int n=p0&1023, pr=p0>>10;  // count, prediction
-     p0+=(n<Limit);     
-     p0+=(((m.x.y<<22)-pr)>>3)*dt[n]&0xfffffc00;
-#endif    
-     cp[0]=p0;
-
-    // predict
-    B+=(m.x.y && B>0);
-    cp=&Data[Context+B];
-    pr = (*cp)>>20;
-    m.add((stretch(pr)*Multiplier)/Divisor);
-    m.add(((pr-2048)*Multiplier)/(Divisor*2));
-    bCount++; B+=B+1;
-    if (bCount==bTotal)
-      bCount=B=0;
-    return pr;
-  }
-  int mix1(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023) {
-    // update
-    int Prediction,Error;
-    U32 p0=cp[0];
-#ifdef SM
-     int pr=p0>>13;  // count, prediction
-     if (m.x.count>0x4ffff)
-       p0+=(((m.x.y<<19)-pr));
-     else {
-       int n=p0&1023;
-       p0+=(n<Limit);     
-       p0+=(((m.x.y<<19)-pr))*dt[n]&0xfffffc00;
-     }
-#else
-     int n=p0&1023, pr=p0>>10;  // count, prediction
-     p0+=(n<Limit);     
-     p0+=(((m.x.y<<22)-pr)>>3)*dt[n]&0xfffffc00;
-#endif    
-     cp[0]=p0;
-
-    // predict
-    B+=(m.x.y && B>0);
-    cp=&Data[Context+B];
-    pr = (*cp)>>20;
-    m.add((stretch(pr)*Multiplier)/Divisor);
-    m.add(((pr-2048)*Multiplier)/(Divisor*2));
-    bCount++; B+=B+1;
-    if (bCount==bTotal)
-      bCount=B=0;
-    return pr;
-  }
-};
-
-
-
-
-
 // Context map for large contexts.  Most modeling uses this type of context
 // map.  It includes a built in RunContextMap to predict the last byte seen
 // in the same context, and also bit-level contexts that map to a bit
@@ -546,11 +409,7 @@ public:
 #else
 #define MALIGN 16
 #endif
-inline U64 CMlimit(U64 size){
-    //if (size>(0x100000000UL)) return (0x100000000UL); //limit to 4GB, using this will consume lots of memory above level 11
-    if (size>(0x80000000UL)) return (0x80000000UL); //limit to 2GB
-    return (size);
-}
+
 int n0n1[256];
 class ContextMap {
   const int C;  // max number of contexts
@@ -1114,40 +973,7 @@ public:
 
 
 
-class MTFList{
-private:
-  int Root, Index;
-  Array<int, 16> Previous;
-  Array<int, 16> Next;
-public:
-  MTFList(const U16 n): Root(0), Index(0), Previous(n), Next(n) {
-    assert(n>0);
-    for (int i=0;i<n;i++) {
-      Previous[i] = i-1;
-      Next[i] = i+1;
-    }
-    Next[n-1] = -1;
-  }
-  inline int GetFirst(){
-    return Index=Root;
-  }
-  inline int GetNext(){
-    if(Index>=0){Index=Next[Index];return Index;}
-    return Index; //-1
-  }
-  inline void MoveToFront(int i){
-    assert(i>=0 && i<Previous.size());
-    if ((Index=i)==Root) return;
-    int p=Previous[Index];
-    int n=Next[Index];
-    if(p>=0)Next[p] = Next[Index];
-    if(n>=0)Previous[n] = Previous[Index];
-    Previous[Root] = Index;
-    Next[Index] = Root;
-    Root=Index;
-    Previous[Root]=-1;
-  }
-};
+
 
 //////////////////////////// Text modelling /////////////////////////
 
@@ -2791,15 +2617,7 @@ const U8 AsciiGroup[128] = {
   3,  3,  3,  3,  3,  3,  3,  3,
   3,  3,  3, 28, 30, 29, 30, 30
 };
-class Model {
-public:
-  virtual  int p(Mixer& m,int val1=0,int val2=0)=0;
-  virtual  int inputs()=0;
-  virtual  int nets()=0;
-  virtual  int netcount()=0;
-  virtual  void setword(U8 *w,int len=0){} ;
-  virtual ~Model(){};
-};
+
 
 class TextModel: public Model {
 private:
@@ -3923,180 +3741,9 @@ int matchModel2::p(Mixer &m,int val1=0,int val2=0) {
   return ilog(length);
 }  
 
-class SparseMatchModel: public Model {
-private:
-    BlockData& x;
-    Buf& buffer;
-  enum Parameters : U32 {
-    MaxLen    = 0xFFFF, // longest allowed match
-    MinLen    = 3,      // default minimum required match length
-    NumHashes = 4,      // number of hashes used
-  };
-  struct sparseConfig {
-    U32 offset;//    = 0;      // number of last input bytes to ignore when searching for a match
-    U32 stride ;//    = 1;      // look for a match only every stride bytes after the offset
-    U32 deletions;//  = 0;      // when a match is found, ignore these many initial post-match bytes, to model deletions
-    U32 minLen ;//    = MinLen;
-    U32 bitMask ;//   = 0xFF;   // match every byte according to this bit mask
-  };
-  const sparseConfig sparse[NumHashes] = { {0,1,0,5,0xDF},{1,1,0,4,0xFF}, {0,2,0,4,0xDF}, {0,1,0,5,0x0F}};
-  Array<U32> Table;
-  StationaryMap Maps[4];
-  IndirectContext<U8> iCtx8;
-  IndirectContext<U16> iCtx16;
-  MTFList list;
-  U32 hashes[NumHashes];
-  U32 hashIndex;   // index of hash used to find current match
-  U32 length;      // rebased length of match (length=1 represents the smallest accepted match length), or 0 if no match
-  U32 index;       // points to next byte of match in buffer, 0 when there is no match
-  U32 mask;
-  U8 expectedByte; // prediction is based on this byte (buffer[index]), valid only when length>0
-  bool valid;
-  void Update() {
-    // update sparse hashes
-    for (U32 i=0; i<NumHashes; i++) {
-      hashes[i] = (i+1)*PHI;
-      for (U32 j=0, k=sparse[i].offset+1; j<sparse[i].minLen; j++, k+=sparse[i].stride)
-        hashes[i] = combine(hashes[i], (buffer(k)&sparse[i].bitMask)<<i);
-      hashes[i]&=mask;
-    }
-    // extend current match, if available
-    if (length) {
-      index++;
-      if (length<MaxLen)
-        length++;
-    }
-    // or find a new match
-    else {     
-      for (int i=list.GetFirst(); i>=0; i=list.GetNext()) {
-        index = Table[hashes[i]];
-        if (index>0) {
-          U32 offset = sparse[i].offset+1;
-          while (length<sparse[i].minLen && ((buffer(offset)^buffer[index-offset])&sparse[i].bitMask)==0) {
-            length++;
-            offset+=sparse[i].stride;
-          }
-          if (length>=sparse[i].minLen) {
-            length-=(sparse[i].minLen-1);
-            index+=sparse[i].deletions;
-            hashIndex = i;
-            list.MoveToFront(i);
-            break;
-          }
-        }
-        length = index = 0;
-      }
-    }
-    // update position information in hashtable
-    for (U32 i=0; i<NumHashes; i++)
-      Table[hashes[i]] = buffer.pos;
+
     
-    expectedByte = buffer[index];
-    if (valid)
-      iCtx8+=x.y, iCtx16+=buffer(1);
-    valid = length>1; // only predict after at least one byte following the match
-    if (valid) {
-      Maps[0].set(hash(expectedByte, x.c0, buffer(1), buffer(2), ilog2(length+1)*NumHashes+hashIndex));
-      Maps[1].set((expectedByte<<8)|buffer(1));
-      iCtx8=(buffer(1)<<8)|expectedByte, iCtx16=(buffer(1)<<8)|expectedByte;
-      Maps[2].set(iCtx8());
-      Maps[3].set(iCtx16());
-    }
-  }
-public:
-    SparseMatchModel(BlockData& bd, U32 val1=0) :
-    x(bd),buffer(bd.buf),
-    Table(level>9?0x10000000:CMlimit(MEM()/2)),//?
-    Maps{ {22, 1}, {17, 4}, {8, 1}, {19,1} },
-    iCtx8{19,1},
-    iCtx16{16,8},
-    list(NumHashes),
-    hashes{ 0 },
-    hashIndex(0),
-    length(0),
-    mask(level>9?(0x10000000-1):CMlimit(MEM()/2)-1),
-    expectedByte(0),
-    valid(false)
-  {
-    //assert(ispowerof2(Size));
-  }
-  int inputs() {return  4*2+3;}
-   int nets() {return NumHashes*64+NumHashes*2048;}
-  int netcount() {return 2;}
-  int p(Mixer& m,int val1=0,int val2=0) {
-    const U8 B = x.c0<<(8-x.bpos);
-    if (x.bpos==0)
-      Update();
-    else if (valid) {
-      U8 B = x.c0<<(8-x.bpos);
-      Maps[0].set(hash(expectedByte, x.c0, buffer(1), buffer(2), ilog2(length+1)*NumHashes+hashIndex));
-      if (x.bpos==4)
-        Maps[1].set(0x10000|((expectedByte^U8(x.c0<<4))<<8)|buffer(1));
-      iCtx8+=x.y, iCtx8=(x.bpos<<16)|(buffer(1)<<8)|(expectedByte^B);
-      Maps[2].set(iCtx8());
-      Maps[3].set((x.bpos<<16)|(iCtx16()^U32(B|(B<<8))));
-    }
 
-    // check if next bit matches the prediction, accounting for the required bitmask
-    if (length>0 && (((expectedByte^B)&sparse[hashIndex].bitMask)>>(8-x.bpos))!=0)
-      length = 0;
-
-    if (valid) {
-      if (length>1 && ((sparse[hashIndex].bitMask>>(7-x.bpos))&1)>0) {
-        const int expectedBit = (expectedByte>>(7-x.bpos))&1;
-        const int sign = 2*expectedBit-1;
-        m.add(sign*(min(length-1, 64)<<4)); // +/- 16..1024
-        m.add(sign*(1<<min(length-2, 3))*min(length-1, 8)<<4); // +/- 16..1024
-        m.add(sign*512);
-      }
-      else {
-        m.add(0); m.add(0); m.add(0);
-      }
-
-      for (int i=0;i<4;i++)
-        Maps[i].mix(m);
-
-    }
-    else
-      for (int i=0; i<11; i++, m.add(0));
-    m.set((hashIndex<<6)|(x.bpos<<3)|min(7, length), NumHashes*64); //256
-    m.set((hashIndex<<11)|(min(7, ilog2(length+1))<<8)|(x.c0^(expectedByte>>(8-x.bpos))), NumHashes*2048); //8192
-    return length;
-  }
-};
-    
-U32 utf8_check(U8 *s){
-    int i=0;
-    if (*s < 0x80)      /* 0xxxxxxx */
-      return 0;
-    else if ((s[0] & 0xe0) == 0xc0) {      /* 110XXXXx 10xxxxxx */
-      if ((s[1] & 0xc0) != 0x80 || (s[0] & 0xfe) == 0xc0)                        /* overlong? */
-    return i;
-      else
-    i = 2;
-    } else if ((s[0] & 0xf0) == 0xe0) {      /* 1110XXXX 10Xxxxxx 10xxxxxx */
-      if ((s[1] & 0xc0) != 0x80 ||
-      (s[2] & 0xc0) != 0x80 ||
-      (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||    /* overlong? */
-      (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||    /* surrogate? */
-      (s[0] == 0xef && s[1] == 0xbf &&
-       (s[2] & 0xfe) == 0xbe))                      /* U+FFFE or U+FFFF? */
-    return i;
-      else
-    i = 3;
-    } else if ((s[0] & 0xf8) == 0xf0) {      /* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
-      if ((s[1] & 0xc0) != 0x80 ||
-      (s[2] & 0xc0) != 0x80 ||
-      (s[3] & 0xc0) != 0x80 ||
-      (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||    /* overlong? */
-      (s[0] == 0xf4 && s[1] > 0x8f) || s[0] > 0xf4) /* > U+10FFFF? */
-    return i;
-      else
-     i += 4;
-    } else
-      return i;
-  return i;
-}
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
 #include "wrton.cpp"
 //////////////////////////// wordModel /////////////////////////
@@ -18971,7 +18618,7 @@ int main(int argc, char** argv) {
                 if (argv[1][2]==0) minfq=0;
                 else minfq=atol(&argv[1][2]);
                 char *extd=(strchr(&argv[1][2], ','));
-                if (minfq<0) printf("BAD command line: minimum word frequency must be >=0\n"),quit();
+                if (minfq<0) printf("BAD command line: minimum word frequency must be >=0\n"),quit("");
                 if (minfq<1) printf("WARNING: minimum word frequency=0, using static words only.\n");
                 if (extd==0) staticd=false,printf("WARNING: dictionary file not found.\n");
                 else externaDict=extd+1;
@@ -18981,7 +18628,7 @@ int main(int argc, char** argv) {
             }
             if (argv[1][0]=='-' && argv[1][1]=='v')   {
                 verbose=atol(&argv[1][2]);
-                if (verbose>3 || verbose<0) printf("BAD verbose level\n"),quit();
+                if (verbose>3 || verbose<0) printf("BAD verbose level\n"),quit("");
                 printf("Verbose: level %d.\n",verbose);
                 --argc;
                 ++argv;
@@ -19058,7 +18705,7 @@ printf("\n");
             "To view contents: " PROGNAME " -l archive." PROGNAME "\n"
             "\n",
             DEFAULT_OPTION);
-            quit();
+            quit("");
         }
 #if defined(WINDOWS)      
         hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -19151,7 +18798,7 @@ printf("\n");
             }
             header[i]=0;
             if (strncmp(header.c_str(), PROGNAME "\0", strlen(PROGNAME)+1))
-            printf("%s: not a %s file\n", archiveName.c_str(), PROGNAME), quit();
+            printf("%s: not a %s file\n", archiveName.c_str(), PROGNAME), quit("");
             level=archive->getc();
             if (level&64) slow=true;
             if (level&128) witmode=true;
@@ -19212,7 +18859,7 @@ printf("\n");
 
         // Deompress header
         if (mode==DECOMPRESS) {
-            if (en->decompress()!=0) printf("%s: header corrupted\n", archiveName.c_str()), quit();
+            if (en->decompress()!=0) printf("%s: header corrupted\n", archiveName.c_str()), quit("");
             int len=0;
             len+=en->decompress()<<24;
             len+=en->decompress()<<16;
