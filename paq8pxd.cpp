@@ -20,10 +20,9 @@
 
 */
 
-#define PROGNAME "paq8pxd110"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd111"  // Please change this if you change the program.
 #define SIMD_GET_SSE  //uncomment to use SSE2 in ContexMap
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
-#define SIMD_CM_R       // SIMD ContextMap byterun
 #ifndef DISABLE_SM
 #define SM              // For faster statemap
 #endif
@@ -40,15 +39,16 @@
 #define PTHREAD 1
 #endif
 #endif
-#include <sys/stat.h>
+//#include <sys/stat.h>
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+#include <string>
 #include "zlib.h"
 
 //#include <inttypes.h> // PRIi64 or 
 #include <cinttypes> // PRIi64
-#define NDEBUG  // remove for debugging (turns on Array bound checks)
+//#define NDEBUG  // remove for debugging (turns on Array bound checks)
 #include <assert.h>
 
 #ifdef UNIX
@@ -70,21 +70,7 @@
 #ifndef DEFAULT_OPTION
 #define DEFAULT_OPTION 8
 #endif
-#include <stdint.h>
-#ifdef _MSC_VER
 
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-
-#endif
-// 8, 16, 32 bit unsigned types (adjust as appropriate)
-typedef unsigned char  U8;
-typedef unsigned short U16;
-typedef unsigned int   U32;
-typedef uint64_t   U64;
-typedef signed char int8_t;
 
 // min, max functions
 #if  !defined(WINDOWS) || !defined (min)
@@ -115,638 +101,20 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "pthread.h"
 #endif
 
-// Error handler: print message if any, and exit
-void quit(const char* message=0) {
-  throw message;
-}
+#include "prt/types.hpp"
 
-// strings are equal ignoring case?
-int equals(const char* a, const char* b) {
-  assert(a && b);
-  while (*a && *b) {
-    int c1=*a;
-    if (c1>='A'&&c1<='Z') c1+='a'-'A';
-    int c2=*b;
-    if (c2>='A'&&c2<='Z') c2+='a'-'A';
-    if (c1!=c2) return 0;
-    ++a;
-    ++b;
-  }
-  return *a==*b;
-}
+#include "prt/array.hpp"
+#include "prt/helper.hpp"
+#include "prt/file.hpp"
+#include "prt/hash.hpp"
+#include "prt/rnd.hpp"
+#include "prt/buffers.hpp"
+#include "prt/log.hpp"
+#include "prt/enums.hpp"
+#include "prt/blockdata.hpp"
+#include "prt/logistic.hpp"
+#include "prt/mixer.hpp"
 
-//////////////////////// Program Checker /////////////////////
-
-// Track time and memory used
-class ProgramChecker {
-    private:
-  U64 memused;  // bytes allocated by Array<T> now
-  U64 maxmem;   // most bytes allocated ever
-  clock_t start_time;  // in ticks
-public:
-   void alloc(U64 n) {  // report memory allocated
-    memused+=n;
-    if (memused>maxmem) maxmem=memused;
-  }
-  void free(U64 n) {  // free memory 
-  if (memused<n) memused=0;
-  else  memused-=n;
-  }
-  ProgramChecker(): memused(0), maxmem(0) {
-    start_time=clock();
-    assert(sizeof(U8)==1);
-    assert(sizeof(U16)==2);
-    assert(sizeof(U32)==4);
-    assert(sizeof(U64)==8);
-    assert(sizeof(short)==2);
-    assert(sizeof(int)==4);  
-  }
-  void print() const {  // print time and memory used
-    printf("Time %1.2f sec, used %0" PRIi64 " MB (%0" PRIi64 " bytes) of memory\n",
-      double(clock()-start_time)/CLOCKS_PER_SEC, ((maxmem)/1024)/1024,(maxmem));
-  }
-} programChecker;
-
-//////////////////////////// Array ////////////////////////////
-
-// Array<T,Align> a(n); allocates memory for n elements of T.
-// The base address is aligned if the "alignment" parameter is given.
-// Constructors for T are not called, the allocated memory is initialized to 0s.
-// It's the caller's responsibility to populate the array with elements.
-// Parameters are checked and indexing is bounds checked if assertions are on.
-// Use of copy and assignment constructors are not supported.
-//
-// a.size(): returns the number of T elements currently in the array.
-// a.resize(newsize): grows or shrinks the array.
-// a.append(x): appends x to the end of the array and reserving space for more elements if needed.
-// a.pop_back(): removes the last element by reducing the size by one (but does not free memory).
-#ifndef NDEBUG
-static void chkindex(U64 index, U64 upper_bound) {
-  if (index>=upper_bound) {
-    fprintf(stderr, "out of upper bound\n");
-    quit();
-  }
-}
-#endif
-
-template <class T, const int Align=16> class Array {
-private:
-  U64 used_size;
-  U64 reserved_size;
-  char *ptr; // Address of allocated memory (may not be aligned)
-  T* data;   // Aligned base address of the elements, (ptr <= T)
-  void create(U64 requested_size);
-  inline U64 padding() const {return Align-1;}
-  inline U64 allocated_bytes() const {return (reserved_size==0)?0:reserved_size*sizeof(T)+padding();}
-public:
-  explicit Array(U64 requested_size) {create(requested_size);}
-  ~Array();
-  T& operator[](U64 i) {
-    #ifndef NDEBUG
-    chkindex(i,used_size);
-    #endif
-    return data[i];
-  }
-  const T& operator[](U64 i) const {
-    #ifndef NDEBUG
-    chkindex(i,used_size);
-    #endif
-    return data[i];
-  }
-  U64 size() const {return used_size;}
-  void resize(U64 new_size);
-  void pop_back() {assert(used_size>0); --used_size; }  // decrement size
-  void push_back(const T& x);  // increment size, append x
-  Array(const Array&) { assert(false); } //prevent copying - this method must be public (gcc must see it but actually won't use it)
-private:
-  Array& operator=(const Array&); //prevent assignment
-};
-
-template<class T, const int Align> void Array<T,Align>::create(U64 requested_size) {
-  assert((Align&(Align-1))==0);
-  used_size=reserved_size=requested_size;
-  if (requested_size==0) {
-    data=0;ptr=0;
-    return;
-  }
-  U64 bytes_to_allocate=allocated_bytes();
-  ptr=(char*)calloc(bytes_to_allocate,1);
-  if(!ptr){
-      printf("Requested size %0" PRIi64 " MB\n",((bytes_to_allocate)/1024)/1024);
-      quit("Out of memory.");
-  }
-  U64 pad=padding();
-  data=(T*)(((uintptr_t)ptr+pad) & ~(uintptr_t)pad);
-  assert(ptr<=(char*)data && (char*)data<=ptr+Align);
-  assert(((uintptr_t)data & (Align-1))==0); //aligned as expected?
-  programChecker.alloc(bytes_to_allocate);
-}
-
-template<class T, const int Align> void Array<T,Align>::resize(U64 new_size) {
-  if (new_size<=reserved_size) {
-    used_size=new_size;
-    return;
-  }
-  char *old_ptr=ptr;
-  T *old_data=data;
-  U64 old_size=used_size;
-  programChecker.free(allocated_bytes());
-  create(new_size);
-  if(old_size>0) {
-    assert(old_ptr && old_data);
-    memcpy(data, old_data, sizeof(T)*old_size);
-  }
-  if(old_ptr){free(old_ptr);old_ptr=0;}
-}
-
-template<class T, const int Align> void Array<T,Align>::push_back(const T& x) {
-  if(used_size==reserved_size) {
-    U64 old_size=used_size;
-    U64 new_size=used_size*2+16;
-    resize(new_size);
-    used_size=old_size;
-  }
-  data[used_size++]=x;
-}
-
-template<class T, const int Align> Array<T, Align>::~Array() {
-  programChecker.free(allocated_bytes());
-  free(ptr);
-  used_size=reserved_size=0;
-  data=0;ptr=0;
-}
-
-
-/////////////////////////// String /////////////////////////////
-
-// A tiny subset of std::string
-// size() includes NUL terminator.
-
-class String: public Array<char> {
-public:
-  const char* c_str() const {return &(*this)[0];}
-  void operator=(const char* s) {
-    resize(strlen(s)+1);
-    strcpy(&(*this)[0], s);
-  }
-  void operator+=(const char* s) {
-    assert(s);
-    pop_back();
-    while (*s) push_back(*s++);
-    push_back(0);
-  }
-  String(const char* s=""): Array<char>(1) {
-    (*this)+=s;
-  }
-};
-
-/////////////////////////// IO classes //////////////////////////
-// These classes  take the responsibility for all the file/folder
-// operations.
-
-/////////////////////////// Folders /////////////////////////////
-/*
-int makedir(const char* dir) {
-  struct stat status;
-  stat(dir, &status);
-  if (status.st_mode & S_IFDIR) return -1; //-1: directory already exists, no need to create
-  #ifdef WINDOWS
-    bool created = (CreateDirectory(dir, 0) == TRUE);
-  #else
-  #ifdef UNIX
-    bool created = (mkdir(dir, 0777) == 0);
-  #else
-    #error Unknown target system
-  #endif
-  #endif
-  return created?1:0; //0: failed, 1: created successfully
-};
-*/
-bool makedir(const char* dir) {
-  struct stat status;
-  bool success = stat(dir, &status)==0;
-  if(success && (status.st_mode & S_IFDIR)!=0) return -1; //-1: directory already exists, no need to create
-#ifdef WINDOWS
-  return CreateDirectory(dir, 0)==TRUE;
-#else
-#ifdef UNIX
-  return mkdir(dir, 0777)==0;
-#else
-  return false;
-#endif
-#endif
-}
-
-void makedirectories(const char* filename) {
-  String path(filename);
-  int start = 0;
-  if(path[1]==':')start=2; //skip drive letter (c:)
-  if(path[start] == '/' || path[start] == '\\')start++; //skip leading slashes (root dir)
-  for (int i = start; path[i]; ++i) {
-    if (path[i] == '/' || path[i] == '\\') {
-      char savechar = path[i];
-      path[i] = 0;
-      const char* dirname = path.c_str();
-      int created = makedir(dirname);
-      if (created==0) {
-        printf("Unable to create directory %s\n", dirname);
-        quit();
-      }
-      if(created==1)
-       // printf("Created directory %s\n", dirname);
-      path[i] = savechar;
-    }
-  }
-}
-/////////////////////////// File /////////////////////////////
-// The main purpose of these classes is to keep temporary files in 
-// RAM as mush as possible. The default behaviour is to simply pass 
-// function calls to the operating system - except in case of temporary 
-// files.
-
-// Helper function: create a temporary file
-//
-// On Windows when using tmpfile() the temporary file may be created 
-// in the root directory causing access denied error when User Account Control (UAC) is on.
-// To avoid this issue with tmpfile() we simply use fopen() instead.
-// We create the temporary file in the directory where the executable is launched from. 
-// Luckily the MS C runtime library provides two (MS specific) fopen() flags: "T"emporary and "D"elete.
-
-
-FILE* tmpfile2(void){
-    FILE *f;
-#if defined(WINDOWS)    
-    int i;
-    char temppath[MAX_PATH]; 
-    char filename[MAX_PATH];
-    
-    //i=GetTempPath(MAX_PATH,temppath);          //store temp file in system temp path
-    i=GetModuleFileName(NULL,temppath,MAX_PATH); //store temp file in program folder
-    if ((i==0) || (i>MAX_PATH)) return NULL;
-    char *p=strrchr(temppath, '\\');
-    if (p==0) return NULL;
-    p++;*p=0;
-    if (GetTempFileName(temppath,"tmp",0,filename)==0) return NULL;
-    f=fopen(filename,"w+bTD");
-    if (f==NULL) unlink(filename);
-    return f;
-#else
-    f=tmpfile();  // temporary file
-    if (!f) return NULL;
-    return f;
-#endif
-}
-/*
-FILE* maketmpfile(void) {
-#if defined(WINDOWS)  
-  char szTempFileName[MAX_PATH];
-  UINT uRetVal = GetTempFileName(TEXT("."), TEXT("tmp"), 0, szTempFileName);
-  if(uRetVal==0)return 0;
-  return fopen(szTempFileName, "w+bTD");
-#else
-  return tmpfile();
-#endif
-}*/
-
-
-//This is the base class.
-//This is an abstract class for all the required file operations.
-class File {
-public:
-  virtual ~File(){};// = default;
-  virtual bool open(const char* filename, bool must_succeed) = 0;
-  virtual void create(const char* filename) = 0;
-  virtual void close() = 0;
-  virtual int getc() = 0;
-  virtual void putc(U8 c) = 0;
-  void append(const char* s) { for (int i = 0; s[i]; i++)putc(s[i]); }
-  virtual U64 blockread(U8 *ptr, U64 count) = 0;
-  virtual U64 blockwrite(U8 *ptr, U64 count) = 0;
-  U32 get32() { return (getc() << 24) | (getc() << 16) | (getc() << 8) | (getc()); }
-  void put32(U32 x){putc((x >> 24) & 255); putc((x >> 16) & 255); putc((x >> 8) & 255); putc(x & 255);}
-  U64 get64() { return ((U64)getc() << 56) | ((U64)getc() << 48) | ((U64)getc() << 40) | ((U64)getc() << 32) | (getc() << 24) | (getc() << 16) | (getc() << 8) | (getc()); }
-  void put64(U64 x){putc((x >> 56) & 255);putc((x >> 48) & 255);putc((x >> 40) & 255);putc((x >> 32) & 255);putc((x >> 24) & 255); putc((x >> 16) & 255); putc((x >> 8) & 255); putc(x & 255);}
-  U64 getVLI() {
-      U64 i = 0;
-      int k = 0;
-      U8 b = 0;
-      do {
-          b = max(0, getc());
-          i |= U64((b & 0x7FU) << k);
-          k += 7;
-      } while((b >> 7U) > 0 );
-      return i;
-  }
-  void putVLI(U64 i) {
-      while( i > 0x7F ) {
-          putc(0x80U | (i & 0x7FU));
-          i >>= 7U;
-      }
-      putc(U8(i));
-  }
-  virtual void setpos(U64 newpos) = 0;
-  virtual void setend() = 0;
-  virtual U64 curpos() = 0;
-  virtual bool eof() = 0;
-};
-
-// This class is responsible for files on disk
-// It simply passes function calls to the operating system
-class FileDisk :public File {
-protected:
-  FILE *file;
-public:
-  FileDisk() {file=0;}
-   ~FileDisk() {close();}
-  bool open(const char *filename, bool must_succeed) {
-    assert(file==0); 
-    file = fopen(filename, "rb"); 
-    bool success=(file!=0);
-    if(!success && must_succeed)printf("FileDisk: unable to open file (%s)\n", strerror(errno));
-    return success; 
-  }
-  void create(const char *filename) { 
-    assert(file==0); 
-    makedirectories(filename); 
-    file=fopen(filename, "wb+");
-    if (!file) quit("FileDisk: unable to create file"); 
-  }
-  void createtmp() { 
-    assert(file==0); 
-    file = tmpfile2(); 
-    if (!file) quit("FileDisk: unable to create temporary file"); 
-  }
-  void close() { if(file) fclose(file); file=0;}
-  int getc() { return fgetc(file); }
-  void putc(U8 c) { fputc(c, file); }
-  U64 blockread(U8 *ptr, U64 count) {return fread(ptr,1,count,file);}
-  U64 blockwrite(U8 *ptr, U64 count) {return fwrite(ptr,1,count,file);}
-  void setpos(U64 newpos) { fseeko(file, newpos, SEEK_SET); }
-  void setend() { fseeko(file, 0, SEEK_END); }
-  U64 curpos() { return ftello(file); }
-  bool eof() { return feof(file)!=0; }
-};
-
-// This class is responsible for temporary files in RAM or on disk
-// Initially it uses RAM for temporary file content.
-// In case of the content size in RAM grows too large, it is written to disk, 
-// the RAM is freed and all subsequent file operations will use the file on disk.
-class FileTmp :public File {
-private:
-  //file content in ram
-  Array<U8> *content_in_ram; //content of file
-  U64 filepos;
-  U64 filesize;
-  void forget_content_in_ram()
-  {
-    if (content_in_ram) {
-      delete content_in_ram;
-      content_in_ram = 0;
-      filepos = 0;
-      filesize = 0;
-    }
-  }
-  //file on disk
-  FileDisk *file_on_disk;
-  void forget_file_on_disk()
-  {
-    if (file_on_disk) {
-      (*file_on_disk).close(); 
-      delete file_on_disk;
-      file_on_disk = 0;
-    }
-  }
-  //switch: ram->disk
-  const U32 MAX_RAM_FOR_TMP_CONTENT ; //64 MB (per file)
-  void ram_to_disk()
-  {
-    assert(file_on_disk==0);
-    file_on_disk = new FileDisk();
-    (*file_on_disk).createtmp();
-    if(filesize>0)
-      (*file_on_disk).blockwrite(&((*content_in_ram)[0]), filesize);
-    (*file_on_disk).setpos(filepos);
-    forget_content_in_ram();
-  }
-public:
-  FileTmp(): MAX_RAM_FOR_TMP_CONTENT( 64 * 1024 * 1024){content_in_ram=new Array<U8>(0); filepos=0; filesize=0; file_on_disk = 0;}
-  ~FileTmp() {close();}
-  bool open(const char *filename, bool must_succeed) { assert(false); return false; } //this method is forbidden for temporary files
-  void create(const char *filename) { assert(false); } //this method is forbidden for temporary files
-  void close() {
-    forget_content_in_ram();
-    forget_file_on_disk();
-  }
-  int getc() {
-    if(content_in_ram)
-    {
-      if (filepos >= filesize)
-        return EOF; 
-      else {
-        U8 c = (*content_in_ram)[(U32)filepos];
-        filepos++; 
-        return c; 
-      }
-    }
-    else return (*file_on_disk).getc();
-  }
-  void putc(U8 c) {
-    if(content_in_ram) {
-      if (filepos < MAX_RAM_FOR_TMP_CONTENT) {
-        if (filepos == filesize) { (*content_in_ram).push_back(c); filesize++; }
-        else 
-        (*content_in_ram)[(U32)filepos] = c;
-        filepos++;
-        //filesize++;
-        return;
-      }
-      else ram_to_disk();
-    }
-    (*file_on_disk).putc(c);
-  }
-  U64 blockread(U8 *ptr, U64 count) {
-    if(content_in_ram)
-    {
-      U64 available = filesize - filepos;
-      if (available<count)count = available;
-      if(count>0) memcpy(ptr, &((*content_in_ram)[(U32)filepos]), count);
-      filepos += count;
-      return count;
-    }
-    else return (*file_on_disk).blockread(ptr,count);
-  }
-  U64 blockwrite(U8 *ptr, U64 count) {
-    if(content_in_ram) {
-      if (filepos+count <= MAX_RAM_FOR_TMP_CONTENT) 
-      { 
-        (*content_in_ram).resize((U32)(filepos + count));
-        if(count>0)memcpy(&((*content_in_ram)[(U32)filepos]), ptr, count);
-        filesize += count;
-        filepos += count;
-        return count;
-      }
-      else ram_to_disk();
-    }
-    return (*file_on_disk).blockwrite(ptr,count);
-  }
-  void setpos(U64 newpos) { 
-    if(content_in_ram) {
-      if(newpos>filesize)ram_to_disk(); //panic: we don't support seeking past end of file - let's switch to disk
-      else {filepos = newpos; return;}
-    }  
-     (*file_on_disk).setpos(newpos);
-  }
-  void setend() { 
-    if(content_in_ram) filepos = filesize;
-    else (*file_on_disk).setend();
-  }
-  U64 curpos() { 
-    if(content_in_ram) return filepos;
-    else return (*file_on_disk).curpos();
-  }
-  bool eof() { 
-    if(content_in_ram)return filepos >= filesize;
-    else return (*file_on_disk).eof();
-  }
-};
-
-//////////////////////////// rnd ///////////////////////////////
-
-// 32-bit pseudo random number generator
-class Random{
-  Array<U32> table;
-  int i;
-public:
-  Random(): table(64) {
-    table[0]=123456789;
-    table[1]=987654321;
-    for (int j=0; j<62; j++) table[j+2]=table[j+1]*11+table[j]*23/16;
-    i=0;
-  }
-  U32 operator()() {
-    return ++i, table[i&63]=table[(i-24)&63]^table[(i-55)&63];
-  }
-} ;
-
-////////////////////////////// Buf /////////////////////////////
-
-// Buf(n) buf; creates an array of n bytes (must be a power of 2).
-// buf[i] returns a reference to the i'th byte with wrap (no out of bounds).
-// buf(i) returns i'th byte back from pos (i > 0)
-// buf.size() returns n.
-
-class Buf {
-  Array<U8> b;
-public:
-int pos;  // Number of input bytes in buf (is wrapped)
-int poswr; //wrapp
-  Buf(U32 i=0): b(i),pos(0) {poswr=i-1;}
-  void setsize(int i) {
-    if (!i) return;
-    assert(i>0 && (i&(i-1))==0);
-    poswr=i-1;
-    b.resize(i);
-  }
-  U8& operator[](int i) {
-    return b[i&(b.size()-1)];
-  }
-  int operator()(int i) const {
-    assert(i<b.size());
-    //assert(i>0);
-    return b[(pos-i)&(b.size()-1)];
-  }
-  int size() const {
-    return b.size();
-  }
-};
-
-// IntBuf(n) is a buffer of n int (must be a power of 2).
-// intBuf[i] returns a reference to i'th element with wrap.
-
-class IntBuf {
-  Array<int> b;
-public:
-  IntBuf(U32 i=0): b(i) {}
-  int& operator[](U32 i) {
-    return b[i&(b.size()-1)];
-  }
-};
-
-// Buffer for file segment info 
-// type size info(if not -1)
-class Segment {
-  Array<U8> b;
-public:
-    U32 pos;  //size of buffer
-    U64 hpos; //header pos points to segment info at archive end
-    //int count; //count of segments
-  Segment(int i=0): b(i),pos(0),hpos(0)/*,count(0)*/ {}
-  void setsize(int i) {
-    if (!i) return;
-    assert(i>0);
-    b.resize(i);
-  }
-  U8& operator[](U32 i) {
-      if (i>=b.size()) setsize(i+1);
-    return b[i];
-  }
-  U8 operator()(U32 i) const {
-    assert(i>=0);
-    assert(i<=b.size());
-    return b[i];
-  }
-  
-  // put 8 bytes to segment buffer
-  void put8(U64 num){
-    if ((pos+8)>=b.size()) setsize(pos+8);
-    b[pos++]=(num>>56)&0xff;
-    b[pos++]=(num>>48)&0xff;
-    b[pos++]=(num>>40)&0xff;
-    b[pos++]=(num>>32)&0xff;
-    b[pos++]=(num>>24)&0xff;
-    b[pos++]=(num>>16)&0xff;
-    b[pos++]=(num>>8)&0xff;
-    b[pos++]=num&0xff;  
-  }
-  void put4(U32 num){
-    if ((pos+4)>=b.size()) setsize(pos+4);
-    b[pos++]=(num>>24)&0xff;
-    b[pos++]=(num>>16)&0xff;
-    b[pos++]=(num>>8)&0xff;
-    b[pos++]=num&0xff;  
-  }
-  void put1(U8 num){
-    if (pos>=b.size()) setsize(pos+1);
-    b[pos++]=num;
-  }
-  void putdata(U8 a, U64 b, U32 c){
-      put1(a);
-      put8(b);
-      put4(c);
-  }
-  int size() const {
-    return b.size();
-  }
-};
-
-// Finalizers
-// - Keep the necessary number of MSBs after a (combination of) 
-//   multiplicative hash(es)
-
-U32 finalize32(const U32 hash, const int hashbits) {
-  assert(0<hashbits && hashbits<=32);
-  return hash>>(32-hashbits);
-}
-U32 finalize64(const U64 hash, const int hashbits) {
-  assert(0<hashbits && hashbits<=32);
-  return U32(hash>>(64-hashbits));
-}
-
-// Get the next MSBs (8 or 6 bits) following "hasbits" for checksum
-// Remark: the result must be cast/masked to the proper checksum size (U8, U16) by the caller
-U64 checksum64(const U64 hash, const int hashbits, const int checksumbits) {
-  return hash>>(64-hashbits-checksumbits); 
-}
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
 bool slow=false; //-x
@@ -763,14 +131,9 @@ int minfq=19;
 Segment segment; //for file segments type size info(if not -1)
 const int streamc=13;
 File * filestreams[streamc];
-typedef enum {STR_NONE=-1,STR_DEFAULT=0,STR_JPEG, STR_IMAGE1, STR_IMAGE4, STR_IMAGE8, STR_IMAGE24, STR_AUDIO, STR_EXE, STR_TEXT0,STR_TEXT,STR_BIGTEXT,STR_DECA,STR_CMP} Streamtype;
-typedef enum {TR_NONE=0,TR_INFO=1,TR_RECURSIVE=2,TR_TRANSFORM=4, TR_FORWARD=8, TR_REVERSE=16} Streamtypeinfo;
-              
+
 const int datatypecount=46;
-typedef enum {DEFAULT=0,BINTEXT,ISOTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
-              CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,BZIP2,
-              ZLIB,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,PNG24, PNG32,WIT,TYPELAST} Filetype;
-typedef enum {STREAM=0,HASINFO=1} Filetypes;
+
 const char* typenames[datatypecount]={"default","bintext","ISO text","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
                                 "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","bzip2","zlib","mdf","mszip","eoltxt",
                                 "","","","tar","PNG8","PNG8G","PNG24","PNG32","WIT"};
@@ -867,175 +230,9 @@ const U8 WRT_wrd1[256]={
  192,192,192,192,192,192,192,192, 192,192,192,192,192,192,192,192,
  };
 const U32 tri[4]={0,4,3,7}, trj[4]={0,6,6,12};
-typedef enum {M_NO=-1,M_RECORD=0,M_IM8,M_IM24,M_SPARSE,M_JPEG,M_WAV,M_MATCH,M_MATCH1,M_DISTANCE,
-              M_EXE,M_INDIRECT,M_DMC,M_NEST,M_NORMAL,M_IM1,M_XML,M_IM4,M_TEXT,
-              M_WORD,M_DEC,M_LINEAR,M_SPARSEMATCH,M_SPARSE_Y,M_PPM,M_CHART,M_LSTM,M_MODEL_COUNT} ModelTypes;
-const char* modelNames[M_MODEL_COUNT]={"RECORD","IM8","IM24","SPARSE","JPEG","WAV","MATCH","MATCH1","DISTANCE",
-              "EXE","INDIRECT","DMC","NEST","NORMAL","IM1","XML","IM4","TEXT",
-              "WORD","DEC","LINEAR","SPARSEMATCH","SPARSE_Y","M_PPM","M_CHART","M_LSTM"};
 #define PNGFlag (1<<31)
 #define GrayFlag (1<<30)
-// Contain all global data usable between models
-class BlockData {
-public: 
-//wrt
-  U64 wrtpos,wrtfile,wrtsize,wrtcount,wrtdata;
-  bool wrtLoaded;
-  Array<U8> wrtText;
-  int wrtTextSize,wrtstatus,wrtbytesize;
-    Segment segment; //for file segments type size info(if not -1)
-    int y; // Last bit, 0 or 1, set by encoder
-    int c0; // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
-    U32 c4,c8; // Last 4,4 whole bytes, packed.  Last byte is bits 0-7.
-    int bpos; // bits in c0 (0 to 7)
-    Buf buf;  // Rotating input queue set by Predictor
-    Buf bufn;  // Rotating input queue set by Predictor
-    int blpos; // Relative position in block
-    int rm1;
-    Filetype filetype;
-    U32 b2,b3,b4,w4;
-    U32 w5,f4,tt;
-    U32 col;
-    U32 x4,s4;
-    int finfo;
-    U32 fails, failz, failcount,x5;
-    U32 frstchar,spafdo,spaces,spacecount, words,wordcount,wordlen,wordlen1;
-    U8 grp;
-    struct {
-    U8 state:3;
-    U8 lastPunct:5;
-    U8 wordLength:4;
-    U8 boolmask:4;
-    U8 firstLetter;
-    U8 mask;
-  } Text;
-  struct {
-    U32 length;
-    U8 byte;
-    bool bypass;
-    U16 bypassprediction;
-    U32 length3;
-  } Match;
-  struct {
-    struct {
-      U8 WW, W, NN, N, Wp1, Np1;
-    } pixels;
-    U8 plane;
-    U8 ctx;
-  } Image;
-  U64 Misses;
-  U32 count;
-  int wwords;
-  U32 tmask;
-  U64 wrtc4;
-  bool dictonline;
-  bool inpdf;
-  int wcol;
-  int utf8l,wlen;
-  bool wstat,wdecoded;
-  U32 pwords,pbc;
-  int bc4;
-  // used by SSE stage
-  struct {
-        std::uint8_t state; 
-        std::uint8_t bcount;
-      } DEC;
-  struct {
-        std::uint16_t state;
-      } JPEG;
-      bool istex,ishtml;
-    Array<U64>  cxt;
-    struct {
-        std::uint8_t state; // used by SSE stage
-      } x86_64;
-BlockData(): wrtpos(0),wrtfile(0),wrtsize(0),wrtcount(0),wrtdata(0),wrtLoaded(false),wrtText(255),wrtTextSize(0),wrtstatus(0),wrtbytesize(0),
-y(0), c0(1), c4(0),c8(0),bpos(0),blpos(0),rm1(1),filetype(DEFAULT),
-    b2(0),b3(0),b4(0),w4(0), w5(0),f4(0),tt(0),col(0),x4(0),s4(0),finfo(0),fails(0),failz(0),
-    failcount(0),x5(0), frstchar(0),spafdo(0),spaces(0),spacecount(0), words(0),wordcount(0),
-    wordlen(0),wordlen1(0),grp(0),Misses(0),count(0),wwords(0),tmask(0),
-    wrtc4(0),dictonline(false),inpdf(false),wcol(0),utf8l(0),wlen(0),wstat(false),wdecoded(false),
-    pwords(0),pbc(0),bc4(0),istex(true),ishtml(false),cxt(16)
-   {
-       memset(&Image, 0, sizeof(Image));
-       memset(&Match, 0, sizeof(Match));
-       memset(&Text, 0, sizeof(Text));
-       memset(&DEC, 0, sizeof(DEC));
-       memset(&JPEG, 0, sizeof(JPEG));
-       memset(&x86_64, 0, sizeof(x86_64));
-        // Set globals according to option
-        assert(level<=15);
-        bufn.setsize(0x10000);
-        if (level>=11) buf.setsize(0x20000000); //limit 512mb
-        else buf.setsize(MEM()*8);
-       /* #ifndef NDEBUG 
-        printf("\n Buf size %d bytes\n", buf.poswr);
-        #endif */
-    }
-    ~BlockData(){ }
-};
-///////////////////////////// ilog //////////////////////////////
 
-// ilog(x) = round(log2(x) * 16), 0 <= x < 64K
-class Ilog {
-  Array<U8> t;
-public:
-  int operator()(U16 x) const {return t[x];}
-  Ilog();
-} ilog;
-
-// Compute lookup table by numerical integration of 1/x
-Ilog::Ilog(): t(65536) {
-  U32 x=14155776;
-  for (int i=2; i<65536; ++i) {
-    x+=774541002/(i*2-1);  // numerator is 2^29/ln 2
-    t[i]=x>>24;
-  }
-}
-
-// llog(x) accepts 32 bits
-inline int llog(U32 x) {
-  if (x>=0x1000000)
-    return 256+ilog(x>>16);
-  else if (x>=0x10000)
-    return 128+ilog(x>>8);
-  else
-    return ilog(x);
-}
-inline U32 BitCount(U32 v) {
-  v -= ((v >> 1) & 0x55555555);
-  v = ((v >> 2) & 0x33333333) + (v & 0x33333333);
-  v = ((v >> 4) + v) & 0x0f0f0f0f;
-  v = ((v >> 8) + v) & 0x00ff00ff;
-  v = ((v >> 16) + v) & 0x0000ffff;
-  return v;
-}
-
-// ilog2
-// returns floor(log2(x)), e.g. 30->4  31->4  32->5,  33->5
-#ifdef _MSC_VER
-#include <intrin.h>
-inline U32 ilog2(U32 x) {
-  DWORD tmp=0;
-  if(x!=0)_BitScanReverse(&tmp,x);
-  return tmp;
-}
-#elif __GNUC__
-inline U32 ilog2(U32 x) {
-  if(x!=0)x=31-__builtin_clz(x);
-  return x;
-}
-#else
-inline U32 ilog2(U32 x) {
-  //copy the leading "1" bit to its left (0x03000000 -> 0x03ffffff)
-  x |= (x >> 1);
-  x |= (x >> 2);
-  x |= (x >> 4);
-  x |= (x >> 8);
-  x |= (x >>16);
-  //how many trailing bits do we have (except the first)? 
-  return BitCount(x >> 1);
-}
-#endif
 ///////////////////////// state table ////////////////////////
 
 // State table:
@@ -1260,419 +457,8 @@ StateTable::StateTable(): ns(1024) {
 
 #endif
 
-///////////////////////////// Squash //////////////////////////////
-// return p = 1/(1 + exp(-d)), d scaled by 8 bits, p scaled by 12 bits
-class Squash {
-  Array<U16> t;
-public:
-  Squash();
-  int operator()(int p) const {
-   if (p<-2047) return  0; 
-   if (p>2047) return  4095;
-   return t[p+2048];
-  }
-} squash;
 
-Squash::Squash(): t(4096) {
-int ts[33]={1,2,3,6,10,16,27,45,73,120,194,310,488,747,1101,
-    1546,2047,2549,2994,3348,3607,3785,3901,3975,4022,
-    4050,4068,4079,4085,4089,4092,4093,4094};
-  int w,d;
-  for (int i=-2047; i<=2047; ++i){
-    w=i&127;
-  d=(i>>7)+16;
-  t[i+2048]=(ts[d]*(128-w)+ts[(d+1)]*w+64) >> 7;
-    }
-}
-//////////////////////////// Stretch ///////////////////////////////
 
-// Inverse of squash. d = ln(p/(1-p)), d scaled by 8 bits, p by 12 bits.
-// d has range -2047 to 2047 representing -8 to 8.  p has range 0 to 4095.
-
-class Stretch {
-  Array<short> t;
-public:
-  Stretch();
-  int operator()(int p) const {
-    assert(p>=0 && p<4096);
-    return t[p];
-  }
-} stretch;
-
-Stretch::Stretch(): t(4096) {
-  int pi=0;
-  for (int x=-2047; x<=2047; ++x) {  // invert squash()
-    int i=squash(x);
-    for (int j=pi; j<=i; ++j)
-      t[j]=x;
-    pi=i+1;
-  }
-  t[4095]=2047;
-}
-
-//////////////////////////// Mixer /////////////////////////////
-
-// Mixer m(N, M, S=1, w=0) combines models using M neural networks with
-//   N inputs each, of which up to S may be selected.  If S > 1 then
-//   the outputs of these neural networks are combined using another
-//   neural network (with parameters S, 1, 1).  If S = 1 then the
-//   output is direct.  The weights are initially w (+-32K).
-//   It is used as follows:
-// m.update() trains the network where the expected output is the
-//   last bit (in the global variable y).
-// m.add(stretch(p)) inputs prediction from one of N models.  The
-//   prediction should be positive to predict a 1 bit, negative for 0,
-//   nominally +-256 to +-2K.  The maximum allowed value is +-32K but
-//   using such large values may cause overflow if N is large.
-// m.set(cxt, range) selects cxt as one of 'range' neural networks to
-//   use.  0 <= cxt < range.  Should be called up to S times such
-//   that the total of the ranges is <= M.
-// m.p() returns the output prediction that the next bit is 1 as a
-//   12 bit number (0 to 4095).
-
-#if !defined(__GNUC__)
-
-#if (2 == _M_IX86_FP) // 2 if /arch:SSE2 was used.
-# define __SSE2__
-#elif (1 == _M_IX86_FP) // 1 if /arch:SSE was used.
-# define __SSE__
-#endif
-
-#endif /* __GNUC__ */
-
-#if defined(__AVX2__)
-#include <immintrin.h>
-#define OPTIMIZE "AVX2-"
-#elif defined(__SSE4_1__)   
-#include<smmintrin.h>
-#elif   defined(__SSSE3__)
-#include<tmmintrin.h>
-#elif defined(__SSE2__) 
-#include <emmintrin.h>
-#define OPTIMIZE "SSE2-"
-
-#elif defined(__SSE__)
-#include <xmmintrin.h>
-#define OPTIMIZE "SSE-"
-#endif
-/**
- * Vector product a*b of n signed words, returning signed integer scaled down by 8 bits.
- * n is rounded up to a multiple of 8.
- */
-//static int dot_product (const short* const t, const short* const w, int n);
-
-/**
- * Train n neural network weights w[n] on inputs t[n] and err.
- * w[i] += ((t[i]*2*err)+(1<<16))>>17 bounded to +- 32K.
- * n is rounded up to a multiple of 8.
- */
-//static void train (const short* const t, short* const w, int n, const int e);
-struct ErrorInfo {
-  U32 Data[2], Sum, Mask, Collected;
-};
-
-inline U32 SQR(U32 x) {
-  return x*x;
-}
-
-#if defined(__MMX__)
-typedef __m128i XMM;
-#endif
-#if defined(__AVX2__)
-typedef __m256i YMM;
-#endif
-#define DEFAULT_LEARNING_RATE 7
-class Mixer {
-private: 
-  const int N, M, S;   // max inputs, max contexts, max context sets
-  Array<short, 32> tx; // N inputs from add()  
-  Array<short, 32> wx; // N*M weights
-  Array<U32> cxt;  // S contexts
-  Array<int> mrate;  // S contexts
-  Array<int> merr; 
-  int ncxt;        // number of contexts (0 to S)
-  int base;        // offset of next context
-public:
-  int nx;          // Number of inputs in tx, 0 to N  
-private:
-  Mixer* mp;       // points to a Mixer to combine results
-  Array<int> pr;   // last result (scaled 12 bits)
-  Array<ErrorInfo> info; 
-  Array<int> rates; // learning rates
-  int lrate,lshift; 
-public:  
-  BlockData& x;
-  Mixer(int n, int m,BlockData& bd, int s=1, int w=0,int g=7,int h=1);
-  
-#if defined(__AVX2__)
- int dot_product (const short* const t, const short* const w, int n) {
-  assert(n == ((n + 15) & -16));
-  __m256i sum = _mm256_setzero_si256 ();
-  while ((n -= 16) >= 0) { // Each loop sums 16 products
-    __m256i tmp = _mm256_madd_epi16 (*(__m256i *) &t[n], *(__m256i *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
-    tmp = _mm256_srai_epi32 (tmp, 8); //                                        (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
-    sum = _mm256_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
-  } 
-   sum =_mm256_hadd_epi32(sum,_mm256_setzero_si256 ());       //add [1]=[1]+[2], [2]=[3]+[4], [3]=0, [4]=0, [5]=[5]+[6], [6]=[7]+[8], [7]=0, [8]=0
-   sum =_mm256_hadd_epi32(sum,_mm256_setzero_si256 ());       //add [1]=[1]+[2], [2]=0,       [3]=0, [4]=0, [5]=[5]+[6], [6]=0,       [7]=0, [8]=0
-   __m128i lo = _mm256_extractf128_si256(sum, 0);
-   __m128i hi = _mm256_extractf128_si256(sum, 1);
-   __m128i newsum = _mm_add_epi32(lo, hi);                    //sum last two
-   return _mm_cvtsi128_si32(newsum);
-}
-
- void train (const short* const t, short* const w, int n, const int e) {
-  assert(n == ((n + 15) & -16));
-  if (e) {
-    const __m256i one = _mm256_set1_epi16 (1);
-    const __m256i err = _mm256_set1_epi16 (short(e));
-    while ((n -= 16) >= 0) { // Each iteration adjusts 16 weights
-      __m256i tmp = _mm256_adds_epi16 (*(__m256i *) &t[n], *(__m256i *) &t[n]); // t[n] * 2
-      tmp = _mm256_mulhi_epi16 (tmp, err); //                                     (t[n] * 2 * err) >> 16
-      tmp = _mm256_adds_epi16 (tmp, one); //                                     ((t[n] * 2 * err) >> 16) + 1
-      tmp = _mm256_srai_epi16 (tmp, 1); //                                      (((t[n] * 2 * err) >> 16) + 1) >> 1
-      tmp = _mm256_adds_epi16 (tmp, *(__m256i *) &w[n]); //                    ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
-      *(__m256i *) &w[n] = tmp; //                                          save the new eight weights, bounded to +- 32K
-    }
-  }
-}
-
-#elif defined(__SSE2__) || defined(__SSSE3__)
- int dot_product (const short* const t, const short* const w, int n) {
-  assert(n == ((n + 15) & -16));
-  XMM sum = _mm_setzero_si128 ();
-  while ((n -= 8) >= 0) { // Each loop sums eight products
-    XMM tmp = _mm_madd_epi16 (*(XMM *) &t[n], *(XMM *) &w[n]); // t[n] * w[n] + t[n+1] * w[n+1]
-    tmp = _mm_srai_epi32 (tmp, 8); //                                        (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
-    sum = _mm_add_epi32 (sum, tmp); //                                sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
-  }
-  sum = _mm_add_epi32(sum, _mm_srli_si128 (sum, 8));
-  sum = _mm_add_epi32(sum, _mm_srli_si128 (sum, 4));
-  return _mm_cvtsi128_si32 (sum); //                     ...  and scale back to integer
-}
-
- void train (const short* const t, short* const w, int n, const int e) {
-  assert(n == ((n + 15) & -16));
-  if (e) {
-    const XMM one = _mm_set1_epi16 (1);
-    const XMM err = _mm_set1_epi16 (short(e));
-    while ((n -= 8) >= 0) { // Each iteration adjusts eight weights
-      XMM tmp = _mm_adds_epi16 (*(XMM *) &t[n], *(XMM *) &t[n]); // t[n] * 2
-      tmp = _mm_mulhi_epi16 (tmp, err); //                                     (t[n] * 2 * err) >> 16
-      tmp = _mm_adds_epi16 (tmp, one); //                                     ((t[n] * 2 * err) >> 16) + 1
-      tmp = _mm_srai_epi16 (tmp, 1); //                                      (((t[n] * 2 * err) >> 16) + 1) >> 1
-      tmp = _mm_adds_epi16 (tmp, *(XMM *) &w[n]); //                    ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
-      *(XMM *) &w[n] = tmp; //                                          save the new eight weights, bounded to +- 32K
-    }
-  }
-}
-
-#elif defined(__SSE__)
- int dot_product (const short* const t, const short* const w, int n) {
-  assert(n == ((n + 15) & -16));
-  __m64 sum = _mm_setzero_si64 ();
-  while ((n -= 8) >= 0) { // Each loop sums eight products
-    __m64 tmp = _mm_madd_pi16 (*(__m64 *) &t[n], *(__m64 *) &w[n]); //   t[n] * w[n] + t[n+1] * w[n+1]
-    tmp = _mm_srai_pi32 (tmp, 8); //                                    (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
-    sum = _mm_add_pi32 (sum, tmp); //                            sum += (t[n] * w[n] + t[n+1] * w[n+1]) >> 8
-
-    tmp = _mm_madd_pi16 (*(__m64 *) &t[n + 4], *(__m64 *) &w[n + 4]); // t[n+4] * w[n+4] + t[n+5] * w[n+5]
-    tmp = _mm_srai_pi32 (tmp, 8); //                                    (t[n+4] * w[n+4] + t[n+5] * w[n+5]) >> 8
-    sum = _mm_add_pi32 (sum, tmp); //                            sum += (t[n+4] * w[n+4] + t[n+5] * w[n+5]) >> 8
-  }
-  sum = _mm_add_pi32 (sum, _mm_srli_si64 (sum, 32)); // Add eight sums together ...
-  const int retval = _mm_cvtsi64_si32 (sum); //                     ...  and scale back to integer
-  _mm_empty(); // Empty the multimedia state
-  return retval;
-}
-
- void train (const short* const t, short* const w, int n, const int e) {
-  assert(n == ((n + 15) & -16));
-  if (e) {
-    const __m64 one = _mm_set1_pi16 (1);
-    const __m64 err = _mm_set1_pi16 (short(e));
-    while ((n -= 8) >= 0) { // Each iteration adjusts eight weights
-      __m64 tmp = _mm_adds_pi16 (*(__m64 *) &t[n], *(__m64 *) &t[n]); //   t[n] * 2
-      tmp = _mm_mulhi_pi16 (tmp, err); //                                 (t[n] * 2 * err) >> 16
-      tmp = _mm_adds_pi16 (tmp, one); //                                 ((t[n] * 2 * err) >> 16) + 1
-      tmp = _mm_srai_pi16 (tmp, 1); //                                  (((t[n] * 2 * err) >> 16) + 1) >> 1
-      tmp = _mm_adds_pi16 (tmp, *(__m64 *) &w[n]); //                  ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
-      *(__m64 *) &w[n] = tmp; //                                       save the new four weights, bounded to +- 32K
-
-      tmp = _mm_adds_pi16 (*(__m64 *) &t[n + 4], *(__m64 *) &t[n + 4]); // t[n+4] * 2
-      tmp = _mm_mulhi_pi16 (tmp, err); //                                 (t[n+4] * 2 * err) >> 16
-      tmp = _mm_adds_pi16 (tmp, one); //                                 ((t[n+4] * 2 * err) >> 16) + 1
-      tmp = _mm_srai_pi16 (tmp, 1); //                                  (((t[n+4] * 2 * err) >> 16) + 1) >> 1
-      tmp = _mm_adds_pi16 (tmp, *(__m64 *) &w[n + 4]); //              ((((t[n+4] * 2 * err) >> 16) + 1) >> 1) + w[n]
-      *(__m64 *) &w[n + 4] = tmp; //                                   save the new four weights, bounded to +- 32K
-    }
-    _mm_empty(); // Empty the multimedia state
-  }
-}
-#else
-
-// dot_product returns dot product t*w of n elements.  n is rounded
-// up to a multiple of 8.  Result is scaled down by 8 bits.
-int dot_product(short *t, short *w, int n) {
-  int sum=0;
-  n=(n+15)&-16;
-  for (int i=0; i<n; i+=2)
-    sum+=(t[i]*w[i]+t[i+1]*w[i+1]) >> 8;
-  return sum;
-}
-
-// Train neural network weights w[n] given inputs t[n] and err.
-// w[i] += t[i]*err, i=0..n-1.  t, w, err are signed 16 bits (+- 32K).
-// err is scaled 16 bits (representing +- 1/2).  w[i] is clamped to +- 32K
-// and rounded.  n is rounded up to a multiple of 8.
-
-void train(short *t, short *w, int n, int err) {
-  n=(n+15)&-16;
-  for (int i=0; i<n; ++i) {
-    int wt=w[i]+(((t[i]*err*2>>16)+1)>>1);
-    if (wt<-32768) wt=-32768;
-    if (wt>32767) wt=32767;
-    w[i]=wt;
-  }
-}
-#endif 
-
-  // Adjust weights to minimize coding cost of last prediction
-  void update() {
-    for (int i=0; i<ncxt; ++i) {
-      int err;
-     if (ncxt>1)  err=((x.y<<12)-pr[i])*mrate[i]/2;
-     else  err=((x.y<<12)-pr[i])*lrate/lshift;
-      assert(err>=-32768 && err<32768);
-      if(err>=-merr[i] && err<=merr[i]) err=0;
-      train(&tx[0], &wx[cxt[i]*N], nx, err);
-    }
-    reset();
-  }
-   void update1() {
-    int target=x.y<<12;
-    if(nx>0)
-    for (int i=0; i<ncxt; ++i) {
-      int err=target-pr[i];
-      train(&tx[0], &wx[cxt[i]*N], nx, err*rates[i]);
-
-        U32 logErr=min(0xF,ilog2(abs(err)));
-        info[i].Sum-=SQR(info[i].Data[1]>>28);
-        info[i].Data[1]<<=4; info[i].Data[1]|=info[i].Data[0]>>28;
-        info[i].Data[0]<<=4; info[i].Data[0]|=logErr;
-        info[i].Sum+=SQR(logErr);
-        info[i].Collected+=info[i].Collected<4096;
-        info[i].Mask<<=1; info[i].Mask|=(logErr<=((info[i].Data[0]>>4)&0xF));
-        U32 count=BitCount(info[i].Mask);
-        if (info[i].Collected>=64 && (info[i].Sum>1500+U32(rates[i])*64 || count<9 || (info[i].Mask&0xFF)==0)){
-          rates[i]=DEFAULT_LEARNING_RATE;
-          memset(&info[i], 0, sizeof(ErrorInfo));
-        }
-        else if (info[i].Collected==4096 && info[i].Sum>=56 && info[i].Sum<=144 && count>28-U32(rates[i]) && ((info[i].Mask&0xFF)==0xFF)){
-          rates[i]-=rates[i]>2;
-          memset(&info[i], 0, sizeof(ErrorInfo));
-        }
-    }
-    reset();
-  }
-  void reset() {
-    nx=base=ncxt=0;
-  }
-  void update2() {
-    if (nx==0)         { reset(); return;}
-    if (x.filetype==EXE) update1();
-    else                 update();
-  }
-  // Input x (call up to N times)
-  void add(int x) {
-    assert(nx<N);
-    tx[nx++]=x;
-  }
-#if defined(__MMX__)
-  void addXMM(XMM a){
-    assert(nx+8<N);
-    _mm_storeu_si128 ((XMM *) &tx[nx],a);
-    nx=nx+8;
-  }
-#endif
-#if defined(__AVX2__)
-    void addYMM(YMM a){
-    assert(nx+16<N);
-    _mm256_storeu_si256 ((YMM *) &tx[nx],a);
-    nx=nx+16;
-  }
-#endif
-  void sp(int x) {
-    int p=tx[nx];
-    p=p*x/4;
-    tx[nx++]=p;
-  }
-  // Set a context (call S times, sum of ranges <= M)
-  void set(int cx, int range,int mr=14,int me=7*2) {
-    assert(range>=0);
-    assert(ncxt<S);
-    assert(cx>=0);
-    assert(cx<range);
-    assert(base+cx<M);
-    mrate[ncxt]=mr;
-    merr[ncxt]=me;
-    cxt[ncxt++]=base+cx;
-    base+=range;
-  }
-  
-  void setl(int l, int r) {   
-   if (mp) mp->setl(l,r);
-   else lrate=l,lshift=r;
-  }
-
-  // predict next bit
-  int p(const int shift0=0, const int shift1=0) {
-    while (nx&15) tx[nx++]=0;  // pad
-    if (mp) {  // combine outputs
-      mp->update2();
-      for (int i=0; i<ncxt; ++i) {
-        int dp=((dot_product(&tx[0], &wx[cxt[i]*N], nx)));
-        dp=dp>>(5+shift0);
-        pr[i]=squash(dp);
-        if (dp<-2047) {
-            dp=-2047;
-        }
-        else if (dp>2047) {
-            dp=2047;
-        }
-        mp->add(dp);
-      }
-      mp->set(0, 1);
-      return mp->p(shift0, shift1);
-    }
-    else {  // S=1 context
-    return pr[0]=squash(dot_product(&tx[0], &wx[0], nx)>>(8+shift1));
-    }
-  }
-  ~Mixer();
-};
-
-Mixer::~Mixer() {
-  delete mp;
-}
-
-Mixer::Mixer(int n, int m, BlockData& bd, int s, int w, int g,int h):
-    N((n+15)&-16), M(m), S(s),tx(N), wx(N*M),
-    cxt(S),mrate(S),merr(S), ncxt(0), base(0),nx(0), pr(S), mp(0),x(bd), info(S),
-    rates(S),lrate(S>1?7:g),lshift(S>1?1:h){
-  assert(n>0 && N>0 && (N&15)==0 && M>0);
-   int i;
-  for (i=0; i<S; ++i){
-    pr[i]=2048; //initial p=0.5
-    rates[i] = DEFAULT_LEARNING_RATE;
-    mrate[i]=14;
-    memset(&info[i], 0, sizeof(ErrorInfo));
-  }
-
-  for (i=0; i<N*M; ++i)
-    wx[i]=w;
-  if (S>1) mp=new Mixer(S, 1,x ,1,0,g,h);
-}
 
 
 //////////////////////////// APM1 //////////////////////////////
@@ -1856,39 +642,6 @@ APM::APM(int n,const int s=24): StateMap(n*s),steps(s) {
 }
 
 
-//////////////////////////// hash //////////////////////////////
-
-// Hash 2-5 ints.
-/*inline U32 hash(U32 a, U32 b, U32 c=0xffffffff, U32 d=0xffffffff,
-    U32 e=0xffffffff) {
-  U32 h=a*200002979u+b*30005491u+c*50004239u+d*70004807u+e*110002499u;
-  return h^h>>9^a>>2^b>>3^c>>4^d>>5^e>>6;
-}
-*/
-// Magic number 2654435761 is the prime number closest to the 
-// golden ratio of 2^32 (2654435769)
-#define PHI 0x9E3779B1 //2654435761
-
-// A hash function to diffuse a 32-bit input
-inline U32 hash(U32 x) {
-  x++; // zeroes are common and mapped to zero
-  x = ((x >> 16) ^ x) * 0x85ebca6b;
-  x = ((x >> 13) ^ x) * 0xc2b2ae35;
-  x = (x >> 16) ^ x;
-  return x;
-}
-
-// Combine a hash value (seed) with another (non-hash) value.
-// The result is a combined hash. 
-//
-// Use this function repeatedly to combine all input values 
-// to be hashed to a final hash value.
-inline U32 combine(U32 seed, const U32 x) {
-  seed+=(x+1)*PHI;
-  seed+=seed<<10;
-  seed^=seed>>6;
-  return seed;
-}
 ///////////////////////////// BH ////////////////////////////////
 
 // A BH maps a 32 bit hash to an array of B bytes (checksum and B-2 values)
@@ -3013,132 +1766,13 @@ int ContextMap::mix1(Mixer& m, int cc, int bp, int c1, int y1) {
          r0i[i]=ilog(a+1);
      }
 
-#if defined(SIMD_CM_R ) && defined(__AVX2__)
-    const int bsh=(8-bp);
-    const int bsh1=(7-bp);
-    int cnc=(cn/16)*16;
-    int i;
-    
-    for ( i=0; i<(cnc); i=i+16) {
-        YMM b1=_mm256_set1_epi16(1<<bsh1);
-        YMM x0=_mm256_setzero_si256();
-        YMM x1=_mm256_set1_epi16(1);
-        YMM b256=_mm256_set1_epi16(256);
-        YMM runm=_mm256_load_si256 ((YMM  *) &rmask[i]);
-        YMM b=_mm256_load_si256 ((YMM  *) &r1[i]);
-        YMM xcc=_mm256_set1_epi16(cc);
-        //(r1[i  ]+256)>>(8-bp)==cc
-        
-        YMM  xr1=_mm256_add_epi16 (b, b256);
-        xr1=_mm256_srli_epi16 (xr1, bsh);
-        xr1=_mm256_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
-        //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
        
-        YMM xb=_mm256_and_si256 (b, b1); //test if bit set                   //>>(7-bp)&1)*2
-        xb=_mm256_cmpeq_epi16(xb,x0);//compare and if eq set to -1, else 0   //
-        xb= _mm256_or_si256(xb,x1); // or with 1                              // -1
-        //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
-        YMM xr0i=_mm256_load_si256 ((YMM  *) &r0i[i]);//, x0);           //r0i[i]
-        YMM  c=_mm256_load_si256 ((YMM  *) &r0[i]);//, x0);              //~r0[i]&1
-        YMM xc=_mm256_andnot_si256 (c,x1);  
-        YMM r0ia= _mm256_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
-        xc=_mm256_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
-        xc=_mm256_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
-        //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
-        YMM xr=_mm256_sign_epi16(xc,xb);//_mm256_mullo_epi16(xc,xb); 
-        YMM xresult=_mm256_and_si256(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
-        xresult=_mm256_and_si256(xresult,runm); //mask out skiped context
-        //store result
-        m.addYMM(xresult);
-    }
-     int cnc1=((cn-cnc)/8)*8;
-        if (cnc1){
-        i=cnc;
-        cnc=cnc+8;
-        XMM x0=_mm_setzero_si128();
-        XMM x1=_mm_set1_epi16(1);
-        XMM b1=_mm_set1_epi16(1<<bsh1);
-        XMM xcc=_mm_set1_epi16(cc);
-        XMM b256=_mm_set1_epi16(256);
-        XMM runm=_mm_load_si128 ((XMM  *) &rmask[i]);
-        XMM b=_mm_load_si128 ((XMM  *) &r1[i]);
-        //(r1[i  ]+256)>>(8-bp)==cc
-        XMM  xr1=_mm_add_epi16 (b, b256);
-        xr1=_mm_srli_epi16 (xr1, bsh);
-        xr1=_mm_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
-        //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
-        XMM xb=_mm_and_si128 (b, b1); //test if bit set                   //>>(7-bp)&1)*2
-        xb=_mm_cmpeq_epi16(xb,x0);//compare and if eq set to -1, else 0   //
-        xb= _mm_or_si128(xb,x1); // or with 1                              // -1
-         //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
-        XMM xr0i=_mm_load_si128 ((XMM  *) &r0i[i]);           //r0i[i]
-        XMM  c=_mm_load_si128 ((XMM  *) &r0[i]);              //~r0[i]&1
-        XMM xc=_mm_andnot_si128 (c,x1);  
-        XMM r0ia= _mm_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
-        xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
-        xc=_mm_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
-        //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
-        XMM xr=_mm_sign_epi16(xc,xb);//_mm_mullo_epi16(xc,xb); 
-        XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
-        xresult=_mm_and_si128(xresult,runm); //mask out skiped context
-        //store result
-        m.addXMM(xresult);
-    }
-    //do remaining 
-    for (int i=cnc; i<cn; ++i) {
-        if (rmask[i] &&( (r1[i  ]+256)>>(8-bp)==cc)) {
-            m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
-        else   m.add(0);
-    }
-#elif defined(SIMD_CM_R ) && defined(__SSSE3__) 
-    int cnc=(cn/8)*8;
-    const int bsh=(8-bp);
-     const int bsh1=(7-bp);
-     XMM  x0=_mm_setzero_si128();
-     XMM  x1=_mm_set1_epi16(1);
-     XMM  b1=_mm_set1_epi16(1<<bsh1);
-     XMM xcc=_mm_set1_epi16(cc);
-     XMM   b256=_mm_set1_epi16(256);
-    for (int i=0; i<(cnc); i=i+8) {
-        
-        XMM   runm=_mm_load_si128 ((XMM  *) &rmask[i]);
-        XMM   b=_mm_load_si128 ((XMM  *) &r1[i]);
-        //(r1[i  ]+256)>>(8-bp)==cc
-        XMM  xr1=_mm_add_epi16 (b, b256);
-        //XMM  xr1=_mm_add_epi16 (*(XMM  *) &r1[i], _mm_set1_epi16(256));
-        xr1=_mm_srli_epi16 (xr1, bsh);
-        xr1=_mm_cmpeq_epi16(xr1,xcc); //(a == b) ? 0xffff : 0x0
-        //b                           //((r1[i  ]>>(7-bp)&1)*2-1) 
-        XMM xb=_mm_and_si128 (b, b1); //test if bit set                   //>>(7-bp)&1)*2
-        xb=_mm_cmpeq_epi16(xb,x0);//compare and if eq set to -1, else 0   //
-        xb= _mm_or_si128(xb,x1); // or with 1                              // -1
-        //c                                                       //((r0i[i  ])<<(2+(~r0[i  ]&1)))
-        XMM xr0i=_mm_load_si128 ((XMM  *) &r0i[i]);           //r0i[i]
-        XMM  c=_mm_load_si128 ((XMM  *) &r0[i]);              //~r0[i]&1
-        XMM xc=_mm_andnot_si128 (c,x1);  
-        XMM r0ia= _mm_add_epi16 (x1,xc);                          //1+(~r0[i]&1) result is 2 or 1 for multiplay |
-        xc=_mm_slli_epi16(xr0i, 2);                               //r0i[i]<<2                                  | 
-        xc=_mm_mullo_epi16(xc,r0ia);                              //(r0i[i]<<2*)  ~r0[i]&1?1+(~r0[i]&1):1      <-
-        //b*c                                                     // (r0i[i  ])<<(2+(~r0[i  ]&1)))
-        XMM xr=_mm_sign_epi16(xc,xb);//_mm_mullo_epi16(xc,xb); 
-        XMM xresult=_mm_and_si128(xr,xr1);   //(r1[i  ]+256)>>(8-bp)==cc?xr:0
-        xresult=_mm_and_si128(xresult,runm); //mask out skiped context
-        //store result
-        m.addXMM(xresult);
-    }
-    //do remaining 
-    for (int i=cnc; i<cn; ++i) {
-        if (rmask[i] &&( (r1[i  ]+256)>>bsh==cc)) {
-            m.add(((r1[i  ]>>bsh1&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
-        else   m.add(0);
-    }
-#else          
     for (int i=0; i<cn; ++i) {
         if (rmask[i] && ((r1[i  ]+256)>>(8-bp)==cc)) {
             m.add(((r1[i  ]>>(7-bp)&1)*2-1) *((r0i[i  ])<<(2+(~r0[i  ]&1)))); }
         else   m.add(0);
       }
-#endif    
+
    
   if (bp==7) cn=0;
   return result;
@@ -10118,7 +8752,9 @@ public:
 };
 //////////////////////////// wavModel /////////////////////////////////
 
-
+inline U32 SQR(U32 x) {
+  return x*x;
+}
 class wavModel1: public Model {
   BlockData& x;
   Buf& buf;
@@ -21171,7 +19807,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
 // whose names are appended to s and archive.
 
 // Same as expand() except fname is an ordinary file
-int putsize(String& archive, String& s, const char* fname, int base) {
+int putsize(std::string& archive, std::string& s, const char* fname, int base) {
   int result=0;
   FileDisk f;
   bool success=f.open(fname,true);
@@ -21195,17 +19831,17 @@ int putsize(String& archive, String& s, const char* fname, int base) {
 
 #ifdef WINDOWS
 
-int expand(String& archive, String& s, const char* fname, int base) {
+int expand(std::string& archive, std::string& s, const char* fname, int base) {
   int result=0;
   DWORD attr=GetFileAttributes(fname);
   if ((attr != 0xFFFFFFFF) && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
     WIN32_FIND_DATA ffd;
-    String fdir(fname);
+    std::string fdir(fname);
     fdir+="/*";
     HANDLE h=FindFirstFile(fdir.c_str(), &ffd);
     while (h!=INVALID_HANDLE_VALUE) {
       if (!equals(ffd.cFileName, ".") && !equals(ffd.cFileName, "..")) {
-        String d(fname);
+        std::string d(fname);
         d+="/";
         d+=ffd.cFileName;
         result+=expand(archive, s, d.c_str(), base);
@@ -21660,7 +20296,7 @@ printf("\n");
         U16 streambit=0;               //bit is set if stream has size, 11-0
         // Compress or decompress?  Get archive name
         Mode mode=COMPRESS;
-        String archiveName(argv[1]);
+        std::string archiveName(argv[1]);
         {
             const int prognamesize=strlen(PROGNAME);
             const int arg1size=strlen(argv[1]);
@@ -21677,8 +20313,8 @@ printf("\n");
         }
 
         // Compress: write archive header, get file names and sizes
-        String header_string;
-        String filenames;
+        std::string header_string;
+        std::string filenames;
         
         if (mode==COMPRESS) {
             segment.setsize(48); //inital segment buffer size (about 277 blocks)
@@ -21686,7 +20322,7 @@ printf("\n");
             // to archive.
             int i;
             for (i=1; i<argc; ++i) {
-                String name(argv[i]);
+                std::string name(argv[i]);
                 int len=name.size()-1;
                 for (int j=0; j<=len; ++j)  // change \ to /
                 if (name[j]=='\\') name[j]='/';
@@ -21723,7 +20359,7 @@ printf("\n");
             archive= new FileDisk();
             archive->open(archiveName.c_str(),true);
             // Check for proper format and get option
-            String header;
+            std::string header;
             int len=strlen(PROGNAME)+1, c, i=0;
             header.resize(len+1);
             while (i<len && (c=archive->getc())!=EOF) {
@@ -22075,7 +20711,7 @@ printf("\n");
         // If there is no dir1, then extract to .
         else if (!doList) {
             assert(argc>=2);
-            String dir(argc>2?argv[2]:argv[1]);
+            std::string dir(argc>2?argv[2]:argv[1]);
             if (argc==2) {  // chop "/archive.paq8pxd"
                 int i;
                 for (i=dir.size()-2; i>=0; --i) {
@@ -22232,7 +20868,7 @@ printf("\n");
             /////
             segment.pos=0;
             for (int i=0; i<files; ++i) {
-                String out(dir.c_str());
+                std::string out(dir.c_str());
                 out+=fname[i];
                 DecodeStreams(out.c_str(), fsize[i]);
             } 
@@ -22243,7 +20879,7 @@ printf("\n");
             }
         }
         archive->close();
-        if (!doList) programChecker.print();
+        //if (!doList) programChecker.print();
     }
     catch(const char* s) {
         if (s) printf("%s\n", s);
