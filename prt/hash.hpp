@@ -119,3 +119,8 @@ public:
     auto operator()(int numberOfBits) -> uint32_t;
 };
 
+
+static uint16_t checksum16(const uint64_t hash, const int hashBits) {
+  constexpr int checksumBits = 16;
+  return static_cast<uint16_t>(hash >> (64 - hashBits - checksumBits)) & ((1U << checksumBits) - 1);
+}
