@@ -2063,7 +2063,7 @@ void XWRT_Encoder::WRT_detectFinish(){
         minWordFreq2=minWordFreq;
     else
         minWordFreq2=minWordFreq-2;
-    if (staticd==true && staticDict==0) minWordFreq2=minWordFreq=minfq;
+    if (staticd==true && staticDict==0 || staticd==false && minfq ) minWordFreq2=minWordFreq=minfq;
     reducedStaticDict=newstaticsize=0;
     if (minfq!=0) {
         if (staticd==true) {

@@ -1,3 +1,15 @@
+v110
+    -In BZip2 recompression add a new parameter to BZ2_bzCompressInit API.
+     In BZip2 v1.0.3 maxLen was changed from 20 to 17. Test 20 if 17 fails.
+     This is needed for older archives or recompression fails.
+    -Revert minimum dictionary frequency to 19.
+    -Some cleanup.
+    -Change tempFile memory from 16MB to 64MB
+    -Add english.dict from fxcm
+v109
+    -If minimum dictionary frequency=0 then use only static dictionary (-e0,dictionary)
+    -Add verbose levels 0-3.
+    -Remove some text colors.
 v108
     -Merge VLI fix.
     -Fix BZ detection https://encode.su/threads/1464-Paq8pxd-dict?p=83831&viewfull=1#post83831
