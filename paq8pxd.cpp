@@ -146,6 +146,9 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "models/nested.hpp"
 #include "models/audio.hpp"
 #include "models/linear.hpp"
+#include "models/im1bit.hpp"
+#include "models/sparsey.hpp"
+#include "models/distance.hpp"
 
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
@@ -3046,105 +3049,8 @@ public:
 
 
 
-//////////////////////////// sparseModel ///////////////////////
 
-// Model order 1-2 contexts with gaps.
-class sparseModely: public Model {
-  BlockData& x;
-  Buf& buf;
-  const int N;
-  ContextMap2 cm;
-  U32 ctx;
-public:
-  sparseModely(BlockData& bd,U32 val=0):x(bd),buf(bd.buf), N(44),cm(CMlimit(MEM()*2), N,M_SPARSE_Y),ctx(0) {
-  }
-  int inputs() {return N*cm.inputs();}
-  int nets() {return 4 * 256;}
-  int netcount() {return 1;}
-  int p(Mixer& m,int seenbefore,int howmany){//match order
-  int j=0;
-  if (x.bpos==0) {
-    //context for 4-byte structures and 
-    //positions of zeroes in the last 16 bytes
-    ctx <<= 1;
-    ctx |= (x.c4 & 0xff) == x.buf(5); //column matches in a 4-byte fixed structure
-    ctx <<= 1;
-    ctx |= (x.c4 & 0xff) == 0; //zeroes
-    cm.set(hash(j++, ctx)); // calgary/obj2, calgary/pic, cantenbury/kennedy.xls, cantenbury/sum, etc.
-    //special model for some 4-byte fixed length structures
-    cm.set(hash(j++, x.c4 & 0xffe00000 | (ctx&0xff))); 
-    cm.set(hash(j++,seenbefore));
-    cm.set(hash(j++,howmany==-1?0:howmany));
-    cm.set(hash(j++,buf(1)|buf(5)<<8));
-    cm.set(hash(j++,buf(1)|buf(6)<<8));
-    cm.set(hash(j++,buf(3)|buf(6)<<8));
-    cm.set(hash(j++,buf(4)|buf(8)<<8));
-    cm.set(hash(j++,buf(1)|buf(3)<<8|buf(5)<<16));
-    cm.set(hash(j++,buf(2)|buf(4)<<8|buf(6)<<16));
-    if (x.c4==0){
-        for (int i=0; i<13; ++i) cm.set(); j++;
-    }else{
-    cm.set(hash(j++,x.c4&0x00f0f0ff));
-    cm.set(hash(j++,x.c4&0x00ff00ff));
-    cm.set(hash(j++,x.c4&0xff0000ff));
-    cm.set(hash(j++,x.c4&0x0f0f0f0f));
-    cm.set(hash(j++,x.c4&0x0000f8f8)); 
-    cm.set(hash(j++,x.c4&0x00f8f8f8));
-    cm.set(hash(j++,x.c4&0xf8f8f8f8));
-    cm.set(hash(j++,x.c4&0x00e0e0e0));
-    cm.set(hash(j++,x.c4&0xe0e0e0e0));
-    cm.set(hash(j++,x.c4&0x810000c1));
-    cm.set(hash(j++,x.c4&0xC3CCC38C));
-    cm.set(hash(j++,x.c4&0x0081CC81));
-    cm.set(hash(j++,x.c4&0x00c10081));
-    }
-    for (int i=1; i<8; ++i) {
-      cm.set(hash(j++,seenbefore|buf(i)<<8)); 
-      cm.set(hash(j++,(buf(i+2)<<8)|buf(i+1)));
-      cm.set(hash(j++,(buf(i+3)<<8)|buf(i+1)));
-    }
-  }
-  if (howmany==-1) return 1;
-  cm.mix(m);
-   m.set((x.blpos & 3)<<8 | (ctx&0xff), 4 * 256);
-  return 0;
-}
-virtual ~sparseModely(){ }
-};
-//////////////////////////// distanceModel ///////////////////////
- 
-// Model for modelling distances between symbols
-class distanceModel1: public Model {
-  int pos00,pos20,posnl;
-  BlockData& x;
-  Buf& buf;
-  StationaryMap Maps[3];
-public:
-  distanceModel1(BlockData& bd):  pos00(0),pos20(0),posnl(0), x(bd),buf(bd.buf),Maps{ {8}, {8}, {8} } {
-    }
-  int inputs() {return 3*2;}
-  int nets() {return 256*3;}
-  int netcount() {return 3;}
-  int p(Mixer& m,int val1=0,int val2=0){
-  if (x.bpos == 0) {
-    int c=x.c4&0xff;
-    if (c==0x00) pos00=x.buf.pos;
-    if (c==0x20) pos20=x.buf.pos;
-    if (c==0xff||c=='\r'||c=='\n') posnl=x.buf.pos;
-    Maps[0].set(min(llog(buf.pos-pos00),255) );
-    Maps[1].set(min(llog(buf.pos-pos20),255) );
-    Maps[2].set(min(llog(buf.pos-posnl),255) );
-  }
-  m.set(min(llog(buf.pos-pos00),255),256 );
-  m.set(min(llog(buf.pos-pos20),255) ,256 );
-  m.set(min(llog(buf.pos-posnl),255) ,256 );
-  Maps[0].mix(m );
-  Maps[1].mix(m);
-  Maps[2].mix(m);
-  return 0;
-}
-virtual ~distanceModel1(){ }
-}; 
+
  
 inline U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4){
   int maximum=n1;if(maximum<n2)maximum=n2;if(maximum<n3)maximum=n3;if(maximum<n4)maximum=n4;
@@ -4289,70 +4195,6 @@ int p(Mixer& m,int w=0,int val2=0)  {
  
 };
 
-//////////////////////////// im1bitModel /////////////////////////////////
-// Model for 1-bit image data
-class im1bitModel1: public Model {
-   BlockData& x;
-   Buf& buf;
-   U32 r0, r1, r2, r3;  // last 4 rows, bit 8 is over current pixel
-   Array<U8> t;  // model: cxt -> state
-   const int N;  // number of contexts
-   Array<int>  cxt;  // contexts
-   StateMap* sm;
-   BH<4> t1;
-  U8* cp;
-public:
-  im1bitModel1( BlockData& bd,U32 val=0 ): x(bd),buf(bd.buf),r0(0),r1(0),r2(0),r3(0), 
-    t(0x23000),N(11), cxt(N),t1(65536/2) {
-   sm=new StateMap[N];
-   cp=t1[0]+1;
-   }
-  int inputs() {return N+2;}
-  int nets() {return 256+256+256+256+256;}
-  int netcount() {return 5;}
-int p(Mixer& m,int w=0,int val2=0)  {
-  // update the model
-  int i;
-  for (i=0; i<N; i++)
-    t[cxt[i]]=nex(t[cxt[i]],x.y);
-  //count run
-  if (cp[0]==0 || cp[1]!=x.y) cp[0]=1, cp[1]=x.y;
-  else if (cp[0]<255) ++cp[0];
-  cp=t1[x.c4]+1;
-  // update the contexts (pixels surrounding the predicted one)
-  r0+=r0+x.y;
-  r1+=r1+((x.buf(w-1)>>(7-x.bpos))&1);
-  r2+=r2+((x.buf(w+w-1)>>(7-x.bpos))&1);
-  r3+=r3+((x.buf(w+w+w-1)>>(7-x.bpos))&1);
-  cxt[0]=(r0&0x7)|(r1>>4&0x38)|(r2>>3&0xc0);
-  cxt[1]=0x100+   ((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80));
-  cxt[2]=0x200+   ((r0&1)|(r1>>4&0x1d)|(r2>>1&0x60)|(r3&0xC0));
-  cxt[3]=0x300+   ((r0&1)|((r0<<1)&4)|((r1>>1)&0xF0)|((r2>>3)&0xA));//
-  cxt[4]=0x400+   ((r0>>4&0x2AC)|(r1&0xA4)|(r2&0x349)|(!(r3&0x14D)));
-  cxt[5]=0x800+   ((r0&1)|((r1>>4)&0xE)|((r2>>1)&0x70)|((r3<<2)&0x380));//
-  cxt[6]=0xC00+   (((r1&0x30)^(r3&0x0c0c))|(r0&3));
-  cxt[7]=0x1000+  ((!(r0&0x444))|(r1&0xC0C)|(r2&0xAE3)|(r3&0x51C));
-  cxt[8]=0x2000+  ((r0&7)|((r1>>1)&0x3F8)|((r2<<5)&0xC00));//
-  cxt[9]=0x3000+  ((r0&0x3f)^(r1&0x3ffe)^(r2<<2&0x7f00)^(r3<<5&0xf800));
-  cxt[10]=0x13000+((r0&0x3e)^(r1&0x0c0c)^(r2&0xc800));
- 
-  // predict
-  for (i=0; i<N; i++) m.add(stretch(sm[i].p1(t[cxt[i]],x.y)));
-  //run
-  if (cp[1]==x.y)
-      m.add(((cp[1]&1)*2-1)*ilog(cp[0]+1)*8);
-  else
-      m.add(0);
-  m.set((r0&0x7)|(r1>>4&0x38)|(r2>>3&0xc0), 256);
-  m.set(((r1&0x30)^(r3&0x0c))|(r0&3),256);
-  m.set((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80), 256);
-  m.set((r0&0x3e)^((r1>>8)&0x0c)^((r2>>8)&0xc8),256);
-  m.set(cp[0],256);
-  return 0;
-}
- virtual ~im1bitModel1(){  delete[] sm;}
- 
-};
 
 
 
