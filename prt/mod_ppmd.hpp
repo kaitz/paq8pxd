@@ -1,4 +1,4 @@
-
+#pragma once
 //////////////////////////// ppmdModel //////////////////////////
 
 #ifdef UNIX
@@ -1336,4 +1336,5 @@ init_flag=0;
 }*/
 
 #pragma pack()
+
 
