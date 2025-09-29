@@ -27,3 +27,10 @@ constexpr auto isPowerOf2(T x) -> bool {
 +    (((x) & 0x00ff0000) >>  8) | \
 +    (((x) & 0x0000ff00) <<  8) | \
 +    (((x) & 0x000000ff) << 24))
+
+U8 Clip(int const Px);
+
+#define TAB 0x09
+#define NEW_LINE 0x0A
+#define CARRIAGE_RETURN 0x0D
+#define SPACE 0x20

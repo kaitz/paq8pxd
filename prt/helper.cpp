@@ -157,3 +157,9 @@ U64 CMlimit(U64 size){
 U64 MEM(){
      return 0x10000UL<<level;
 }
+
+U8 Clip(int const Px){
+  if(Px>255)return 255;
+  if(Px<0)return 0;
+  return Px;
+}
