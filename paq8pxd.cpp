@@ -113,57 +113,30 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "prt/enums.hpp"
 #include "prt/blockdata.hpp"
 #include "prt/logistic.hpp"
-#include "prt/mixer.hpp"
-#include "prt/APM1.hpp"
-#include "prt/statemap.hpp"
-#include "prt/statetable.hpp"
-#include "prt/APM.hpp"
-#include "prt/indirect.hpp"
-#include "prt/indirectcontext.hpp"
-#include "prt/ols.hpp"
-#include "prt/largestationarymap.hpp"
-#include "prt/sscm.hpp"
-#include "prt/stationarymap.hpp"
-#include "prt/mft.hpp"
-#include "prt/contextmap2.hpp"
-#include "prt/contextmap.hpp"
-#include "prt/bh.hpp"
+//#include "prt/mixer.hpp"
+//#include "prt/APM1.hpp"
+//#include "prt/statemap.hpp"
+//#include "prt/statetable.hpp"
+//#include "prt/APM.hpp"
+//#include "prt/indirect.hpp"
+//#include "prt/indirectcontext.hpp"
+//#include "prt/ols.hpp"
+//#include "prt/largestationarymap.hpp"
+//#include "prt/sscm.hpp"
+//#include "prt/stationarymap.hpp"
+//#include "prt/mft.hpp"
+//#include "prt/contextmap2.hpp"
+//#include "prt/contextmap.hpp"
+//#include "prt/bh.hpp"
 //#include "prt/wrt/wrton.hpp"
 //#include "prt/stemmer/stemmer.hpp"
 #include "prt/tables.hpp"
 
-#include "models/model.hpp"
-#include "models/sparsematch.hpp"
-#include "models/exe.hpp"
-#include "models/dec.hpp"
-#include "models/indirect.hpp"
-#include "models/record.hpp"
-#include "models/dmc.hpp"
-#include "models/sparsex.hpp"
-#include "models/jpeg.hpp"
-#include "models/match1.hpp"
-#include "models/match2.hpp"
-#include "models/normal.hpp"
-#include "models/chart.hpp"
-#include "models/xml.hpp"
-#include "models/nested.hpp"
-#include "models/audio.hpp"
-#include "models/linear.hpp"
-#include "models/im1bit.hpp"
-#include "models/sparsey.hpp"
-#include "models/distance.hpp"
-#include "models/im4bit.hpp"
-#include "models/im8bit.hpp"
-#include "models/im24bit.hpp"
-#include "models/blank.hpp"
-#include "models/lstm.hpp"
-#include "models/word.hpp"
-#include "models/text.hpp"
-#include "models/ppmd.hpp"
 
 #include "prt/EAPM.hpp"
 #include "prt/ESSE.hpp"
 
+#include "predictors/predictors.hpp"
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
 bool slow=false; //-x
@@ -242,15 +215,6 @@ int n0n1[256]; // for contectmap
 #define GrayFlag (1<<30)
 
 
-//////////////////////////// Models //////////////////////////////
-
-// All of the models below take a Mixer as a parameter and write
-// predictions to it.
-
-
-
-
-
 /*
 #include <psapi.h>
 size_t getPeakMemory(){
@@ -264,197 +228,6 @@ size_t getPeakMemory(){
     return (size_t)0L;
 #endif
 }*/
-//////////////////////////// Predictor /////////////////////////
-// A Predictor estimates the probability that the next bit of
-// uncompressed data is 1.  Methods:
-// p() returns P(1) as a 12 bit number (0-4095).
-// update(y) trains the predictor with the actual bit (0 or 1).
-
-//base class
-class Predictors {
-public:
-  BlockData x; //maintains current global data block between models
-  int mixerInputs,mixerNets,mixerNetsCount;
-  Model **models;
-
-virtual ~Predictors(){
-    //printf("Models peak memory %d mb\n",(getPeakMemory()/1024)/1024);
-    for (int i=0;i<M_MODEL_COUNT;i++) {
-        delete models[i];
-    }
-    delete[] models;    
-   };
-Predictors():  mixerInputs(0),mixerNets(0),mixerNetsCount(0){
-}
-  virtual int p() const =0;
-  virtual void update()=0;
-  void loadModels(const U8* amodel,int count){
-      models = new Model*[M_MODEL_COUNT];
-      // reset
-      for (int i=0;i<M_MODEL_COUNT;i++)      models[i]=0;
-      // create active models
-      for (int i=0;i<count;i++){
-#ifdef VERBOSE      
-          printf("Creating %s\n",modelNames[amodel[i]].c_str());
-#endif
-      switch (amodel[i]){
-          case M_RECORD:{
-              models[M_RECORD] =      new recordModel1(x);
-              break;
-          }
-          case M_MATCH:{
-              models[M_MATCH] =       new matchModel1(x);
-              break;
-          }
-          case M_MATCH1:{
-              models[M_MATCH1] =      new matchModel2(x);
-              break;
-          }
-          case M_DISTANCE: {
-              models[M_DISTANCE] =    new distanceModel1(x);
-              break;
-          }
-          case M_EXE:{
-              models[M_EXE] =         new exeModel1(x);
-              break;
-          }
-          case M_INDIRECT:{
-              models[M_INDIRECT] =    new indirectModel1(x);
-              break;
-          }
-          case M_DMC:{
-              models[M_DMC] =         new dmcModel1(x);
-              break;
-          } 
-          case M_NEST:{
-              models[M_NEST] =        new nestModel1(x);
-              break;
-          }
-          case M_NORMAL:{
-              models[M_NORMAL] =      new normalModel1(x);
-              break;
-          }
-          case M_XML:{
-              models[M_XML] =         new XMLModel1(x);
-              break;
-          } 
-          case M_TEXT:{
-              models[M_TEXT] =        new TextModel(x,16);
-              break;
-          }
-          case M_WORD:{
-              models[M_WORD] =        new wordModel1(x);
-              break;
-          } 
-          case M_LINEAR:{
-              models[M_LINEAR] =      new linearPredictionModel(x);
-              break;
-          }
-          case M_SPARSEMATCH:{
-              models[M_SPARSEMATCH] = new SparseMatchModel(x);
-              break;
-          }
-          case M_SPARSE_Y:{
-              models[M_SPARSE_Y] =    new sparseModely(x);
-              break;
-          }
-          case M_DEC:{
-              models[M_DEC] =         new decModel1(x);
-              break;
-          }
-          case M_IM8:{
-              models[M_IM8] =         new im8bitModel1(x);
-              break;
-          }
-          case M_IM24:{
-              models[M_IM24] =        new im24bitModel1(x);
-              break;
-          }
-          case M_SPARSE:{
-              models[M_SPARSE] =      new sparseModelx(x);
-              break;
-          }
-          case M_JPEG:{
-              models[M_JPEG] =        new jpegModelx(x);
-              break;
-          }
-          case M_WAV:{
-              models[M_WAV] =         new wavModel1(x);
-              break;
-          }
-          case M_IM4:{
-              models[M_IM4] =         new im4bitModel1(x);
-              break;
-          }
-          case M_IM1:{
-              models[M_IM1] =         new im1bitModel1(x);
-              break;
-          }
-          case M_PPM:{
-              if (slow==true)
-              models[M_PPM] =         new ppmdModel1(x);
-              else
-              models[M_PPM] =         new blankModel1(x); 
-              break;
-          }
-          case M_CHART:{
-              if (slow==true)
-              models[M_CHART] =       new chartModel(x);
-              else
-              models[M_CHART] =       new blankModel1(x);
-              break;
-          }
-          case M_LSTM:{
-              if (slow==true)
-              models[M_LSTM] =        new lstmModel1(x);
-              else
-              models[M_LSTM] =        new blankModel1(x);
-              break;
-          }
-          default:{
-              quit("Error: wrong model.");
-              break;
-          }
-     }
-  }
-  // create blank models
-   for (int i=0;i<M_MODEL_COUNT;i++){
-       if (models[i] ==0) models[i] =  new blankModel1(x);
-  }
-  // get mixer data from models
-   for (int i=0;i<M_MODEL_COUNT;i++){
-       mixerInputs+=models[i]->inputs();
-       mixerNets+=models[i]->nets();
-       mixerNetsCount+=models[i]->netcount();
-   }
-  }
-  void setContexts(){
-    const U8 c1=x.buf(1),c2=x.buf(2),c3=x.buf(3);
-    if((c2=='.'||c2=='!'||c2=='?' ||c2=='}') && !(c3==10 || c3==5) && 
-    (x.filetype==DICTTXT ||x.filetype==TEXT0|| x.filetype==BIGTEXT)) for (int i=14; i>0; --i) 
-      x.cxt[i]=x.cxt[i-1]*primes[i];
-    x.cxt[15]=(isalpha(c1))?(x.cxt[15]*primes[15]+ tolower(c1)):0;
-    for (int i=14; i>0; --i)  // update order 0-11 context hashes
-      //cxt[i]=cxt[i-1]*primes[i]+(x.c4&255)+1;
-      x.cxt[i] = hash(x.cxt[i - 1], c1+ (i << 10));
-  }
-  void update0(){
-    // Update global context: pos, bpos, c0, c4, buf
-    // called from encoder
-    x.c0+=x.c0+x.y;
-    if (x.c0>=256) {
-        x.buf[x.buf.pos++]=x.c0;
-        x.c0=1;
-        ++x.blpos;
-        x.buf.pos=x.buf.pos&x.buf.poswr; //wrap
-        x.c4=(x.c4<<8)|x.buf(1);
-        x.c8=(x.c8<<8)|x.buf(5);
-        setContexts();
-    }
-    x.bpos=(x.bpos+1)&7;
-    x.grp = (x.bpos>0)?AsciiGroupC0[(1<<x.bpos)-2+(x.c0&((1<<x.bpos)-1))]:0;
-  }
-};
 
 
 
