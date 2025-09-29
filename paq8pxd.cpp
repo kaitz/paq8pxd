@@ -39,7 +39,7 @@
 #define PTHREAD 1
 #endif
 #endif
-//#include <sys/stat.h>
+
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
@@ -52,6 +52,7 @@
 #include <assert.h>
 
 #ifdef UNIX
+// Not tested!
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdlib.h>
