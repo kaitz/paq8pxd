@@ -1,6 +1,7 @@
 #pragma once
 #include "types.hpp"
 #include "array.hpp"
+#include "log.hpp"
 #include <stdio.h>
 
 // Error handler: print message if any, and exit
@@ -35,5 +36,11 @@ U8 Clip(int const Px);
 #define CARRIAGE_RETURN 0x0D
 #define SPACE 0x20
 
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+ int min(int a, int b);
+ int max(int a, int b);
+
+U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4);
+  U8 LogMeanDiffQt(const U8 a, const U8 b, const U8 limit = 7);
+  U32 LogQt(const U8 Px, const U8 bits);
+
+  U8 Paeth(U8 W, U8 N, U8 NW);

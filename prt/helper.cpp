@@ -146,7 +146,8 @@ U32 utf8_check(U8 *s) {
       return i;
   return i;
 }
-
+ int min(int a, int b) {return a<b?a:b;}
+ int max(int a, int b) {return a<b?b:a;}
 
 U64 CMlimit(U64 size){
     //if (size>(0x100000000UL)) return (0x100000000UL); //limit to 4GB, using this will consume lots of memory above level 11
@@ -162,4 +163,32 @@ U8 Clip(int const Px){
   if(Px>255)return 255;
   if(Px<0)return 0;
   return Px;
+}
+
+
+
+ 
+  U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4){
+  int maximum=n1;if(maximum<n2)maximum=n2;if(maximum<n3)maximum=n3;if(maximum<n4)maximum=n4;
+  int minimum=n1;if(minimum>n2)minimum=n2;if(minimum>n3)minimum=n3;if(minimum>n4)minimum=n4;
+  if(Px<minimum)return minimum;
+  if(Px>maximum)return maximum;
+  return Px;
+}
+  U8 LogMeanDiffQt(const U8 a, const U8 b, const U8 limit ){
+  if (a==b) return 0;
+  U8 sign=a>b?8:0;
+  return sign | min(limit, ilog2((a+b)/max(2,abs(a-b)*2)+1));
+}
+  U32 LogQt(const U8 Px, const U8 bits){
+  return (U32(0x100|Px))>>max(0,(int)(ilog2(Px)-bits));
+}
+
+
+  U8 Paeth(U8 W, U8 N, U8 NW){
+  int p = W+N-NW;
+  int pW=abs(p-(int)W), pN=abs(p-(int)N), pNW=abs(p-(int)NW);
+  if (pW<=pN && pW<=pNW) return W;
+  else if (pN<=pNW) return N;
+  return NW;
 }

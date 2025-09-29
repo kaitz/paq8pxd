@@ -43,4 +43,20 @@ public:
   }
 };
 
+class RingBuffer {
+  Array<U8> b;
+  U32 offset;
+public:
+  RingBuffer(const int i=0): b(i), offset(0) {}
+  void Fill(const U8 B) {
+    memset(&b[0], B, b.size());
+  }
+  void Add(const U8 B){
+    b[offset&(b.size()-1)] = B;
+    offset++;
+  }
+  int operator()(const int i) const {
+    return b[(offset-i)&(b.size()-1)];
+  }
+};
 
