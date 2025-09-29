@@ -192,3 +192,11 @@ U8 Clip(int const Px){
   else if (pN<=pNW) return N;
   return NW;
 }
+
+  bool CharInArray(const char c, const char a[], const int len) {
+  if (*a==0)
+    return false;
+  int i=0;
+  for (; i<len && c!=a[i]; i++);
+  return i<len;
+}
