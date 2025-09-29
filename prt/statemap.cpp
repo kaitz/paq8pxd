@@ -11,8 +11,7 @@
 
 extern int dt[1024];  // i -> 16K/(i+i+3)
 
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+
 
 void StateMap::update(const int y, int limit) {
     assert(cxt>=0 && cxt<N);

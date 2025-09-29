@@ -34,3 +34,6 @@ U8 Clip(int const Px);
 #define NEW_LINE 0x0A
 #define CARRIAGE_RETURN 0x0D
 #define SPACE 0x20
+
+inline int min(int a, int b) {return a<b?a:b;}
+inline int max(int a, int b) {return a<b?b:a;}

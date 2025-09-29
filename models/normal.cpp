@@ -1,8 +1,7 @@
 #include "normal.hpp"
 
 extern U8 level;
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+
 
   normalModel1::normalModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(10), cm(CMlimit(MEM()*32), N,M_NORMAL,
   CM_RUN1+

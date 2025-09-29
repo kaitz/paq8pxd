@@ -1,8 +1,7 @@
 #include "record.hpp"
 
 extern U8 level;
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+
 //////////////////////////// recordModel ///////////////////////
 
 // Model 2-D data with fixed record length.  Also order 1-2 models

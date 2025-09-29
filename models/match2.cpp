@@ -1,8 +1,7 @@
 #include "match2.hpp"
 
 //extern U8 level;
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+
 
  bool matchModel2::isMatch(BlockData& x,const uint32_t pos, const uint32_t MINLEN) {
       for (uint32_t length = 1; length <= MINLEN; length++) {

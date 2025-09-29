@@ -7,8 +7,7 @@
 // context for the Huffman coded symbols.
 
 extern U8 level;
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+
 extern bool slow;
 
   jpegModelx::jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),

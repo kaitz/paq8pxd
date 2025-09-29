@@ -1,4 +1,3 @@
-static const int primes[17]={ 0, 257,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173};   
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/helper.hpp"
@@ -14,6 +13,7 @@ static const int primes[17]={ 0, 257,251,241,239,233,229,227,223,211,199,197,193
 #include "../prt/contextmap2.hpp"
 #include "../prt/run.hpp"
 
+static const int primes[17]={ 0, 257,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173};   
 
 class normalModel1: public Model {
   BlockData& x;

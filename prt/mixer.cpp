@@ -20,8 +20,6 @@
 //   12 bit number (0 to 4095).
 
 
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
 
 
 inline U32 SQR(U32 x) {

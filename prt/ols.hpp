@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 ///////////////// Ordinary Least Squares predictor /////////////////
 
 template <typename F, typename T, const bool hasZeroMean = true>

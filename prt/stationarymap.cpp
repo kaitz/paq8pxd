@@ -13,8 +13,7 @@
     Uses (2^(BitsOfContext+2))*((2^InputBits)-1) bytes of memory.
 */
 
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+
 extern int dt[1024];  // i -> 16K/(i+i+3)
 
 StationaryMap::StationaryMap(int BitsOfContext, int InputBits, int Rate): Data((1ull<<BitsOfContext)*((1ull<<InputBits)-1)), Context(0), Mask((1<<BitsOfContext)-1), Stride((1<<InputBits)-1), bCount(0), bTotal(InputBits), B(0) {

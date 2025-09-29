@@ -1,6 +1,5 @@
 #include "contextmap2.hpp"
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
+
 
    void ContextMap2::Update() {
     U64 mask = Table.size()-1;
