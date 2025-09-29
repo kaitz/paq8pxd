@@ -21,3 +21,9 @@ template<typename T>
 constexpr auto isPowerOf2(T x) -> bool {
   return ((x & (x - 1)) == 0);
 }
+
+#define bswap(x) \
++   ((((x) & 0xff000000) >> 24) | \
++    (((x) & 0x00ff0000) >>  8) | \
++    (((x) & 0x0000ff00) <<  8) | \
++    (((x) & 0x000000ff) << 24))
