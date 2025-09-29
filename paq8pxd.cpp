@@ -44,7 +44,7 @@
 #include <time.h>
 #include <math.h>
 #include <string>
-#include "zlib.h"
+#include "zlib/zlib.h"
 
 //#include <inttypes.h> // PRIi64 or 
 #include <cinttypes> // PRIi64
@@ -933,7 +933,7 @@ void printStatus1(U64 n, U64 size) {
 fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
-#include "bzlib.h"
+#include "bzip2/bzlib.h"
 #define BZ2BLOCK 100*1024*100
 
 U64 bzip2compress(File* im, File* out,int level, U64 size) {
@@ -3392,7 +3392,7 @@ U64 decode_arm(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
     return size1; 
 }
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
-#include "wrtpre.cpp"
+#include "wrtpre.inc"
 
 void encode_txt(File* in, File* out, U64 len,int wrtn) {
     assert(wrtn<2);

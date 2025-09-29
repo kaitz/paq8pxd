@@ -2,6 +2,7 @@
 #include <cinttypes>
 #include "helper.hpp"
 #include <algorithm>
+#include <array>
 class DECAlpha {
 public:
   enum InstructionFormat { Bra, F_P, Mem, Mfc, Mbr, Opr, Pcd, Nop };
