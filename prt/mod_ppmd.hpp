@@ -1,4 +1,4 @@
-
+#pragma once
 //////////////////////////// ppmdModel //////////////////////////
 
 #ifdef UNIX
@@ -129,7 +129,7 @@ struct ppmd_Model {
     int StartSubAllocator( U64 SASize ) {
         U64 t = SASize << 20U;
         HeapStart = new U8[t];
-        programChecker.alloc(t);
+        //programChecker.alloc(t);
         //  HeapStart = mAlloc<U8>(t);
         //  HeapStart = (U8*)VirtualAlloc( 0, t, MEM_COMMIT, PAGE_READWRITE );
         if( HeapStart==NULL ) return 0;
@@ -1336,4 +1336,5 @@ init_flag=0;
 }*/
 
 #pragma pack()
+
 

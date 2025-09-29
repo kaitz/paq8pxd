@@ -1,91 +1,7 @@
-
+#include "wrton.hpp"
 // based on  "XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com"
 //
-#include <stdlib.h> 
-#include <memory.h>
-#include <stdio.h>
-#include <vector>
-#include <string>
-#include <map>
-#include <string.h>
 
-
-#define PRINT_CHARS(data) ;//printf data
-#define PRINT_CODEWORDS(data); // printf data
-#define PRINT_STACK(data) ;//printf data;
-#define PRINT_DICT(data) ;//printf data;
-#define PRINT_CONTAINERS(data) ;//printf data
-//#define PRINT_STATUS(data) printf data;
-
-
-#define CHAR_FIRSTUPPER     1   // for encode lower word with first capital letter
-#define CHAR_UPPERWORD      2   // for encode upper word
-#define CHAR_ESCAPE         3   // for encode reserved chars (CHAR_ESCAPE,CHAR_FIRSTUPPER,...)
-#define CHAR_UTFUPPER       4
-#define CHAR_EOL            5   // for enocde linefeed in EOLencoder not in wrt
-#define BINARY_FIRST        128
-#define BINARY_LAST         255
-
-
-#define WORD_AVG_SIZE       8
-#define WORD_MAX_SIZE       48
-#define STRING_MAX_SIZE     255  // 1-byte for container.size()
-
-
-#define HASH_TABLE_SIZE         (1<<20) //1MB*4
-#define HASH_DOUBLE_MULT    37
-#define HASH_MULT           23
-
-enum ELetterType { LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR };
-
-class wrtDecoder
-{
-public:
-    wrtDecoder(); 
-    ~wrtDecoder();
-    int WRT_start_decoding(int count,int size,U8* data);
-    int WRT_decode(int WRTd_c,U8 *decodedText,int *txtlen);
-    void defaultSettings(int n);
-protected:
-    
-    inline void stringHash(const U8 *ptr, int len,int& hash);
-    int addWord(U8* &mem,int &i);
-    U8* loadDynamicDictionary(U8* mem,U8* mem_end);
-    
-    void initializeCodeWords(int word_count,bool initMem=true);
-    bool initialize(bool encoding);
-    void WRT_deinitialize();
-
-    int* word_hash;
-    bool fileCorrupted;
-
-
-    std::vector<std::string> sortedDict;
-
-    int sizeDict;
-    U8* dictmem;
-    U8* dictmem_end;
-    U8* mem;
-    
-U8** dict=NULL;
-U8* dictlen=NULL;
-    int addSymbols[256]; // reserved symbols in output alphabet 
-    int reservedSet[256]; // reserved symbols in input alphabet
-    int outputSet[256];
-    int codeword2sym[256]; 
-
-    int dictionary,dict1size,dict2size,dict3size,dict4size,dict1plus2plus3,dict1plus2;
-    int bound4,bound3,dict123size,dict12size,collision,quoteOpen,quoteClose,detectedSym;
-    int maxMemSize;
-    int sortedDictSize;
-    //int wrtnum;
-    int dindex;
-    void read_dict(int count,int size,U8* data);
-    inline int decodeCodeWord(U8* &s,int& c);
-    int s_size;
-int more;//=-1
-public:
-};
    
 wrtDecoder::wrtDecoder( ) :  dictmem(NULL), dictmem_end(NULL),fileCorrupted(false),dindex(0), /*wrtnum(0),*/s_size(0),sizeDict(0),sortedDictSize(0),more(-1)
 { 
@@ -480,3 +396,4 @@ int wrtDecoder::WRT_start_decoding(int count,int size,U8* data){
     return 0;
 }
  
+

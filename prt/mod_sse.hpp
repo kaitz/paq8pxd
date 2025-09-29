@@ -1,3 +1,4 @@
+#pragma once
 // This SSE code was written by Eugene Shelwien.
 // https://encode.ru/threads/2515-mod_ppmd
 
@@ -75,41 +76,41 @@ enum {
 #define M_LOG2E 1.44269504088896340736
 #endif
 
-double log2( double a ) { return M_LOG2E*log(a); }
+static double log2( double a ) { return M_LOG2E*log(a); }
 
-double exp2( double a ) { return exp( a/M_LOG2E ); }
+static  double exp2( double a ) { return exp( a/M_LOG2E ); }
 
-double st( double p ) { return log2((1-p)/p); }
+static double st( double p ) { return log2((1-p)/p); }
 
-double sq( double p ) { return 1.0/(1.0+exp2(p)); }
+static double sq( double p ) { return 1.0/(1.0+exp2(p)); }
 
-const double st_coef = (hSCALE-1)/log2(SCALE-1);
-const double sq_coef = 1.0 / st_coef;
+static const double st_coef = (hSCALE-1)/log2(SCALE-1);
+static const double sq_coef = 1.0 / st_coef;
 
-uint st_i( uint p ) {
+static uint st_i( uint p ) {
   p = st(double(p)/SCALE) * st_coef + hSCALE;
   return p;
 }
 
-uint sq_i( uint p ) {
+static uint sq_i( uint p ) {
   p = sq( double(int(p)-hSCALE) * sq_coef ) * SCALE;
   return p;
 }
 
-double st_d( double p ) {
+static double st_d( double p ) {
   p = st(p/SCALE);
   return p;
 }
 
-double sq_d( double p ) {
+static double sq_d( double p ) {
   p = sq(p) * SCALE;
   return p;
 }
 
-word t_st[SCALE];
-word t_sq[SCALE];
+static word t_st[SCALE];
+static word t_sq[SCALE];
 
-uint Init_ST_SQ( void ) {
+static uint Init_ST_SQ( void ) {
   uint i,s,x,y;
 
   for( i=1; i<SCALE; i++ ) t_sq[i] = sq_i(i);
@@ -132,17 +133,17 @@ uint Init_ST_SQ( void ) {
   return 0;
 }
 
-uint unused_0 = Init_ST_SQ();
+static uint unused_0 = Init_ST_SQ();
 
 
-uint Extrap( int p1, int C ) {
+static uint Extrap( int p1, int C ) {
   p1 = (((p1-hSCALE)*C) >> 13) + hSCALE;
   if( p1<1 ) p1=1;
   if( p1>mSCALE ) p1=mSCALE;
   return p1;
 }
 
-uint WExtrap( int _p1, int C ) {
+static uint WExtrap( int _p1, int C ) {
   double p1 = st_d(_p1-hSCALE);
   p1 = (p1*C)/8192;
   _p1 = sq_d(p1);
@@ -150,13 +151,13 @@ uint WExtrap( int _p1, int C ) {
   if( _p1>SCALE ) _p1=SCALE;
   return _p1+hSCALE;
 }
-word t_p0[SCALE];
-word t_p1[SCALE];
-word st_p0[SCALE];
-word st_px0[SCALE];
-word st_p2[SCALE]; 
+static word t_p0[SCALE];
+static word t_p1[SCALE];
+static word st_p0[SCALE];
+static word st_px0[SCALE];
+static word st_p2[SCALE]; 
 
-uint Init_ST_p0( void ) {
+static uint Init_ST_p0( void ) {
   for( int i=1; i<SCALE; i++ ){ 
     t_p0[i] = Extrap(t_st[i],7935);
     t_p1[i] = Extrap(t_st[i],9592);
@@ -166,7 +167,7 @@ uint Init_ST_p0( void ) {
 }
 return 0;
 }
-uint unused_1 = Init_ST_p0();
+static uint unused_1 = Init_ST_p0();
 
 struct Mixer {
   int w;
@@ -348,3 +349,4 @@ int SSE::Predict( int input ) {
 void SSE::Perceive(int bit) {
   sse_->M_Update(bit);
 }*/
+

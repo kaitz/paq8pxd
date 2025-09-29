@@ -1,3 +1,7 @@
+#pragma once
+#include "types.hpp"
+#include "file.hpp"
+#include "../predictors/predictor.hpp"
 
 static const int SCALElog = 15;
 static const int SCALE    = 1<<SCALElog;
@@ -142,3 +146,57 @@ struct Rangecoder {
 
 };
 
+
+
+//////////////////////////// Encoder ////////////////////////////
+
+// An Encoder does arithmetic encoding.  Methods:
+// Encoder(COMPRESS, f) creates encoder for compression to archive f, which
+//   must be open past any header for writing in binary mode.
+// Encoder(DECOMPRESS, f) creates encoder for decompression from archive f,
+//   which must be open past any header for reading in binary mode.
+// code(i) in COMPRESS mode compresses bit i (0 or 1) to file f.
+// code() in DECOMPRESS mode returns the next decompressed bit from file f.
+//   Global y is set to the last bit coded or decoded by code().
+// compress(c) in COMPRESS mode compresses one byte.
+// decompress() in DECOMPRESS mode decompresses and returns one byte.
+// flush() should be called exactly once after compression is done and
+//   before closing f.  It does nothing in DECOMPRESS mode.
+// size() returns current length of archive
+// setFile(f) sets alternate source to FILE* f for decompress() in COMPRESS
+//   mode (for testing transforms).
+// If level (global) is 0, then data is stored without arithmetic coding.
+//#include "sh_v2f.inc"
+typedef enum {COMPRESS, DECOMPRESS} Mode;
+class Encoder {
+private:
+  const Mode mode;       // Compress or decompress?
+  File* archive;         // Compressed data file
+  U32 x1, x2;            // Range, initially [0, 1), scaled by 2^32
+  U32 x;                 // Decompress mode: last 4 input bytes of archive
+  File*alt;             // decompress() source in COMPRESS mode
+  Rangecoder rc; 
+  // Compress bit y or return decompressed bit
+  void code(int i=0);
+  int decode();
+ 
+public:
+  Predictors& predictor;
+  Encoder(Mode m, File* f,Predictors& predict);
+  Mode getMode() const {return mode;}
+  U64 size() const {return  archive->curpos();}  // length of archive so far
+  void flush();  // call this when compression is finished
+  void setFile(File* f) {alt=f;}
+
+  // Compress one byte
+  void compress(int c) ;
+
+  // Decompress and return one byte
+  int decompress() ;
+  ~Encoder(){
+  
+   }
+};
+
+
+ 
