@@ -1,5 +1,6 @@
 #pragma once
 #include "types.hpp"
+#include <string>
 
 U32 finalize32(const U32 hash, const int hashbits);
 U32 finalize64(const U64 hash, const int hashbits);
@@ -124,3 +125,14 @@ static uint16_t checksum16(const uint64_t hash, const int hashBits) {
   constexpr int checksumBits = 16;
   return static_cast<uint16_t>(hash >> (64 - hashBits - checksumBits)) & ((1U << checksumBits) - 1);
 }
+
+struct HashElementForMatchPositions { // sizeof(HashElementForMatchPositions) = 3*4 = 12
+  static constexpr size_t N = 3;
+  uint32_t matchPositions[N];
+  void Add(uint32_t pos) {
+    if (N > 1) {
+      memmove(&matchPositions[1], &matchPositions[0], (N - 1) * sizeof(matchPositions[0]));
+    }
+    matchPositions[0] = pos;
+  }
+};
