@@ -1,4 +1,4 @@
-rem @echo off
+@echo off
 echo Build paq8pxd
 
 set cdir=%CD%
@@ -7,10 +7,6 @@ set gcc=%cdir%\tools\mingw64\bin\g++.exe
 set src=%cdir%
 rem -ffp-model=fast 
 set options=-DWINDOWS -DNDEBUG   -DSM  -m64 -Wall -std=gnu++11 -mavx2 -O3 -fno-threadsafe-statics -Wno-unknown-escape-sequence -Wno-unused-variable -Wno-unneeded-internal-declaration -Wno-unused-but-set-variable -Wno-format -mfpmath=sse -march=corei7 -ffast-math -fno-math-errno -fno-trapping-math 
-
-
-
-
 
 del _error_log.txt  >nul 2>&1
 del paq8pxd.exe      >nul 2>&1
@@ -33,5 +29,9 @@ IF %ERRORLEVEL% NEQ 0 goto end
 IF %ERRORLEVEL% NEQ 0 goto end
 
 :end
-rem del *.o
+del *.o
+del "%src%\models\*.o"
+del "%src%\predictors\*.o"
+del "%src%\prt\*.o"
+del "%src%\prt\wrt\*.o"
 pause
