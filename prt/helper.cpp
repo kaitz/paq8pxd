@@ -114,6 +114,7 @@ FILE* maketmpfile(void) {
 #endif
 }*/
 
+
 U32 utf8_check(U8 *s) {
     int i=0;
     if (*s < 0x80)      /* 0xxxxxxx */

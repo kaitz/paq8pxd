@@ -113,25 +113,7 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "prt/enums.hpp"
 #include "prt/blockdata.hpp"
 #include "prt/logistic.hpp"
-//#include "prt/mixer.hpp"
-//#include "prt/APM1.hpp"
-//#include "prt/statemap.hpp"
-//#include "prt/statetable.hpp"
-//#include "prt/APM.hpp"
-//#include "prt/indirect.hpp"
-//#include "prt/indirectcontext.hpp"
-//#include "prt/ols.hpp"
-//#include "prt/largestationarymap.hpp"
-//#include "prt/sscm.hpp"
-//#include "prt/stationarymap.hpp"
-//#include "prt/mft.hpp"
-//#include "prt/contextmap2.hpp"
-//#include "prt/contextmap.hpp"
-//#include "prt/bh.hpp"
-//#include "prt/wrt/wrton.hpp"
-//#include "prt/stemmer/stemmer.hpp"
 #include "prt/tables.hpp"
-
 
 #include "prt/EAPM.hpp"
 #include "prt/ESSE.hpp"
@@ -147,6 +129,8 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "predictors/predictortext.hpp"
 #include "predictors/predictorimg1.hpp"
 #include "predictors/predictoraudio.hpp"
+
+#include "prt/coder.hpp"
 
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
@@ -242,115 +226,6 @@ size_t getPeakMemory(){
 
 
 
-
-
-
-
-
-
-
-//////////////////////////// Encoder ////////////////////////////
-
-// An Encoder does arithmetic encoding.  Methods:
-// Encoder(COMPRESS, f) creates encoder for compression to archive f, which
-//   must be open past any header for writing in binary mode.
-// Encoder(DECOMPRESS, f) creates encoder for decompression from archive f,
-//   which must be open past any header for reading in binary mode.
-// code(i) in COMPRESS mode compresses bit i (0 or 1) to file f.
-// code() in DECOMPRESS mode returns the next decompressed bit from file f.
-//   Global y is set to the last bit coded or decoded by code().
-// compress(c) in COMPRESS mode compresses one byte.
-// decompress() in DECOMPRESS mode decompresses and returns one byte.
-// flush() should be called exactly once after compression is done and
-//   before closing f.  It does nothing in DECOMPRESS mode.
-// size() returns current length of archive
-// setFile(f) sets alternate source to FILE* f for decompress() in COMPRESS
-//   mode (for testing transforms).
-// If level (global) is 0, then data is stored without arithmetic coding.
-#include "sh_v2f.inc"
-typedef enum {COMPRESS, DECOMPRESS} Mode;
-class Encoder {
-private:
-  const Mode mode;       // Compress or decompress?
-  File* archive;         // Compressed data file
-  U32 x1, x2;            // Range, initially [0, 1), scaled by 2^32
-  U32 x;                 // Decompress mode: last 4 input bytes of archive
-  File*alt;             // decompress() source in COMPRESS mode
-  Rangecoder rc; 
-  // Compress bit y or return decompressed bit
-  void code(int i=0) {
-    int p=predictor.p();
-    rc.rc_BProcess( p, i );
-    predictor.x.y=i;
-    predictor.update0();
-    predictor.update();
-  }
-  int decode() {
-    int p=predictor.p();
-    predictor.x.y = rc.rc_BProcess( p, 0 );
-    predictor.update0();
-    predictor.update();
-    return predictor.x.y;
-  }
- 
-public:
-  Predictors& predictor;
-  Encoder(Mode m, File* f,Predictors& predict);
-  Mode getMode() const {return mode;}
-  U64 size() const {return  archive->curpos();}  // length of archive so far
-  void flush();  // call this when compression is finished
-  void setFile(File* f) {alt=f;}
-
-  // Compress one byte
-  void compress(int c) {
-    assert(mode==COMPRESS);
-    if (level==0)
-      archive->putc(c);
-    else {
-      for (int i=7; i>=0; --i)
-        code((c>>i)&1);
-    }
-  }
-
-  // Decompress and return one byte
-  int decompress() {
-    if (mode==COMPRESS) {
-      assert(alt);
-      return alt->getc();
-    }
-    else if (level==0){
-     int a;
-     a=archive->getc();
-      return a ;}
-    else {
-      int c=0;
-      for (int i=0; i<8; ++i)
-        c+=c+decode();
-      
-      return c;
-    }
-  }
-  ~Encoder(){
-  
-   }
-};
-
-Encoder::Encoder(Mode m, File* f,Predictors& predict):
-    mode(m), archive(f), alt(0),predictor(predict) {
-    if(level>0) if(mode==DECOMPRESS) rc.StartDecode(f); else rc.StartEncode(f);
-
-  for (int i=0; i<1024; ++i)
-    dt[i]=16384/(i+i+3);
-#ifdef SM    
-    dt[1023]=1;
-    dt[0]=4095;
-#endif
-}
-
-void Encoder::flush() {
-  if (mode==COMPRESS && level>0)rc.FinishEncode();
-}
- 
 /////////////////////////// Filters /////////////////////////////////
 //
 // Before compression, data is encoded in blocks with the following format:
@@ -6689,111 +6564,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
   tmp.close();
 }
 
-//////////////////////////// User Interface ////////////////////////////
 
-
-// int expand(String& archive, String& s, const char* fname, int base) {
-// Given file name fname, print its length and base name (beginning
-// at fname+base) to archive in format "%ld\t%s\r\n" and append the
-// full name (including path) to String s in format "%s\n".  If fname
-// is a directory then substitute all of its regular files and recursively
-// expand any subdirectories.  Base initially points to the first
-// character after the last / in fname, but in subdirectories includes
-// the path from the topmost directory.  Return the number of files
-// whose names are appended to s and archive.
-
-// Same as expand() except fname is an ordinary file
-int putsize(std::string& archive, std::string& s, const char* fname, int base) {
-  int result=0;
-  FileDisk f;
-  bool success=f.open(fname,true);
-  if (success) {
-    f.setend();
-    U64 len=f.curpos();
-    if (len>=0) {
-      static char blk[24];
-      sprintf(blk, "%0.0f\t", len+0.0);
-      archive+=blk;
-      archive+=(fname+base);
-      archive+="\n";
-      s+=fname;
-      s+="\n";
-      ++result;
-    }
-    f.close();
-  }
-  return result;
-}
-
-#ifdef WINDOWS
-
-int expand(std::string& archive, std::string& s, const char* fname, int base) {
-  int result=0;
-  DWORD attr=GetFileAttributes(fname);
-  if ((attr != 0xFFFFFFFF) && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
-    WIN32_FIND_DATA ffd;
-    std::string fdir(fname);
-    fdir+="/*";
-    HANDLE h=FindFirstFile(fdir.c_str(), &ffd);
-    while (h!=INVALID_HANDLE_VALUE) {
-      if (!equals(ffd.cFileName, ".") && !equals(ffd.cFileName, "..")) {
-        std::string d(fname);
-        d+="/";
-        d+=ffd.cFileName;
-        result+=expand(archive, s, d.c_str(), base);
-      }
-      if (FindNextFile(h, &ffd)!=TRUE) break;
-    }
-    FindClose(h);
-  }
-  else // ordinary file
-    result=putsize(archive, s, fname, base);
-  return result;
-}
-
-#else
-#ifdef UNIX
-
-int expand(String& archive, String& s, const char* fname, int base) {
-  int result=0;
-  struct stat sb;
-  if (stat(fname, &sb)<0) return 0;
-
-  // If a regular file and readable, get file size
-  if (sb.st_mode & S_IFREG && sb.st_mode & 0400)
-    result+=putsize(archive, s, fname, base);
-
-  // If a directory with read and execute permission, traverse it
-  else if (sb.st_mode & S_IFDIR && sb.st_mode & 0400 && sb.st_mode & 0100) {
-    DIR *dirp=opendir(fname);
-    if (!dirp) {
-      perror("opendir");
-      return result;
-    }
-    dirent *dp;
-    while(errno=0, (dp=readdir(dirp))!=0) {
-      if (!equals(dp->d_name, ".") && !equals(dp->d_name, "..")) {
-        String d(fname);
-        d+="/";
-        d+=dp->d_name;
-        result+=expand(archive, s, d.c_str(), base);
-      }
-    }
-    if (errno) perror("readdir");
-    closedir(dirp);
-  }
-  else printf("%s is not a readable file or directory\n", fname);
-  return result;
-}
-
-#else  // Not WINDOWS or UNIX, ignore directories
-
-int expand(String& archive, String& s, const char* fname, int base) {
-  return putsize(archive, s, fname, base);
-}
-
-#endif
-#endif
 
 
 U64 filestreamsize[streamc];
@@ -7185,6 +6956,12 @@ printf("\n");
             n0n1[i]=r;
         }
 
+  for (int i=0; i<1024; ++i)
+    dt[i]=16384/(i+i+3);
+#ifdef SM    
+    dt[1023]=1;
+    dt[0]=4095;
+#endif
         File* archive=0;               // compressed file
         int files=0;                   // number of files to compress/decompress
         Array<const char*> fname(1);   // file names (resized to files)

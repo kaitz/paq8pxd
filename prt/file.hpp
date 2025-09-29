@@ -1,7 +1,16 @@
 #pragma once
 #include "types.hpp"
+#include "helper.hpp"
+#include <string>
+#include <assert.h>
+#ifdef WINDOWS
+#include <windows.h>
+#endif
 //This is the base class.
 //This is an abstract class for all the required file operations.
+int putsize(std::string& archive, std::string& s, const char* fname, int base);
+int expand(std::string& archive, std::string& s, const char* fname, int base);
+
 class File {
 public:
   virtual ~File(){};// = default;
