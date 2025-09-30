@@ -30,7 +30,7 @@
 
 #ifdef WINDOWS                       
 #ifdef MT
-//#define PTHREAD       //uncomment to force pthread to igore windows native threads
+//#define PTHREAD       //uncomment to force pthread to igore windows native threads !This seems broke!
 #endif
 #endif
 
@@ -6498,7 +6498,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
   tmp.close();
 }
 
-void compressStream(int streamid,U64 size, File* in, File* out) {
+void compressStream(int streamid, U64 size, File* in, File* out) {
     int i; //stream
     i=streamid;
     Encoder* threadencode;
@@ -6509,272 +6509,270 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
     int datasegmentinfo;
     Filetype datasegmenttype;
     U64 scompsize=0;
-                datasegmentsize=size;
-                    U64 total=size;
-                    datasegmentpos=0;
-                    datasegmentinfo=0;
-                    datasegmentlen=0;
-                    // datastreams
-                    if (level>0){
-                     
-                    switch(i) {
-                        default:
-                        case 0: { threadpredict=new Predictor(); break;}
-                        case 1: { threadpredict=new PredictorJPEG(); break;}
-                        case 2: { threadpredict=new PredictorIMG1(); break;}
-                        case 3: { threadpredict=new PredictorIMG4(); break;}
-                        case 4: { threadpredict=new PredictorIMG8(); break;}
-                        case 5: { threadpredict=new PredictorIMG24(); break;}
-                        case 6: { threadpredict=new PredictorAUDIO2(); break;}
-                        case 7: { threadpredict=new PredictorEXE(); break;}
-                        case 8: 
-                        case 9: 
-                        case 10: { threadpredict=new PredictorTXTWRT(); break;}
-                        case 11: { threadpredict=new PredictorDEC(); break;}
-                        case 12: { threadpredict=new Predictor(); break;}
-                    }
-                     }
-                    threadencode=new Encoder (COMPRESS, out,*threadpredict); 
-                     if ((i>=0 && i<=7) || i==10|| i==11|| i==12){
-                        while (datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen<<=8,datasegmentlen+=segment(datasegmentpos++);
-                                for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
-                                if (!(streams.isStreamType(datasegmenttype,i) ))datasegmentlen=0;
-                                if (level>0){
-                                threadencode->predictor.x.filetype=datasegmenttype;
-                                threadencode->predictor.x.blpos=0;
-                                threadencode->predictor.x.finfo=datasegmentinfo;
-                                }
-                            }
-                            for (U64 k=0; k<datasegmentlen; ++k) {
-                                //#ifndef MT
-                                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
-                                //#endif
-                                threadencode->compress(in->getc());
-                                datasegmentsize--;
-                            }
-                           /* #ifndef NDEBUG 
+    datasegmentsize=size;
+    U64 total=size;
+    datasegmentpos=0;
+    datasegmentinfo=0;
+    datasegmentlen=0;
+    // datastreams
+    if (level>0) {
+        switch(i) {
+        default:
+        case 0: { threadpredict=new Predictor(); break;}
+        case 1: { threadpredict=new PredictorJPEG(); break;}
+        case 2: { threadpredict=new PredictorIMG1(); break;}
+        case 3: { threadpredict=new PredictorIMG4(); break;}
+        case 4: { threadpredict=new PredictorIMG8(); break;}
+        case 5: { threadpredict=new PredictorIMG24(); break;}
+        case 6: { threadpredict=new PredictorAUDIO2(); break;}
+        case 7: { threadpredict=new PredictorEXE(); break;}
+        case 8: 
+        case 9: 
+        case 10: { threadpredict=new PredictorTXTWRT(); break;}
+        case 11: { threadpredict=new PredictorDEC(); break;}
+        case 12: { threadpredict=new Predictor(); break;}
+        }
+    }
+    threadencode=new Encoder (COMPRESS, out,*threadpredict); 
+    if ((i>=0 && i<=7) || i==10 || i==11|| i==12) {
+        while (datasegmentsize>0) {
+            while (datasegmentlen==0) {
+                datasegmenttype=(Filetype)segment(datasegmentpos++);
+                for (int ii=0; ii<8; ii++) datasegmentlen<<=8,datasegmentlen+=segment(datasegmentpos++);
+                for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
+                if (!(streams.isStreamType(datasegmenttype,i) ))datasegmentlen=0;
+                if (level>0){
+                    threadencode->predictor.x.filetype=datasegmenttype;
+                    threadencode->predictor.x.blpos=0;
+                    threadencode->predictor.x.finfo=datasegmentinfo;
+                }
+            }
+            for (U64 k=0; k<datasegmentlen; ++k) {
+                //#ifndef MT
+                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
+                //#endif
+                threadencode->compress(in->getc());
+                datasegmentsize--;
+            }
+            /* #ifndef NDEBUG 
                             printf("Stream(%d) block from %0lu to %0lu bytes\n",i,datasegmentlen, out->curpos()-scompsize);
                             scompsize= out->curpos();
                             #endif */
-                            datasegmentlen=0;
-                        }
-                        threadencode->flush();
-                    }
-                    if (i==8 || i==9 ){
-                             bool dictFail=false;
-                            FileTmp tm;
-                            XWRT_Encoder* wrt;
-                            wrt=new XWRT_Encoder();
-                            wrt->defaultSettings(i==8);
-                            wrt->WRT_start_encoding(in,&tm,datasegmentsize,false,true);
-                            delete wrt;
-                            datasegmentlen= tm.curpos();
-                            streams.streams[i]->streamsize=datasegmentlen;
-                            // -e0 option ignores larger wrt size
-                            if (datasegmentlen>=datasegmentsize && minfq!=0){
-                               dictFail=true; //wrt size larger
-                               if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize ); 
-                            }else{                            
-                               if (verbose>0)printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
-                            }
-                            tm.setpos(0);
-                            in->setpos(0);
-                            if (level>0){
-                            threadencode->predictor.x.filetype=DICTTXT;
-                            threadencode->predictor.x.blpos=0;
-                            threadencode->predictor.x.finfo=-1;
-                            }
-                            if (dictFail==true) {
-                                streams.streams[i]->streamsize=datasegmentlen+1;
-                                threadencode->compress(0xAA); //flag
-                            }
-                            for (U64 k=0; k<datasegmentlen; ++k) {
-                                if (!(k&0x1fff)) printStatus(k, datasegmentlen,i);
-                                #ifndef NDEBUG 
-                                if (!(k&0x3ffff) && k) {
-                                    if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,k, out->curpos()-scompsize);
-                                    scompsize= out->curpos();
-                                }
-                                #endif
-                                if (dictFail==false) threadencode->compress(tm.getc());
-                                else                 threadencode->compress(in->getc());
-                            }
-                            tm.close();
-                            threadencode->flush();
-                            //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,datasegmentlen+0.0,ftello(out)-scompsize+0.0);
-                            datasegmentlen=datasegmentsize=0;   
-                    }
-                    
-                    
-            if (level>0) delete threadpredict;
-            delete threadencode;
-            printf("Stream(");
-            SetConsoleTextAttribute(hConsole, i+2);
-            SetConColor(i+2);
-            printf("%d",i);
-            SetConColor(7);
+            datasegmentlen=0;
+        }
+        threadencode->flush();
+    }
+    if (i==8 || i==9) {
+        bool dictFail=false;
+        FileTmp tm;
+        XWRT_Encoder* wrt;
+        wrt=new XWRT_Encoder();
+        wrt->defaultSettings(i==8);
+        wrt->WRT_start_encoding(in,&tm,datasegmentsize,false,true);
+        delete wrt;
+        datasegmentlen= tm.curpos();
+        streams.streams[i]->streamsize=datasegmentlen;
+        // -e0 option ignores larger wrt size
+        if (datasegmentlen>=datasegmentsize && minfq!=0){
+            dictFail=true; //wrt size larger
+            if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize ); 
+        }else{                            
+            if (verbose>0)printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
+        }
+        tm.setpos(0);
+        in->setpos(0);
+        if (level>0) {
+            threadencode->predictor.x.filetype=DICTTXT;
+            threadencode->predictor.x.blpos=0;
+            threadencode->predictor.x.finfo=-1;
+        }
+        if (dictFail==true) {
+            streams.streams[i]->streamsize=datasegmentlen+1;
+            threadencode->compress(0xAA); //flag
+        }
+        for (U64 k=0; k<datasegmentlen; ++k) {
+            if (!(k&0x1fff)) printStatus(k, datasegmentlen,i);
+            #ifndef NDEBUG 
+            if (!(k&0x3ffff) && k) {
+                if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,k, out->curpos()-scompsize);
+                scompsize= out->curpos();
+            }
+            #endif
+            if (dictFail==false) threadencode->compress(tm.getc());
+            else                 threadencode->compress(in->getc());
+        }
+        tm.close();
+        threadencode->flush();
+        //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,datasegmentlen+0.0,ftello(out)-scompsize+0.0);
+        datasegmentlen=datasegmentsize=0;   
+    }
+    
+    
+    if (level>0) delete threadpredict;
+    delete threadencode;
+    printf("Stream(");
+    SetConsoleTextAttribute(hConsole, i+2);
+    SetConColor(i+2);
+    printf("%d",i);
+    SetConColor(7);
 
-            printf(") compressed from %0" PRIi64 " to ",size);
-            SetConColor(9);
-            printf("%0" PRIi64 "",out->curpos());
-            SetConColor(7);
-            printf(" bytes\n");
+    printf(") compressed from %0" PRIi64 " to ",size);
+    SetConColor(9);
+    printf("%0" PRIi64 "",out->curpos());
+    SetConColor(7);
+    printf(" bytes\n");
 }
 
 void decompress(const Job& job) {
 }     
 
 void CompressStreams(File *archive,U16 &streambit) {
-                for (int i=0; i<streams.Count(); ++i) {
-                U64 datasegmentsize;
-                datasegmentsize= streams.streams[i]->file.curpos();    //get segment data offset
-                streams.streams[i]->streamsize=datasegmentsize;
-                streams.streams[i]->file.setpos(0);
-                streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
-                if (datasegmentsize>0){                       //if segment contains data
-                    if (verbose>0) {
-                        SetConColor(i+2);
-                        switch(i) {
-                            case 0: {
-                                printf("default   "); break;}
-                            case 1: {
-                                printf("jpeg      "); break;}        
-                            case 2: {
-                                printf("image1    "); break;}
-                            case 3: {
-                                printf("image4    "); break;}    
-                            case 4: {
-                                printf("image8    "); break;}
-                            case 5: {
-                                printf("image24   "); break;}        
-                            case 6: {
-                                printf("audio     "); break;}
-                            case 7: {
-                                printf("exe       "); break;}
-                            case 8: {
-                                printf("text0 wrt "); break;}
-                            case 9: 
-                            case 10: {
-                                printf("%stext wrt ",i==10?"big":"",i); break;}   
-                            case 11: {
-                                printf("dec       "); break;}
-                            case 12: {
-                                printf("compressed "); break;}
-                        }
-                        SetConColor(7);  
-                        printf("stream(%d).  Total %0" PRIi64 "\n",i,datasegmentsize);
-                    }
+    for (int i=0; i<streams.Count(); ++i) {
+        U64 datasegmentsize;
+        datasegmentsize= streams.streams[i]->file.curpos();    //get segment data offset
+        streams.streams[i]->streamsize=datasegmentsize;
+        streams.streams[i]->file.setpos(0);
+        streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
+        if (datasegmentsize>0){                       //if segment contains data
+            if (verbose>0) {
+                SetConColor(i+2);
+                switch(i) {
+                case 0: {
+                        printf("default   "); break;}
+                case 1: {
+                        printf("jpeg      "); break;}        
+                case 2: {
+                        printf("image1    "); break;}
+                case 3: {
+                        printf("image4    "); break;}    
+                case 4: {
+                        printf("image8    "); break;}
+                case 5: {
+                        printf("image24   "); break;}        
+                case 6: {
+                        printf("audio     "); break;}
+                case 7: {
+                        printf("exe       "); break;}
+                case 8: {
+                        printf("text0 wrt "); break;}
+                case 9: 
+                case 10: {
+                        printf("%stext wrt ",i==10?"big":"",i); break;}   
+                case 11: {
+                        printf("dec       "); break;}
+                case 12: {
+                        printf("compressed "); break;}
+                }
+                SetConColor(7);  
+                printf("stream(%d).  Total %0" PRIi64 "\n",i,datasegmentsize);
+            }
 #ifdef MT
-                                                              // add streams to job list
-                    //filesmt[i]=new FileTmp();                 //open tmp file for stream output
-                    Job job;
-                    job.out=&streams.streams[i]->out;
-                    job.in=&streams.streams[i]->file;
-                    job.streamid=i;
-                    job.command=0; //0 compress
-                    job.datasegmentsize=datasegmentsize;
-                    jobs.push_back(job);
+            // add streams to job list
+            Job job;
+            job.out=&streams.streams[i]->out;
+            job.in=&streams.streams[i]->file;
+            job.streamid=i;
+            job.command=0; //0 compress
+            job.datasegmentsize=datasegmentsize;
+            jobs.push_back(job);
 #else
-                    compressStream(i,datasegmentsize,&streams.streams[i]->file,archive);
+            compressStream(i,datasegmentsize,&streams.streams[i]->file,archive);
 #endif
+        }
+    }
+
+#ifdef MT
+    // Loop until all jobs return OK or ERR: start a job whenever one
+    // is eligible. If none is eligible then wait for one to finish and
+    // try again. If none are eligible and none are running then it is
+    // an error.
+    int thread_count=0;  // number RUNNING, not to exceed topt
+    U32 job_count=0;     // number of jobs with state OK or ERR
+
+    // Aquire lock on jobs[i].state.
+    // Threads can access only while waiting on a FINISHED signal.
+#ifdef PTHREAD
+    pthread_attr_t attr; // thread joinable attribute
+    check(pthread_attr_init(&attr));
+    check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE));
+    check(pthread_mutex_lock(&mutex));  // locked
+#else
+    mutex=CreateMutex(NULL, FALSE, NULL);  // not locked
+#endif
+
+    while(job_count<jobs.size()) {
+
+        // If there is more than 1 thread then run the biggest jobs first
+        // that satisfies the memory bound. If 1 then take the next ready job
+        // that satisfies the bound. If no threads are running, then ignore
+        // the memory bound.
+        int bi=-1;  // find a job to start
+        if (thread_count<topt) {
+            for (U32 i=0; i<jobs.size(); ++i) {
+                if (jobs[i].state==READY  && bi<0 ) {
+                    bi=i;
+                    if (topt==1) break;
                 }
             }
-
-#ifdef MT
-  // Loop until all jobs return OK or ERR: start a job whenever one
-  // is eligible. If none is eligible then wait for one to finish and
-  // try again. If none are eligible and none are running then it is
-  // an error.
-  int thread_count=0;  // number RUNNING, not to exceed topt
-  U32 job_count=0;     // number of jobs with state OK or ERR
-
-  // Aquire lock on jobs[i].state.
-  // Threads can access only while waiting on a FINISHED signal.
-#ifdef PTHREAD
-  pthread_attr_t attr; // thread joinable attribute
-  check(pthread_attr_init(&attr));
-  check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE));
-  check(pthread_mutex_lock(&mutex));  // locked
-#else
-  mutex=CreateMutex(NULL, FALSE, NULL);  // not locked
-#endif
-
-  while(job_count<jobs.size()) {
-
-    // If there is more than 1 thread then run the biggest jobs first
-    // that satisfies the memory bound. If 1 then take the next ready job
-    // that satisfies the bound. If no threads are running, then ignore
-    // the memory bound.
-    int bi=-1;  // find a job to start
-    if (thread_count<topt) {
-      for (U32 i=0; i<jobs.size(); ++i) {
-        if (jobs[i].state==READY  && bi<0 ) {
-          bi=i;
-          if (topt==1) break;
         }
-      }
-    }
 
-    // If found then run it
-    if (bi>=0) {
-      jobs[bi].state=RUNNING;
-      ++thread_count;
+        // If found then run it
+        if (bi>=0) {
+            jobs[bi].state=RUNNING;
+            ++thread_count;
 #ifdef PTHREAD
-      check(pthread_create(&jobs[bi].tid, &attr, thread, &jobs[bi]));
+            check(pthread_create(&jobs[bi].tid, &attr, thread, &jobs[bi]));
 #else
-      jobs[bi].tid=CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)thread,
-          &jobs[bi], 0, NULL);
+            jobs[bi].tid=CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)thread,
+            &jobs[bi], 0, NULL);
 #endif
-    }
-
-    // If no jobs can start then wait for one to finish
-    else {
-#ifdef PTHREAD
-      check(pthread_cond_wait(&cv, &mutex));  // wait on cv
-
-      // Join any finished threads. Usually that is the one
-      // that signaled it, but there may be others.
-      for (U32 i=0; i<jobs.size(); ++i) {
-        if (jobs[i].state==FINISHED || jobs[i].state==FINISHED_ERR) {
-          void* status=0;
-          check(pthread_join(jobs[i].tid, &status));
-          if (jobs[i].state==FINISHED) jobs[i].state=OK;
-          if (jobs[i].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
-          ++job_count;
-          --thread_count;
         }
-      }
+
+        // If no jobs can start then wait for one to finish
+        else {
+#ifdef PTHREAD
+            check(pthread_cond_wait(&cv, &mutex));  // wait on cv
+
+            // Join any finished threads. Usually that is the one
+            // that signaled it, but there may be others.
+            for (U32 i=0; i<jobs.size(); ++i) {
+                if (jobs[i].state==FINISHED || jobs[i].state==FINISHED_ERR) {
+                    void* status=0;
+                    check(pthread_join(jobs[i].tid, &status));
+                    if (jobs[i].state==FINISHED) jobs[i].state=OK;
+                    if (jobs[i].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
+                    ++job_count;
+                    --thread_count;
+                }
+            }
 #else
-      // Make a list of running jobs and wait on one to finish
-      HANDLE joblist[MAXIMUM_WAIT_OBJECTS];
-      int jobptr[MAXIMUM_WAIT_OBJECTS];
-      DWORD njobs=0;
-      WaitForSingleObject(mutex, INFINITE);
-      for (U32 i=0; i<jobs.size() && njobs<MAXIMUM_WAIT_OBJECTS; ++i) {
-        if (jobs[i].state==RUNNING || jobs[i].state==FINISHED
-            || jobs[i].state==FINISHED_ERR) {
-          jobptr[njobs]=i;
-          joblist[njobs++]=jobs[i].tid;
-        }
-      }
-      ReleaseMutex(mutex);
-      DWORD id=WaitForMultipleObjects(njobs, joblist, FALSE, INFINITE);
-      if (id>=WAIT_OBJECT_0 && id<WAIT_OBJECT_0+njobs) {
-        id-=WAIT_OBJECT_0;
-        id=jobptr[id];
-        if (jobs[id].state==FINISHED) jobs[id].state=OK;
-        if (jobs[id].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
-        ++job_count;
-        --thread_count;
-      }
+            // Make a list of running jobs and wait on one to finish
+            HANDLE joblist[MAXIMUM_WAIT_OBJECTS];
+            int jobptr[MAXIMUM_WAIT_OBJECTS];
+            DWORD njobs=0;
+            WaitForSingleObject(mutex, INFINITE);
+            for (U32 i=0; i<jobs.size() && njobs<MAXIMUM_WAIT_OBJECTS; ++i) {
+                if (jobs[i].state==RUNNING || jobs[i].state==FINISHED
+                        || jobs[i].state==FINISHED_ERR) {
+                    jobptr[njobs]=i;
+                    joblist[njobs++]=jobs[i].tid;
+                }
+            }
+            ReleaseMutex(mutex);
+            DWORD id=WaitForMultipleObjects(njobs, joblist, FALSE, INFINITE);
+            if (id>=WAIT_OBJECT_0 && id<WAIT_OBJECT_0+njobs) {
+                id-=WAIT_OBJECT_0;
+                id=jobptr[id];
+                if (jobs[id].state==FINISHED) jobs[id].state=OK;
+                if (jobs[id].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
+                ++job_count;
+                --thread_count;
+            }
 #endif
+        }
     }
-  }
 #ifdef PTHREAD
-  check(pthread_mutex_unlock(&mutex));
+    check(pthread_mutex_unlock(&mutex));
 #endif
 
     // Append temporary files to archive if OK.
@@ -6790,33 +6788,161 @@ void CompressStreams(File *archive,U16 &streambit) {
                 int bytesread=streams.streams[jobs[i].streamid]->out.blockread(&blk[0], BLOCK);
                 if (bytesread!=BLOCK) {
                     readdone=true;                   
-                    archive->blockwrite(&blk[0],  bytesread  );
+                    archive->blockwrite(&blk[0], bytesread);
                 } else      
-                    archive->blockwrite(&blk[0],  BLOCK  );
+                archive->blockwrite(&blk[0], BLOCK);
             }
             streams.streams[jobs[i].streamid]->out.close();
         }
     }
 
-             #endif
-            for (int i=0; i<streams.Count(); ++i) {
-                streams.streams[i]->file.close();
-            }
+#endif
+    for (int i=0; i<streams.Count(); ++i) {
+        streams.streams[i]->file.close();
+    }
 }
 
-// To compress to file1.paq8pxd: paq8pxd [-n] file1 [file2...]
-// To decompress: paq8pxd file1.paq8pxd [output_dir]
+void DecompressStreams(File *archive) {
+    U64 datasegmentsize;
+    U64 datasegmentlen;
+    int datasegmentpos;
+    int datasegmentinfo;
+    Filetype datasegmenttype;
+    Predictors* predictord;
+    //predictord=new Predictor();
+    predictord=0;
+    Encoder *defaultencoder;
+    defaultencoder=0;
+    for (int i=0; i<streams.Count(); ++i) {
+        datasegmentsize=(streams.streams[i]->streamsize); // get segment data offset
+        if (datasegmentsize>0){              // if segment contains data
+            streams.streams[i]->file.setpos( 0);
+            U64 total=datasegmentsize;
+            datasegmentpos=0;
+            datasegmentinfo=0;
+            datasegmentlen=0;
+            if (predictord) delete predictord,predictord=0;
+            if (defaultencoder) delete defaultencoder,defaultencoder=0;
+            printf("DeCompressing ");
+            switch(i) {
+            case 0: { printf("default   stream(0).\n"); break;}
+            case 1: { printf("jpeg      stream(1).\n"); break;}        
+            case 2: { printf("image1    stream(2).\n"); break;}
+            case 3: { printf("image4    stream(3).\n"); break;}    
+            case 4: { printf("image8    stream(4).\n"); break;}
+            case 5: { printf("image24   stream(5).\n"); break;}        
+            case 6: { printf("audio     stream(6).\n"); break;}
+            case 7: { printf("exe       stream(7).\n"); break;}
+            case 8: {  printf("text0 wrt stream(8).\n"); break;}
+            case 9: 
+            case 10: { printf("%stext wrt stream(%d).\n",i==10?"big":"",i); break;}   
+            case 11: { printf("dec       stream(11).\n"); break;}
+            }
+            if (level>0){
+                switch(i) {
+                case 0: {
+                        predictord=new Predictor();     break;}
+                case 1: {
+                        predictord=new PredictorJPEG(); break;}
+                case 2: {
+                        predictord=new PredictorIMG1(); break;}
+                case 3: {
+                        predictord=new PredictorIMG4(); break;}
+                case 4: {
+                        predictord=new PredictorIMG8(); break;}
+                case 5: {
+                        predictord=new PredictorIMG24(); break;}
+                case 6: {
+                        predictord=new PredictorAUDIO2(); break;}
+                case 7: {
+                        predictord=new PredictorEXE();    break;}
+                case 8: {
+                        predictord=new PredictorTXTWRT(); break;}
+                case 9:
+                case 10: {
+                        predictord=new PredictorTXTWRT(); break;}
+                case 11: {
+                        predictord=new PredictorDEC(); break;}
+                case 12: {
+                        predictord=new Predictor(); break;}
+                }
+            }
+            defaultencoder=new Encoder (DECOMPRESS, archive,*predictord); 
+            if ((i>=0 && i<=7)||i==10||i==11||i==12){
+                while (datasegmentsize>0) {
+                    while (datasegmentlen==0){
+                        datasegmenttype=(Filetype)segment(datasegmentpos++);
+                        for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
+                        for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
+                        if (!(streams.isStreamType(datasegmenttype,i) ))datasegmentlen=0;
+                        if (level>0) {
+                            defaultencoder->predictor.x.filetype=datasegmenttype;
+                            defaultencoder->predictor.x.blpos=0;
+                            defaultencoder->predictor.x.finfo=datasegmentinfo; }
+                    }
+                    for (U64 k=0; k<datasegmentlen; ++k) {
+                        if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
+                        streams.streams[i]->file.putc(defaultencoder->decompress());
+                        datasegmentsize--;
+                    }
+                    datasegmentlen=0;
+                }
+            }
+            if (i==8 || i==9 ){
+                while (datasegmentsize>0) {
+                    FileTmp tm;
+                    bool doWRT=true;
+                    datasegmentlen=datasegmentsize;
+                    if (level>0) {
+                        defaultencoder->predictor.x.filetype=DICTTXT;
+                        defaultencoder->predictor.x.blpos=0;
+                        defaultencoder->predictor.x.finfo=-1; }
+                    for (U64 k=0; k<datasegmentlen; ++k) {
+                        if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
+                        U8 b=defaultencoder->decompress();
+                        if (k==0 && b==0xAA) doWRT=false; // flag set?
+                        else tm.putc(b);
+                        datasegmentsize--;
+                    }
+                    if (doWRT==true) {
+                        
+                        XWRT_Decoder* wrt;
+                        wrt=new XWRT_Decoder();
+                        int b=0;
+                        wrt->defaultSettings(0);
+                        tm.setpos( 0);
+                        U64 bb=wrt->WRT_start_decoding(&tm);
+                        for ( U64 ii=0; ii<bb; ii++) {
+                            b=wrt->WRT_decode();    
+                            streams.streams[i]->file.putc(b);
+                        }
+                        tm.close();
+                        delete wrt;
+                    }else{
+                        tm.setpos( 0);
+                        
+                        for ( U64 ii=1; ii<datasegmentlen; ii++) {
+                            U8 b=tm.getc(); 
+                            streams.streams[i]->file.putc(b);
+                        }
+                        tm.close();
+                    }
+                    datasegmentlen=datasegmentsize=0;
+                }
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     bool pause=argc<=2;  // Pause when done?
     try {
 
         // Get option
-        
         char* aopt;
         aopt=&argv[1][0];
         
 #ifdef MT 
-        
         if (argc>1 && aopt[0]=='-' && aopt[1]  && strlen(aopt)<=6) {
 #else
         if (argc>1 && aopt[0]=='-' && aopt[1]  && strlen(aopt)<=4) {    
@@ -7236,133 +7362,7 @@ printf("\n");
             
             delete en;
             delete predictord;
-            U64 datasegmentsize;
-            U64 datasegmentlen;
-            int datasegmentpos;
-            int datasegmentinfo;
-            Filetype datasegmenttype;
-           predictord=0;
-           Encoder *defaultencoder;
-           defaultencoder=0;
-            for (int i=0; i<streams.Count(); ++i) {
-                datasegmentsize=(streams.streams[i]->streamsize); // get segment data offset
-                if (datasegmentsize>0){              // if segment contains data
-                    streams.streams[i]->file.setpos( 0);
-                    U64 total=datasegmentsize;
-                    datasegmentpos=0;
-                    datasegmentinfo=0;
-                    datasegmentlen=0;
-                    if (predictord) delete predictord,predictord=0;
-                    if (defaultencoder) delete defaultencoder,defaultencoder=0;
-                    printf("DeCompressing ");
-                    switch(i) {
-                        case 0: { printf("default   stream(0).\n"); break;}
-                        case 1: { printf("jpeg      stream(1).\n"); break;}        
-                        case 2: { printf("image1    stream(2).\n"); break;}
-                        case 3: { printf("image4    stream(3).\n"); break;}    
-                        case 4: { printf("image8    stream(4).\n"); break;}
-                        case 5: { printf("image24   stream(5).\n"); break;}        
-                        case 6: { printf("audio     stream(6).\n"); break;}
-                        case 7: { printf("exe       stream(7).\n"); break;}
-                        case 8: {  printf("text0 wrt stream(8).\n"); break;}
-                        case 9: 
-                        case 10: { printf("%stext wrt stream(%d).\n",i==10?"big":"",i); break;}   
-                        case 11: { printf("dec       stream(11).\n"); break;}
-                    }
-                     if (level>0){
-                    switch(i) {
-                        case 0: {
-                            predictord=new Predictor();     break;}
-                        case 1: {
-                             predictord=new PredictorJPEG(); break;}
-                        case 2: {
-                            predictord=new PredictorIMG1(); break;}
-                        case 3: {
-                            predictord=new PredictorIMG4(); break;}
-                        case 4: {
-                            predictord=new PredictorIMG8(); break;}
-                        case 5: {
-                            predictord=new PredictorIMG24(); break;}
-                        case 6: {
-                            predictord=new PredictorAUDIO2(); break;}
-                        case 7: {
-                            predictord=new PredictorEXE();    break;}
-                        case 8: {
-                            predictord=new PredictorTXTWRT(); break;}
-                        case 9:
-                        case 10: {
-                            predictord=new PredictorTXTWRT(); break;}
-                        case 11: {
-                            predictord=new PredictorDEC(); break;}
-                            case 12: {
-                            predictord=new Predictor(); break;}
-                    }
-                    }
-                     defaultencoder=new Encoder (mode, archive,*predictord); 
-                     if ((i>=0 && i<=7)||i==10||i==11||i==12){
-                        while (datasegmentsize>0) {
-                            while (datasegmentlen==0){
-                                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                                for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
-                                if (!(streams.isStreamType(datasegmenttype,i) ))datasegmentlen=0;
-                                if (level>0) {
-                                defaultencoder->predictor.x.filetype=datasegmenttype;
-                                defaultencoder->predictor.x.blpos=0;
-                                defaultencoder->predictor.x.finfo=datasegmentinfo; }
-                            }
-                            for (U64 k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
-                                streams.streams[i]->file.putc(defaultencoder->decompress());
-                                datasegmentsize--;
-                            }
-                            datasegmentlen=0;
-                        }
-                    }
-                    if (i==8 || i==9 ){
-                        while (datasegmentsize>0) {
-                        FileTmp tm;
-                        bool doWRT=true;
-                            datasegmentlen=datasegmentsize;
-                            if (level>0) {
-                            defaultencoder->predictor.x.filetype=DICTTXT;
-                            defaultencoder->predictor.x.blpos=0;
-                            defaultencoder->predictor.x.finfo=-1; }
-                            for (U64 k=0; k<datasegmentlen; ++k) {
-                                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
-                                U8 b=defaultencoder->decompress();
-                                if (k==0 && b==0xAA) doWRT=false; // flag set?
-                                else tm.putc(b);
-                                datasegmentsize--;
-                            }
-                            if (doWRT==true) {
-                            
-                            XWRT_Decoder* wrt;
-                            wrt=new XWRT_Decoder();
-                            int b=0;
-                            wrt->defaultSettings(0);
-                             tm.setpos( 0);
-                            U64 bb=wrt->WRT_start_decoding(&tm);
-                            for ( U64 ii=0; ii<bb; ii++) {
-                                b=wrt->WRT_decode();    
-                                streams.streams[i]->file.putc(b);
-                            }
-                            tm.close();
-                            delete wrt;
-                            }else{
-                                 tm.setpos( 0);
-                             
-                            for ( U64 ii=1; ii<datasegmentlen; ii++) {
-                                U8 b=tm.getc(); 
-                                streams.streams[i]->file.putc(b);
-                            }
-                            tm.close();
-                            }
-                            datasegmentlen=datasegmentsize=0;
-                        }
-                    }
-                }
-            } 
+            DecompressStreams(archive);
             // set datastream file pointers to beginning
             for (int i=0; i<streams.Count(); ++i)         
             streams.streams[i]->file.setpos( 0);
