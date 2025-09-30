@@ -952,7 +952,7 @@ U64 bzip2decompress(File* in, File* out, int compression_level, U64& csize, bool
   if (ret == BZ_STREAM_END) return dsize; else return 0;
 }
 
-Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0,int s1=0) {
+Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0) {
   U32 buf4=0,buf3=0, buf2=0, buf1=0, buf0=0;  // last 8 bytes
   static U64 start=0;
   static U64 prv_start=0;
@@ -5968,17 +5968,17 @@ U64 typenamess[datatypecount][5]={0}; //total type size for levels 0-5
 U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
-void direct_encode_blockstream(Filetype type, File*in, U64 len, Encoder &en, U64 s1, U64 s2, int info=0) {
+void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0) {
   assert(s1<(s1+len));
   segment.putdata(type,len,info);
   int srid=streams.GetStreamID(type);
   Stream *sout=streams.streams[srid];
-  for (U64 j=s1; j<s1+len; ++j) sout->file.putc(in->getc());
+  for (U64 j=0; j<len; ++j) sout->file.putc(in->getc());
 }
 
-void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U64 s2);
+void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it);
 
-void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
+void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 begin) {
     if (streams.GetTypeInfo(type)&TR_TRANSFORM) {
         U64 diffFound=0;
         U32 winfo=0;
@@ -6071,17 +6071,17 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
              Filetype type2;
              if (type==ZLIB || (type==BZIP2))  type2=CMP; else type2=DEFAULT;
               
-            direct_encode_blockstream(type2, in, len, en, s1, s2);
+            direct_encode_blockstream(type2, in, len);
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
             typenamess[type2][it]+=len,  typenamesc[type2][it]++; // default info
         } else {
             tmp->setpos(0);
             if (type==EXE) {
-               direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2);
+               direct_encode_blockstream(type, tmp, tmpsize);
             } else if (type==DECA || type==ARM) {
-                direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2);
+                direct_encode_blockstream(type, tmp, tmpsize);
             } else if (type==IMAGE24 || type==IMAGE32) {
-                direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2, info);
+                direct_encode_blockstream(type, tmp, tmpsize, info);
             } else if (type==MRBR || type==MRBR4) {
                 segment.putdata(type,tmpsize,0);
                 int hdrsize=( tmp->getc()<<8)+(tmp->getc());
@@ -6089,20 +6089,20 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 hdrsize=4+hdrsize*4+4;
                 tmp->setpos(0);
                 typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                direct_encode_blockstream(HDR, tmp, hdrsize, en,0, s2);
+                direct_encode_blockstream(HDR, tmp, hdrsize);
                 if (it==itcount)    itcount=it+1;
                 typenamess[type2][it+1]+=tmpsize,  typenamesc[type2][it+1]++;
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, en, s1, s2, info);
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
             } else if (type==RLE) {
                 segment.putdata(type,tmpsize,0);
                 int hdrsize=( 4);
                 Filetype type2 =(Filetype)(info>>24);
                 tmp->setpos(0);
                 typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                direct_encode_blockstream(HDR, tmp, hdrsize, en,0, s2);
+                direct_encode_blockstream(HDR, tmp, hdrsize);
                 if (it==itcount)    itcount=it+1;
                 typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, en, s1, s2, info);
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
             } else if (type==LZW) {
                 segment.putdata(type,tmpsize,0);
                 int hdrsize=( 0);
@@ -6110,35 +6110,35 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 tmp->setpos(0);
                 if (it==itcount)    itcount=it+1;
                 typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, en, s1, s2, info&0xffffff);
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             }else if (type==GIF) {
                 segment.putdata(type,tmpsize,0);
                 int hdrsize=(tmp->getc()<<8)+tmp->getc();
                 tmp->setpos(0);
                 typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                direct_encode_blockstream(HDR, tmp, hdrsize, en,0, s2);
+                direct_encode_blockstream(HDR, tmp, hdrsize);
                 typenamess[info>>24][it+1]+=tmpsize-hdrsize,  typenamesc[IMAGE8][it+1]++;
-                direct_encode_blockstream((Filetype)(info>>24), tmp, tmpsize-hdrsize, en, s1, s2,info&0xffffff);
+                direct_encode_blockstream((Filetype)(info>>24), tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==AUDIO) {
                 segment.putdata(type,len,info2); //original lenght
-                direct_encode_blockstream(type, tmp, tmpsize, en, s1, s2, info);
+                direct_encode_blockstream(type, tmp, tmpsize, info);
             } else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0)  ) {
                    if ( len>0xA00000){ //if WRT is smaller then original block 
                       if (tmpsize>(len-256) ) {
                          in->setpos( begin);
-                         direct_encode_blockstream(NOWRT, in, len, en, s1, s2); }
+                         direct_encode_blockstream(NOWRT, in, len); }
                       else
-                        direct_encode_blockstream(BIGTEXT, tmp, tmpsize, en, s1, s2);}
+                        direct_encode_blockstream(BIGTEXT, tmp, tmpsize);}
                    else if (tmpsize< (len*2-len/2)||len) {
                         // encode as text without wrt transoform, 
                         // this will be done when stream is compressed
                         in->setpos( begin);
-                        direct_encode_blockstream(type, in, len, en, s1, s2);
+                        direct_encode_blockstream(type, in, len);
                    }
                    else {
                         // wrt size was bigger, encode as NOWRT and put in bigtext stream.
                         in->setpos(begin);
-                        direct_encode_blockstream(NOWRT, in, len, en, s1, s2);
+                        direct_encode_blockstream(NOWRT, in, len);
                    }
             }else if (type==EOLTEXT) {
                 segment.putdata(type,tmpsize,0);
@@ -6147,9 +6147,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 hdrsize=hdrsize+12;
                 tmp->setpos(0);
                 typenamess[CMP][it+1]+=hdrsize,  typenamesc[CMP][it+1]++; 
-                direct_encode_blockstream(CMP, tmp, hdrsize, en,0, s2);
+                direct_encode_blockstream(CMP, tmp, hdrsize);
                 typenamess[TEXT][it+1]+=tmpsize-hdrsize,  typenamesc[TEXT][it+1]++;
-                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize, en, -1,-1, blstr, it, s1, s2, hdrsize); 
+                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize, en, -1,-1, blstr, it, hdrsize); 
             } else if (streams.GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
                 if (type==SZDD ||  type==ZLIB  || type==BZIP2) isinfo=info;
@@ -6161,15 +6161,15 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                     int hdrsize=7+5*tmp->getc();
                     tmp->setpos(0);
                     typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                    direct_encode_blockstream(HDR,  tmp, hdrsize, en,0,0);
+                    direct_encode_blockstream(HDR,  tmp, hdrsize);
                     if (info){
                         typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                        transform_encode_block(type2,  tmp, tmpsize-hdrsize, en, info&0xffffff,-1, blstr, it, s1, s2, hdrsize); }
+                        transform_encode_block(type2,  tmp, tmpsize-hdrsize, en, info&0xffffff,-1, blstr, it, hdrsize); }
                     else{
-                         DetectRecursive( tmp, tmpsize-hdrsize, en, blstr,it+1, 0, tmpsize-hdrsize);//it+1
+                         DetectRecursive( tmp, tmpsize-hdrsize, en, blstr,it+1);//it+1
                     }
                 } else {     
-                    DetectRecursive( tmp, tmpsize, en, blstr,it+1, 0, tmpsize);//it+1
+                    DetectRecursive( tmp, tmpsize, en, blstr,it+1);//it+1
                     tmp->close();
                     return;
                 }    
@@ -6196,7 +6196,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 tarn=512+pad;
                 if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[BINTEXT],tarn,savedpos,savedpos+tarn-1);
                 typenamess[BINTEXT][it+1]+=tarn,  typenamesc[BINTEXT][it+1]++; 
-                direct_encode_blockstream(BINTEXT, in, tarn, en,0,0);
+                direct_encode_blockstream(BINTEXT, in, tarn);
                }
             else if (!tarchecksum((char*)&tarh))  
                 quit("tar checksum error\n");
@@ -6212,7 +6212,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[BINTEXT],tarover,savedpos,savedpos+tarover-1,tarh.name);
                 typenamess[BINTEXT][it+1]+=tarover,  typenamesc[BINTEXT][it+1]++; 
                 if (it==itcount)    itcount=it+1;
-                direct_encode_blockstream(BINTEXT, in, tarover, en,0,0);
+                direct_encode_blockstream(BINTEXT, in, tarover);
                 pad=0;
                 if (a!=0){
                     #ifdef tarpad
@@ -6235,16 +6235,16 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                       //  (tarh.name[filenamesize-4]=='.' && tarh.name[filenamesize-3]=='t' && tarh.name[filenamesize-2]=='x' &&  tarh.name[filenamesize-1]=='t')
                         )){
                            if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
-                             direct_encode_blockstream(TEXT, in, a, en,0,0);
+                             direct_encode_blockstream(TEXT, in, a);
                         }else{
                         
  
-                        DetectRecursive(in, a, en, blstr, 0, 0, a);
+                        DetectRecursive(in, a, en, blstr, 0);
                         }
                         pad=tarn-a; 
                         tarn=a+512;
                     #else
-                        DetectRecursive(in, tarn, en, blstr, 0, 0, a);
+                        DetectRecursive(in, tarn, en, blstr, 0);
                         pad=0;
                         tarn+=512;
                     #endif
@@ -6255,7 +6255,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
              if (verbose>2) printf("\n");
         }else {
             const int i1=(streams.GetTypeInfo(type)&TR_INFO)?info:-1;
-            direct_encode_blockstream(type, in, len, en, s1, s2, i1);
+            direct_encode_blockstream(type, in, len, i1);
         }
     }
     
@@ -6269,7 +6269,7 @@ void SetConColor(int color) {
 #endif     
 }
 
-void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=0, U64 s2=0) {
+void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0) {
   static const char* audiotypes[6]={"8b mono","8b stereo","16b mono","16b stereo","32b mono","32b stereo"};
   Filetype type=DEFAULT;
   int blnum=0, info,info2;  // image width or audio type
@@ -6284,10 +6284,10 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
   strcpy(b2, blstr);
   if (b2[0]) strcat(b2, "-");
   if (it==5) {
-    direct_encode_blockstream(DEFAULT, in, n, en, s1, s2);
+    direct_encode_blockstream(DEFAULT, in, n);
     return;
   }
-  s2+=n;
+  //s2+=n;
   // Transform and test in blocks
   while (n>0) {
     if (it==0 && witmode==true) {
@@ -6301,7 +6301,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
       end=textend+1;
     }
     else {
-      nextType=detect(in, n, type, info,info2,it,s1);
+      nextType=detect(in, n, type, info,info2,it);
       end=in->curpos();
       in->setpos(begin);
     }
@@ -6376,9 +6376,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
         else if (type==ZLIB && (info>>24) > 0) printf(" (%s)",typenames[info>>24]);
         printf("\n");
       }
-      transform_encode_block(type, in, len, en, info,info2, blstr, it, s1, s2, begin);
-      
-      s1+=len;
+      transform_encode_block(type, in, len, en, info,info2, blstr, it, begin);
       n-=len;
     }
     
@@ -6392,6 +6390,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
 // <type> <size> and call encode_X to convert to type X.
 // Test transform and compress.
 void DetectStreams(const char* filename, U64 filesize) {
+  assert(filename && filename[0]);
   FileTmp tmp;
   Predictors *t;
   t=0;
