@@ -6623,8 +6623,10 @@ void compressStream(int streamid, U64 size, File* in, File* out) {
     printf(" bytes\n");
 }
 
+#ifdef MT
 void decompress(const Job& job) {
-}     
+}
+#endif
 
 void CompressStreams(File *archive,U16 &streambit) {
     for (int i=0; i<streams.Count(); ++i) {
