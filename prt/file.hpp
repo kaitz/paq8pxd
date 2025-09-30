@@ -209,3 +209,5 @@ public:
     else return (*file_on_disk).eof();
   }
 };
+
+bool append(File* out, File* in);

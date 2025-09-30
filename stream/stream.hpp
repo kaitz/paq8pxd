@@ -2,6 +2,7 @@
 #include "../prt/enums.hpp"
 #include "../prt/file.hpp"
 #include <vector>
+
 struct datainfo{
     Filetype type;
     int info;

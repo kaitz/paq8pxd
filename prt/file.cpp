@@ -104,3 +104,21 @@ int expand(std::string& archive, std::string& s, const char* fname, int base) {
 
 #endif
 #endif
+
+bool append(File* out, File* in) {
+  if (!in) {
+    quit("append in error\n");
+    return false;
+  }
+  if (!out) {
+    quit("append out error\n");
+    return false;
+  }
+  const int BUFSIZE=4096;
+  U8 buf[BUFSIZE];
+  int n;
+  while ((n=in->blockread(buf, BUFSIZE ))>0)
+    out->blockwrite(buf,   n  );
+  return true;
+}
+

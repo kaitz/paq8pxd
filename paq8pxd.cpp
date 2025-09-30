@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd111"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd112"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -72,7 +72,7 @@
 #define DEFAULT_OPTION 8
 #endif
 
-
+ 
 // min, max functions
 /*#if  !defined(WINDOWS) || !defined (min)
 inline int min(int a, int b) {return a<b?a:b;}
@@ -98,9 +98,7 @@ inline int max(int a, int b) {return a<b?b:a;}
 #endif
 
 
-#ifdef PTHREAD
-#include "pthread.h"
-#endif
+
 
 #include "prt/types.hpp"
 
@@ -132,6 +130,7 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "predictors/predictoraudio.hpp"
 
 #include "prt/coder.hpp"
+#include "prt/job.hpp"
 
 #include "stream/streams.hpp"
 
@@ -5974,7 +5973,7 @@ void direct_encode_blockstream(Filetype type, File*in, U64 len, Encoder &en, U64
   segment.putdata(type,len,info);
   int srid=streams.GetStreamID(type);
   Stream *sout=streams.streams[srid];
-  for (U64 j=s1; j<s1+len; ++j) sout->file.putc(in->getc());//streams[srid]->putc(in->getc());
+  for (U64 j=s1; j<s1+len; ++j) sout->file.putc(in->getc());
 }
 
 void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U64 s2);
@@ -6625,104 +6624,185 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
             printf(" bytes\n");
 }
 
-#ifdef MT
-//multithreading code from pzpaq.cpp v0.05
-#ifdef PTHREAD
-pthread_cond_t cv=PTHREAD_COND_INITIALIZER;  // to signal FINISHED
-pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER; // protects cv
-typedef pthread_t pthread_tx;
-#else
-HANDLE mutex;  // protects Job::state
-typedef HANDLE pthread_tx;
-#endif
-
-
-typedef enum {READY, RUNNING, FINISHED_ERR, FINISHED, ERR, OK} State;
-// Instructions to thread to compress or decompress one block.
-struct Job {
-  State state;        // job state, protected by mutex
-  int id;             
-  int streamid;
-  U64 datasegmentsize;
-  int command;
-  File*in;
-  File*out;
-  pthread_tx tid;      // thread ID (for scheduler)
-  Job();
-  void print(int i) const;
-};
-
-// Initialize
-Job::Job(): state(READY),id(0),streamid(-1),datasegmentsize(0),command(-1) {
-  // tid is not initialized until state==RUNNING
-}
-
-// Print contents
-void Job::print(int i=0) const {
-  fprintf(stderr,
-      "Job %d: state=%d stream=%d\n", i, state,streamid);
-}
-bool append(File* out, File* in) {
-  if (!in) {
-    quit("append in error\n");
-    return false;
-  }
-  if (!out) {
-    quit("append out error\n");
-    return false;
-  }
-  const int BUFSIZE=4096;
-  U8 buf[BUFSIZE];
-  int n;
-  while ((n=in->blockread(buf, BUFSIZE ))>0)
-    out->blockwrite(buf,   n  );
-  return true;
-}
-
 void decompress(const Job& job) {
-}        
+}     
 
-#define check(f) { \
-  int rc=f; \
-  if (rc) fprintf(stderr, "Line %d: %s: error %d\n", __LINE__, #f, rc); \
-}
-// Worker thread
-#ifdef PTHREAD
-void*
+void CompressStreams(File *archive,U16 &streambit) {
+                for (int i=0; i<streams.Count(); ++i) {
+                U64 datasegmentsize;
+                datasegmentsize= streams.streams[i]->file.curpos();    //get segment data offset
+                streams.streams[i]->streamsize=datasegmentsize;
+                streams.streams[i]->file.setpos(0);
+                streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
+                if (datasegmentsize>0){                       //if segment contains data
+                    if (verbose>0) {
+                        SetConColor(i+2);
+                        switch(i) {
+                            case 0: {
+                                printf("default   "); break;}
+                            case 1: {
+                                printf("jpeg      "); break;}        
+                            case 2: {
+                                printf("image1    "); break;}
+                            case 3: {
+                                printf("image4    "); break;}    
+                            case 4: {
+                                printf("image8    "); break;}
+                            case 5: {
+                                printf("image24   "); break;}        
+                            case 6: {
+                                printf("audio     "); break;}
+                            case 7: {
+                                printf("exe       "); break;}
+                            case 8: {
+                                printf("text0 wrt "); break;}
+                            case 9: 
+                            case 10: {
+                                printf("%stext wrt ",i==10?"big":"",i); break;}   
+                            case 11: {
+                                printf("dec       "); break;}
+                            case 12: {
+                                printf("compressed "); break;}
+                        }
+                        SetConColor(7);  
+                        printf("stream(%d).  Total %0" PRIi64 "\n",i,datasegmentsize);
+                    }
+#ifdef MT
+                                                              // add streams to job list
+                    //filesmt[i]=new FileTmp();                 //open tmp file for stream output
+                    Job job;
+                    job.out=&streams.streams[i]->out;
+                    job.in=&streams.streams[i]->file;
+                    job.streamid=i;
+                    job.command=0; //0 compress
+                    job.datasegmentsize=datasegmentsize;
+                    jobs.push_back(job);
 #else
-DWORD
+                    compressStream(i,datasegmentsize,&streams.streams[i]->file,archive);
 #endif
-thread(void *arg) {
+                }
+            }
 
-  // Do the work and receive status in msg
-  Job* job=(Job*)arg;
-  const char* result=0;  // error message unless OK
-  try {
-    if (job->command==0) {
-      compressStream(job->streamid,job->datasegmentsize,job->in,job->out);
+#ifdef MT
+  // Loop until all jobs return OK or ERR: start a job whenever one
+  // is eligible. If none is eligible then wait for one to finish and
+  // try again. If none are eligible and none are running then it is
+  // an error.
+  int thread_count=0;  // number RUNNING, not to exceed topt
+  U32 job_count=0;     // number of jobs with state OK or ERR
+
+  // Aquire lock on jobs[i].state.
+  // Threads can access only while waiting on a FINISHED signal.
+#ifdef PTHREAD
+  pthread_attr_t attr; // thread joinable attribute
+  check(pthread_attr_init(&attr));
+  check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE));
+  check(pthread_mutex_lock(&mutex));  // locked
+#else
+  mutex=CreateMutex(NULL, FALSE, NULL);  // not locked
+#endif
+
+  while(job_count<jobs.size()) {
+
+    // If there is more than 1 thread then run the biggest jobs first
+    // that satisfies the memory bound. If 1 then take the next ready job
+    // that satisfies the bound. If no threads are running, then ignore
+    // the memory bound.
+    int bi=-1;  // find a job to start
+    if (thread_count<topt) {
+      for (U32 i=0; i<jobs.size(); ++i) {
+        if (jobs[i].state==READY  && bi<0 ) {
+          bi=i;
+          if (topt==1) break;
+        }
       }
-    else if (job->command==1)
-      decompress(*job); 
-  }
-  catch (const char* msg) {
-    result=msg;
-  }
-// Call f and check that the return code is 0
+    }
 
-  // Let controlling thread know we're done and the result
+    // If found then run it
+    if (bi>=0) {
+      jobs[bi].state=RUNNING;
+      ++thread_count;
 #ifdef PTHREAD
-  check(pthread_mutex_lock(&mutex));
-  job->state=result?FINISHED_ERR:FINISHED;
-  check(pthread_cond_signal(&cv));
-  check(pthread_mutex_unlock(&mutex));
+      check(pthread_create(&jobs[bi].tid, &attr, thread, &jobs[bi]));
 #else
-  WaitForSingleObject(mutex, INFINITE);
-  job->state=result?FINISHED_ERR:FINISHED;
-  ReleaseMutex(mutex);
+      jobs[bi].tid=CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)thread,
+          &jobs[bi], 0, NULL);
 #endif
-  return 0;
+    }
+
+    // If no jobs can start then wait for one to finish
+    else {
+#ifdef PTHREAD
+      check(pthread_cond_wait(&cv, &mutex));  // wait on cv
+
+      // Join any finished threads. Usually that is the one
+      // that signaled it, but there may be others.
+      for (U32 i=0; i<jobs.size(); ++i) {
+        if (jobs[i].state==FINISHED || jobs[i].state==FINISHED_ERR) {
+          void* status=0;
+          check(pthread_join(jobs[i].tid, &status));
+          if (jobs[i].state==FINISHED) jobs[i].state=OK;
+          if (jobs[i].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
+          ++job_count;
+          --thread_count;
+        }
+      }
+#else
+      // Make a list of running jobs and wait on one to finish
+      HANDLE joblist[MAXIMUM_WAIT_OBJECTS];
+      int jobptr[MAXIMUM_WAIT_OBJECTS];
+      DWORD njobs=0;
+      WaitForSingleObject(mutex, INFINITE);
+      for (U32 i=0; i<jobs.size() && njobs<MAXIMUM_WAIT_OBJECTS; ++i) {
+        if (jobs[i].state==RUNNING || jobs[i].state==FINISHED
+            || jobs[i].state==FINISHED_ERR) {
+          jobptr[njobs]=i;
+          joblist[njobs++]=jobs[i].tid;
+        }
+      }
+      ReleaseMutex(mutex);
+      DWORD id=WaitForMultipleObjects(njobs, joblist, FALSE, INFINITE);
+      if (id>=WAIT_OBJECT_0 && id<WAIT_OBJECT_0+njobs) {
+        id-=WAIT_OBJECT_0;
+        id=jobptr[id];
+        if (jobs[id].state==FINISHED) jobs[id].state=OK;
+        if (jobs[id].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
+        ++job_count;
+        --thread_count;
+      }
+#endif
+    }
+  }
+#ifdef PTHREAD
+  check(pthread_mutex_unlock(&mutex));
+#endif
+
+    // Append temporary files to archive if OK.
+    for (U32 i=0; i<jobs.size(); ++i) {
+        if (jobs[i].state==OK) {
+            streams.streams[jobs[i].streamid]->out.setpos( 0);
+            //append streams to archive
+            const int BLOCK=4096*16;
+            U8 blk[BLOCK];
+            bool readdone=false; 
+            for (;;) { 
+                if (readdone) break;
+                int bytesread=streams.streams[jobs[i].streamid]->out.blockread(&blk[0], BLOCK);
+                if (bytesread!=BLOCK) {
+                    readdone=true;                   
+                    archive->blockwrite(&blk[0],  bytesread  );
+                } else      
+                    archive->blockwrite(&blk[0],  BLOCK  );
+            }
+            streams.streams[jobs[i].streamid]->out.close();
+        }
+    }
+
+             #endif
+            for (int i=0; i<streams.Count(); ++i) {
+                streams.streams[i]->file.close();
+            }
 }
-#endif
 
 // To compress to file1.paq8pxd: paq8pxd [-n] file1 [file2...]
 // To decompress: paq8pxd file1.paq8pxd [output_dir]
@@ -6736,7 +6816,7 @@ int main(int argc, char** argv) {
         aopt=&argv[1][0];
         
 #ifdef MT 
-        int topt=1;
+        
         if (argc>1 && aopt[0]=='-' && aopt[1]  && strlen(aopt)<=6) {
 #else
         if (argc>1 && aopt[0]=='-' && aopt[1]  && strlen(aopt)<=4) {    
@@ -7091,183 +7171,8 @@ printf("\n");
                     printf("%-13s%1d |%10d |%10.0" PRIi64 "\n\n","Total level",j, ttc,tts);
                 }
             }
-#ifdef MT
-            std::vector<Job> jobs;
-#endif
-            for (int i=0; i<streams.Count(); ++i) {
-                U64 datasegmentsize;
-                datasegmentsize= streams.streams[i]->file.curpos();    //get segment data offset
-                streams.streams[i]->streamsize=datasegmentsize;
-                streams.streams[i]->file.setpos(0);
-                streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
-                if (datasegmentsize>0){                       //if segment contains data
-                    if (verbose>0) {
-                        SetConColor(i+2);
-                        switch(i) {
-                            case 0: {
-                                printf("default   "); break;}
-                            case 1: {
-                                printf("jpeg      "); break;}        
-                            case 2: {
-                                printf("image1    "); break;}
-                            case 3: {
-                                printf("image4    "); break;}    
-                            case 4: {
-                                printf("image8    "); break;}
-                            case 5: {
-                                printf("image24   "); break;}        
-                            case 6: {
-                                printf("audio     "); break;}
-                            case 7: {
-                                printf("exe       "); break;}
-                            case 8: {
-                                printf("text0 wrt "); break;}
-                            case 9: 
-                            case 10: {
-                                printf("%stext wrt ",i==10?"big":"",i); break;}   
-                            case 11: {
-                                printf("dec       "); break;}
-                            case 12: {
-                                printf("compressed "); break;}
-                        }
-                        SetConColor(7);  
-                        printf("stream(%d).  Total %0" PRIi64 "\n",i,datasegmentsize);
-                    }
-#ifdef MT
-                                                              // add streams to job list
-                    //filesmt[i]=new FileTmp();                 //open tmp file for stream output
-                    Job job;
-                    job.out=&streams.streams[i]->out;
-                    job.in=&streams.streams[i]->file;
-                    job.streamid=i;
-                    job.command=0; //0 compress
-                    job.datasegmentsize=datasegmentsize;
-                    jobs.push_back(job);
-#else
-                    compressStream(i,datasegmentsize,&streams.streams[i]->file,archive);
-#endif
-                }
-            }
 
-#ifdef MT
-  // Loop until all jobs return OK or ERR: start a job whenever one
-  // is eligible. If none is eligible then wait for one to finish and
-  // try again. If none are eligible and none are running then it is
-  // an error.
-  int thread_count=0;  // number RUNNING, not to exceed topt
-  U32 job_count=0;     // number of jobs with state OK or ERR
-
-  // Aquire lock on jobs[i].state.
-  // Threads can access only while waiting on a FINISHED signal.
-#ifdef PTHREAD
-  pthread_attr_t attr; // thread joinable attribute
-  check(pthread_attr_init(&attr));
-  check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE));
-  check(pthread_mutex_lock(&mutex));  // locked
-#else
-  mutex=CreateMutex(NULL, FALSE, NULL);  // not locked
-#endif
-
-  while(job_count<jobs.size()) {
-
-    // If there is more than 1 thread then run the biggest jobs first
-    // that satisfies the memory bound. If 1 then take the next ready job
-    // that satisfies the bound. If no threads are running, then ignore
-    // the memory bound.
-    int bi=-1;  // find a job to start
-    if (thread_count<topt) {
-      for (U32 i=0; i<jobs.size(); ++i) {
-        if (jobs[i].state==READY  && bi<0 ) {
-          bi=i;
-          if (topt==1) break;
-        }
-      }
-    }
-
-    // If found then run it
-    if (bi>=0) {
-      jobs[bi].state=RUNNING;
-      ++thread_count;
-#ifdef PTHREAD
-      check(pthread_create(&jobs[bi].tid, &attr, thread, &jobs[bi]));
-#else
-      jobs[bi].tid=CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)thread,
-          &jobs[bi], 0, NULL);
-#endif
-    }
-
-    // If no jobs can start then wait for one to finish
-    else {
-#ifdef PTHREAD
-      check(pthread_cond_wait(&cv, &mutex));  // wait on cv
-
-      // Join any finished threads. Usually that is the one
-      // that signaled it, but there may be others.
-      for (U32 i=0; i<jobs.size(); ++i) {
-        if (jobs[i].state==FINISHED || jobs[i].state==FINISHED_ERR) {
-          void* status=0;
-          check(pthread_join(jobs[i].tid, &status));
-          if (jobs[i].state==FINISHED) jobs[i].state=OK;
-          if (jobs[i].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
-          ++job_count;
-          --thread_count;
-        }
-      }
-#else
-      // Make a list of running jobs and wait on one to finish
-      HANDLE joblist[MAXIMUM_WAIT_OBJECTS];
-      int jobptr[MAXIMUM_WAIT_OBJECTS];
-      DWORD njobs=0;
-      WaitForSingleObject(mutex, INFINITE);
-      for (U32 i=0; i<jobs.size() && njobs<MAXIMUM_WAIT_OBJECTS; ++i) {
-        if (jobs[i].state==RUNNING || jobs[i].state==FINISHED
-            || jobs[i].state==FINISHED_ERR) {
-          jobptr[njobs]=i;
-          joblist[njobs++]=jobs[i].tid;
-        }
-      }
-      ReleaseMutex(mutex);
-      DWORD id=WaitForMultipleObjects(njobs, joblist, FALSE, INFINITE);
-      if (id>=WAIT_OBJECT_0 && id<WAIT_OBJECT_0+njobs) {
-        id-=WAIT_OBJECT_0;
-        id=jobptr[id];
-        if (jobs[id].state==FINISHED) jobs[id].state=OK;
-        if (jobs[id].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
-        ++job_count;
-        --thread_count;
-      }
-#endif
-    }
-  }
-#ifdef PTHREAD
-  check(pthread_mutex_unlock(&mutex));
-#endif
-
-    // Append temporary files to archive if OK.
-    for (U32 i=0; i<jobs.size(); ++i) {
-        if (jobs[i].state==OK) {
-            streams.streams[jobs[i].streamid]->out.setpos( 0);
-            //append streams to archive
-            const int BLOCK=4096*16;
-            U8 blk[BLOCK];
-            bool readdone=false; 
-            for (;;) { 
-                if (readdone) break;
-                int bytesread=streams.streams[jobs[i].streamid]->out.blockread(&blk[0], BLOCK);
-                if (bytesread!=BLOCK) {
-                    readdone=true;                   
-                    archive->blockwrite(&blk[0],  bytesread  );
-                } else      
-                    archive->blockwrite(&blk[0],  BLOCK  );
-            }
-            streams.streams[jobs[i].streamid]->out.close();
-        }
-    }
-
-             #endif
-            for (int i=0; i<streams.Count(); ++i) {
-                streams.streams[i]->file.close();
-            }
+            CompressStreams(archive,streambit);
             
             // Write out segment data
             U64 segmentpos;
