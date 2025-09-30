@@ -19,7 +19,7 @@
     Visit <http://www.gnu.org/copyleft/gpl.html>.
 
 */
-
+ 
 #define PROGNAME "paq8pxd111"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
@@ -133,6 +133,9 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 #include "prt/coder.hpp"
 
+#include "stream/streams.hpp"
+
+Streams streams;
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
 bool slow=false; //-x
@@ -145,64 +148,6 @@ int verbose=2;
 char *externaDict;
 int minfq=19;
 Segment segment; //for file segments type size info(if not -1)
-const int streamc=13;
-File * filestreams[streamc];
-
-const int datatypecount=46;
-
-const char* typenames[datatypecount]={"default","bintext","ISO text","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
-                                "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","bzip2","zlib","mdf","mszip","eoltxt",
-                                "","","","tar","PNG8","PNG8G","PNG24","PNG32","WIT"};
-static const int typet[TYPELAST][2]={
-// info,    stream, recursive, transform
-  { STR_DEFAULT,         TR_NONE},// DEFAULT, 
-  { STR_DEFAULT,         TR_INFO},// BINTEXT, 
-  { STR_TEXT,            TR_NONE|TR_TRANSFORM},// BINTEXT,
-  { STR_DEFAULT,         TR_INFO},// DBASE, 
-  { STR_JPEG,            TR_NONE},// JPEG,
-  { STR_DEFAULT,         TR_NONE},// HDR,  
-  { STR_CMP,             TR_NONE},// CMP, compressed data
-  { STR_DEFAULT,         TR_INFO},// IMGUNK
-  { STR_IMAGE1,          TR_INFO},// IMAGE1,  
-  { STR_IMAGE4,          TR_INFO},// IMAGE4, 
-  { STR_IMAGE8,          TR_INFO},// IMAGE8,    
-  { STR_IMAGE8,          TR_INFO},// IMAGE8GRAY,
-  { STR_IMAGE24,         TR_INFO|TR_TRANSFORM},// IMAGE24,
-  { STR_IMAGE24,         TR_INFO|TR_TRANSFORM},// IMAGE32,
-  { STR_AUDIO,           TR_INFO},// AUDIO, 
-  { STR_EXE,             TR_NONE|TR_TRANSFORM},// EXE,
-  { STR_DECA,            TR_NONE|TR_TRANSFORM},// DECA, 
-  { STR_DEFAULT,         TR_NONE|TR_TRANSFORM},// ARM, 
-  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},//  CD,
-  { STR_TEXT,            TR_NONE|TR_TRANSFORM},// TEXT,  
-  { STR_TEXT0,           TR_NONE|TR_TRANSFORM},// TEXT0,
-  { STR_TEXT,            TR_NONE|TR_TRANSFORM},// TXTUTF8,  
-  { STR_DEFAULT,         TR_NONE},// NESROM,  
-  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// BASE64, 
-  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// BASE85,   
-  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// UUENC, 
-  { STR_NONE,            TR_NONE|TR_TRANSFORM},// GIF,    
-  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM},// SZDD,  
-  { STR_NONE,            TR_NONE|TR_TRANSFORM},// MRBR, 
-  { STR_NONE,            TR_NONE|TR_TRANSFORM},// MRBR4,
-  { STR_NONE,            TR_NONE|TR_TRANSFORM},// RLE,
-  { STR_NONE,            TR_NONE|TR_TRANSFORM},// LZW,
-  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM},// BZIP2,
-  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM},// ZLIB, 
-  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// MDF, 
-  { STR_CMP,             TR_NONE},// MSZIP,   
-  { STR_NONE,            TR_RECURSIVE|TR_TRANSFORM},// EOLTEXT,
-  { STR_TEXT,            TR_NONE},// DICTTXT,
-  { STR_BIGTEXT,         TR_NONE},// BIGTEXT,
-  { STR_BIGTEXT,         TR_NONE},// NOWRT, 
-  { STR_NONE,            TR_NONE},// TAR,  
-  { STR_IMAGE8,          TR_INFO},// PNG8,
-  { STR_IMAGE8,          TR_INFO},// PNG8GRAY,
-  { STR_IMAGE24,         TR_INFO},// PNG24,
-  { STR_IMAGE24,         TR_INFO},// PNG32,
-  { STR_NONE,            TR_INFO|TR_RECURSIVE|TR_TRANSFORM} // WIT, 
-  };
-
 
 int dt[1024];  // i -> 16K/(i+i+3)
 
@@ -6024,29 +5969,18 @@ U64 typenamess[datatypecount][5]={0}; //total type size for levels 0-5
 U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
-int getstreamid(Filetype type){
-    if (type<TYPELAST)return typet[type][STREAM];
-    return -1;
-}
-
-bool isstreamtype(Filetype type,int streamid){
-    assert(streamid<streamc);
-    assert(type<TYPELAST);
-    if (type<TYPELAST && typet[type][STREAM]==streamid) return true;
-    return false;
-}
-
 void direct_encode_blockstream(Filetype type, File*in, U64 len, Encoder &en, U64 s1, U64 s2, int info=0) {
   assert(s1<(s1+len));
   segment.putdata(type,len,info);
-  int srid=getstreamid(type);
-  for (U64 j=s1; j<s1+len; ++j) filestreams[srid]->putc(in->getc());
+  int srid=streams.GetStreamID(type);
+  Stream *sout=streams.streams[srid];
+  for (U64 j=s1; j<s1+len; ++j) sout->file.putc(in->getc());//streams[srid]->putc(in->getc());
 }
 
 void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it, U64 s1, U64 s2);
 
 void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 s1, U64 s2, U64 begin) {
-    if (typet[type][HASINFO]&TR_TRANSFORM) {
+    if (streams.GetTypeInfo(type)&TR_TRANSFORM) {
         U64 diffFound=0;
         U32 winfo=0;
         FileTmp* tmp;
@@ -6217,7 +6151,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
                 direct_encode_blockstream(CMP, tmp, hdrsize, en,0, s2);
                 typenamess[TEXT][it+1]+=tmpsize-hdrsize,  typenamesc[TEXT][it+1]++;
                 transform_encode_block(TEXT,  tmp, tmpsize-hdrsize, en, -1,-1, blstr, it, s1, s2, hdrsize); 
-            } else if (typet[type][HASINFO]&TR_RECURSIVE) {
+            } else if (streams.GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
                 if (type==SZDD ||  type==ZLIB  || type==BZIP2) isinfo=info;
                 else if (type==WIT) isinfo=winfo;
@@ -6321,7 +6255,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
              }
              if (verbose>2) printf("\n");
         }else {
-            const int i1=(typet[type][HASINFO]&TR_INFO)?info:-1;
+            const int i1=(streams.GetTypeInfo(type)&TR_INFO)?info:-1;
             direct_encode_blockstream(type, in, len, en, s1, s2, i1);
         }
     }
@@ -6430,7 +6364,7 @@ void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0, U64 s1=
       sprintf(blstr,"%s%d",b2,blnum++);
       // printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
       if (verbose>2) printf(" %-16s |",blstr);
-      int streamcolor=getstreamid(type)+1+1;
+      int streamcolor=streams.GetStreamID(type)+1+1;
       if (streamcolor<1) streamcolor=7;
       SetConColor(streamcolor);
       if (verbose>2) printf(" %-9s ",typenames[type]);
@@ -6484,8 +6418,8 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         type=(Filetype)segment(segment.pos++);
         for (int k=0; k<8; k++) len=len<<8,len+=segment(segment.pos++);
         for (int k=info=0; k<4; ++k) info=(info<<8)+segment(segment.pos++);
-        int srid=getstreamid(type);
-        if (srid>=0) en.setFile(filestreams[srid]);
+        int srid=streams.GetStreamID(type);
+        if (srid>=0) en.setFile(&streams.streams[srid]->file);
         #ifdef VERBOSE  
          printf(" %d  %-9s |%0lu [%0lu]\n",it, typenames[type],len,i );
         #endif
@@ -6565,11 +6499,6 @@ void DecodeStreams(const char* filename, U64 filesize) {
   tmp.close();
 }
 
-
-
-
-U64 filestreamsize[streamc];
-
 void compressStream(int streamid,U64 size, File* in, File* out) {
     int i; //stream
     i=streamid;
@@ -6613,7 +6542,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                                 datasegmenttype=(Filetype)segment(datasegmentpos++);
                                 for (int ii=0; ii<8; ii++) datasegmentlen<<=8,datasegmentlen+=segment(datasegmentpos++);
                                 for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
-                                if (!(isstreamtype(datasegmenttype,i) ))datasegmentlen=0;
+                                if (!(streams.isStreamType(datasegmenttype,i) ))datasegmentlen=0;
                                 if (level>0){
                                 threadencode->predictor.x.filetype=datasegmenttype;
                                 threadencode->predictor.x.blpos=0;
@@ -6644,7 +6573,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                             wrt->WRT_start_encoding(in,&tm,datasegmentsize,false,true);
                             delete wrt;
                             datasegmentlen= tm.curpos();
-                            filestreamsize[i]=datasegmentlen;
+                            streams.streams[i]->streamsize=datasegmentlen;
                             // -e0 option ignores larger wrt size
                             if (datasegmentlen>=datasegmentsize && minfq!=0){
                                dictFail=true; //wrt size larger
@@ -6660,7 +6589,7 @@ void compressStream(int streamid,U64 size, File* in, File* out) {
                             threadencode->predictor.x.finfo=-1;
                             }
                             if (dictFail==true) {
-                                filestreamsize[i]=datasegmentlen+1;
+                                streams.streams[i]->streamsize=datasegmentlen+1;
                                 threadencode->compress(0xAA); //flag
                             }
                             for (U64 k=0; k<datasegmentlen; ++k) {
@@ -6708,7 +6637,6 @@ typedef HANDLE pthread_tx;
 #endif
 
 
-File* filesmt[streamc];
 typedef enum {READY, RUNNING, FINISHED_ERR, FINISHED, ERR, OK} State;
 // Instructions to thread to compress or decompress one block.
 struct Job {
@@ -7077,9 +7005,9 @@ printf("\n");
             delete segencode;
             tmp.close();
             //read stream sizes if stream bit is set
-            for (int i=0;i<streamc;i++){
-                if ((streambit>>(streamc-i))&1){
-                   filestreamsize[i]=archive->getVLI();
+            for (int i=0;i<streams.Count();i++){
+                if ((streambit>>(streams.Count()-i))&1){
+                   streams.streams[i]->streamsize=archive->getVLI();
                 }
             }
             archive->setpos(currentpos); 
@@ -7141,9 +7069,6 @@ printf("\n");
             en->flush();
             delete en;
             delete predictord;
-            for (int i=0; i<streamc; ++i) {
-                filestreams[i]=new FileTmp();
-            }
             for (int i=0; i<files; ++i) {
                 printf("\n%d/%d  Filename: %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
                 DetectStreams(fname[i], fsize[i]);
@@ -7169,11 +7094,11 @@ printf("\n");
 #ifdef MT
             std::vector<Job> jobs;
 #endif
-            for (int i=0; i<streamc; ++i) {
+            for (int i=0; i<streams.Count(); ++i) {
                 U64 datasegmentsize;
-                datasegmentsize= filestreams[i]->curpos();    //get segment data offset
-                filestreamsize[i]=datasegmentsize;
-                filestreams[i]->setpos(0);
+                datasegmentsize= streams.streams[i]->file.curpos();    //get segment data offset
+                streams.streams[i]->streamsize=datasegmentsize;
+                streams.streams[i]->file.setpos(0);
                 streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
                 if (datasegmentsize>0){                       //if segment contains data
                     if (verbose>0) {
@@ -7210,16 +7135,16 @@ printf("\n");
                     }
 #ifdef MT
                                                               // add streams to job list
-                    filesmt[i]=new FileTmp();                 //open tmp file for stream output
+                    //filesmt[i]=new FileTmp();                 //open tmp file for stream output
                     Job job;
-                    job.out=filesmt[i];
-                    job.in=filestreams[i];
+                    job.out=&streams.streams[i]->out;
+                    job.in=&streams.streams[i]->file;
                     job.streamid=i;
                     job.command=0; //0 compress
                     job.datasegmentsize=datasegmentsize;
                     jobs.push_back(job);
 #else
-                    compressStream(i,datasegmentsize,filestreams[i],archive);
+                    compressStream(i,datasegmentsize,&streams.streams[i]->file,archive);
 #endif
                 }
             }
@@ -7321,27 +7246,27 @@ printf("\n");
     // Append temporary files to archive if OK.
     for (U32 i=0; i<jobs.size(); ++i) {
         if (jobs[i].state==OK) {
-            filesmt[jobs[i].streamid]->setpos( 0);
+            streams.streams[jobs[i].streamid]->out.setpos( 0);
             //append streams to archive
             const int BLOCK=4096*16;
             U8 blk[BLOCK];
             bool readdone=false; 
             for (;;) { 
                 if (readdone) break;
-                int bytesread=filesmt[jobs[i].streamid]->blockread(&blk[0], BLOCK);
+                int bytesread=streams.streams[jobs[i].streamid]->out.blockread(&blk[0], BLOCK);
                 if (bytesread!=BLOCK) {
                     readdone=true;                   
                     archive->blockwrite(&blk[0],  bytesread  );
                 } else      
                     archive->blockwrite(&blk[0],  BLOCK  );
             }
-            filesmt[jobs[i].streamid]->close();
+            streams.streams[jobs[i].streamid]->out.close();
         }
     }
 
              #endif
-            for (int i=0; i<streamc; ++i) {
-                filestreams[i]->close();
+            for (int i=0; i<streams.Count(); ++i) {
+                streams.streams[i]->file.close();
             }
             
             // Write out segment data
@@ -7375,8 +7300,8 @@ printf("\n");
             archive->setpos(segmentpos); 
             archive->blockwrite(&segment[0], segment.pos); //write out segment data
             //write stream size if present
-            for (int i=0;i<streamc;i++){
-                if (filestreamsize[i]>0) archive->putVLI(filestreamsize[i]);
+            for (int i=0;i<streams.Count();i++){
+                if (streams.streams[i]->streamsize>0) archive->putVLI(streams.streams[i]->streamsize);
             }
             printf("Total %0" PRIi64 " bytes compressed to %0" PRIi64 " bytes.\n", total_size,  archive->curpos()); 
         }
@@ -7406,9 +7331,6 @@ printf("\n");
             
             delete en;
             delete predictord;
-            for (int i=0; i<streamc; ++i) {
-                filestreams[i]=new FileTmp;
-            }            
             U64 datasegmentsize;
             U64 datasegmentlen;
             int datasegmentpos;
@@ -7417,10 +7339,10 @@ printf("\n");
            predictord=0;
            Encoder *defaultencoder;
            defaultencoder=0;
-            for (int i=0; i<streamc; ++i) {
-                datasegmentsize=(filestreamsize[i]); // get segment data offset
+            for (int i=0; i<streams.Count(); ++i) {
+                datasegmentsize=(streams.streams[i]->streamsize); // get segment data offset
                 if (datasegmentsize>0){              // if segment contains data
-                    filestreams[i]->setpos( 0);
+                    streams.streams[i]->file.setpos( 0);
                     U64 total=datasegmentsize;
                     datasegmentpos=0;
                     datasegmentinfo=0;
@@ -7478,7 +7400,7 @@ printf("\n");
                                 datasegmenttype=(Filetype)segment(datasegmentpos++);
                                 for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
                                 for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
-                                if (!(isstreamtype(datasegmenttype,i) ))datasegmentlen=0;
+                                if (!(streams.isStreamType(datasegmenttype,i) ))datasegmentlen=0;
                                 if (level>0) {
                                 defaultencoder->predictor.x.filetype=datasegmenttype;
                                 defaultencoder->predictor.x.blpos=0;
@@ -7486,7 +7408,7 @@ printf("\n");
                             }
                             for (U64 k=0; k<datasegmentlen; ++k) {
                                 if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
-                                filestreams[i]->putc(defaultencoder->decompress());
+                                streams.streams[i]->file.putc(defaultencoder->decompress());
                                 datasegmentsize--;
                             }
                             datasegmentlen=0;
@@ -7518,7 +7440,7 @@ printf("\n");
                             U64 bb=wrt->WRT_start_decoding(&tm);
                             for ( U64 ii=0; ii<bb; ii++) {
                                 b=wrt->WRT_decode();    
-                                filestreams[i]->putc(b);
+                                streams.streams[i]->file.putc(b);
                             }
                             tm.close();
                             delete wrt;
@@ -7527,7 +7449,7 @@ printf("\n");
                              
                             for ( U64 ii=1; ii<datasegmentlen; ii++) {
                                 U8 b=tm.getc(); 
-                                filestreams[i]->putc(b);
+                                streams.streams[i]->file.putc(b);
                             }
                             tm.close();
                             }
@@ -7537,8 +7459,8 @@ printf("\n");
                 }
             } 
             // set datastream file pointers to beginning
-            for (int i=0; i<streamc; ++i)         
-            filestreams[i]->setpos( 0);
+            for (int i=0; i<streams.Count(); ++i)         
+            streams.streams[i]->file.setpos( 0);
             /////
             segment.pos=0;
             for (int i=0; i<files; ++i) {
@@ -7548,12 +7470,11 @@ printf("\n");
             } 
             int d=segment(segment.pos++);
             if (d!=0xff) printf("Segmend end marker not found\n");
-            for (int i=0; i<streamc; ++i) {
-                filestreams[i]->close();
+            for (int i=0; i<streams.Count(); ++i) {
+                streams.streams[i]->file.close();
             }
         }
         archive->close();
-        //if (!doList) programChecker.print();
     }
     catch(const char* s) {
         if (s) printf("%s\n", s);

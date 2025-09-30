@@ -3,7 +3,13 @@
 #include "array.hpp"
 #include "log.hpp"
 #include <stdio.h>
-
+#include <assert.h>
+#ifdef WINDOWS
+#include <windows.h>
+#endif
+#include <sys/stat.h>
+#include <string>
+#include <stdio.h>
 // Error handler: print message if any, and exit
 void quit(const char* message) ;
 
@@ -18,7 +24,7 @@ FILE* tmpfile2(void);
 
 U32 utf8_check(U8 *s);
 U64 MEM();
-    U64 CMlimit(U64 size);
+U64 CMlimit(U64 size);
     
 template<typename T>
 constexpr auto isPowerOf2(T x) -> bool {
