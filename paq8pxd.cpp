@@ -134,8 +134,10 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 #include "stream/streams.hpp"
 
-#include "filters/bmpfilter.hpp" 
-BmpFilter bmpf("bmp");
+#include "filters/img24filter.hpp" 
+#include "filters/img32filter.hpp" 
+Img24Filter img24("image 24bit");
+Img32Filter img32("image 32bit");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -2537,52 +2539,6 @@ int decode_cd(File*in, int size, File*out, FMode mode, U64 &diffFound) {
     i2+=BLOCK;
   }
   return i2;
-}
-
-// 32-bit image
-void encode_im32(File* in, File* out, int len, int width) {
-  int r,g,b,a;
-  for (int i=0; i<len/width; i++) {
-    for (int j=0; j<width/4; j++) {
-      b=in->getc(), g=in->getc(), r=in->getc(); a=in->getc();
-      out->putc(g);
-      out->putc(g-r);
-      out->putc(g-b);
-      out->putc(a);
-    }
-    for (int j=0; j<width%4; j++) out->putc(in->getc());
-  }
-}
-
-int decode_im32(Encoder& en, int size, int width, File*out, FMode mode, U64 &diffFound) {
-  int r,g,b,a,p;
-  bool rgb = (width&(1<<31))>0;
-  if (rgb) width^=(1<<31);
-  for (int i=0; i<size/width; i++) {
-    p=i*width;
-    for (int j=0; j<width/4; j++) {
-      b=en.decompress(), g=en.decompress(), r=en.decompress(), a=en.decompress();
-      if (mode==FDECOMPRESS) {
-        out->putc(b-r); out->putc(b); out->putc(b-g); out->putc(a);
-      }
-      else if (mode==FCOMPARE) {
-        if (((b-r)&255)!=out->getc() && !diffFound) diffFound=p+1;
-        if (b!=out->getc() && !diffFound) diffFound=p+2;
-        if (((b-g)&255)!=out->getc() && !diffFound) diffFound=p+3;
-        if (((a)&255)!=out->getc() && !diffFound) diffFound=p+4;
-        p+=4;
-      }
-    }
-    for (int j=0; j<width%4; j++) {
-      if (mode==FDECOMPRESS) {
-        out->putc(en.decompress());
-      }
-      else if (mode==FCOMPARE) {
-        if (en.decompress()!=out->getc() && !diffFound) diffFound=p+j+1;
-      }
-    }
-  }
-  return size;
 }
 
 void encode_rle(File *in, File *out, U64 size, int info, int &hdrsize) {
@@ -5920,8 +5876,8 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         U32 winfo=0;
         FileTmp* tmp;
         tmp=new FileTmp;
-        if (type==IMAGE24) bmpf.encode(in, tmp, len, info);
-        else if (type==IMAGE32) encode_im32(in, tmp, int(len), info);
+        if (type==IMAGE24) img24.encode(in, tmp, len, info);
+        else if (type==IMAGE32) img32.encode(in, tmp, len, info);
         else if (type==MRBR) encode_mrb(in, tmp, int(len), info,info2);
         else if (type==MRBR4) encode_mrb(in, tmp, int(len),     ((info*4+15)/16)*2,info2);
         else if (type==RLE) encode_rle(in, tmp, len, info, info2);
@@ -6363,10 +6319,17 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                 tmp.putc(en.decompress());
             }
             tmp.setpos(0);
-            diffFound=bmpf.CompareFiles(&tmp,out,len,info,mode);
+            diffFound=img24.CompareFiles(&tmp,out,len,info,mode);
             //tmp.close();
         }  
-        else if (type==IMAGE32 && !(info&PNGFlag)) decode_im32(en, int(len), info, out, mode, diffFound);
+        else if (type==IMAGE32 && !(info&PNGFlag)) {
+            FileTmp tmp;
+            for (uint64_t j=0; j<len; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=img32.CompareFiles(&tmp,out,len,info,mode);
+        }
         else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
