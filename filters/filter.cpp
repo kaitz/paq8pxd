@@ -1,6 +1,6 @@
 #include "filter.hpp"
 
-Filter::Filter():Type(DEFAULT),Info(0),state(NONE),name(""),diffFound(0) {
+Filter::Filter():Type(DEFAULT),Info(0),name(""),diffFound(0),fsize(0) {
 }
 
 Filter::~Filter(){}
@@ -18,13 +18,13 @@ FMode Filter::compare(File *in, File *out, uint64_t size) {
     return FEQUAL;
 }
 
-uint64_t Filter::CompareFiles(File *in, File *out, uint64_t size,int info,FMode m) {
+uint64_t Filter::CompareFiles(File *in, File *out, uint64_t size,uint64_t info,FMode m) {
     FileTmp tmpcmp;
     if (m==FCOMPARE){
         diffFound=0;
-        decode(in,&tmpcmp,size,info);
+        uint64_t len=decode(in,&tmpcmp,size,info);
         tmpcmp.setpos(0);
-        FMode result=compare(&tmpcmp,out,size);
+        FMode result=compare(&tmpcmp,out,len);
         if (result==FDISCARD) return diffFound;
     } else if (m==FDECOMPRESS) {
         decode(in,out,size,info);

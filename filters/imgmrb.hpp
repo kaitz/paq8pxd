@@ -1,13 +1,13 @@
 #pragma once
 #include "filter.hpp"
+#include "../prt/types.hpp"
 
-#define RGB565_MIN_RUN 63
-
-class Img24Filter: public Filter {
+class ImgMRBFilter: public Filter {
 
 public:
-  Img24Filter(std::string n);
-  ~Img24Filter();
+  ImgMRBFilter(std::string n);
+  ~ImgMRBFilter();
   void encode(File *in, File *out, uint64_t size, uint64_t info);
   uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);
+  int encodeRLE(U8 *dst, U8 *ptr, int src_end, int maxlen);
 };

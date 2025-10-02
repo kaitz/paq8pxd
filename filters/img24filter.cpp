@@ -5,11 +5,12 @@ Img24Filter::Img24Filter(std::string n) {
 }
 
 // simple color transform (b, g, r) -> (g, g-r, g-b)
-void Img24Filter::encode(File *in, File *out, uint64_t size, int info) {
+void Img24Filter::encode(File *in, File *out, uint64_t size, uint64_t info) {
   int r,g,b, total=0;
   bool isPossibleRGB565 = true;
-  for (uint64_t i=0; i<size/info; i++) {
-    for (int j=0; j<info/3; j++) {
+  int witdh=int(info&0xffffffff);
+  for (uint64_t i=0; i<size/witdh; i++) {
+    for (int j=0; j<witdh/3; j++) {
       b=in->getc(), g=in->getc(), r=in->getc();
       if (isPossibleRGB565) {
         int pTotal=total;
@@ -25,16 +26,17 @@ void Img24Filter::encode(File *in, File *out, uint64_t size, int info) {
       out->putc(g-r);
       out->putc(g-b);
     }
-    for (int j=0; j<info%3; j++) out->putc(in->getc());
+    for (int j=0; j<witdh%3; j++) out->putc(in->getc());
   }
 } 
 
-uint64_t Img24Filter::decode(File *in, File *out, uint64_t size, int info) {
+uint64_t Img24Filter::decode(File *in, File *out, uint64_t size, uint64_t info) {
   int r,g,b,p, total=0;
   bool isPossibleRGB565 = true;
-  for (uint64_t i=0; i<size/info; i++) {
-    p=i*info;
-    for (int j=0; j<info/3; j++) {
+  int witdh=int(info&0xffffffff);
+  for (uint64_t i=0; i<size/witdh; i++) {
+    p=i*witdh;
+    for (int j=0; j<witdh/3; j++) {
       g=in->getc(), r=in->getc(), b=in->getc();
       r=g-r, b=g-b;
       if (isPossibleRGB565){
@@ -50,7 +52,7 @@ uint64_t Img24Filter::decode(File *in, File *out, uint64_t size, int info) {
       out->putc(g);
       out->putc(r);
     }
-    for (int j=0; j<info%3; j++) {
+    for (int j=0; j<witdh%3; j++) {
         out->putc(in->getc());
     }
   }

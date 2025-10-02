@@ -136,8 +136,10 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 #include "filters/img24filter.hpp" 
 #include "filters/img32filter.hpp" 
+#include "filters/imgmrb.hpp" 
 Img24Filter img24("image 24bit");
 Img32Filter img32("image 32bit");
+ImgMRBFilter imgmrb("image mrb");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -5365,144 +5367,6 @@ int decode_gif(File* in, int size, File*out, FMode mode, U64 &diffFound) {
   return outsize+1;
 }
 
-int encodeRLE(U8 *dst, U8 *ptr, int src_end, int maxlen){
-    int i=0;
-    int ind=0;
-    for(ind=0;ind<src_end; ){
-        if (i>maxlen) return i;
-        if (ptr[ind+0]!=ptr[ind+1] || ptr[ind+1]!=ptr[ind+2]) {
-            // Guess how many non repeating bytes we have
-            int j=0;
-            for( j=ind+1;j<(src_end);j++)
-            if ((ptr[j+0]==ptr[j+1] && ptr[j+2]==ptr[j+0]) || ((j-ind)>=127)) break;
-            int pixels=j-ind;
-            if (j+1==src_end && pixels<8)pixels++;
-            dst[i++]=0x80 |pixels;
-            for(int cnt=0;cnt<pixels;cnt++) { 
-                dst[i++]=ptr[ind+cnt]; 
-                if (i>maxlen) return i;              
-            }
-            ind=ind+pixels;
-        }
-        else {
-            // Get the number of repeating bytes
-            int j=0;
-            for(  j=ind+1;j<(src_end);j++)
-            if (ptr[j+0]!=ptr[j+1]) break;
-            int pixels=j-ind+1;          
-            if (j==src_end && pixels<4){
-                pixels--;              
-                dst[i]=U8(0x80 |pixels);
-                i++ ;
-                if (i>maxlen) return i;
-                for(int cnt=0;cnt<pixels;cnt++) { 
-                    dst[i]=ptr[ind+cnt]; 
-                    i++;
-                    if (i>maxlen) return i;
-                }
-                ind=ind+pixels;
-            }
-            else{ 
-                j=pixels;  
-                while (pixels>127) {
-                    dst[i++]=127;                
-                    dst[i++]=ptr[ind];  
-                    if (i>maxlen) return i;                     
-                    pixels=pixels-127;
-                }
-                if (pixels>0) { 
-                    if (j==src_end) pixels--;
-                    dst[i++]=pixels;         
-                    dst[i++]=ptr[ind];
-                    if (i>maxlen) return i;
-                }
-                ind=ind+j;
-            }
-        }
-    }
-    return i;
-}
-//mrb
-void encode_mrb(File* in, File* out, int len, int width, int height) {
-    U64 savepos= in->curpos();
-    int totalSize=(width)*height;
-    Array<U8,1> ptrin(totalSize+4);
-    Array<U8,1> ptr(len+4);
-    Array<U32> diffpos(4096);
-    U32 count=0;
-    U8 value=0; 
-    int diffcount=0;
-    // decode RLE
-    for(int i=0;i<totalSize; ++i){
-        if((count&0x7F)==0)    {
-            count=in->getc();
-            value=in->getc();
-        }
-        else if(count&0x80)    {
-            value=in->getc();
-        }
-        count--;
-        ptrin[i] =value; 
-    }
-    // encode RLE
-    int a=encodeRLE(&ptr[0],&ptrin[0],totalSize,len);
-    assert(a<(len+4));
-    // compare to original and output diff data
-    in->setpos(savepos);
-    for(int i=0;i<len;i++){
-        U8 b=ptr[i],c=in->getc();
-        if (diffcount==4095 ||  diffcount>(len/2)||i>0xFFFFFF) return; // fail
-        if (b!=c ) {
-            if (diffcount<4095)diffpos[diffcount++]=c+(i<<8);
-        }
-    }
-    out->putc((diffcount>>8)&255); out->putc(diffcount&255);
-    if (diffcount>0)
-    out->blockwrite((U8*)&diffpos[0], diffcount*4);
-    out->put32(len);
-    out->blockwrite(&ptrin[0], totalSize);
-}
-
-int decode_mrb(File* in, int size, int width, File*out1, FMode mode, uint64_t &diffFound) {
-    if (size==0) {
-        diffFound=1;
-        return 0;
-    }
-    Array<U32> diffpos(4096);
-    int diffcount=0;
-    diffcount=(in->getc()<<8)+in->getc();
-    if (diffcount>0) in->blockread((U8*)&diffpos[0], diffcount*4);
-    int len=in->get32();
-    Array<U8,1> fptr(size+4);
-    Array<U8,1> ptr(size+4);
-    in->blockread(&fptr[0], size );
-    encodeRLE(&ptr[0],&fptr[0],size-2-4-diffcount*4,len); //size - header
-    //Write out or compare
-    if (mode==FDECOMPRESS){
-        int diffo=diffpos[0]>>8;
-        int diffp=0;
-        for(int i=0;i<len;i++){
-            if (i==diffo && diffcount) {             
-                ptr[i]=diffpos[diffp]&255,diffp++,diffo=diffpos[diffp]>>8 ;
-            }
-        }    
-        out1->blockwrite(&ptr[0], len);
-    }
-    else if (mode==FCOMPARE){
-        int diffo=diffpos[0]>>8;
-        int diffp=0;
-        for(int i=0;i<len;i++){
-            if (i==diffo && diffcount) {
-                ptr[i]=diffpos[diffp]&255,diffp++,diffo=diffpos[diffp]>>8 ;
-            }
-            U8 b=ptr[i];
-            if (b!=out1->getc() && !diffFound) diffFound= out1->curpos();
-        }
-    }
-    assert(len<size);
-    return len;
-}
-
 //EOL
 
 enum EEOLType {UNDEFINED, CRLF, LF};
@@ -5876,10 +5740,10 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         U32 winfo=0;
         FileTmp* tmp;
         tmp=new FileTmp;
-        if (type==IMAGE24) img24.encode(in, tmp, len, info);
-        else if (type==IMAGE32) img32.encode(in, tmp, len, info);
-        else if (type==MRBR) encode_mrb(in, tmp, int(len), info,info2);
-        else if (type==MRBR4) encode_mrb(in, tmp, int(len),     ((info*4+15)/16)*2,info2);
+        if (type==IMAGE24) img24.encode(in, tmp, len, uint64_t(info));
+        else if (type==IMAGE32) img32.encode(in, tmp, len, uint64_t(info));
+        else if (type==MRBR) imgmrb.encode(in, tmp, len, uint64_t(info)+(uint64_t(info2)<<32));
+        else if (type==MRBR4) imgmrb.encode(in, tmp, len,     uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
         else if (type==RLE) encode_rle(in, tmp, len, info, info2);
         else if (type==LZW) encode_lzw(in, tmp, len, info2);
         else if (type==EXE) encode_exe(in, tmp, int(len), int(begin));
@@ -5938,7 +5802,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==ZLIB && !diffFound) decode_zlib(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==BZIP2  )             decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info=info+256*17);
         else if (type==GIF && !diffFound) decode_gif(tmp, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==MRBR || type==MRBR4) decode_mrb(tmp, int(tmpsize), info, in, FCOMPARE, diffFound);
+        else if (type==MRBR || type==MRBR4) {
+            diffFound=imgmrb.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+        }
         else if (type==RLE)                 decode_rle(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==DECA) decode_dec(en, int(tmpsize), in, FCOMPARE, diffFound);
@@ -6319,7 +6185,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                 tmp.putc(en.decompress());
             }
             tmp.setpos(0);
-            diffFound=img24.CompareFiles(&tmp,out,len,info,mode);
+            diffFound=img24.CompareFiles(&tmp,out,len,uint64_t(info),mode);
             //tmp.close();
         }  
         else if (type==IMAGE32 && !(info&PNGFlag)) {
@@ -6328,7 +6194,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                 tmp.putc(en.decompress());
             }
             tmp.setpos(0);
-            diffFound=img32.CompareFiles(&tmp,out,len,info,mode);
+            diffFound=img32.CompareFiles(&tmp,out,len,uint64_t(info),mode);
         }
         else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
@@ -6349,7 +6215,10 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                 else if (type==CD)     len=decode_cd(&tmp, int(len), out, mode, diffFound);
                 else if (type==MDF)    len=decode_mdf(&tmp, int(len), out, mode, diffFound);
                 else if (type==GIF)    len=decode_gif(&tmp, int(len), out, mode, diffFound);
-                else if (type==MRBR|| type==MRBR4)   len=decode_mrb(&tmp, int(len), info, out, mode, diffFound);
+                else if (type==MRBR|| type==MRBR4)   {
+                    diffFound=imgmrb.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                    len=imgmrb.fsize; // get decoded size
+                }
                 else if (type==EOLTEXT)len=decode_txtd(&tmp, int(len), out, mode, diffFound);
                 else if (type==RLE)    len=decode_rle(&tmp, len, out, mode, diffFound);
                 else if ((type==WIT) ) len=decode_txt_wit(&tmp, (len), out, mode, diffFound,info);
