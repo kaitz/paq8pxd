@@ -134,6 +134,9 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 #include "stream/streams.hpp"
 
+#include "filters/bmpfilter.hpp" 
+BmpFilter bmpf("bmp");
+
 Streams streams;
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
@@ -2473,7 +2476,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
 
 }
 
-typedef enum {FDECOMPRESS, FCOMPARE, FDISCARD} FMode;
+
 
 // Print progress: n is the number of bytes compressed or decompressed
 void printStatus(U64 n, U64 size,int tid=-1) {
@@ -2536,73 +2539,6 @@ int decode_cd(File*in, int size, File*out, FMode mode, U64 &diffFound) {
   return i2;
 }
 
-// 24-bit image data transform:
-// simple color transform (b, g, r) -> (g, g-r, g-b)
-#define RGB565_MIN_RUN 63
-void encode_bmp(File* in, File* out, int len, int width) {
-  int r,g,b, total=0;
-  bool isPossibleRGB565 = true;
-  for (int i=0; i<len/width; i++) {
-    for (int j=0; j<width/3; j++) {
-      b=in->getc(), g=in->getc(), r=in->getc();
-      if (isPossibleRGB565) {
-        int pTotal=total;
-        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
-        if (total>RGB565_MIN_RUN || pTotal>=RGB565_MIN_RUN) {
-          b^=(b&8)-((b>>3)&1);
-          g^=(g&4)-((g>>2)&1);
-          r^=(r&8)-((r>>3)&1);
-        }
-        isPossibleRGB565=total>0;
-      }
-      out->putc(g);
-      out->putc(g-r);
-      out->putc(g-b);
-    }
-    for (int j=0; j<width%3; j++) out->putc(in->getc());
-  }
-}
-
-int decode_bmp(Encoder& en, int size, int width, File*out, FMode mode, U64 &diffFound) {
-  int r,g,b,p, total=0;
-  bool isPossibleRGB565 = true;
-  for (int i=0; i<size/width; i++) {
-    p=i*width;
-    for (int j=0; j<width/3; j++) {
-      g=en.decompress(), r=en.decompress(), b=en.decompress();
-      r=g-r, b=g-b;
-      if (isPossibleRGB565){
-        if (total>=RGB565_MIN_RUN) {
-          b^=(b&8)-((b>>3)&1);
-          g^=(g&4)-((g>>2)&1);
-          r^=(r&8)-((r>>3)&1);
-        }
-        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
-        isPossibleRGB565=total>0;
-      }
-      if (mode==FDECOMPRESS) {
-        out->putc(b);
-        out->putc(g);
-        out->putc(r);
-      }
-      else if (mode==FCOMPARE) {
-        if (((b)&255)!=out->getc() && !diffFound) diffFound=p+1;
-        if (g!=out->getc() && !diffFound) diffFound=p+2;
-        if (((r)&255)!=out->getc() && !diffFound) diffFound=p+3;
-        p+=3;
-      }
-    }
-    for (int j=0; j<width%3; j++) {
-      if (mode==FDECOMPRESS) {
-        out->putc(en.decompress());
-      }
-      else if (mode==FCOMPARE) {
-        if (en.decompress()!=out->getc() && !diffFound) diffFound=p+j+1;
-      }
-    }
-  }
-  return size;
-}
 // 32-bit image
 void encode_im32(File* in, File* out, int len, int width) {
   int r,g,b,a;
@@ -5969,7 +5905,7 @@ U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
 void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0) {
-  assert(s1<(s1+len));
+  //assert(s1<(s1+len));
   segment.putdata(type,len,info);
   int srid=streams.GetStreamID(type);
   Stream *sout=streams.streams[srid];
@@ -5984,7 +5920,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         U32 winfo=0;
         FileTmp* tmp;
         tmp=new FileTmp;
-        if (type==IMAGE24) encode_bmp(in, tmp, int(len), info);
+        if (type==IMAGE24) bmpf.encode(in, tmp, len, info);
         else if (type==IMAGE32) encode_im32(in, tmp, int(len), info);
         else if (type==MRBR) encode_mrb(in, tmp, int(len), info,info2);
         else if (type==MRBR4) encode_mrb(in, tmp, int(len),     ((info*4+15)/16)*2,info2);
@@ -6421,13 +6357,21 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         #ifdef VERBOSE  
          printf(" %d  %-9s |%0lu [%0lu]\n",it, typenames[type],len,i );
         #endif
-        if (type==IMAGE24 && !(info&PNGFlag))      len=decode_bmp(en, int(len), info, out, mode, diffFound);
+        if (type==IMAGE24 && !(info&PNGFlag))   {
+            FileTmp tmp;
+            for (uint64_t j=0; j<len; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=bmpf.CompareFiles(&tmp,out,len,info,mode);
+            //tmp.close();
+        }  
         else if (type==IMAGE32 && !(info&PNGFlag)) decode_im32(en, int(len), info, out, mode, diffFound);
         else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) len=decode_txt(en, (len), out, mode, diffFound);
-        //else if (type==EOLTEXT) len=decode_txtd(en, int(len), out, mode, diffFound);
+        // LZW ?
         else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==BZIP2 || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
             FileTmp tmp;
             decompressStreamRecursive(&tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
@@ -6478,7 +6422,7 @@ void DecodeStreams(const char* filename, U64 filesize) {
   Encoder en(COMPRESS, &tmp,*t);
   // Test if output file exists.  If so, then compare.
   FileDisk f;
-  bool success=f.open(filename,true);
+  bool success=f.open(filename,false);
   if (success) mode=FCOMPARE,printf("Comparing");
   else {
     // Create file
@@ -6637,33 +6581,7 @@ void CompressStreams(File *archive,U16 &streambit) {
         if (datasegmentsize>0){                       //if segment contains data
             if (verbose>0) {
                 SetConColor(i+2);
-                switch(i) {
-                case 0: {
-                        printf("default   "); break;}
-                case 1: {
-                        printf("jpeg      "); break;}        
-                case 2: {
-                        printf("image1    "); break;}
-                case 3: {
-                        printf("image4    "); break;}    
-                case 4: {
-                        printf("image8    "); break;}
-                case 5: {
-                        printf("image24   "); break;}        
-                case 6: {
-                        printf("audio     "); break;}
-                case 7: {
-                        printf("exe       "); break;}
-                case 8: {
-                        printf("text0 wrt "); break;}
-                case 9: 
-                case 10: {
-                        printf("%stext wrt ",i==10?"big":"",i); break;}   
-                case 11: {
-                        printf("dec       "); break;}
-                case 12: {
-                        printf("compressed "); break;}
-                }
+                printf("%-12s", streams.streams[i+1]->name.c_str());
                 SetConColor(7);  
                 printf("stream(%d).  Total %0" PRIi64 "\n",i,datasegmentsize);
             }
@@ -6824,21 +6742,7 @@ void DecompressStreams(File *archive) {
             datasegmentlen=0;
             if (predictord) delete predictord,predictord=0;
             if (defaultencoder) delete defaultencoder,defaultencoder=0;
-            printf("DeCompressing ");
-            switch(i) {
-            case 0: { printf("default   stream(0).\n"); break;}
-            case 1: { printf("jpeg      stream(1).\n"); break;}        
-            case 2: { printf("image1    stream(2).\n"); break;}
-            case 3: { printf("image4    stream(3).\n"); break;}    
-            case 4: { printf("image8    stream(4).\n"); break;}
-            case 5: { printf("image24   stream(5).\n"); break;}        
-            case 6: { printf("audio     stream(6).\n"); break;}
-            case 7: { printf("exe       stream(7).\n"); break;}
-            case 8: {  printf("text0 wrt stream(8).\n"); break;}
-            case 9: 
-            case 10: { printf("%stext wrt stream(%d).\n",i==10?"big":"",i); break;}   
-            case 11: { printf("dec       stream(11).\n"); break;}
-            }
+            printf("Decompressing %-12s stream(%d).\n", streams.streams[i+1]->name.c_str(),i);
             if (level>0){
                 switch(i) {
                 case 0: {

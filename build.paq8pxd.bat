@@ -21,13 +21,15 @@ set prt_list=
 for /f "tokens=*" %%F in ('dir /b /a:-d "%src%\prt\*.cpp"') do call set prt_list=%%prt_list%% "%src%\prt\%%F"
 set stream_list=
 for /f "tokens=*" %%F in ('dir /b /a:-d "%src%\stream\*.cpp"') do call set stream_list=%%stream_list%% "%src%\stream\%%F"
+set filters_list=
+for /f "tokens=*" %%F in ('dir /b /a:-d "%src%\filters\*.cpp"') do call set filters_list=%%filters_list%% "%src%\filters\%%F"
 set src_list=
 for /f "tokens=*" %%F in ('dir /b /a:-d "%src%\*.cpp"') do call set src_list=%%src_list%% "%src%\%%F"
 rem pause
 
 IF %ERRORLEVEL% NEQ 0 goto end
 
-%gcc% -static %options% %models_list% %predictors_list% %wrt_list% %prt_list% %stream_list% %src_list% -opaq8pxd.exe -s zlib.a bzip2.a  2>_error_log.txt
+%gcc% -static %options% %models_list% %predictors_list% %wrt_list% %prt_list% %stream_list% %filters_list% %src_list% -opaq8pxd.exe -s zlib.a bzip2.a  2>_error_log.txt
 IF %ERRORLEVEL% NEQ 0 goto end
 
 :end

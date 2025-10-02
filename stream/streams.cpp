@@ -2,21 +2,21 @@
 
 Streams::Streams():streams(0){
     //Create streams
-    Add( new Stream(STR_NONE));
-    Add( new Stream(STR_DEFAULT));
-    Add( new Stream(STR_JPEG));
-    Add( new Stream(STR_IMAGE1));
-    Add( new Stream(STR_IMAGE4));
-    Add( new Stream(STR_IMAGE8));
-    Add( new Stream(STR_IMAGE24));
-    Add( new Stream(STR_AUDIO));
-    Add( new Stream(STR_EXE));
-    Add( new Stream(STR_TEXT0));
-    Add( new Stream(STR_TEXT));
-    Add( new Stream(STR_BIGTEXT));
-    Add( new Stream(STR_DECA));
-    Add( new Stream(STR_CMP));
-    assert(streams.size()==(STR_LAST-1));
+    Add( new Stream({STR_NONE,"empty"}));
+    Add( new Stream({STR_DEFAULT,"default"}));
+    Add( new Stream({STR_JPEG,"jpeg"}));
+    Add( new Stream({STR_IMAGE1,"image1"}));
+    Add( new Stream({STR_IMAGE4,"image4"}));
+    Add( new Stream({STR_IMAGE8,"image8"}));
+    Add( new Stream({STR_IMAGE24,"image24"}));
+    Add( new Stream({STR_AUDIO,"audio"}));
+    Add( new Stream({STR_EXE,"exe"}));
+    Add( new Stream({STR_TEXT0,"text0 wrt"}));
+    Add( new Stream({STR_TEXT,"text wrt"}));
+    Add( new Stream({STR_BIGTEXT,"bigtext wrt"}));
+    Add( new Stream({STR_DECA,"dec"}));
+    Add( new Stream({STR_CMP,"compressed"}));
+    //assert(streams.size()==(STR_LAST-1));
     // Add data types accepted by a stream 
     //STR_NONE
     streams[0]->dataType.push_back({CD,TR_RECURSIVE|TR_TRANSFORM});
@@ -94,9 +94,9 @@ int Streams::Count() {
 int Streams::GetStreamID(Filetype type) {
     assert(type<TYPELAST);
     size_t s=Count();
-    for(int i=0;i<s; i++) {
+    for(size_t i=0;i<s; i++) {
         size_t size=streams[i]->dataType.size();
-        for(int j=0; j<size; j++) {
+        for(size_t j=0; j<size; j++) {
             if (streams[i]->dataType[j].type==type) return streams[i]->id;
        }
     }
@@ -115,9 +115,9 @@ bool Streams::isStreamType(Filetype type,int id) {
 int Streams::GetTypeInfo(Filetype type) {
     assert(type<TYPELAST);
     size_t s=Count();
-    for(int i=0; i<s; i++) {
+    for(size_t i=0; i<s; i++) {
         size_t size=streams[i]->dataType.size();
-        for(int j=0; j<size; j++) {
+        for(size_t j=0; j<size; j++) {
             if (streams[i]->dataType[j].type==type) return streams[i]->dataType[j].info;
         }
     }

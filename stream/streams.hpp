@@ -7,6 +7,7 @@ private:
     void Add(Stream *s);
 public:
     std::vector<Stream*> streams;
+    const std::string name;
     ~Streams();
     Streams();
     int Count();

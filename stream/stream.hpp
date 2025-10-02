@@ -15,7 +15,8 @@ public:
     FileTmp file;
     FileTmp out;
     U64 streamsize;
+    const std::string name;
     virtual ~Stream();
-    Stream(Streamtype s);
+    Stream(Streamtype s,const std::string name);
    
 };
