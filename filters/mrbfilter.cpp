@@ -1,4 +1,4 @@
-#include "imgmrb.hpp"
+#include "mrbfilter.hpp"
 
 ImgMRBFilter::ImgMRBFilter(std::string n) {  
     name=n;
@@ -63,27 +63,14 @@ uint64_t ImgMRBFilter::decode(File *in, File *out, uint64_t size, uint64_t info)
     in->blockread(&fptr[0], size );
     encodeRLE(&ptr[0],&fptr[0],size-2-4-diffcount*4,len); //size - header
     //Write out or compare
-  //  if (mode==FDECOMPRESS){
-        int diffo=diffpos[0]>>8;
-        int diffp=0;
-        for(int i=0;i<len;i++){
-            if (i==diffo && diffcount) {             
-                ptr[i]=diffpos[diffp]&255,diffp++,diffo=diffpos[diffp]>>8 ;
-            }
-        }    
-        out->blockwrite(&ptr[0], len);
-   // }
-    /*else if (mode==FCOMPARE){
-        int diffo=diffpos[0]>>8;
-        int diffp=0;
-        for(int i=0;i<len;i++){
-            if (i==diffo && diffcount) {
-                ptr[i]=diffpos[diffp]&255,diffp++,diffo=diffpos[diffp]>>8 ;
-            }
-            U8 b=ptr[i];
-            if (b!=out1->getc() && !diffFound) diffFound= out1->curpos();
+    int diffo=diffpos[0]>>8;
+    int diffp=0;
+    for(int i=0;i<len;i++){
+        if (i==diffo && diffcount) {             
+            ptr[i]=diffpos[diffp]&255,diffp++,diffo=diffpos[diffp]>>8 ;
         }
-    }*/
+    }    
+    out->blockwrite(&ptr[0], len);
     assert(len<size);
     fsize=len;
     return len;

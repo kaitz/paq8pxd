@@ -136,10 +136,13 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 #include "filters/img24filter.hpp" 
 #include "filters/img32filter.hpp" 
-#include "filters/imgmrb.hpp" 
+#include "filters/mrbfilter.hpp" 
+#include "filters/exefilter.hpp" 
+
 Img24Filter img24("image 24bit");
 Img32Filter img32("image 32bit");
 ImgMRBFilter imgmrb("image mrb");
+ExeFilter    exe("exe");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -2786,74 +2789,6 @@ U64 decode_lzw(File *in, U64 size, File *out, FMode mode, U64 &diffFound) {
     else if (mode==FCOMPARE && uint8_t(buffer)!=out->getc()) diffFound=pos;
   }
   return pos;
-}
-// EXE transform: <encoded-size> <begin> <block>...
-// Encoded-size is 4 bytes, MSB first.
-// begin is the offset of the start of the input file, 4 bytes, MSB first.
-// Each block applies the e8e9 transform to strings falling entirely
-// within the block starting from the end and working backwards.
-// The 5 byte pattern is E8/E9 xx xx xx 00/FF (x86 CALL/JMP xxxxxxxx)
-// where xxxxxxxx is a relative address LSB first.  The address is
-// converted to an absolute address by adding the offset mod 2^25
-// (in range +-2^24).
-
-void encode_exe(File* in, File* out, int len, int begin) {
-  const int BLOCK=0x10000;
-  Array<U8> blk(BLOCK);
-  out->put32((U32)begin);
-
-  // Transform
-  for (int offset=0; offset<len; offset+=BLOCK) {
-    int size=min(int(len-offset), BLOCK);
-    int bytesRead= in->blockread(&blk[0],   size );
-    if (bytesRead!=size) quit("encode_exe read error");
-    for (int i=bytesRead-1; i>=5; --i) {
-      if ((blk[i-4]==0xe8 || blk[i-4]==0xe9 || (blk[i-5]==0x0f && (blk[i-4]&0xf0)==0x80))
-         && (blk[i]==0||blk[i]==0xff)) {
-        int a=(blk[i-3]|blk[i-2]<<8|blk[i-1]<<16|blk[i]<<24)+offset+begin+i+1;
-        a<<=7;
-        a>>=7;
-        blk[i]=a>>24;
-        blk[i-1]=a^176;
-        blk[i-2]=(a>>8)^176;
-        blk[i-3]=(a>>16)^176;
-      }
-    }
-    out->blockwrite(&blk[0],   bytesRead  );
-  }
-}
-
-U64 decode_exe(Encoder& en, int size, File*out, FMode mode, U64 &diffFound, int s1=0, int s2=0) {
-  const int BLOCK=0x10000;  // block size
-  int begin, offset=6, a, showstatus=(s2!=0);
-  U8 c[6];
-  begin=en.decompress()<<24;
-  begin|=en.decompress()<<16;
-  begin|=en.decompress()<<8;
-  begin|=en.decompress();
-  size-=4;
-  for (int i=4; i>=0; i--) c[i]=en.decompress();  // Fill queue
-
-  while (offset<size+6) {
-    memmove(c+1, c, 5);
-    if (offset<=size) c[0]=en.decompress();
-    // E8E9 transform: E8/E9 xx xx xx 00/FF -> subtract location from x
-    if ((c[0]==0x00 || c[0]==0xFF) && (c[4]==0xE8 || c[4]==0xE9 || (c[5]==0x0F && (c[4]&0xF0)==0x80))
-     && (((offset-1)^(offset-6))&-BLOCK)==0 && offset<=size) { // not crossing block boundary
-      a=((c[1]^176)|(c[2]^176)<<8|(c[3]^176)<<16|c[0]<<24)-offset-begin;
-      a<<=7;
-      a>>=7;
-      c[3]=a;
-      c[2]=a>>8;
-      c[1]=a>>16;
-      c[0]=a>>24;
-    }
-    if (mode==FDECOMPRESS) out->putc(c[5]);
-    else if (mode==FCOMPARE && c[5]!=out->getc() && !diffFound) diffFound=offset-6+1;
-    if (showstatus && !(offset&0xfff)) printStatus(s1+offset-6, s2);
-    offset++;
-  }
-  return size;
 }
 
 U64 encode_bzip2(File* in, File* out, U64 len,int level) {
@@ -5746,7 +5681,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==MRBR4) imgmrb.encode(in, tmp, len,     uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
         else if (type==RLE) encode_rle(in, tmp, len, info, info2);
         else if (type==LZW) encode_lzw(in, tmp, len, info2);
-        else if (type==EXE) encode_exe(in, tmp, int(len), int(begin));
+        else if (type==EXE) exe.encode(in, tmp, len, begin);
         else if (type==DECA) encode_dec(in, tmp, int(len), int(begin));
         else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
@@ -6196,7 +6131,14 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
             tmp.setpos(0);
             diffFound=img32.CompareFiles(&tmp,out,len,uint64_t(info),mode);
         }
-        else if (type==EXE)     len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
+        else if (type==EXE) {
+            FileTmp tmp;
+            for (uint64_t j=0; j<len; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=exe.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+        }    //len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) len=decode_txt(en, (len), out, mode, diffFound);
