@@ -134,18 +134,19 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 #include "stream/streams.hpp"
 
-#include "filters/img24filter.hpp" 
-#include "filters/img32filter.hpp" 
-#include "filters/mrbfilter.hpp" 
-#include "filters/exefilter.hpp" 
-#include "filters/textfilter.hpp" 
-#include "filters/eolfilter.hpp" 
-#include "filters/mdffilter.hpp" 
-#include "filters/cdfilter.hpp" 
-#include "filters/giffilter.hpp" 
-#include "filters/szddfilter.hpp" 
-#include "filters/base64filter.hpp" 
-#include "filters/witfilter.hpp" 
+#include "filters/img24filter.hpp"
+#include "filters/img32filter.hpp"
+#include "filters/mrbfilter.hpp"
+#include "filters/exefilter.hpp"
+#include "filters/textfilter.hpp"
+#include "filters/eolfilter.hpp"
+#include "filters/mdffilter.hpp"
+#include "filters/cdfilter.hpp"
+#include "filters/giffilter.hpp"
+#include "filters/szddfilter.hpp"
+#include "filters/base64filter.hpp"
+#include "filters/witfilter.hpp"
+#include "filters/uudfilter.hpp"
 
 Img24Filter img24("image 24bit");
 Img32Filter img32("image 32bit");
@@ -159,6 +160,7 @@ gifFilter    giff("gif");
 szddFilter    szddf("szdd");
 base64Filter  base64f("base64");
 witFilter  witf("wit");
+uudFilter  uudf("uuencode");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -2776,112 +2778,6 @@ U64 decode_arm(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
     return size1; 
 }
 
-//it's not standard so some files use 'space' some use '`'
-#define UUENCODE(c,b) ((c) ? ((c) & 077) + ' ': (b) ? '`':((c) & 077) + ' ')
-int decode_uud(File*in, int size, File*out, FMode mode, U64 &diffFound){
-    //U8 inn[3];
-    int i;//, len=0, blocksout = 0;
-    int fle=0;
-    int flag=0; 
-    int outlen=0,n;
-    int tlf=0;//,g=0;
-    flag=in->getc();
-    outlen=in->getc();
-    outlen+=(in->getc()<<8);
-    outlen+=(in->getc()<<16);
-    tlf=(in->getc());
-    outlen+=((tlf&63)<<24);
-    Array<U8,1> p(45+4);
-    Array<U8,1> ptr((outlen>>1)*4+10);
-    tlf=(tlf&192);                     //ignored
-    if (tlf==128)       tlf=10;        // LF: 10 
-    else if (tlf==64)   tlf=13;        // LF: 13
-    else                tlf=0;
-    int c1, c2, c3, c4;
-    while(fle<outlen){
-        memset(&p[0], 0, 45);
-        n=in->blockread(&p[0], 45);
-        ptr[fle++]=UUENCODE(n,flag);
-        for(i = 0; i < n; i += 3){
-            c1 = p[0+i] >> 2;
-            c2 = (p[0+i] << 4) & 060 | (p[1+i] >> 4) & 017;
-            c3 = (p[1+i] << 2) & 074 | (p[2+i] >> 6) & 03;
-            c4 = p[2+i] & 077;
-
-            ptr[fle++]=(UUENCODE(c1,flag));
-            ptr[fle++]=(UUENCODE(c2,flag));
-            ptr[fle++]=(UUENCODE(c3,flag));
-            ptr[fle++]=(UUENCODE(c4,flag));
-       }
-       ptr[fle++]=10; //lf
-    }
-
-    //Write out or compare
-    if (mode==FDECOMPRESS){
-            out->blockwrite(&ptr[0],   outlen  );
-        }
-    else if (mode==FCOMPARE){
-       // out->setpos(0);
-    for(i=0;i<outlen;i++){
-        U8 b=ptr[i];
-        U8 c=out->getc();
-            if (b!=c && !diffFound) diffFound= out->curpos();
-        }
-    }
-    return outlen;
-}
-    
-#define UUDECODE(c) (((c) - ' ') & 077)
-void encode_uud(File* in, File* out, int len,int info) {
-  int in_len = 0;
-  int i = 0;
-  int j = 0;
-  int b=0,n=0;
-  int lfp=0;
-  int tlf=0;
-  char src[4];
-  int uumem=(len>>1)*3+10;
-  Array<U8,1> ptr(uumem);
-  Array<U8,1> p(62);
-  int olen=5,inbytes=0;
-  int c1, c2, c3,lp=0;
-  lfp=in->getc();
-  inbytes++;
-  b=lfp;
-
-  while (inbytes<len){
-    n=UUDECODE(b);
-    memset(&p[0], 0, 61);
-    in->blockread(&p[0], 61  );
-    inbytes=inbytes+61;
-    lp=0;
-    for(; n > 0; lp += 4, n -= 3){
-      c1 = UUDECODE(p[0+lp]) << 2 | UUDECODE(p[1+lp]) >> 4;
-      c2 = UUDECODE(p[1+lp]) << 4 | UUDECODE(p[2+lp]) >> 2;
-      c3 = UUDECODE(p[2+lp]) << 6 | UUDECODE(p[3+lp]);
-      if(n >= 1)
-        ptr[olen++]=c1;
-      if(n >= 2)
-        ptr[olen++]=c2;
-      if(n >= 3)
-        ptr[olen++]=c3;
-   }
-   b=in->getc(); //read lf
-   inbytes++;
-  }
-
-  ptr[0]=info&255; //special flag for space or '`'
-  ptr[1]=len&255;
-  ptr[2]=len>>8&255;
-  ptr[3]=len>>16&255;
-  if (tlf!=0) {
-    if (tlf==10) ptr[4]=128;
-    else ptr[4]=64;
-  }
-  else
-      ptr[4]=len>>24&63; //1100 0000
-  out->blockwrite(&ptr[0],   olen  );
-}
 
 //base85
 int powers[5] = {85*85*85*85, 85*85*85, 85*85, 85, 1};
@@ -3081,7 +2977,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             diffFound=eolf.diffFound;
         }
         else if (type==BASE64) base64f.encode(in, tmp, len,0);
-        else if (type==UUENC) encode_uud(in, tmp, int(len),info);
+        else if (type==UUENC) uudf.encode(in, tmp, len,info);
         else if (type==BASE85) encode_ascii85(in, tmp, int(len));
         else if (type==SZDD) {
             szddf.encode(in, tmp,0, info);
@@ -3114,7 +3010,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         if (type==BASE64 ) {
             diffFound=base64f.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
         }
-        else if (type==UUENC ) decode_uud(tmp, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==UUENC ) {
+            diffFound=uudf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+        }
         else if (type==BASE85 ) decode_ascii85(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ZLIB && !diffFound) decode_zlib(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==BZIP2  )             decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info=info+256*17);
@@ -3555,7 +3453,10 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                     diffFound=base64f.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=base64f.fsize; // get decoded size
                 }
-                else if (type==UUENC)  len=decode_uud(&tmp, int(len), out, mode, diffFound);
+                else if (type==UUENC) {
+                    diffFound=uudf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
+                    len=szddf.fsize; // get decoded size
+                }
                 else if (type==BASE85) len=decode_ascii85(&tmp, int(len), out, mode, diffFound);
                 else if (type==SZDD)  {
                     diffFound=szddf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
