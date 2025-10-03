@@ -145,6 +145,8 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "filters/uudfilter.hpp"
 #include "filters/zlibfilter.hpp"
 #include "filters/bzip2filter.hpp"
+#include "filters/decafilter.hpp"
+#include "filters/rlefilter.hpp"
 
 Img24Filter  img24("image 24bit");
 Img32Filter  img32("image 32bit");
@@ -161,6 +163,8 @@ witFilter    witf("wit");
 uudFilter    uudf("uuencode");
 zlibFilter   zlibf("zlib");
 bzip2Filter  bzip2f("bzip2");
+DecAFilter   decaf("dec alpha");
+rleFilter    rlef("rle tga");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -2069,106 +2073,6 @@ if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b",tid, fl
 else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
-void encode_rle(File *in, File *out, U64 size, int info, int &hdrsize) {
-  U8 b, c = in->getc();
-  int i = 1, maxBlockSize = info&0xFFFFFF;
-  out->put32(maxBlockSize);
-  hdrsize=(4);
-  while (i<(int)size) {
-    b = in->getc(), i++;
-    if (c==0x80) { c = b; continue; }
-    else if (c>0x7F) {
-      for (int j=0; j<=(c&0x7F); j++) out->putc(b);
-      c = in->getc(), i++;
-    }
-    else {
-      for (int j=0; j<=c; j++, i++) { out->putc(b), b = in->getc(); }
-      c = b;
-    }
-  }
-}
-
-#define rleOutputRun { \
-  while (run > 128) { \
-    *outPtr++ = 0xFF, *outPtr++ = byte; \
-    run-=128; \
-  } \
-  *outPtr++ = (U8)(0x80|(run-1)), *outPtr++ = byte; \
-}
-
-U64 decode_rle(File *in, U64 size, File *out, FMode mode, U64 &diffFound) {
-  U8 inBuffer[0x10000]={0};
-  U8 outBuffer[0x10200]={0};
-  U64 pos = 0;
-  int maxBlockSize = (int)in->get32();
-  enum { BASE, LITERAL, RUN, LITERAL_RUN } state;
-  do {
-    U64 remaining = in->blockread(&inBuffer[0], maxBlockSize);
-    U8 *inPtr = (U8*)inBuffer;
-    U8 *outPtr= (U8*)outBuffer;
-    U8 *lastLiteral = nullptr;
-    state = BASE;
-    while (remaining>0){
-      U8 byte = *inPtr++, loop = 0;
-      int run = 1;
-      for (remaining--; remaining>0 && byte==*inPtr; remaining--, run++, inPtr++);
-      do {
-        loop = 0;
-        switch (state) {
-          case BASE: case RUN: {
-            if (run>1) {
-              state = RUN;
-              rleOutputRun;
-            }
-            else {
-              lastLiteral = outPtr;
-              *outPtr++ = 0, *outPtr++ = byte;
-              state = LITERAL;
-            }
-            break;
-          }
-          case LITERAL: {
-            if (run>1) {
-              state = LITERAL_RUN;
-              rleOutputRun;
-            }
-            else {
-              if (++(*lastLiteral)==127)
-                state = BASE;
-              *outPtr++ = byte;
-            }
-            break;
-          }
-          case LITERAL_RUN: {
-            if (outPtr[-2]==0x81 && *lastLiteral<(125)) {
-              state = (((*lastLiteral)+=2)==127)?BASE:LITERAL;
-              outPtr[-2] = outPtr[-1];
-            }
-            else
-              state = RUN;
-            loop = 1;
-          }
-        }
-      } while (loop);
-    }
-
-    U64 length = outPtr-(U8*)(&outBuffer[0]);
-    if (mode==FDECOMPRESS)
-      out->blockwrite(&outBuffer[0], length);
-    else if (mode==FCOMPARE) {
-      for (int j=0; j<(int)length; ++j) {
-        if (outBuffer[j]!=out->getc() && !diffFound) {
-          diffFound = pos+j+1;
-          break; 
-        }
-      }
-    }
-    pos+=length;
-  } while (!in->eof() && !diffFound);
-  return pos;
-}
-
-
 struct LZWentry{
   int16_t prefix;
   int16_t suffix;
@@ -2314,86 +2218,6 @@ U64 decode_lzw(File *in, U64 size, File *out, FMode mode, U64 &diffFound) {
   return pos;
 }
 
- // Transform DEC Alpha code
-void encode_dec(File* in, File* out, int len, int begin) {
-  const int BLOCK=0x10000;
-  Array<U8> blk(BLOCK);
-  int count=0;
-  for (int j=0; j<len; j+=BLOCK) {
-    int size=min(int(len-j), BLOCK);
-    int bytesRead=in->blockread(&blk[0], size  );
-    if (bytesRead!=size) quit("encode_dec read error");
-        for (int i=0; i<bytesRead-3; i+=4) {
-        unsigned op=blk[i]|(blk[i+1]<<8)|(blk[i+2]<<16)|(blk[i+3]<<24);
-        if ((op>>21)==0x34*32+26) { // bsr r26,offset
-        int offset=op&0x1fffff;
-        offset+=(i)/4;
-        op&=~0x1fffff;
-        op|=offset&0x1fffff;
-        
-        count++;
-      }
-      DECAlpha::Shuffle(op);
-        blk[i]=op;
-        blk[i+1]=op>>8;
-        blk[i+2]=op>>16;
-        blk[i+3]=op>>24;
-    }
-    out->blockwrite(&blk[0],  bytesRead  );
-  }
-}
-
-U64 decode_dec(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int s1=0, int s2=0) {
-    const int BLOCK=0x10000;  // block size
-    Array<U8> blk(BLOCK);
-    U8 c;
-    int b=0;
-    FileTmp dtmp;
-    FileTmp dtmp1;
-    U32 count=0;
-    //decompress file
-    for (int i=0; i<size1; i++) {
-        c=en.decompress(); 
-        dtmp.putc(c);    
-    }
-     
-    dtmp.setpos(0);
-    for (int j=0; j<size1; j+=BLOCK) {
-        int size=min(int(size1-j), BLOCK);
-        int bytesRead=dtmp.blockread(&blk[0],   size  );
-        if (bytesRead!=size) quit("encode_dec read error");
-        for (int i=0; i<bytesRead-3; i+=4) {
-            unsigned op=blk[i]|(blk[i+1]<<8)|(blk[i+2]<<16)|(blk[i+3]<<24);
-            DECAlpha::Unshuffle(op);
-                if ((op>>21)==0x34*32+26  ) { // bsr r26,offset
-                   int offset=op&0x1fffff;
-                   offset-=(i)/4;
-                   op&=~0x1fffff;
-                   op|=offset&0x1fffff;
-                   count++;
-                }
-        blk[i]=op;
-        blk[i+1]=op>>8;
-        blk[i+2]=op>>16;
-        blk[i+3]=op>>24;
-        }
-        dtmp1.blockwrite(&blk[0],   bytesRead  );
-    }
-    dtmp1.setpos(0);
-    dtmp.close();
-    for ( int i=0; i<size1; i++) {
-        b=dtmp1.getc();
-        if (mode==FDECOMPRESS) {
-            out->putc(b);
-        }
-        else if (mode==FCOMPARE) {
-            if (b!=out->getc() && !diffFound) diffFound=i;
-        }
-    }
-    if(count<16) diffFound=1; //fail if replaced below threshold
-    dtmp1.close();
-    return size1; 
-}
 
 // Transform DEC Alpha code
 void encode_arm(File* in, File* out, int len, int begin) {
@@ -2638,10 +2462,10 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==IMAGE32) img32.encode(in, tmp, len, uint64_t(info));
         else if (type==MRBR) imgmrb.encode(in, tmp, len, uint64_t(info)+(uint64_t(info2)<<32));
         else if (type==MRBR4) imgmrb.encode(in, tmp, len,     uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
-        else if (type==RLE) encode_rle(in, tmp, len, info, info2);
+        else if (type==RLE) rlef.encode(in, tmp, len, info);//, info2
         else if (type==LZW) encode_lzw(in, tmp, len, info2);
         else if (type==EXE) exe.encode(in, tmp, len, begin);
-        else if (type==DECA) encode_dec(in, tmp, int(len), int(begin));
+        else if (type==DECA) decaf.encode(in, tmp, (len), (begin));
         else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
             if ( type!=TXTUTF8 ){
@@ -2726,9 +2550,18 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==MRBR || type==MRBR4) {
             diffFound=imgmrb.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
         }
-        else if (type==RLE)                 decode_rle(tmp, tmpsize, in, FCOMPARE, diffFound);
+        else if (type==RLE)           {
+            diffFound=rlef.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+        }      //decode_rle(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==DECA) decode_dec(en, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==DECA) {
+            FileTmp tmp;
+            for (uint64_t j=0; j<tmpsize; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=decaf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+        }
         else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
         else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
             FileTmp tmp;
@@ -3138,7 +2971,15 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
             tmp.setpos(0);
             diffFound=exe.CompareFiles(&tmp,out,len,uint64_t(info),mode);
         }
-        else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
+        else if (type==DECA)    {
+            FileTmp tmp;
+            for (uint64_t j=0; j<len; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=decaf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+            len=decaf.fsize; // get decoded size
+        }
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) {
             FileTmp tmp;
@@ -3196,7 +3037,10 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                     diffFound=eolf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=eolf.fsize; // get decoded size
                 }
-                else if (type==RLE)    len=decode_rle(&tmp, len, out, mode, diffFound);
+                else if (type==RLE) {
+                    diffFound=rlef.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                    len=rlef.fsize; // get decoded size
+                }   //len=decode_rle(&tmp, len, out, mode, diffFound);
                 else if ((type==WIT) ) {
                     diffFound=witf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=witf.fsize; // get decoded size
