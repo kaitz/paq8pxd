@@ -140,6 +140,8 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "filters/exefilter.hpp" 
 #include "filters/textfilter.hpp" 
 #include "filters/eolfilter.hpp" 
+#include "filters/mdffilter.hpp" 
+#include "filters/cdfilter.hpp" 
 
 Img24Filter img24("image 24bit");
 Img32Filter img32("image 32bit");
@@ -147,6 +149,8 @@ ImgMRBFilter imgmrb("image mrb");
 ExeFilter    exe("exe");
 TextFilter    textf("text");
 EOLFilter    eolf("eol");
+MDFFilter    mdff("mdf");
+CDFilter    cdff("mdf");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -289,106 +293,6 @@ inline bool is_base64(unsigned char c) {
 
 inline bool is_base85(unsigned char c) {
     return (isalnum(c) || (c==13) || (c==10) || (c=='y') || (c=='z') || (c>='!' && c<='u'));
-}
-// Function ecc_compute(), edc_compute() and eccedc_init() taken from 
-// ** UNECM - Decoder for ECM (Error Code Modeler) format.
-// ** Version 1.0
-// ** Copyright (C) 2002 Neill Corlett
-
-/* LUTs used for computing ECC/EDC */
-static U8 ecc_f_lut[256];
-static U8 ecc_b_lut[256];
-static U32 edc_lut[256];
-static int luts_init=0;
-
-void eccedc_init(void) {
-  if (luts_init) return;
-  U32 i, j, edc;
-  for(i = 0; i < 256; i++) {
-    j = (i << 1) ^ (i & 0x80 ? 0x11D : 0);
-    ecc_f_lut[i] = j;
-    ecc_b_lut[i ^ j] = i;
-    edc = i;
-    for(j = 0; j < 8; j++) edc = (edc >> 1) ^ (edc & 1 ? 0xD8018001 : 0);
-    edc_lut[i] = edc;
-  }
-  luts_init=1;
-}
-
-void ecc_compute(U8 *src, U32 major_count, U32 minor_count, U32 major_mult, U32 minor_inc, U8 *dest) {
-  U32 size = major_count * minor_count;
-  U32 major, minor;
-  for(major = 0; major < major_count; major++) {
-    U32 index = (major >> 1) * major_mult + (major & 1);
-    U8 ecc_a = 0;
-    U8 ecc_b = 0;
-    for(minor = 0; minor < minor_count; minor++) {
-      U8 temp = src[index];
-      index += minor_inc;
-      if(index >= size) index -= size;
-      ecc_a ^= temp;
-      ecc_b ^= temp;
-      ecc_a = ecc_f_lut[ecc_a];
-    }
-    ecc_a = ecc_b_lut[ecc_f_lut[ecc_a] ^ ecc_b];
-    dest[major              ] = ecc_a;
-    dest[major + major_count] = ecc_a ^ ecc_b;
-  }
-}
-
-U32 edc_compute(const U8  *src, int size) {
-  U32 edc = 0;
-  while(size--) edc = (edc >> 8) ^ edc_lut[(edc ^ (*src++)) & 0xFF];
-  return edc;
-}
-
-int expand_cd_sector(U8 *data, int a, int test) {
-  U8 d2[2352];
-  eccedc_init();
-  d2[0]=d2[11]=0;
-  for (int i=1; i<11; i++) d2[i]=255;
-  int mode=(data[15]!=1?2:1);
-  int form=(data[15]==3?2:1);
-  if (a==-1) for (int i=12; i<15; i++) d2[i]=data[i]; else {
-    int c1=(a&15)+((a>>4)&15)*10;
-    int c2=((a>>8)&15)+((a>>12)&15)*10;
-    int c3=((a>>16)&15)+((a>>20)&15)*10;
-    c1=(c1+1)%75;
-    if (c1==0) {
-      c2=(c2+1)%60;
-      if (c2==0) c3++;
-    }
-    d2[12]=(c3%10)+16*(c3/10);
-    d2[13]=(c2%10)+16*(c2/10);
-    d2[14]=(c1%10)+16*(c1/10);
-  }
-  d2[15]=mode;
-  if (mode==2) for (int i=16; i<24; i++) d2[i]=data[i-4*(i>=20)];
-  if (form==1) {
-    if (mode==2) {
-      d2[1]=d2[12],d2[2]=d2[13],d2[3]=d2[14];
-      d2[12]=d2[13]=d2[14]=d2[15]=0;
-    } else {
-      for(int i=2068; i<2076; i++) d2[i]=0;
-    }
-    for (int i=16+8*(mode==2); i<2064+8*(mode==2); i++) d2[i]=data[i];
-    U32 edc=edc_compute(d2+16*(mode==2), 2064-8*(mode==2));
-    for (int i=0; i<4; i++) d2[2064+8*(mode==2)+i]=(edc>>(8*i))&0xff;
-    ecc_compute(d2+12, 86, 24,  2, 86, d2+2076);
-    ecc_compute(d2+12, 52, 43, 86, 88, d2+2248);
-    if (mode==2) {
-      d2[12]=d2[1],d2[13]=d2[2],d2[14]=d2[3],d2[15]=2;
-      d2[1]=d2[2]=d2[3]=255;
-    }
-  }
-  for (int i=0; i<2352; i++) if (d2[i]!=data[i] && test) form=2;
-  if (form==2) {
-    for (int i=24; i<2348; i++) d2[i]=data[i];
-    U32 edc=edc_compute(d2+16, 2332);
-    for (int i=0; i<4; i++) d2[2348+i]=(edc>>(8*i))&0xff;
-  }
-  for (int i=0; i<2352; i++) if (d2[i]!=data[i] && test) return 0; else data[i]=d2[i];
-  return mode+form-1;
 }
 
 //LZSS compressor/decompressor class
@@ -2493,61 +2397,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
 void printStatus(U64 n, U64 size,int tid=-1) {
 if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
 else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
-}
-
-void encode_cd(File* in, File* out, int len, int info) {
-  const int BLOCK=2352;
-  U8 blk[BLOCK];
-  out->putc((len%BLOCK)>>8);
-  out->putc(len%BLOCK);
-  for (int offset=0; offset<len; offset+=BLOCK) {
-    if (offset+BLOCK > len) {
-       in->blockread(&blk[0],   len-offset );
-      out->blockwrite(&blk[0],  len-offset  );
-    } else {
-      in->blockread(&blk[0],   BLOCK  );
-      if (info==3) blk[15]=3;
-      if (offset==0) out->blockwrite(&blk[12],   4+4*(blk[15]!=1)  );
-      out->blockwrite(&blk[16+8*(blk[15]!=1)],   2048+276*(info==3)  );
-      if (offset+BLOCK*2 > len && blk[15]!=1) out->blockwrite(&blk[16],  4  );
-    }
-  }
-}
-
-int decode_cd(File*in, int size, File*out, FMode mode, U64 &diffFound) {
-  const int BLOCK=2352;
-  U8 blk[BLOCK];
-  long i=0, i2=0;
-  int a=-1, bsize=0, q=in->getc();
-  q=(q<<8)+in->getc();
-  size-=2;
-  while (i<size) {
-    if (size-i==q) {
-      in->blockread(blk, q  );
-      out->blockwrite(blk, q  );
-      i+=q;
-      i2+=q;
-    } else if (i==0) {
-      in->blockread(blk+12, 4  );
-      if (blk[15]!=1) in->blockread(blk+16, 4  );
-      bsize=2048+(blk[15]==3)*276;
-      i+=4*(blk[15]!=1)+4;
-    } else {
-      a=(blk[12]<<16)+(blk[13]<<8)+blk[14];
-    }
-    in->blockread(blk+16+(blk[15]!=1)*8, bsize   );
-    i+=bsize;
-    if (bsize>2048) blk[15]=3;
-    if (blk[15]!=1 && size-q-i==4) {
-      in->blockread(blk+16, 4   );
-      i+=4;
-    }
-    expand_cd_sector(blk, a, 0);
-    if (mode==FDECOMPRESS) out->blockwrite(blk, BLOCK  );
-    else if (mode==FCOMPARE) for (int j=0; j<BLOCK; ++j) if (blk[j]!=out->getc() && !diffFound) diffFound=i2+j+1;
-    i2+=BLOCK;
-  }
-  return i2;
 }
 
 void encode_rle(File *in, File *out, U64 size, int info, int &hdrsize) {
@@ -5039,67 +4888,6 @@ void encode_szdd(File* in, File* out, int len) {
     delete lz77;
 }
 
-//mdf 
-int decode_mdf(File*in, int size,  File*out, FMode mode, U64 &diffFound){
-    int q=in->getc();   // count of channels
-    q=(q<<8)+in->getc();
-    q=(q<<8)+in->getc();
-    const int BLOCK=2352;
-    const int CHAN=96;
-    U8 blk[BLOCK];
-    Array<U8,1> ptr(CHAN*q);
-    //Write out or compare
-    if (mode==FDECOMPRESS){
-        in->blockread(&ptr[0], CHAN*q);
-        for (int offset=0; offset<q; offset++) { 
-            in->blockread(&blk[0], BLOCK);
-            out->blockwrite(&blk[0], BLOCK);
-            out->blockwrite(&ptr[offset*CHAN], CHAN);
-        }
-    }
-    else if (mode==FCOMPARE){
-        in->blockread(&ptr[0], CHAN*q);
-        int offset=0;
-        for( int i=3;i<size;){
-           in->blockread(&blk[0], BLOCK);
-            for(int j=0;j<BLOCK;j++,i++){
-                U8 b=blk[j];
-                if (b!=out->getc() && !diffFound) diffFound= out->curpos();
-            } 
-            for(int j=0;j<CHAN;j++,i++){
-                U8 b=ptr[offset*CHAN+j];
-                if (b!=out->getc() && !diffFound) diffFound= out->curpos();
-            }
-            offset++;
-        }
-    }
-    return size;
-}
-
-void encode_mdf(File* in, File* out, int len) {
-    const int BLOCK=2352;
-    const int CHAN=96;
-    U8 blk[BLOCK];
-    U8 blk1[CHAN];
-    int ql=len/(BLOCK+CHAN);
-    out->putc(ql>>16); 
-    out->putc(ql>>8);
-    out->putc(ql);
-    U64 beginin= in->curpos();
-    //channel out
-    for (int offset=0; offset<ql; offset++) { 
-        in->setpos(in->curpos()+  BLOCK);
-        in->blockread(&blk1[0],   CHAN);
-        out->blockwrite(&blk1[0], CHAN);
-    }
-    in->setpos( beginin);
-    for (int offset=0; offset<ql; offset++) { 
-        in->blockread(&blk[0],   BLOCK);
-        in->setpos(in->curpos()+ CHAN) ;
-        out->blockwrite(&blk[0], BLOCK);
-  }
-}
-
 #define LZW_TABLE_SIZE 9221
 
 #define lzw_find(k) {\
@@ -5274,7 +5062,6 @@ U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
 void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0) {
-  //assert(s1<(s1+len));
   segment.putdata(type,len,info);
   int srid=streams.GetStreamID(type);
   Stream *sout=streams.streams[srid];
@@ -5303,7 +5090,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             textf.encode(in, tmp, (len),1);
             U64 txt0Size= tmp->curpos();
             //reset to text mode
-             in->setpos(begin);
+            in->setpos(begin);
             tmp->close();
             tmp=new FileTmp;
             textf.encode(in, tmp, (len),0);
@@ -5332,8 +5119,10 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==SZDD) encode_szdd(in, tmp, info);
         else if (type==ZLIB) diffFound=encode_zlib(in, tmp, int(len))?0:1;
         else if (type==BZIP2) encode_bzip2(in, tmp, len,info);
-        else if (type==CD) encode_cd(in, tmp, int(len), info);
-        else if (type==MDF) encode_mdf(in, tmp, int(len));
+        else if (type==CD) cdff.encode(in, tmp, (len), info);
+        else if (type==MDF) {
+            mdff.encode(in, tmp, len,0);
+        }
         else if (type==GIF) diffFound=encode_gif(in, tmp, int(len))?0:1;
         else if (type==WIT) winfo=encode_txt_wit(in, tmp, (len));
         if (type==EOLTEXT && diffFound) {
@@ -5784,11 +5573,17 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                 if (type==BASE64) len=decode_base64(&tmp, int(len), out, mode, diffFound);
                 else if (type==UUENC)  len=decode_uud(&tmp, int(len), out, mode, diffFound);
                 else if (type==BASE85) len=decode_ascii85(&tmp, int(len), out, mode, diffFound);
-                else if (type==SZDD)   len=decode_szdd(&tmp,info,info ,out, mode, diffFound);
+                else if (type==SZDD)   len=decode_szdd(&tmp,info,info ,out, mode,  diffFound);
                 else if (type==ZLIB)   len=decode_zlib(&tmp,int(len),out, mode, diffFound);
                 else if (type==BZIP2)  len=decode_bzip2(&tmp,int(len),out, mode, diffFound,info);
-                else if (type==CD)     len=decode_cd(&tmp, int(len), out, mode, diffFound);
-                else if (type==MDF)    len=decode_mdf(&tmp, int(len), out, mode, diffFound);
+                else if (type==CD)     {
+                    diffFound=cdff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                    len=cdff.fsize; // get decoded size
+                }
+                else if (type==MDF)    {
+                    diffFound=mdff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                    len=mdff.fsize; // get decoded size
+                }
                 else if (type==GIF)    len=decode_gif(&tmp, int(len), out, mode, diffFound);
                 else if (type==MRBR|| type==MRBR4)   {
                     diffFound=imgmrb.CompareFiles(&tmp,out,len,uint64_t(info),mode);
