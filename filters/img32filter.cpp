@@ -35,6 +35,7 @@ uint64_t Img32Filter::decode(File *in, File *out, uint64_t size, uint64_t info) 
         out->putc(in->getc());
     }
   }
+  fsize=size;
   return size;
 }
 

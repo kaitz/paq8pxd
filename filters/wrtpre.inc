@@ -346,7 +346,7 @@ protected:
     int spacesCodeword[256];
     //int spacesCont[256];
     std::vector<std::string> sortedDict;
-
+    enum ELetterType { LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR };
     ELetterType letterType;
     ELetterType letterSet[256];
 

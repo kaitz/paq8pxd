@@ -58,6 +58,7 @@ uint64_t ExeFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     out->putc(c[5]);
     offset++;
   }
+  fsize=size;
   return size;
 }
 

@@ -138,11 +138,13 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "filters/img32filter.hpp" 
 #include "filters/mrbfilter.hpp" 
 #include "filters/exefilter.hpp" 
+#include "filters/textfilter.hpp" 
 
 Img24Filter img24("image 24bit");
 Img32Filter img32("image 32bit");
 ImgMRBFilter imgmrb("image mrb");
 ExeFilter    exe("exe");
+TextFilter    textf("text");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -3165,47 +3167,7 @@ U64 decode_arm(Encoder& en, int size1, File*out, FMode mode, U64 &diffFound, int
     dtmp1.close();
     return size1; 
 }
-//Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
-#include "wrtpre.inc"
 
-void encode_txt(File* in, File* out, U64 len,int wrtn) {
-    assert(wrtn<2);
-   XWRT_Encoder* wrt;
-   wrt=new XWRT_Encoder();
-   wrt->defaultSettings(wrtn);
-   wrt->WRT_start_encoding(in,out,len,false);
-   delete wrt;
-}
-
-//called only when encode_txt output was smaller then input
-U64 decode_txt(Encoder& en, U64 size, File*out, FMode mode, U64 &diffFound) {
-    XWRT_Decoder* wrt;
-    wrt=new XWRT_Decoder();
-    char c;
-    int b=0;
-    U64 bb=0L;
-    FileTmp dtmp;
-    //decompress file
-    for (U64 i=0L; i<size; i++) {
-        c=en.decompress(); 
-        dtmp.putc(c);    
-    }
-     dtmp.setpos(0);
-    wrt->defaultSettings(0);
-    bb=wrt->WRT_start_decoding(&dtmp);
-    for ( U64 i=0L; i<bb; i++) {
-        b=wrt->WRT_decode();    
-        if (mode==FDECOMPRESS) {
-            out->putc(b);
-        }
-        else if (mode==FCOMPARE) {
-            if (b!=out->getc() && !diffFound) diffFound=i;
-        }
-    }
-    dtmp.close();
-    delete wrt;
-    return bb; 
-}
 //it's not standard so some files use 'space' some use '`'
 #define UUENCODE(c,b) ((c) ? ((c) & 077) + ' ': (b) ? '`':((c) & 077) + ' ')
 int decode_uud(File*in, int size, File*out, FMode mode, U64 &diffFound){
@@ -5686,27 +5648,27 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
             if ( type!=TXTUTF8 ){
-            encode_txt(in, tmp, (len),1);
+            textf.encode(in, tmp, (len),1);
             U64 txt0Size= tmp->curpos();
             //reset to text mode
              in->setpos(begin);
             tmp->close();
             tmp=new FileTmp;
-            encode_txt(in, tmp, (len),0);
+            textf.encode(in, tmp, (len),0);
             U64 txtSize= tmp->curpos();
             tmp->close();
             in->setpos( begin);
             tmp=new FileTmp;
             if (txt0Size<txtSize && (((txt0Size*100)/txtSize)<95)) {
                 in->setpos( begin);
-                encode_txt(in, tmp, (len),1);
+                textf.encode(in, tmp, (len),1);
                 type=TEXT0,info=1;
             }else{
-                encode_txt(in, tmp, (len),0);
+                textf.encode(in, tmp, (len),0);
                 type=TEXT,info=0;
             }
             }
-            else encode_txt(in, tmp, (len),info&1); 
+            else textf.encode(in, tmp, (len),info&1); 
         }
         else if (type==EOLTEXT ) diffFound=encode_txtd(in, tmp, int(len),info&1);
         else if (type==BASE64) encode_base64(in, tmp, int(len));
@@ -5721,7 +5683,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==WIT) winfo=encode_txt_wit(in, tmp, (len));
         if (type==EOLTEXT && diffFound) {
             // if EOL size is below 25 then drop EOL transform and try TEXT type
-            diffFound=0, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),encode_txt(in, tmp, int(len),info&1); 
+            diffFound=0, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),textf.encode(in, tmp, len,info&1); 
         }
         const U64 tmpsize= tmp->curpos();
         int tfail=0;
@@ -5744,13 +5706,20 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
         else if (type==DECA) decode_dec(en, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
-        else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) decode_txt(en, (tmpsize), in, FCOMPARE, diffFound);
+        else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
+            FileTmp tmp;
+            for (uint64_t j=0; j<tmpsize; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=textf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+        }//decode_txt(en, (tmpsize), in, FCOMPARE, diffFound);
         else if ((type==WIT) ) decode_txt_wit(tmp, (tmpsize), in, FCOMPARE, diffFound,winfo);
         else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
         else if (type==EOLTEXT ) ts=decode_txtd(tmp, int(tmpsize), in, FCOMPARE, diffFound)!=len?1:0;  
         if (type==EOLTEXT && (diffFound || ts)) {
             // if fail fall back to text
-            diffFound=0,ts=0,info=-1, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),encode_txt(in, tmp, int(len),0); 
+            diffFound=0,ts=0,info=-1, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),textf.encode(in, tmp, len,0); 
         }  else if (type==BZIP2 && (diffFound) ) {
             // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
             diffFound=0,in->setpos(begin),tmp->setpos(0),decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info=(info&255)+256*20);
@@ -6141,7 +6110,15 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
         }    //len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
-        else if (type==BIGTEXT) len=decode_txt(en, (len), out, mode, diffFound);
+        else if (type==BIGTEXT) {
+            FileTmp tmp;
+            for (uint64_t j=0; j<len; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=textf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+            len=textf.fsize; // get decoded size
+        }//len=decode_txt(en, (len), out, mode, diffFound);
         // LZW ?
         else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==BZIP2 || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
             FileTmp tmp;
@@ -6282,11 +6259,12 @@ void compressStream(int streamid, U64 size, File* in, File* out) {
     if (i==8 || i==9) {
         bool dictFail=false;
         FileTmp tm;
-        XWRT_Encoder* wrt;
+        /*XWRT_Encoder* wrt;
         wrt=new XWRT_Encoder();
         wrt->defaultSettings(i==8);
         wrt->WRT_start_encoding(in,&tm,datasegmentsize,false,true);
-        delete wrt;
+        delete wrt;*/
+        textf.encode(in,&tm,datasegmentsize,i==8);
         datasegmentlen= tm.curpos();
         streams.streams[i]->streamsize=datasegmentlen;
         // -e0 option ignores larger wrt size
@@ -6584,8 +6562,9 @@ void DecompressStreams(File *archive) {
                         datasegmentsize--;
                     }
                     if (doWRT==true) {
-                        
-                        XWRT_Decoder* wrt;
+                        tm.setpos( 0);
+                        textf.decode(&tm,&streams.streams[i]->file,datasegmentlen,0);
+                        /*XWRT_Decoder* wrt;
                         wrt=new XWRT_Decoder();
                         int b=0;
                         wrt->defaultSettings(0);
@@ -6596,7 +6575,7 @@ void DecompressStreams(File *archive) {
                             streams.streams[i]->file.putc(b);
                         }
                         tm.close();
-                        delete wrt;
+                        delete wrt;*/
                     }else{
                         tm.setpos( 0);
                         
