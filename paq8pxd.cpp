@@ -139,12 +139,14 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "filters/mrbfilter.hpp" 
 #include "filters/exefilter.hpp" 
 #include "filters/textfilter.hpp" 
+#include "filters/eolfilter.hpp" 
 
 Img24Filter img24("image 24bit");
 Img32Filter img32("image 32bit");
 ImgMRBFilter imgmrb("image mrb");
 ExeFilter    exe("exe");
 TextFilter    textf("text");
+EOLFilter    eolf("eol");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -5264,356 +5266,6 @@ int decode_gif(File* in, int size, File*out, FMode mode, U64 &diffFound) {
   return outsize+1;
 }
 
-//EOL
-
-enum EEOLType {UNDEFINED, CRLF, LF};
-
-#define MAX_FREQ_ORDER1 255
-#define ORDER1_STEP    4
-
-class RangeCoder{
-    U32 code, range, FFNum, Cache;
-    U64 low;
-    int mZero[MAX_FREQ_ORDER1];
-    int mOne[MAX_FREQ_ORDER1];
-    File*outeol; 
-public:
-    inline void ShiftLow(){                                             
-        if ((low^0xFF000000)>0xFFFFFF){            
-            outeol->putc( Cache + (low>>32));       
-            int c = 0xFF+(low>>32);                       
-            while( FFNum ) outeol->putc(c), FFNum--; 
-            Cache = U32(low)>>24;                        
-        } else FFNum++;                               
-        low = U32(low)<<8;                           
-    }
-    
-    void StartEncode(File*out ){
-        low=FFNum=Cache=0;  
-        range=0xffffffff; 
-        outeol=out; 
-    }
-    
-    void StartDecode(File*out){ 
-        outeol=out; 
-        code=0; 
-        range=0xffffffff;
-        for (int i=0; i<5; i++) code=(code<<8) | outeol->getc();
-    }
-    
-    void FinishEncode(){ 
-        for (int i=0; i<5; i++) ShiftLow();
-    }
-    
-    void Encode(U32 cumFreq, U32 freq, U32 totFreq){
-        low += cumFreq * (range/= totFreq);
-        range*= freq;
-        while( range<(1<<24) ) { ShiftLow(); range<<=8; }
-    }
-    
-    inline U32 GetFreq (U32 totFreq) {
-        return code / (range/= totFreq);
-    }
-    void Decode (U32 cumFreq, U32 freq, U32 totFreq){
-        code -= cumFreq*range;
-        range *= freq;
-        while (range<(1<<24)) code=(code<<8)|outeol->getc(), range<<=8;
-    }
-    
-    inline void UpdateOrder1(int prev,int c, int step){
-        if (c==0) mZero[prev]+=step;
-        else      mOne[prev]+=step;
-
-        if (mZero[prev]+mOne[prev] >= 1<<15){
-            mZero[prev]=(mZero[prev]+1)/2;
-            mOne[prev]=(mOne[prev]+1)/2;
-        }    
-    }
-
-    inline void EncodeOrder1(int prev, int c){
-        if (c==0)  Encode(0,mZero[prev],mZero[prev]+mOne[prev]);
-        else       Encode(mZero[prev],mOne[prev],mZero[prev]+mOne[prev]);
-    }
-
-    inline int DecodeOrder1(int prev){
-        int c=GetFreq(mZero[prev]+mOne[prev]);
-
-        if (c<mZero[prev]) c=0;
-        else c=1;
-
-        if (c==0) Decode(0,mZero[prev],mZero[prev]+mOne[prev]);
-        else      Decode(mZero[prev],mOne[prev],mZero[prev]+mOne[prev]);
-        return c;
-    }
-
-    U32 DecodeOrder(U32 prev){
-        U32 result=DecodeOrder1(prev); 
-        UpdateOrder1(prev,result,ORDER1_STEP); 
-        return result;
-    }
-    void EncodeOrder(U32 prev, U32 result){
-        EncodeOrder1(prev,result); 
-        UpdateOrder1(prev,result,ORDER1_STEP); 
-    }
-
-    RangeCoder(){
-        for (int i=0; i<MAX_FREQ_ORDER1; i++){
-            mZero[i]=1;
-            mOne[i]=1;
-        }
-    }
-};
-
-
-#define TOLOWER(c)    ((c>='A' && c<='Z')?(c+32):c)
-//#define TOUPPER(c)    ((c>='a' && c<='z')?(c-32):c)
-class EOLEncoderCoder{
-    RangeCoder coder;
-    EEOLType EOLType;
-    int fpos;
-    int lastEOL,lastChar;
-public:
-    EOLEncoderCoder (File*out ){
-        coder.StartEncode(out);
-    }
-    inline int ContextEncode(int leftChar,int c,int rightChar,int distance){
-        U32 prev,result;
-
-        if (leftChar<'a' || leftChar>'z' || rightChar<'a' || rightChar>'z' )
-        if ((leftChar!=',' && leftChar!='.' && leftChar!='\''  /*&& leftChar!='>'*/) || rightChar<'a' || rightChar>'z' )
-        return c;
-        
-        if (c==32)
-        result=0;
-        else
-        result=1;
-
-        if(leftChar>96||leftChar==',')leftChar=122;
-        if(leftChar<96)leftChar=125;
-        prev=min(distance,90)/5*12+(leftChar-'a')/3;
-        coder.EncodeOrder(prev,result); 
-        return 32;
-    }
-    void EncodeEOLformat(EEOLType EOLType){
-        if(EOLType==CRLF)    coder.Encode(0,1,2);
-        else     coder.Encode(1,1,2);
-    }
-
-    void EOLencode(File* file,File* fileout,int fileLen){
-        int xc=0;
-        int last_c,c,next_c;
-        last_c=0;
-        lastEOL=0;
-        EOLType=UNDEFINED;
-        lastEOL=0;
-        c=file->getc(),fpos++;
-        fpos=0;
-        while ( fpos<fileLen)    {
-            next_c=file->getc(),fpos++;
-            if (c==32 || c==10 || (c==13 && next_c==10)){
-                if (c==13){
-                    if (EOLType==CRLF || EOLType==UNDEFINED){
-                        c=next_c;
-                        if (fpos<fileLen){
-                           next_c=file->getc(),fpos++;
-                        }
-                        else{
-                             next_c=0,fpos++;
-                        }
-                        lastEOL++;
-                        last_c=ContextEncode(TOLOWER(last_c),TOLOWER(c),TOLOWER(next_c),fpos-lastEOL+(next_c<0?1:0));
-                        if (EOLType==UNDEFINED && last_c!=c){
-                            EOLType=CRLF;
-                            EncodeEOLformat(EOLType);
-                        }
-                        lastEOL=fpos;
-                        if (last_c==10)  xc=5;//LF marker
-                        else xc=last_c;
-                    }
-                    else
-                    xc=c;
-                }
-                else{
-                    if (c==10 && EOLType==CRLF){ 
-                        xc=c;
-                    }
-                    else{
-                        last_c=ContextEncode(TOLOWER(last_c),TOLOWER(c),TOLOWER(next_c),fpos-lastEOL+(next_c<0?1:0));
-                        if (EOLType==UNDEFINED && last_c!=c){
-                            EOLType=LF;
-                            EncodeEOLformat(EOLType);
-                        }
-                        xc=last_c;
-                    }
-                    if (c==10) lastEOL=fpos;
-                }
-            }
-            else{
-               xc=c;
-            }
-            last_c=c;
-            c=xc;  
-            fileout->putc(c );
-            c=next_c;
-        }
-        coder.FinishEncode();
-    }
-};
-
-class EOLDecoderCoder{
-    RangeCoder coder;
-    EEOLType EOLType;
-    int fpos;
-    int bufChar,lastEOL,lastChar;
-public:
-     
-    inline int ContextDecode(int leftChar,int rightChar,int distance){
-        U32 prev,result;
-
-        if (leftChar<'a' || leftChar>'z' || rightChar<'a' || rightChar>'z'  )
-        if ((leftChar!=',' && leftChar!='.' && leftChar!='\''/* && leftChar!='>'*/) || rightChar<'a' || rightChar>'z' )
-        return 32;
-
-        if(leftChar>96||leftChar==',')leftChar=122;
-        if(leftChar<96)leftChar=125;
-        prev=min(distance,90)/5*12+(leftChar-'a')/3;
-        result=coder.DecodeOrder(prev); 
-        if (result==0)   return 32;
-        else     return 10;
-    }
-
-    EEOLType DecodeEOLformat(){
-        int c=coder.GetFreq(2);
-        if (c<1){
-            coder.Decode(0,1,2);        
-            return CRLF;
-        }
-        else{     
-            coder.Decode(1,1,2);
-            return LF;
-        }
-    }
-
-    void hook_putc(int c,File* out,int maxlen){
-        if (bufChar<0 && c==' '){
-            bufChar=c;
-            return;
-        }
-        if (bufChar>=0){            
-            bufChar=ContextDecode(TOLOWER(lastChar),TOLOWER(c),fpos-lastEOL);
-            if (bufChar==10){
-                if (EOLType==UNDEFINED)
-                EOLType=DecodeEOLformat();
-                if (EOLType==CRLF){
-                    lastChar=13;
-                    if (fpos==maxlen) return;
-                    out->putc(lastChar),fpos++;
-                }
-                lastEOL=fpos;
-            }
-            if (fpos==maxlen) return;
-            out->putc(bufChar),fpos++;
-            if (c==' '){
-                lastChar=bufChar;
-                bufChar=c;
-                return;
-            }
-            bufChar=-1;
-        }
-        if (c==10)
-        lastEOL=fpos;
-        lastChar=c;
-        if (c==EOF) return;
-        if (fpos==maxlen) return;
-        out->putc(c),fpos++;
-    }
-
-    void EOLdecode(File* in,File* out,int size,File*outeol,File*wd,int len){
-        int c=0;
-        bufChar=-1;
-        lastEOL=-1;
-        EOLType=UNDEFINED;
-        fpos=0;
-        coder.StartDecode(outeol);
-        
-        for ( int i=0; i<size; i++) {
-            c=wd->getc();
-            if (c==5){
-                hook_putc(13,out,len);
-                hook_putc(10,out,len);
-            }
-            else {    
-                hook_putc(c,out,len);
-            }
-        }
-    }
-};
-
-//Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski, inikep@gmail.com
-int encode_txtd(File* in, File* out, int len,int wrtn) {
-    U64 eolz=0;
-    U64 wrtz=0;
-    FileTmp wrtfi;
-    FileTmp tmpout;
-    
-    EOLEncoderCoder* eolc;
-    eolc=new EOLEncoderCoder(&wrtfi);
-    eolc->EOLencode(in,&tmpout,len); 
-    out->put32(len);
-    eolz= wrtfi.curpos();
-    out->put32(eolz);
-    
-    wrtz= tmpout.curpos();
-    out->put32(wrtz);
-    wrtfi.setpos(0);
-    for (U64 offset=0; offset<eolz; offset++) { 
-        out->putc(wrtfi.getc()); 
-   }
-    wrtz= tmpout.curpos();
-    tmpout.setpos(0);
-    for (U64 offset=0; offset<wrtz; offset++) { 
-        out->putc(tmpout.getc()); 
-    }
-    delete eolc;
-    wrtfi.close();
-    tmpout.close();
-   // if (eolz<35) printf("Eol count %d<35\n",eolz);
-    return eolz<35;
-}
-
-int decode_txtd(File* in, int size, File*out, FMode mode, U64 &diffFound) {
-    int b=0;
-    U64 bb=0;
-    U64 eolz=0,wrtz=0;
-    FileTmp wrtfi;
-    FileTmp tmpout;
-    int len=in->get32();
-    eolz=in->get32();
-    wrtz=in->get32();
-    
-    for (U64 offset=0; offset<eolz; offset++) wrtfi.putc(in->getc()); 
-    wrtfi.setpos(0);
-    EOLDecoderCoder* eold;
-    eold=new EOLDecoderCoder(); 
-    eold->EOLdecode(in,&tmpout,wrtz,&wrtfi,in,len);
-
-    bb= tmpout.curpos();
-    tmpout.setpos(0);
-    for ( U64 i=0; i<bb; i++) {
-        b=tmpout.getc();
-        if (mode==FDECOMPRESS) {
-            out->putc(b);
-        }
-        else if (mode==FCOMPARE) {
-            if (b!=out->getc() && !diffFound) diffFound=i;
-        }
-    }
-    delete eold;
-    tmpout.close();
-    wrtfi.close();
-    return bb; 
-}
-
 //////////////////// Compress, Decompress ////////////////////////////
 
 //for block statistics, levels 0-5
@@ -5670,7 +5322,10 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             }
             else textf.encode(in, tmp, (len),info&1); 
         }
-        else if (type==EOLTEXT ) diffFound=encode_txtd(in, tmp, int(len),info&1);
+        else if (type==EOLTEXT ){
+            eolf.encode(in, tmp, len,info&1);
+            diffFound=eolf.diffFound;
+        }
         else if (type==BASE64) encode_base64(in, tmp, int(len));
         else if (type==UUENC) encode_uud(in, tmp, int(len),info);
         else if (type==BASE85) encode_ascii85(in, tmp, int(len));
@@ -5691,7 +5346,6 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         en.setFile(tmp);
         
         if (type==BZIP2 || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
-        int ts=0;
          in->setpos(begin);
         if (type==BASE64 ) decode_base64(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==UUENC ) decode_uud(tmp, int(tmpsize), in, FCOMPARE, diffFound);
@@ -5713,18 +5367,20 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             }
             tmp.setpos(0);
             diffFound=textf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }//decode_txt(en, (tmpsize), in, FCOMPARE, diffFound);
+        }
         else if ((type==WIT) ) decode_txt_wit(tmp, (tmpsize), in, FCOMPARE, diffFound,winfo);
         else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
-        else if (type==EOLTEXT ) ts=decode_txtd(tmp, int(tmpsize), in, FCOMPARE, diffFound)!=len?1:0;  
-        if (type==EOLTEXT && (diffFound || ts)) {
+        else if (type==EOLTEXT ){
+            diffFound=eolf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+        }
+        if (type==EOLTEXT && (diffFound )) {
             // if fail fall back to text
-            diffFound=0,ts=0,info=-1, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),textf.encode(in, tmp, len,0); 
+            diffFound=0,info=-1, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),textf.encode(in, tmp, len,0); 
         }  else if (type==BZIP2 && (diffFound) ) {
             // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
             diffFound=0,in->setpos(begin),tmp->setpos(0),decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info=(info&255)+256*20);
         }            
-        tfail=(diffFound || tmp->getc()!=EOF || ts ); 
+        tfail=(diffFound || tmp->getc()!=EOF); 
         }
         // Test fails, compress without transform
         if (tfail) {
@@ -6107,7 +5763,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
             }
             tmp.setpos(0);
             diffFound=exe.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-        }    //len=decode_exe(en, int(len), out, mode, diffFound, int(s1), int(s2));
+        }
         else if (type==DECA)    len=decode_dec(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) {
@@ -6118,7 +5774,7 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
             tmp.setpos(0);
             diffFound=textf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
             len=textf.fsize; // get decoded size
-        }//len=decode_txt(en, (len), out, mode, diffFound);
+        }
         // LZW ?
         else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==BZIP2 || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
             FileTmp tmp;
@@ -6138,7 +5794,10 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                     diffFound=imgmrb.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=imgmrb.fsize; // get decoded size
                 }
-                else if (type==EOLTEXT)len=decode_txtd(&tmp, int(len), out, mode, diffFound);
+                else if (type==EOLTEXT){
+                    diffFound=eolf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                    len=eolf.fsize; // get decoded size
+                }
                 else if (type==RLE)    len=decode_rle(&tmp, len, out, mode, diffFound);
                 else if ((type==WIT) ) len=decode_txt_wit(&tmp, (len), out, mode, diffFound,info);
             }
