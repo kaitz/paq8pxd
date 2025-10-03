@@ -1,6 +1,6 @@
 #pragma once
 #include "filter.hpp"
-//#include "../prt/hash.hpp"
+
 class szddFilter: public Filter {
 
 public:
