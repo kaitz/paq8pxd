@@ -195,21 +195,19 @@ const int BLOCK=1<<16, LIMIT=256;
         zout[diffPos[diffIndex]-recpos]=diffByte[diffIndex];
         diffIndex++;
       }
-      /*if (mode==FDECOMPRESS) */out->blockwrite(&zout[0],   have  );
-      //else if (mode==FCOMPARE) for (int j=0; j<have; j++) if (zout[j]!=out->getc() && !diffFound) diffFound=recpos+j+1;
+      out->blockwrite(&zout[0],   have  );
       recpos+=have;
       
     } while (rec_strm.avail_out==0);
   }
   while (diffIndex<=diffCount) {
-    /*if (mode==FDECOMPRESS)*/ out->putc(diffByte[diffIndex]);
-    //else if (mode==FCOMPARE) if (diffByte[diffIndex]!=out->getc() && !diffFound) diffFound=recpos+1;
+    out->putc(diffByte[diffIndex]);
     diffIndex++;
     recpos++;
   }  
   deflateEnd(&rec_strm);
   fsize=recpos==len ? len : 0;
-    return fsize;
+  return fsize;
 }
 
 

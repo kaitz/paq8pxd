@@ -72,7 +72,6 @@
 #define DEFAULT_OPTION 8
 #endif
 
- 
 // min, max functions
 /*#if  !defined(WINDOWS) || !defined (min)
 inline int min(int a, int b) {return a<b?a:b;}
@@ -96,9 +95,6 @@ inline int max(int a, int b) {return a<b?b:a;}
 #endif
 #endif
 #endif
-
-
-
 
 #include "prt/types.hpp"
 
@@ -148,21 +144,23 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "filters/witfilter.hpp"
 #include "filters/uudfilter.hpp"
 #include "filters/zlibfilter.hpp"
+#include "filters/bzip2filter.hpp"
 
-Img24Filter img24("image 24bit");
-Img32Filter img32("image 32bit");
+Img24Filter  img24("image 24bit");
+Img32Filter  img32("image 32bit");
 ImgMRBFilter imgmrb("image mrb");
 ExeFilter    exe("exe");
-TextFilter    textf("text");
+TextFilter   textf("text");
 EOLFilter    eolf("eol");
 MDFFilter    mdff("mdf");
-CDFilter    cdff("cd");
+CDFilter     cdff("cd");
 gifFilter    giff("gif");
-szddFilter    szddf("szdd");
-base64Filter  base64f("base64");
-witFilter  witf("wit");
-uudFilter  uudf("uuencode");
-zlibFilter  zlibf("zlib");
+szddFilter   szddf("szdd");
+base64Filter base64f("base64");
+witFilter    witf("wit");
+uudFilter    uudf("uuencode");
+zlibFilter   zlibf("zlib");
+bzip2Filter  bzip2f("bzip2");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -541,79 +539,6 @@ void printStatus1(U64 n, U64 size) {
 fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
-#include "bzip2/bzlib.h"
-#define BZ2BLOCK 100*1024*100
-
-U64 bzip2compress(File* im, File* out,int level, U64 size) {
-  bz_stream stream;
-  Array<char> bzin(BZ2BLOCK);
-  Array<char> bzout(BZ2BLOCK);
-  stream.bzalloc=NULL;
-  stream.bzfree=NULL;
-  stream.opaque=NULL;
-  stream.next_in=NULL;
-  stream.avail_in=0U;
-  stream.avail_out=0U;
-  U64 p=0,usize=size;
-  int part,ret,status;
-  ret=BZ2_bzCompressInit(&stream, level&255, 0, 0,level/256);
-  if (ret!=BZ_OK) return ret;  
-  do {
-    stream.avail_in =im->blockread((U8*) &bzin[0], min(BZ2BLOCK,usize));
-    status = usize<BZ2BLOCK?BZ_FINISH:BZ_RUN;
-    usize=usize-stream.avail_in;
-    stream.next_in=(char*) &bzin[0] ;
-    do {
-      stream.avail_out=BZ2BLOCK;
-      stream.next_out=(char*)&bzout[0] ;
-      ret=BZ2_bzCompress(&stream, status);
-      part=BZ2BLOCK-stream.avail_out;
-      if (part>0) p+=part,out->blockwrite((U8*) &bzout[0],part);
-    } while (stream.avail_in != 0);
-
-  }  while (status!=BZ_FINISH);
-  (void)BZ2_bzCompressEnd(&stream);
-  return p;
-}
-U64 bzip2decompress(File* in, File* out, int compression_level, U64& csize, bool save=true) {
-  bz_stream stream;
-  Array<char> bzin(BZ2BLOCK);
-  Array<char> bzout(BZ2BLOCK);
-  stream.bzalloc=NULL;
-  stream.bzfree=NULL;
-  stream.opaque=NULL;
-  stream.avail_in=0;
-  stream.next_in=NULL;
-  U64 dsize=0;
-  int inbytes,part,ret;
-  int blockz=csize?csize:BZ2BLOCK;
-  csize = 0;
-  ret = BZ2_bzDecompressInit(&stream, 0, 0);
-  if (ret!=BZ_OK) return ret;
-  do {
-    stream.avail_in=in->blockread((U8*) &bzin[0], min(BZ2BLOCK,blockz));
-    inbytes=stream.avail_in;
-    if (stream.avail_in==0) break;
-    stream.next_in=(char*)&bzin[0];
-    do {
-      stream.avail_out=BZ2BLOCK;
-      stream.next_out=(char*)&bzout[0];
-      ret=BZ2_bzDecompress(&stream);
-      if ((ret!=BZ_OK) && (ret!=BZ_STREAM_END)) {
-        (void)BZ2_bzDecompressEnd(&stream);
-        return ret;
-      }
-      csize+=(inbytes-stream.avail_in);
-      inbytes=stream.avail_in;
-      part=BZ2BLOCK-stream.avail_out;
-      if (save==true)out->blockwrite((U8*) &bzout[0], part);
-      dsize+=part;
-
-    } while (stream.avail_out == 0);
-  } while (ret != BZ_STREAM_END);
-  (void)BZ2_bzDecompressEnd(&stream);
-  if (ret == BZ_STREAM_END) return dsize; else return 0;
-}
 
 Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0) {
   U32 buf4=0,buf3=0, buf2=0, buf1=0, buf0=0;  // last 8 bytes
@@ -2389,29 +2314,6 @@ U64 decode_lzw(File *in, U64 size, File *out, FMode mode, U64 &diffFound) {
   return pos;
 }
 
-U64 encode_bzip2(File* in, File* out, U64 len,int level) {
-    U64 compressed_stream_size=len;
-    return bzip2decompress(in,out, level, compressed_stream_size);;
-}
-
-U64 decode_bzip2(File* in, U64 size, File*out, FMode mode, U64 &diffFound,int info) {
-    int filelen=0;
-    if (mode==FDECOMPRESS){
-            filelen=bzip2compress(in, out, info, size);
-        }
-    else if (mode==FCOMPARE){
-        FileTmp o;
-        filelen=bzip2compress(in, &o, info, size);
-        o.setpos(0);
-        for(int i=0;i<filelen;i++){
-            U8 b=o.getc();
-            if (b!=out->getc() && !diffFound) diffFound= out->curpos();
-        }
-        o.close();
-    }
-    return filelen;
-}
-
  // Transform DEC Alpha code
 void encode_dec(File* in, File* out, int len, int begin) {
   const int BLOCK=0x10000;
@@ -2779,7 +2681,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             zlibf.encode(in, tmp, len,0);   
             diffFound=zlibf.diffFound;
         }
-        else if (type==BZIP2) encode_bzip2(in, tmp, len,info);
+        else if (type==BZIP2){
+            bzip2f.encode(in, tmp, len,info);
+        }
         else if (type==CD) cdff.encode(in, tmp, (len), info);
         else if (type==MDF) {
             mdff.encode(in, tmp, len,0);
@@ -2813,7 +2717,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==ZLIB && !diffFound) {
             diffFound=zlibf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
         }
-        else if (type==BZIP2  )             decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info=info+256*17);
+        else if (type==BZIP2  )     {
+            diffFound=bzip2f.CompareFiles(tmp,in, tmpsize, uint64_t(info=info+256*17), FCOMPARE);
+        }
         else if (type==GIF && !diffFound) {
             diffFound=giff.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
         }
@@ -2844,7 +2750,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             diffFound=0,info=-1, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),textf.encode(in, tmp, len,0); 
         }  else if (type==BZIP2 && (diffFound) ) {
             // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
-            diffFound=0,in->setpos(begin),tmp->setpos(0),decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info=(info&255)+256*20);
+            in->setpos(begin);
+            tmp->setpos(0);
+            diffFound=bzip2f.CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
         }            
         tfail=(diffFound || tmp->getc()!=EOF); 
         }
@@ -3264,7 +3172,10 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                     diffFound=zlibf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=zlibf.fsize; // get decoded size
                 }
-                else if (type==BZIP2)  len=decode_bzip2(&tmp,int(len),out, mode, diffFound,info);
+                else if (type==BZIP2) {
+                    diffFound=bzip2f.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                    len=bzip2f.fsize; // get decoded size
+                }
                 else if (type==CD)     {
                     diffFound=cdff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=cdff.fsize; // get decoded size
@@ -3408,11 +3319,6 @@ void compressStream(int streamid, U64 size, File* in, File* out) {
     if (i==8 || i==9) {
         bool dictFail=false;
         FileTmp tm;
-        /*XWRT_Encoder* wrt;
-        wrt=new XWRT_Encoder();
-        wrt->defaultSettings(i==8);
-        wrt->WRT_start_encoding(in,&tm,datasegmentsize,false,true);
-        delete wrt;*/
         textf.encode(in,&tm,datasegmentsize,i==8);
         datasegmentlen= tm.curpos();
         streams.streams[i]->streamsize=datasegmentlen;
@@ -3713,21 +3619,8 @@ void DecompressStreams(File *archive) {
                     if (doWRT==true) {
                         tm.setpos( 0);
                         textf.decode(&tm,&streams.streams[i]->file,datasegmentlen,0);
-                        /*XWRT_Decoder* wrt;
-                        wrt=new XWRT_Decoder();
-                        int b=0;
-                        wrt->defaultSettings(0);
+                    } else {
                         tm.setpos( 0);
-                        U64 bb=wrt->WRT_start_decoding(&tm);
-                        for ( U64 ii=0; ii<bb; ii++) {
-                            b=wrt->WRT_decode();    
-                            streams.streams[i]->file.putc(b);
-                        }
-                        tm.close();
-                        delete wrt;*/
-                    }else{
-                        tm.setpos( 0);
-                        
                         for ( U64 ii=1; ii<datasegmentlen; ii++) {
                             U8 b=tm.getc(); 
                             streams.streams[i]->file.putc(b);
