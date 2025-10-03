@@ -112,8 +112,7 @@ uint64_t gifFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
   Array<U8,1> output(256);
   size-=6+diffcount*4;
   int last=in->getc(),total=size+1,outsize=1;
-  /*if (mode==FDECOMPRESS)*/ out->putc(codesize);
-  //else if (mode==FCOMPARE) if (codesize!=out->getc() && !diffFound) diffFound=1;
+  out->putc(codesize);
   if (diffcount==0 || diffpos[0]!=0) gif_write_code(1<<codesize) else curdiff++;
   while (size!=0 && (input=in->getc())!=EOF) {
     size--;
@@ -141,8 +140,7 @@ uint64_t gifFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     if (blocksize==bsize) gif_write_block(bsize);
   }
   if (blocksize>0) gif_write_block(blocksize);
-  /*if (mode==FDECOMPRESS)*/ out->putc(0);
-  //else if (mode==FCOMPARE) if (0!=out->getc() && !diffFound) diffFound=outsize+1;
+  out->putc(0);
   fsize=outsize+1;
 
     return fsize;
