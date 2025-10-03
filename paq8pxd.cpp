@@ -142,6 +142,7 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "filters/eolfilter.hpp" 
 #include "filters/mdffilter.hpp" 
 #include "filters/cdfilter.hpp" 
+#include "filters/giffilter.hpp" 
 
 Img24Filter img24("image 24bit");
 Img32Filter img32("image 32bit");
@@ -150,7 +151,8 @@ ExeFilter    exe("exe");
 TextFilter    textf("text");
 EOLFilter    eolf("eol");
 MDFFilter    mdff("mdf");
-CDFilter    cdff("mdf");
+CDFilter    cdff("cd");
+gifFilter    giff("gif");
 
 Streams streams;
 /////////////////////// Global context /////////////////////////
@@ -4888,172 +4890,6 @@ void encode_szdd(File* in, File* out, int len) {
     delete lz77;
 }
 
-#define LZW_TABLE_SIZE 9221
-
-#define lzw_find(k) {\
-  offset = ((k)*PHI)>>19; \
-  int stride = (offset>0)?LZW_TABLE_SIZE-offset:1; \
-  while (true){ \
-    if ((index=table[offset])<0){ index=-offset-1; break; } \
-    else if (dict[index]==int(k)){ break; } \
-    offset-=stride; \
-    if (offset<0) \
-      offset+=LZW_TABLE_SIZE; \
-  } \
-}
-
-#define lzw_reset { for (int i=0; i<LZW_TABLE_SIZE; table[i]=-1, i++); }
-
-int encode_gif(File* in, File* out, int len) {
-  int codesize=in->getc(),hdrsize=6,clearpos=0,bsize=0,code,offset=0;
-  U64 diffpos=0,beginin= in->curpos(),beginout= out->curpos();
-  Array<U8,1> output(4096);
-  out->putc(hdrsize>>8);
-  out->putc(hdrsize&255);
-  out->putc(bsize);
-  out->putc(clearpos>>8);
-  out->putc(clearpos&255);
-  out->putc(codesize);
-  Array<int> table(LZW_TABLE_SIZE);  
-  for (int phase=0; phase<2; phase++) {
-    in->setpos( beginin);
-    int bits=codesize+1,shift=0,buf=0;
-    int blocksize=0,maxcode=(1<<codesize)+1,last=-1;//,dict[4096];
-    Array<int> dict(4096);
-    lzw_reset;
-    bool end=false;
-    while ((blocksize=in->getc())>0 &&  in->curpos()-beginin<len && !end) {
-      for (int i=0; i<blocksize; i++) {
-        buf|=in->getc()<<shift;
-        shift+=8;
-        while (shift>=bits && !end) {
-          int code=buf&((1<<bits)-1);
-          buf>>=bits;
-          shift-=bits;
-          if (!bsize && code!=(1<<codesize)) {
-            hdrsize+=4; out->put32(0);
-          }
-          if (!bsize) bsize=blocksize;
-          if (code==(1<<codesize)) {
-            if (maxcode>(1<<codesize)+1) {
-              if (clearpos && clearpos!=69631-maxcode) return 0;
-              clearpos=69631-maxcode;
-            }
-            bits=codesize+1, maxcode=(1<<codesize)+1, last=-1;
-            lzw_reset;
-          }
-          else if (code==(1<<codesize)+1) end=true;
-          else if (code>maxcode+1) return 0;
-          else {
-            int j=(code<=maxcode?code:last),size=1;
-            while (j>=(1<<codesize)) {
-              output[4096-(size++)]=dict[j]&255;
-              j=dict[j]>>8;
-            }
-            output[4096-size]=j;
-            if (phase==1) out->blockwrite(&output[4096-size],  size  ); else diffpos+=size;
-            if (code==maxcode+1) { if (phase==1) out->putc(j); else diffpos++; }
-            if (last!=-1) {
-              if (++maxcode>=8191) return 0;
-              if (maxcode<=4095)
-              {
-                int key=(last<<8)+j, index=-1;
-                lzw_find(key);
-                dict[maxcode]=key;
-                table[(index<0)?-index-1:offset]=maxcode;
-                if (phase==0 && index>0) {
-                    hdrsize+=4;
-                    j=diffpos-size-(code==maxcode);
-                    out->put32(j);
-                    diffpos=size+(code==maxcode);
-                  }
-                }
-              //}
-              if (maxcode>=((1<<bits)-1) && bits<12) bits++;
-            }
-            last=code;
-          }
-        }
-      }
-    }
-  }
-  diffpos= out->curpos();
-  out->setpos(beginout);
-  out->putc(hdrsize>>8);
-  out->putc(hdrsize&255);
-  out->putc(255-bsize);
-  out->putc((clearpos>>8)&255);
-  out->putc(clearpos&255);
-  out->setpos(diffpos);
-  return in->curpos()-beginin==len-1;
-}
-
-#define gif_write_block(count) { output[0]=(count);\
-if (mode==FDECOMPRESS) out->blockwrite(&output[0],  (count)+1  );\
-else if (mode==FCOMPARE) for (int j=0; j<(count)+1; j++) if (output[j]!=out->getc() && !diffFound) diffFound=outsize+j+1;\
-outsize+=(count)+1; blocksize=0; }
-
-#define gif_write_code(c) { buf+=(c)<<shift; shift+=bits;\
-while (shift>=8) { output[++blocksize]=buf&255; buf>>=8;shift-=8;\
-if (blocksize==bsize) gif_write_block(bsize); }}
-
-int decode_gif(File* in, int size, File*out, FMode mode, U64 &diffFound) {
-  int diffcount=in->getc(), curdiff=0;
-    Array<int> diffpos(4096);//, diffpos[4096];
-  diffcount=((diffcount<<8)+in->getc()-6)/4;
-  int bsize=255-in->getc();
-  int clearpos=in->getc(); clearpos=(clearpos<<8)+in->getc();
-  clearpos=(69631-clearpos)&0xffff;
-  int codesize=in->getc(),bits=codesize+1,shift=0,buf=0,blocksize=0;
-  if (diffcount>4096 || clearpos<=(1<<codesize)+2) return 1;
-  int maxcode=(1<<codesize)+1, input,code,offset=0;
-    Array<int> dict(4096);
-      Array<int> table(LZW_TABLE_SIZE);
-  lzw_reset;
-  for (int i=0; i<diffcount; i++) {
-    diffpos[i]=in->getc();
-    diffpos[i]=(diffpos[i]<<8)+in->getc();
-    diffpos[i]=(diffpos[i]<<8)+in->getc();
-    diffpos[i]=(diffpos[i]<<8)+in->getc();
-    if (i>0) diffpos[i]+=diffpos[i-1];
-  }
-  Array<U8,1> output(256);
-  size-=6+diffcount*4;
-  int last=in->getc(),total=size+1,outsize=1;
-  if (mode==FDECOMPRESS) out->putc(codesize);
-  else if (mode==FCOMPARE) if (codesize!=out->getc() && !diffFound) diffFound=1;
-  if (diffcount==0 || diffpos[0]!=0) gif_write_code(1<<codesize) else curdiff++;
-  while (size!=0 && (input=in->getc())!=EOF) {
-    size--;
-    int key=(last<<8)+input, index=(code=-1);
-    if (last<0) index=input; else lzw_find(key);
-    code = index;
-    if (curdiff<diffcount && total-(int)size>diffpos[curdiff]) curdiff++, code=-1;
-    if (code<0) {
-      gif_write_code(last);
-      if (maxcode==clearpos) { gif_write_code(1<<codesize); bits=codesize+1, maxcode=(1<<codesize)+1; lzw_reset }
-      else
-      {
-        ++maxcode;
-        if (maxcode<=4095) { dict[maxcode]=key; table[(index<0)?-index-1:offset]=maxcode; }
-        if (maxcode>=(1<<bits) && bits<12) bits++;
-      }
-      code=input;
-    }
-    last=code;
-  }
-  gif_write_code(last);
-  gif_write_code((1<<codesize)+1);
-  if (shift>0) {
-    output[++blocksize]=buf&255;
-    if (blocksize==bsize) gif_write_block(bsize);
-  }
-  if (blocksize>0) gif_write_block(blocksize);
-  if (mode==FDECOMPRESS) out->putc(0);
-  else if (mode==FCOMPARE) if (0!=out->getc() && !diffFound) diffFound=outsize+1;
-  return outsize+1;
-}
-
 //////////////////// Compress, Decompress ////////////////////////////
 
 //for block statistics, levels 0-5
@@ -5109,7 +4945,7 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
             }
             else textf.encode(in, tmp, (len),info&1); 
         }
-        else if (type==EOLTEXT ){
+        else if (type==EOLTEXT) {
             eolf.encode(in, tmp, len,info&1);
             diffFound=eolf.diffFound;
         }
@@ -5123,7 +4959,10 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==MDF) {
             mdff.encode(in, tmp, len,0);
         }
-        else if (type==GIF) diffFound=encode_gif(in, tmp, int(len))?0:1;
+        else if (type==GIF)  {
+            giff.encode(in, tmp, len,0);
+            diffFound=giff.diffFound;
+        }
         else if (type==WIT) winfo=encode_txt_wit(in, tmp, (len));
         if (type==EOLTEXT && diffFound) {
             // if EOL size is below 25 then drop EOL transform and try TEXT type
@@ -5141,7 +4980,9 @@ void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int in
         else if (type==BASE85 ) decode_ascii85(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==ZLIB && !diffFound) decode_zlib(tmp, int(tmpsize), in, FCOMPARE, diffFound);
         else if (type==BZIP2  )             decode_bzip2(tmp, tmpsize, in, FCOMPARE, diffFound,info=info+256*17);
-        else if (type==GIF && !diffFound) decode_gif(tmp, tmpsize, in, FCOMPARE, diffFound);
+        else if (type==GIF && !diffFound) {
+            diffFound=giff.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+        }
         else if (type==MRBR || type==MRBR4) {
             diffFound=imgmrb.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
         }
@@ -5584,7 +5425,10 @@ U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int i
                     diffFound=mdff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=mdff.fsize; // get decoded size
                 }
-                else if (type==GIF)    len=decode_gif(&tmp, int(len), out, mode, diffFound);
+                else if (type==GIF) {
+                    diffFound=giff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                    len=giff.fsize; // get decoded size
+                }
                 else if (type==MRBR|| type==MRBR4)   {
                     diffFound=imgmrb.CompareFiles(&tmp,out,len,uint64_t(info),mode);
                     len=imgmrb.fsize; // get decoded size
