@@ -1,7 +1,8 @@
 #include "img32filter.hpp"
 
-Img32Filter::Img32Filter(std::string n) {  
+Img32Filter::Img32Filter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 // simple color transform (b, g, r) -> (g, g-r, g-b)

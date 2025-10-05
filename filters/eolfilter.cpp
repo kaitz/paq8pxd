@@ -4,8 +4,9 @@
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski
  
 
-EOLFilter::EOLFilter(std::string n) {  
+EOLFilter::EOLFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 // simple color transform (b, g, r) -> (g, g-r, g-b)

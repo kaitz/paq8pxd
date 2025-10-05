@@ -1,7 +1,8 @@
 #include "szddfilter.hpp"
 
-szddFilter::szddFilter(std::string n) {  
+szddFilter::szddFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 } 
 
 void szddFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

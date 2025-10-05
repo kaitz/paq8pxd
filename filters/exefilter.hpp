@@ -14,7 +14,7 @@
 class ExeFilter: public Filter {
 
 public:
-  ExeFilter(std::string n);
+  ExeFilter(std::string n, Filetype f=DEFAULT);
   ~ExeFilter();
   void encode(File *in, File *out, uint64_t size, uint64_t info);
   uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);

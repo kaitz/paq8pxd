@@ -1,7 +1,8 @@
 #include "exefilter.hpp"
 
-ExeFilter::ExeFilter(std::string n) {  
+ExeFilter::ExeFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 void ExeFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

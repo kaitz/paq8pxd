@@ -1,7 +1,8 @@
 #include "giffilter.hpp"
 
-gifFilter::gifFilter(std::string n) {  
+gifFilter::gifFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 void gifFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

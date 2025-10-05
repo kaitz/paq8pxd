@@ -18,5 +18,4 @@ public:
     const std::string name;
     virtual ~Stream();
     Stream(Streamtype s,const std::string name);
-   
 };

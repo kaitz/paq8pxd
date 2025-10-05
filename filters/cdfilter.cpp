@@ -1,7 +1,8 @@
 #include "cdfilter.hpp"
 
-CDFilter::CDFilter(std::string n) {  
+CDFilter::CDFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 void CDFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

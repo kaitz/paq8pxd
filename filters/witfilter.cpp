@@ -988,8 +988,9 @@ int hentclu1r( char *in,char *out,char *p2,int size,int title){
 }
 
 
-witFilter::witFilter(std::string n) {  
+witFilter::witFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 } 
 
 void witFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

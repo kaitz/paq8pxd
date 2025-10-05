@@ -1,7 +1,8 @@
 #include "decafilter.hpp"
 
-DecAFilter::DecAFilter(std::string n) {  
+DecAFilter::DecAFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 void DecAFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
@@ -63,7 +64,5 @@ uint64_t DecAFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     return fsize;
 }
 
-
 DecAFilter::~DecAFilter() {
 }
-

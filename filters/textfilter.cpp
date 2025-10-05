@@ -8,8 +8,9 @@ extern int verbose;
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski
 #include "wrtpre.inc"
 
-TextFilter::TextFilter(std::string n) {  
+TextFilter::TextFilter(std::string n, Filetype f) {
     name=n;
+    Type=f;
 }
 
 // simple color transform (b, g, r) -> (g, g-r, g-b)

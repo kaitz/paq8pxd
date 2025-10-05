@@ -1,7 +1,8 @@
 #include "mdffilter.hpp"
 
-MDFFilter::MDFFilter(std::string n) {  
+MDFFilter::MDFFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 void MDFFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

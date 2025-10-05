@@ -1,7 +1,8 @@
 #include "mrbfilter.hpp"
 
-ImgMRBFilter::ImgMRBFilter(std::string n) {  
+ImgMRBFilter::ImgMRBFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 }
 
 // simple color transform (b, g, r) -> (g, g-r, g-b)

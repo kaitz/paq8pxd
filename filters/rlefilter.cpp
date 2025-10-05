@@ -1,7 +1,8 @@
 #include "rlefilter.hpp"
 
-rleFilter::rleFilter(std::string n) {  
+rleFilter::rleFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 } 
 
 void rleFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

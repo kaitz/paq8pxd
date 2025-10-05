@@ -1,8 +1,9 @@
 #include "uudfilter.hpp"
 
 // needst test with proper input
-uudFilter::uudFilter(std::string n) {  
+uudFilter::uudFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 } 
 
 void uudFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

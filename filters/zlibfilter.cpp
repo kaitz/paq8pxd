@@ -16,8 +16,9 @@ int parse_zlib_header(int header) {
 int zlib_inflateInit(z_streamp strm, int zh) {
     if (zh==-1) return inflateInit2(strm, -MAX_WBITS); else return inflateInit(strm);
 }
-zlibFilter::zlibFilter(std::string n) {  
+zlibFilter::zlibFilter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 } 
 
 void zlibFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {

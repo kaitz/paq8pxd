@@ -124,7 +124,9 @@ int Streams::GetTypeInfo(Filetype type) {
     return TR_NONE;    
 }
 
-
+  File& Streams::GetStreamFile(int id) {
+      return streams[id]->file;
+  }
 
 
 

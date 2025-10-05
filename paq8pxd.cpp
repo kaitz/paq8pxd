@@ -130,42 +130,10 @@ inline int max(int a, int b) {return a<b?b:a;}
 
 #include "stream/streams.hpp"
 
-#include "filters/img24filter.hpp"
-#include "filters/img32filter.hpp"
-#include "filters/mrbfilter.hpp"
-#include "filters/exefilter.hpp"
 #include "filters/textfilter.hpp"
-#include "filters/eolfilter.hpp"
-#include "filters/mdffilter.hpp"
-#include "filters/cdfilter.hpp"
-#include "filters/giffilter.hpp"
-#include "filters/szddfilter.hpp"
-#include "filters/base64filter.hpp"
-#include "filters/witfilter.hpp"
-#include "filters/uudfilter.hpp"
-#include "filters/zlibfilter.hpp"
-#include "filters/bzip2filter.hpp"
-#include "filters/decafilter.hpp"
-#include "filters/rlefilter.hpp"
+#include "analyser/codec.hpp"
 
-Img24Filter  img24("image 24bit");
-Img32Filter  img32("image 32bit");
-ImgMRBFilter imgmrb("image mrb");
-ExeFilter    exe("exe");
 TextFilter   textf("text");
-EOLFilter    eolf("eol");
-MDFFilter    mdff("mdf");
-CDFilter     cdff("cd");
-gifFilter    giff("gif");
-szddFilter   szddf("szdd");
-base64Filter base64f("base64");
-witFilter    witf("wit");
-uudFilter    uudf("uuencode");
-zlibFilter   zlibf("zlib");
-bzip2Filter  bzip2f("bzip2");
-DecAFilter   decaf("dec alpha");
-rleFilter    rlef("rle tga");
-
 Streams streams;
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
@@ -183,9 +151,6 @@ Segment segment; //for file segments type size info(if not -1)
 int dt[1024];  // i -> 16K/(i+i+3)
 
 int n0n1[256]; // for contectmap
-#define PNGFlag (1<<31)
-#define GrayFlag (1<<30)
-
 
 /*
 #include <psapi.h>
@@ -200,8 +165,6 @@ size_t getPeakMemory(){
     return (size_t)0L;
 #endif
 }*/
-
-
 
 /////////////////////////// Filters /////////////////////////////////
 //
@@ -305,7 +268,6 @@ inline bool is_base85(unsigned char c) {
     return (isalnum(c) || (c==13) || (c==10) || (c=='y') || (c=='z') || (c>='!' && c<='u'));
 }
 
-
 //read compressed word,dword
 U32 GetCDWord(File*f){
     U16 w = f->getc();
@@ -357,7 +319,7 @@ bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
 
 #define base64max 0x8000000 //128M limit
 #define base85max 0x8000000 //128M limit
-
+/*
 struct TARheader{
     char name[100];
     char mode[8];
@@ -374,7 +336,7 @@ struct TARheader{
     char major[8];
     char minor[8];
     char pad[167];
-};
+};*/
 int getoct(const char *p, int n){
     int i = 0;
     while (*p<'0' || *p>'7') ++p, --n;
@@ -478,67 +440,8 @@ static const U8 utf8_state_table[] = {
   12,36,12,12,12,12,12,36,12,36,12,12, // state 84-95
   12,36,12,12,12,12,12,12,12,12,12,12  // state 96-108
 };
-
-#define TEXT_MIN_SIZE 1024*64   // size of minimum allowed text block (in bytes)
-#define TEXT_MAX_MISSES 6    // threshold: max allowed number of invalid UTF8 sequences seen recently before reporting "fail"
-#define TEXT_ADAPT_RATE 256  // smaller (like 32) = illegal sequences are allowed to come more often, larger (like 1024) = more rigorous detection
-
-struct TextParserStateInfo {
-  Array<U64> _start;
-  Array<U64> _end;      // position of last char with a valid UTF8 state: marks the end of the detected TEXT block
-  Array<U32> _EOLType;  // 0: none or CR-only;   1: CRLF-only (applicable to EOL transform);   2: mixed or LF-only
-  Array<U32> _number;  // 0: none or CR-only;   1: CRLF-only (applicable to EOL transform);   2: mixed or LF-only
-  U32 invalidCount;     // adaptive count of invalid UTF8 sequences seen recently
-  U32 UTF8State;        // state of utf8 parser; 0: valid;  12: invalid;  any other value: yet uncertain (more bytes must be read)
-  U32 countUTF8;
-  TextParserStateInfo(): _start(0), _end(0), _EOLType(0),_number(0) {}
-  void reset(U64 startpos) {
-    _start.resize(1);
-    _end.resize(1);
-    _start[0]=startpos;
-    _end[0]=startpos-1;
-    _EOLType.resize(1);
-    _number.resize(1);
-    _EOLType[0]=0;
-    _number[0]=0;
-    invalidCount=0;
-    UTF8State=0;
-    countUTF8=0;
-  }
-  U64 start(){return _start[_start.size()-1];}
-  U64 end(){return _end[_end.size()-1];}
-  void setend(U64 end){_end[_end.size()-1]=end;}
-  U32 EOLType(){return _EOLType[_EOLType.size()-1];}
-  void setEOLType(U32 EOLType){_EOLType[_EOLType.size()-1]=EOLType;}
-  U32 number(){return _number[_number.size()-1];}
-  void set_number(U32 number){_number[_number.size()-1]=number;}
-  U64 validlength(){return end() - start() + 1;}
-  void next(U64 startpos) {
-    _start.push_back(startpos);
-    _end.push_back(startpos-1);
-    _EOLType.push_back(0);
-    _number.push_back(0);
-    invalidCount=0;
-    UTF8State=0;
-    countUTF8=0;
-  }
-  void removefirst() {
-    if(_start.size()==1)
-      reset(0);
-    else {
-      for(int i=0;i<(int)_start.size()-1;i++){
-        _start[i]=_start[i+1];
-        _end[i]=_end[i+1];
-        _EOLType[i]=_EOLType[i+1];
-        _number[i]=_number[i+1];
-      }
-      _start.pop_back();
-      _end.pop_back();
-      _EOLType.pop_back();
-      _number.pop_back();
-    }
-  }
-} textparser;
+#include "prt/textinfo.hpp"
+TextParserStateInfo textparser;
 void printStatus1(U64 n, U64 size) {
 fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
@@ -2443,348 +2346,6 @@ U64 typenamess[datatypecount][5]={0}; //total type size for levels 0-5
 U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
-void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0) {
-  segment.putdata(type,len,info);
-  int srid=streams.GetStreamID(type);
-  Stream *sout=streams.streams[srid];
-  for (U64 j=0; j<len; ++j) sout->file.putc(in->getc());
-}
-
-void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it);
-
-void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 begin) {
-    if (streams.GetTypeInfo(type)&TR_TRANSFORM) {
-        U64 diffFound=0;
-        U32 winfo=0;
-        FileTmp* tmp;
-        tmp=new FileTmp;
-        if (type==IMAGE24) img24.encode(in, tmp, len, uint64_t(info));
-        else if (type==IMAGE32) img32.encode(in, tmp, len, uint64_t(info));
-        else if (type==MRBR) imgmrb.encode(in, tmp, len, uint64_t(info)+(uint64_t(info2)<<32));
-        else if (type==MRBR4) imgmrb.encode(in, tmp, len,     uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
-        else if (type==RLE) rlef.encode(in, tmp, len, info);//, info2
-        else if (type==LZW) encode_lzw(in, tmp, len, info2);
-        else if (type==EXE) exe.encode(in, tmp, len, begin);
-        else if (type==DECA) decaf.encode(in, tmp, (len), (begin));
-        else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
-        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
-            if ( type!=TXTUTF8 ){
-            textf.encode(in, tmp, (len),1);
-            U64 txt0Size= tmp->curpos();
-            //reset to text mode
-            in->setpos(begin);
-            tmp->close();
-            tmp=new FileTmp;
-            textf.encode(in, tmp, (len),0);
-            U64 txtSize= tmp->curpos();
-            tmp->close();
-            in->setpos( begin);
-            tmp=new FileTmp;
-            if (txt0Size<txtSize && (((txt0Size*100)/txtSize)<95)) {
-                in->setpos( begin);
-                textf.encode(in, tmp, (len),1);
-                type=TEXT0,info=1;
-            }else{
-                textf.encode(in, tmp, (len),0);
-                type=TEXT,info=0;
-            }
-            }
-            else textf.encode(in, tmp, (len),info&1); 
-        }
-        else if (type==EOLTEXT) {
-            eolf.encode(in, tmp, len,info&1);
-            diffFound=eolf.diffFound;
-        }
-        else if (type==BASE64) base64f.encode(in, tmp, len,0);
-        else if (type==UUENC) uudf.encode(in, tmp, len,info);
-        else if (type==BASE85) encode_ascii85(in, tmp, int(len));
-        else if (type==SZDD) {
-            szddf.encode(in, tmp,0, info);
-        }
-        else if (type==ZLIB) {
-            zlibf.encode(in, tmp, len,0);   
-            diffFound=zlibf.diffFound;
-        }
-        else if (type==BZIP2){
-            bzip2f.encode(in, tmp, len,info);
-        }
-        else if (type==CD) cdff.encode(in, tmp, (len), info);
-        else if (type==MDF) {
-            mdff.encode(in, tmp, len,0);
-        }
-        else if (type==GIF)  {
-            giff.encode(in, tmp, len,0);
-            diffFound=giff.diffFound;
-        }
-        else if (type==WIT) {
-            witf.encode(in, tmp, len,0);
-            winfo=witf.fsize;
-        }
-        if (type==EOLTEXT && diffFound) {
-            // if EOL size is below 25 then drop EOL transform and try TEXT type
-            diffFound=0, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),textf.encode(in, tmp, len,info&1); 
-        }
-        const U64 tmpsize= tmp->curpos();
-        int tfail=0;
-        tmp->setpos(0);
-        en.setFile(tmp);
-        
-        if (type==BZIP2 || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
-         in->setpos(begin);
-        if (type==BASE64 ) {
-            diffFound=base64f.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==UUENC ) {
-            diffFound=uudf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==BASE85 ) decode_ascii85(tmp, int(tmpsize), in, FCOMPARE, diffFound);
-        else if (type==ZLIB && !diffFound) {
-            diffFound=zlibf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==BZIP2  )     {
-            diffFound=bzip2f.CompareFiles(tmp,in, tmpsize, uint64_t(info=info+256*17), FCOMPARE);
-        }
-        else if (type==GIF && !diffFound) {
-            diffFound=giff.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==MRBR || type==MRBR4) {
-            diffFound=imgmrb.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==RLE)           {
-            diffFound=rlef.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }      //decode_rle(tmp, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
-        else if (type==DECA) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<tmpsize; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=decaf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }
-        else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
-        else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<tmpsize; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=textf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }
-        else if ((type==WIT) ) {
-            diffFound=witf.CompareFiles(tmp,in, tmpsize, uint64_t(winfo), FCOMPARE);
-        }
-        else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
-        else if (type==EOLTEXT ){
-            diffFound=eolf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        if (type==EOLTEXT && (diffFound )) {
-            // if fail fall back to text
-            diffFound=0,info=-1, in->setpos(begin),type=TEXT,tmp->close(),tmp=new FileTmp(),textf.encode(in, tmp, len,0); 
-        }  else if (type==BZIP2 && (diffFound) ) {
-            // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
-            in->setpos(begin);
-            tmp->setpos(0);
-            diffFound=bzip2f.CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
-        }            
-        tfail=(diffFound || tmp->getc()!=EOF); 
-        }
-        // Test fails, compress without transform
-        if (tfail) {
-            if (verbose>2) printf(" Transform fails at %0lu, skipping...\n", diffFound-1);
-             in->setpos(begin);
-             Filetype type2;
-             if (type==ZLIB || (type==BZIP2))  type2=CMP; else type2=DEFAULT;
-              
-            direct_encode_blockstream(type2, in, len);
-            typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
-            typenamess[type2][it]+=len,  typenamesc[type2][it]++; // default info
-        } else {
-            tmp->setpos(0);
-            if (type==EXE) {
-               direct_encode_blockstream(type, tmp, tmpsize);
-            } else if (type==DECA || type==ARM) {
-                direct_encode_blockstream(type, tmp, tmpsize);
-            } else if (type==IMAGE24 || type==IMAGE32) {
-                direct_encode_blockstream(type, tmp, tmpsize, info);
-            } else if (type==MRBR || type==MRBR4) {
-                segment.putdata(type,tmpsize,0);
-                int hdrsize=( tmp->getc()<<8)+(tmp->getc());
-                Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
-                hdrsize=4+hdrsize*4+4;
-                tmp->setpos(0);
-                typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                direct_encode_blockstream(HDR, tmp, hdrsize);
-                if (it==itcount)    itcount=it+1;
-                typenamess[type2][it+1]+=tmpsize,  typenamesc[type2][it+1]++;
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
-            } else if (type==RLE) {
-                segment.putdata(type,tmpsize,0);
-                int hdrsize=( 4);
-                Filetype type2 =(Filetype)(info>>24);
-                tmp->setpos(0);
-                typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                direct_encode_blockstream(HDR, tmp, hdrsize);
-                if (it==itcount)    itcount=it+1;
-                typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
-            } else if (type==LZW) {
-                segment.putdata(type,tmpsize,0);
-                int hdrsize=( 0);
-                Filetype type2 =(Filetype)(info>>24);
-                tmp->setpos(0);
-                if (it==itcount)    itcount=it+1;
-                typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
-            }else if (type==GIF) {
-                segment.putdata(type,tmpsize,0);
-                int hdrsize=(tmp->getc()<<8)+tmp->getc();
-                tmp->setpos(0);
-                typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                direct_encode_blockstream(HDR, tmp, hdrsize);
-                typenamess[info>>24][it+1]+=tmpsize-hdrsize,  typenamesc[IMAGE8][it+1]++;
-                direct_encode_blockstream((Filetype)(info>>24), tmp, tmpsize-hdrsize, info&0xffffff);
-            } else if (type==AUDIO) {
-                segment.putdata(type,len,info2); //original lenght
-                direct_encode_blockstream(type, tmp, tmpsize, info);
-            } else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0)  ) {
-                   if ( len>0xA00000){ //if WRT is smaller then original block 
-                      if (tmpsize>(len-256) ) {
-                         in->setpos( begin);
-                         direct_encode_blockstream(NOWRT, in, len); }
-                      else
-                        direct_encode_blockstream(BIGTEXT, tmp, tmpsize);}
-                   else if (tmpsize< (len*2-len/2)||len) {
-                        // encode as text without wrt transoform, 
-                        // this will be done when stream is compressed
-                        in->setpos( begin);
-                        direct_encode_blockstream(type, in, len);
-                   }
-                   else {
-                        // wrt size was bigger, encode as NOWRT and put in bigtext stream.
-                        in->setpos(begin);
-                        direct_encode_blockstream(NOWRT, in, len);
-                   }
-            }else if (type==EOLTEXT) {
-                segment.putdata(type,tmpsize,0);
-                int hdrsize=tmp->get32();
-                hdrsize=tmp->get32();
-                hdrsize=hdrsize+12;
-                tmp->setpos(0);
-                typenamess[CMP][it+1]+=hdrsize,  typenamesc[CMP][it+1]++; 
-                direct_encode_blockstream(CMP, tmp, hdrsize);
-                typenamess[TEXT][it+1]+=tmpsize-hdrsize,  typenamesc[TEXT][it+1]++;
-                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize, en, -1,-1, blstr, it, hdrsize); 
-            } else if (streams.GetTypeInfo(type)&TR_RECURSIVE) {
-                int isinfo=0;
-                if (type==SZDD ||  type==ZLIB  || type==BZIP2) isinfo=info;
-                else if (type==WIT) isinfo=winfo;
-                segment.putdata(type,tmpsize,isinfo);
-                if (type==ZLIB) {// PDF or PNG image && info
-                    Filetype type2 =(Filetype)(info>>24);
-                    if (it==itcount)    itcount=it+1;
-                    int hdrsize=7+5*tmp->getc();
-                    tmp->setpos(0);
-                    typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                    direct_encode_blockstream(HDR,  tmp, hdrsize);
-                    if (info){
-                        typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                        transform_encode_block(type2,  tmp, tmpsize-hdrsize, en, info&0xffffff,-1, blstr, it, hdrsize); }
-                    else{
-                         DetectRecursive( tmp, tmpsize-hdrsize, en, blstr,it+1);//it+1
-                    }
-                } else {     
-                    DetectRecursive( tmp, tmpsize, en, blstr,it+1);//it+1
-                    tmp->close();
-                    return;
-                }    
-            }
-        }
-        tmp->close();  // deletes
-    } else {
-        
-#define tarpad  //remove for filesize padding \0 and add to default stream as hdr        
-        //do tar recursion, no transform
-        if (type==TAR){
-        int tarl=int(len),tarn=0,blnum=0,pad=0;;
-        TARheader tarh;
-        char b2[32];
-        strcpy(b2, blstr);
-        if (b2[0]) strcat(b2, "-");
-        while (tarl>0){
-            tarl=tarl-pad;
-            U64 savedpos= in->curpos(); 
-            in->setpos(savedpos+pad);
-            in->blockread( (U8*)&tarh,  sizeof(tarh)  );
-            in->setpos(savedpos);
-            if (tarend((char*)&tarh)) {
-                tarn=512+pad;
-                if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[BINTEXT],tarn,savedpos,savedpos+tarn-1);
-                typenamess[BINTEXT][it+1]+=tarn,  typenamesc[BINTEXT][it+1]++; 
-                direct_encode_blockstream(BINTEXT, in, tarn);
-               }
-            else if (!tarchecksum((char*)&tarh))  
-                quit("tar checksum error\n");
-            else{
-                int a=getoct(tarh.size,12);
-                int b=a-(a/512)*512;
-                if (b) tarn=512+(a/512)*512;
-                else if (a==0) tarn=512;
-                else tarn= a;
-                sprintf(blstr,"%s%d",b2,blnum++);
-                int tarover=512+pad;
-                //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[BINTEXT],tarover,savedpos,savedpos+tarover-1,tarh.name);
-                typenamess[BINTEXT][it+1]+=tarover,  typenamesc[BINTEXT][it+1]++; 
-                if (it==itcount)    itcount=it+1;
-                direct_encode_blockstream(BINTEXT, in, tarover);
-                pad=0;
-                if (a!=0){
-                    #ifdef tarpad
-                        int filenamesize=strlen(tarh.name);
-                        U64 ext=0;
-                        if( filenamesize>4) for (int i=5;i>0;i--) {
-                            U8 ch=tarh.name[filenamesize-i];
-                            if (ch>='A' && ch<='Z') ch+='a'-'A';
-                            ext=(ext<<8)+ch;
-                        }
-                        
-                        if( filenamesize>3 && (
-                        (ext&0xffff)==0x2E63 ||  // .c
-                        (ext&0xffff)==0x2E68||   //.h
-                        (ext&0xffffffff)==0x2E747874 ||   //.txt
-                        (ext&0xffffffffff)==0x2E68746D6C ||  //.html
-                        (ext&0xffffffff)==0x2E637070 ||   //.cpp
-                        (ext&0xffffff)==0x2E706F // .po
-                       // ((tarh.name[filenamesize-1]=='c' || tarh.name[filenamesize-1]=='h') && tarh.name[filenamesize-2]=='.') ||
-                      //  (tarh.name[filenamesize-4]=='.' && tarh.name[filenamesize-3]=='t' && tarh.name[filenamesize-2]=='x' &&  tarh.name[filenamesize-1]=='t')
-                        )){
-                           if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
-                             direct_encode_blockstream(TEXT, in, a);
-                        }else{
-                        
- 
-                        DetectRecursive(in, a, en, blstr, 0);
-                        }
-                        pad=tarn-a; 
-                        tarn=a+512;
-                    #else
-                        DetectRecursive(in, tarn, en, blstr, 0);
-                        pad=0;
-                        tarn+=512;
-                    #endif
-               }
-             }
-             tarl-=tarn;
-             }
-             if (verbose>2) printf("\n");
-        }else {
-            const int i1=(streams.GetTypeInfo(type)&TR_INFO)?info:-1;
-            direct_encode_blockstream(type, in, len, i1);
-        }
-    }
-    
-}
 #if defined(WINDOWS)      
       HANDLE  hConsole;
 #endif
@@ -2792,308 +2353,6 @@ void SetConColor(int color) {
 #if defined(WINDOWS)      
       SetConsoleTextAttribute(hConsole, color);
 #endif     
-}
-
-void DetectRecursive(File*in, U64 n, Encoder &en, char *blstr, int it=0) {
-  static const char* audiotypes[6]={"8b mono","8b stereo","16b mono","16b stereo","32b mono","32b stereo"};
-  Filetype type=DEFAULT;
-  int blnum=0, info,info2;  // image width or audio type
-  U64 begin= in->curpos(), end0=begin+n;
-  U64 textstart;
-  U64 textend=0;
-  U64 end=0;U64 len;
-  Filetype nextType;
-  //Filetype nextblock_type;
-  Filetype nextblock_type_bak=DEFAULT; //initialized only to suppress a compiler warning, will be overwritten
-  char b2[32];
-  strcpy(b2, blstr);
-  if (b2[0]) strcat(b2, "-");
-  if (it==5) {
-    direct_encode_blockstream(DEFAULT, in, n);
-    return;
-  }
-  //s2+=n;
-  // Transform and test in blocks
-  while (n>0) {
-    if (it==0 && witmode==true) {
-      len=end=end0,info=0,type=WIT;
-    }
-    else if (it==1 && witmode==true){    
-      len=end=end0,info=0,type=TXTUTF8;
-    } else {   
-    if(type==TEXT || type==EOLTEXT || type==TXTUTF8) { // it was a split block in the previous iteration: TEXT -> DEFAULT -> ...
-      nextType=nextblock_type_bak;
-      end=textend+1;
-    }
-    else {
-      nextType=detect(in, n, type, info,info2,it);
-      end=in->curpos();
-      in->setpos(begin);
-    }
-   // Filetype nextType=detect(in, n, type, info,info2,it,s1);
-   // U64 end= in->curpos();
-   //  in->setpos( begin);
-     // override (any) next block detection by a preceding text block
-    textstart=begin+textparser._start[0];
-    textend=begin+textparser._end[0];
-    if(textend>end-1)textend=end-1;
-    if(type==DEFAULT && textstart<textend) { // only DEFAULT blocks may be overridden
-     U64 nsize=0;
-      if(textstart==begin && textend == end-1) { // whole first block is text
-        type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // DEFAULT -> TEXT
-        U64 nsize=textparser.number();
-        if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
-        //if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8;
-      }
-      else if (textend - textstart + 1 >= TEXT_MIN_SIZE) { // we have one (or more) large enough text portion that splits DEFAULT
-        if (textstart != begin) { // text is not the first block 
-          end=textstart; // first block is still DEFAULT
-          nextblock_type_bak=nextType;
-          nextType=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; //next block is text
-          //if (textparser.number()>((end-begin)>>1))nextblock_type=TEXT0;
-           nsize=textparser.number();
-        if (nsize>(((end-begin)-nsize)>>1))nextType=TEXT0; 
-          textparser.removefirst();
-        } else {
-          type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // first block is text
-          nextType=DEFAULT;     // next block is DEFAULT
-          end=textend+1; 
-          //if (textparser.number()>((end-begin)>>1))type=TEXT0;
-           nsize=textparser.number();
-        if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
-        }
-      }
-      if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8,info=0;
-      // no text block is found, still DEFAULT
-      
-    }
-    if (end>end0) {  // if some detection reports longer then actual size file is
-      end=begin+1;
-      type=nextType=DEFAULT;
-    }
-      len=U64(end-begin);
-    if (begin>end) len=0;
-    if (len>=2147483646) {  
-      if (!(type==BZIP2||type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0 ||type==EOLTEXT))len=2147483646,type=DEFAULT; // force to int
-    }
-   }
-    if (len>0) {
-    if ((type==EOLTEXT) && (len<1024*64 || len>0x1FFFFFFF)) type=TEXT;
-    if (it>itcount)    itcount=it;
-    if((len>>1)<(info) && type==DEFAULT && info<len) type=BINTEXT;
-    if(len==info && type==DEFAULT ) type=ISOTEXT;
-    if(len<=TEXT_MIN_SIZE && type==TEXT0 ) type=TEXT;
-    typenamess[type][it]+=len,  typenamesc[type][it]++; 
-      //s2-=len;
-      sprintf(blstr,"%s%d",b2,blnum++);
-      // printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
-      if (verbose>2) printf(" %-16s |",blstr);
-      int streamcolor=streams.GetStreamID(type)+1+1;
-      if (streamcolor<1) streamcolor=7;
-      SetConColor(streamcolor);
-      if (verbose>2) printf(" %-9s ",typenames[type]);
-      SetConColor(7);
-      if (verbose>2) {
-        printf("|%12.0f [%0.0f - %0.0f]",len+0.0,begin+0.0,(end-1)+0.0);
-        if (type==AUDIO) printf(" (%s)", audiotypes[(info&31)%4+(info>>7)*2]);
-        else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24 || type==MRBR|| type==MRBR4|| type==IMAGE8GRAY || type==IMAGE32 ||type==GIF) printf(" (width: %d)", info&0xFFFFFF);
-        else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
-        else if (type==ZLIB && (info>>24) > 0) printf(" (%s)",typenames[info>>24]);
-        printf("\n");
-      }
-      transform_encode_block(type, in, len, en, info,info2, blstr, it, begin);
-      n-=len;
-    }
-    
-    type=nextType;
-    begin=end;
-  }
-}
-
-// Compress a file. Split filesize bytes into blocks by type.
-// For each block, output
-// <type> <size> and call encode_X to convert to type X.
-// Test transform and compress.
-void DetectStreams(const char* filename, U64 filesize) {
-  assert(filename && filename[0]);
-  FileTmp tmp;
-  Predictors *t;
-  t=0;
-  Encoder en(COMPRESS, &tmp,*t);
-  assert(en.getMode()==COMPRESS);
-  assert(filename && filename[0]);
-  FileDisk in;
-  in.open(filename,true);
-  if (verbose>2) printf("Block segmentation:\n");
-  char blstr[32]="";
-  DetectRecursive(&in, filesize, en, blstr);
-  in.close();
-  tmp.close();
-}
-
-U64 decompressStreamRecursive(File*out, U64 size, Encoder& en, FMode mode, int it=0, U64 s1=0, U64 s2=0) {
-    Filetype type;
-    U64 len,i,diffFound;
-    len=i=diffFound=0L;
-    int info=-1;
-    s2+=size;
-    while (i<size) {
-        type=(Filetype)segment(segment.pos++);
-        for (int k=0; k<8; k++) len=len<<8,len+=segment(segment.pos++);
-        for (int k=info=0; k<4; ++k) info=(info<<8)+segment(segment.pos++);
-        int srid=streams.GetStreamID(type);
-        if (srid>=0) en.setFile(&streams.streams[srid]->file);
-        #ifdef VERBOSE  
-         printf(" %d  %-9s |%0lu [%0lu]\n",it, typenames[type],len,i );
-        #endif
-        if (type==IMAGE24 && !(info&PNGFlag))   {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=img24.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-            //tmp.close();
-        }  
-        else if (type==IMAGE32 && !(info&PNGFlag)) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=img32.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-        }
-        else if (type==EXE) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=exe.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-        }
-        else if (type==DECA)    {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=decaf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-            len=decaf.fsize; // get decoded size
-        }
-        else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
-        else if (type==BIGTEXT) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=textf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-            len=textf.fsize; // get decoded size
-        }
-        // LZW ?
-        else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==BZIP2 || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
-            FileTmp tmp;
-            decompressStreamRecursive(&tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
-            if (mode!=FDISCARD) {
-                tmp.setpos(0);
-                if (type==BASE64) {
-                    diffFound=base64f.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=base64f.fsize; // get decoded size
-                }
-                else if (type==UUENC) {
-                    diffFound=uudf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
-                    len=szddf.fsize; // get decoded size
-                }
-                else if (type==BASE85) len=decode_ascii85(&tmp, int(len), out, mode, diffFound);
-                else if (type==SZDD)  {
-                    diffFound=szddf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
-                    len=szddf.fsize; // get decoded size
-                }
-                else if (type==ZLIB)  {
-                    diffFound=zlibf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=zlibf.fsize; // get decoded size
-                }
-                else if (type==BZIP2) {
-                    diffFound=bzip2f.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=bzip2f.fsize; // get decoded size
-                }
-                else if (type==CD)     {
-                    diffFound=cdff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=cdff.fsize; // get decoded size
-                }
-                else if (type==MDF)    {
-                    diffFound=mdff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=mdff.fsize; // get decoded size
-                }
-                else if (type==GIF) {
-                    diffFound=giff.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=giff.fsize; // get decoded size
-                }
-                else if (type==MRBR|| type==MRBR4)   {
-                    diffFound=imgmrb.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=imgmrb.fsize; // get decoded size
-                }
-                else if (type==EOLTEXT){
-                    diffFound=eolf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=eolf.fsize; // get decoded size
-                }
-                else if (type==RLE) {
-                    diffFound=rlef.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=rlef.fsize; // get decoded size
-                }   //len=decode_rle(&tmp, len, out, mode, diffFound);
-                else if ((type==WIT) ) {
-                    diffFound=witf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=witf.fsize; // get decoded size
-                }
-            }
-            tmp.close();
-        }
-        else {
-            for (U64 j=i+s1; j<i+s1+len; ++j) {
-                if (!(j&0x1ffff)) printStatus(j, s2);
-                if (mode==FDECOMPRESS) out->putc(en.decompress());
-                else if (mode==FCOMPARE) {
-                    int a=out->getc();
-                    int b=en.decompress();
-                    if (a!=b && !diffFound) {
-                        mode=FDISCARD;
-                        diffFound=j+1;
-                    }
-                } else en.decompress();
-            }
-        }
-        i+=len;
-    }
-    return diffFound;
-}
-
-// Decompress a file from datastream
-void DecodeStreams(const char* filename, U64 filesize) {
-  FMode mode=FDECOMPRESS;
-  assert(filename && filename[0]);
-  FileTmp  tmp;
-  Predictors *t; //dummy
-  t=0;
-  Encoder en(COMPRESS, &tmp,*t);
-  // Test if output file exists.  If so, then compare.
-  FileDisk f;
-  bool success=f.open(filename,false);
-  if (success) mode=FCOMPARE,printf("Comparing");
-  else {
-    // Create file
-    f.create(filename);
-    mode=FDECOMPRESS, printf("Extracting");
-  }
-  printf(" %s %0.0f -> \n", filename, filesize+0.0);
-
-  // Decompress/Compare
-  U64 r=decompressStreamRecursive(&f, filesize, en, mode);
-  if (mode==FCOMPARE && !r && f.getc()!=EOF) printf("file is longer\n");
-  else if (mode==FCOMPARE && r) printf("differ at %0lu\n",r-1);
-  else if (mode==FCOMPARE) printf("identical\n");
-  else printf("done   \n");
-  f.close();
-  tmp.close();
 }
 
 void compressStream(int streamid, U64 size, File* in, File* out) {
@@ -3819,9 +3078,10 @@ printf("\n");
             en->flush();
             delete en;
             delete predictord;
+            Codec codec(FDECOMPRESS, &streams, &segment);
             for (int i=0; i<files; ++i) {
                 printf("\n%d/%d  Filename: %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
-                DetectStreams(fname[i], fsize[i]);
+                codec.EncodeFile(fname[i], fsize[i]);// DetectStreams(fname[i], fsize[i]);
             }
             segment.put1(0xff); //end marker
             //Display Level statistics
@@ -3912,10 +3172,12 @@ printf("\n");
             streams.streams[i]->file.setpos( 0);
             /////
             segment.pos=0;
+            Codec codec(FDECOMPRESS, &streams, &segment);
             for (int i=0; i<files; ++i) {
                 std::string out(dir.c_str());
                 out+=fname[i];
-                DecodeStreams(out.c_str(), fsize[i]);
+                printf("Reading file %s\n",out.c_str());
+                codec.DecodeFile(out.c_str(), fsize[i]);// DecodeStreams(out.c_str(), fsize[i]);
             } 
             int d=segment(segment.pos++);
             if (d!=0xff) printf("Segmend end marker not found\n");
@@ -3934,7 +3196,4 @@ printf("\n");
     }
     return 0;
 }
-
-
-
 

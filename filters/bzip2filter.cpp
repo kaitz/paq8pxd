@@ -1,7 +1,8 @@
 #include "bzip2filter.hpp"
 
-bzip2Filter::bzip2Filter(std::string n) {  
+bzip2Filter::bzip2Filter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 } 
 
 void bzip2Filter::encode(File *in, File *out, uint64_t size, uint64_t info) {

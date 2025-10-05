@@ -6,7 +6,7 @@
 class bzip2Filter: public Filter {
 
 public:
-  bzip2Filter(std::string n);
+  bzip2Filter(std::string n, Filetype f=DEFAULT);
   ~bzip2Filter();
   void encode(File *in, File *out, uint64_t size, uint64_t info);
   uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);

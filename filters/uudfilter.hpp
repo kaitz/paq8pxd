@@ -7,7 +7,7 @@
 class uudFilter: public Filter {
 
 public:
-  uudFilter(std::string n);
+  uudFilter(std::string n, Filetype f=DEFAULT);
   ~uudFilter();
   void encode(File *in, File *out, uint64_t size, uint64_t info);
   uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);

@@ -13,8 +13,9 @@ inline char valueb(char c){
 bool is_base64(unsigned char c) {
     return (isalnum(c) || (c=='+') || (c=='/')|| (c==10) || (c==13));
 }
-base64Filter::base64Filter(std::string n) {  
+base64Filter::base64Filter(std::string n, Filetype f) {  
     name=n;
+    Type=f;
 } 
 
 void base64Filter::encode(File *in, File *out, uint64_t size, uint64_t info) {
