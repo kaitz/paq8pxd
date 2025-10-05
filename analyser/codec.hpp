@@ -28,6 +28,7 @@
 #include "../filters/rlefilter.hpp"
 #include "../filters/base85filter.hpp"
 #include "../filters/armfilter.hpp"
+#include "../filters/lzwfilter.hpp"
 #include "../filters/defaultfilter.hpp"
 
 class Codec {

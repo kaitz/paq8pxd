@@ -33,6 +33,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new rleFilter(std::string("rle tga"),RLE));
     AddFilter( new base85Filter(std::string("base85"),BASE85));
     AddFilter( new armFilter(std::string("arm"),ARM));
+    AddFilter( new lzwFilter(std::string("lzw"),LZW));
     AddFilter( new DefaultFilter(std::string("default"),DEFAULT)); // must be last
 }
 
@@ -381,7 +382,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         else if (type==MRBR) dataf.encode(in, tmp, len, uint64_t(info)+(uint64_t(info2)<<32));
         else if (type==MRBR4) dataf.encode(in, tmp, len,     uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
         else if (type==RLE) dataf.encode(in, tmp, len, info);//, info2
-        //else if (type==LZW) encode_lzw(in, tmp, len, info2);
+        else if (type==LZW) dataf.encode(in, tmp, len, info);
         else if (type==EXE) dataf.encode(in, tmp, len, begin);
         else if (type==DECA) dataf.encode(in, tmp, (len), (begin));
         else if (type==ARM) dataf.encode(in, tmp, len, begin);
@@ -472,8 +473,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         }
         else if (type==RLE)           {
             diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }      //decode_rle(tmp, tmpsize, in, FCOMPARE, diffFound);
-        //else if (type==LZW)                 decode_lzw(tmp, tmpsize, in, FCOMPARE, diffFound);
+        }
+        else if (type==LZW) {
+            FileTmp tmp;
+            for (uint64_t j=0; j<tmpsize; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+        }
         else if (type==DECA) {
             FileTmp tmp;
             for (uint64_t j=0; j<tmpsize; j++) {
