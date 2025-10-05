@@ -1,11 +1,5 @@
 #include "helper.hpp"
-#include <assert.h>
-#ifdef WINDOWS
-#include <windows.h>
-#endif
-#include <sys/stat.h>
-#include <string>
-#include <stdio.h>
+
 extern U8 level;
 // Error handler: print message if any, and exit
 void quit(const char* message) {

@@ -176,7 +176,7 @@ public:
     assert(B>=2 && i>0 && (i&(i-1))==0); // size a power of 2? N((n+3)&-4),
     sm = new StateMap*[ncontext];
 
-    for (U32 i=0; i<ncontext; i++) {
+    for (int i=0; i<ncontext; i++) {
       sm[i] = new StateMap(1<<8);
     }
   }
@@ -212,7 +212,7 @@ public:
   
 
   ~BHMap() {
-      for (U32 i=0; i<ncontext; i++) {
+      for (int i=0; i<ncontext; i++) {
       delete sm[i];
     }
     delete[] sm;

@@ -48,6 +48,7 @@ public:
   virtual void setend() = 0;
   virtual U64 curpos() = 0;
   virtual bool eof() = 0;
+  virtual void dumpToDisk() = 0;
 };
 // This class is responsible for files on disk
 // It simply passes function calls to the operating system
@@ -58,6 +59,7 @@ protected:
 public:
   FileDisk() {file=0;}
    ~FileDisk() {close();}
+   void dumpToDisk(){}
   bool open(const char *filename, bool must_succeed) {
     assert(file==0); 
     file = fopen(filename, "rb"); 
@@ -191,10 +193,14 @@ public:
   }
   void setpos(U64 newpos) { 
     if(content_in_ram) {
-      if(newpos>filesize)ram_to_disk(); //panic: we don't support seeking past end of file - let's switch to disk
+      /*if (newpos>filesize && newpos<MAX_RAM_FOR_TMP_CONTENT) (*content_in_ram).resize((U32)(newpos));
+      else*/ if(newpos>filesize)ram_to_disk(); //panic: we don't support seeking past end of file - let's switch to disk
       else {filepos = newpos; return;}
     }  
      (*file_on_disk).setpos(newpos);
+  }
+  void dumpToDisk(){
+      if (content_in_ram) ram_to_disk();
   }
   void setend() { 
     if(content_in_ram) filepos = filesize;
@@ -209,3 +215,5 @@ public:
     else return (*file_on_disk).eof();
   }
 };
+
+bool append(File* out, File* in);

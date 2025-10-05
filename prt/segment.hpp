@@ -21,6 +21,11 @@ public:
     assert(i<=b.size());
     return b[i];
   }
+  U8 Get() {
+    assert(pos>=0);
+    assert(pos<=b.size());
+    return b[pos++];
+  }
   
   // put 8 bytes to segment buffer
   void put8(U64 num);
