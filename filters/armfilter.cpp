@@ -8,7 +8,7 @@ armFilter::armFilter(std::string n, Filetype f) {
 void armFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     uint64_t len=size;
     const int BLOCK=0x10000;
-    Array<U8> blk(BLOCK);
+    U8 blk[BLOCK];
     int count=0;
     for (int j=0; j<len; j+=BLOCK) {
         int size=min(int(len)-j, BLOCK);
@@ -33,7 +33,7 @@ void armFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
 
 uint64_t armFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     const int BLOCK=0x10000;  // block size
-    Array<U8> blk(BLOCK);
+    U8 blk[BLOCK];
     U8 c;
     int b=0;
     U32 count=0;

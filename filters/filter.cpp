@@ -7,13 +7,20 @@ Filter::~Filter(){}
 
 FMode Filter::compare(File *in, File *out, uint64_t size) {
     diffFound=0;
-    for (uint64_t j=0; j<size; ++j) {
-        int a=in->getc();
-        int b=out->getc();
-        if (a!=b && !diffFound) {
-            diffFound=j+1;
+    const int BLOCK=0x10000;
+    U8 blkin[BLOCK];
+    U8 blkout[BLOCK];
+    uint64_t remaining=size;
+
+    while (remaining) {
+        size_t reads=min(BLOCK, remaining);
+        int ReadIn=in->blockread(&blkin[0], reads);
+        int ReadOut=out->blockread(&blkout[0], reads);
+        if (memcmp(blkin, blkout, ReadIn)!=0 || ReadIn!=reads || ReadIn!=ReadOut) {
+            diffFound=size-remaining+1;
             return FDISCARD;
         }
+        remaining-=ReadIn;
     }
     return FEQUAL;
 }

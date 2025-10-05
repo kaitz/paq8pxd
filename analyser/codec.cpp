@@ -56,47 +56,41 @@ Filter& Codec::GetFilter(Filetype f) {
 }
 
 void Codec::DecodeFile(const char* filename, uint64_t filesize) {
-      FMode mode=FDECOMPRESS;
-  assert(filename && filename[0]);
-  // Test if output file exists.  If so, then compare.
-  FileDisk f;
-  bool success=f.open(filename,false);
-  if (success) {
-      mode=FCOMPARE,printf("Comparing");
-  } else {
-    // Create file
-    f.create(filename);
-    mode=FDECOMPRESS, printf("Extracting");
-  }
-  printf(" %s %0.0f -> \n", filename, filesize+0.0);
+    FMode mode=FDECOMPRESS;
+    assert(filename && filename[0]);
+    // Test if output file exists.  If so, then compare.
+    FileDisk f;
+    bool success=f.open(filename,false);
+    if (success) {
+        mode=FCOMPARE,printf("Comparing");
+    } else {
+        // Create file
+        f.create(filename);
+        mode=FDECOMPRESS, printf("Extracting");
+    }
+    printf(" %s %0.0f -> \n", filename, filesize+0.0);
 
-  // Decompress/Compare
-  U64 r=DecodeFromStream(&f, filesize, mode);
-  if (mode==FCOMPARE && !r && f.getc()!=EOF) printf("file is longer\n");
-  else if (mode==FCOMPARE && r) printf("differ at %0lu\n",r-1);
-  else if (mode==FCOMPARE) printf("identical\n");
-  else printf("done   \n");
-  f.close();
+    // Decompress/Compare
+    U64 r=DecodeFromStream(&f, filesize, mode);
+    if (mode==FCOMPARE && !r && f.getc()!=EOF) printf("file is longer\n");
+    else if (mode==FCOMPARE && r) printf("differ at %0lu\n",r-1);
+    else if (mode==FCOMPARE) printf("identical\n");
+    else printf("done   \n");
+    f.close();
 }
 
 void Codec::EncodeFile(const char* filename, uint64_t filesize) {
     assert(filename && filename[0]);
-  FileTmp tmp;
-  Predictors *t;
-  t=0;
-  Encoder en(COMPRESS, &tmp,*t);
-  assert(en.getMode()==COMPRESS);
-  assert(filename && filename[0]);
-  FileDisk in;
-  in.open(filename,true);
-  if (verbose>2) printf("Block segmentation:\n");
-  char blstr[32]="";
-  EncodeFileRecursive(&in, filesize, en, blstr);
-  in.close();
-  tmp.close();
+    FileDisk in;
+    in.open(filename,true);
+    if (verbose>2) printf("Block segmentation:\n");
+    char blstr[32]="";
+    EncodeFileRecursive(&in, filesize,  blstr);
+    in.close();
 }
-#define PNGFlag (1<<31)
-#define GrayFlag (1<<30)
+
+//#define PNGFlag (1<<31)
+//#define GrayFlag (1<<30)
 uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
     Filetype type;
     U64 len,i,diffFound;
@@ -149,7 +143,7 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
     return diffFound;
 }
 
-void Codec::EncodeFileRecursive(File*in, uint64_t n, Encoder &en, char *blstr, int it) {
+void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     static const char* audiotypes[6]={"8b mono","8b stereo","16b mono","16b stereo","32b mono","32b stereo"};
   Filetype type=DEFAULT;
   int blnum=0, info,info2;  // image width or audio type
@@ -167,7 +161,6 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, Encoder &en, char *blstr, i
     direct_encode_blockstream(DEFAULT, in, n);
     return;
   }
-  //s2+=n;
   // Transform and test in blocks
   while (n>0) {
     if (it==0 && witmode==true) {
@@ -256,7 +249,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, Encoder &en, char *blstr, i
         else if (type==ZLIB && (info>>24) > 0) printf(" (%s)",typenames[info>>24]);
         printf("\n");
       }
-      transform_encode_block(type, in, len, en, info,info2, blstr, it, begin);
+      transform_encode_block(type, in, len,  info,info2, blstr, it, begin);
       n-=len;
     }
     
@@ -266,13 +259,13 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, Encoder &en, char *blstr, i
 }
 
 void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info) {
-  segment->putdata(type,len,info);
-  int srid=streams->GetStreamID(type);
-  Stream *sout=streams->streams[srid];
-  for (U64 j=0; j<len; ++j) sout->file.putc(in->getc());
+    segment->putdata(type,len,info);
+    int srid=streams->GetStreamID(type);
+    Stream *sout=streams->streams[srid];
+    for (U64 j=0; j<len; ++j) sout->file.putc(in->getc());
 }
 
-void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 begin) {
+void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin) {
     if (streams->GetTypeInfo(type)&TR_TRANSFORM) {
         U64 diffFound=0;
         U32 winfo=0;
@@ -286,35 +279,33 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         else if (type==RLE) dataf.encode(in, tmp, len, info);
         else if (type==LZW) dataf.encode(in, tmp, len, info);
         else if (type==EXE) dataf.encode(in, tmp, len, begin);
-        else if (type==DECA) dataf.encode(in, tmp, len, begin);
-        else if (type==ARM) dataf.encode(in, tmp, len, begin);
-        else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
-            if ( type!=TXTUTF8 ){
-            dataf.encode(in, tmp, (len),1);
-            U64 txt0Size= tmp->curpos();
-            //reset to text mode
-            in->setpos(begin);
-            tmp->close();
-            tmp=new FileTmp;
-            dataf.encode(in, tmp, (len),0);
-            U64 txtSize= tmp->curpos();
-            tmp->close();
-            in->setpos( begin);
-            tmp=new FileTmp;
-            if (txt0Size<txtSize && (((txt0Size*100)/txtSize)<95)) {
-                in->setpos( begin);
-                dataf.encode(in, tmp, (len),1);
-                type=TEXT0,info=1;
-            }else{
+        else if (type==DECA) dataf.encode(in, tmp, len, 0);
+        else if (type==ARM) dataf.encode(in, tmp, len, 0);
+        else if (type==TEXT || type==TXTUTF8 || type==TEXT0 || type==ISOTEXT) {
+            if (type!=TXTUTF8) {
+                dataf.encode(in, tmp, len,1);
+                U64 txt0Size= tmp->curpos();
+                //reset to text mode
+                in->setpos(begin);
+                tmp->close();
+                tmp=new FileTmp;
                 dataf.encode(in, tmp, (len),0);
-                type=TEXT,info=0;
-            }
+                U64 txtSize= tmp->curpos();
+                tmp->close();
+                in->setpos( begin);
+                tmp=new FileTmp;
+                if (txt0Size<txtSize && (((txt0Size*100)/txtSize)<95)) {
+                    in->setpos( begin);
+                    dataf.encode(in, tmp, (len),1);
+                    type=TEXT0,info=1;
+                }else{
+                    dataf.encode(in, tmp, (len),0);
+                    type=TEXT,info=0;
+                }
             }
             else dataf.encode(in, tmp, (len),info&1); 
-        }
-        else if (type==EOLTEXT) {
+        } else if (type==EOLTEXT) {
             dataf.encode(in, tmp, len,info&1);
-            //diffFound=dataf.diffFound;
             if (dataf.diffFound) {
                 // if EOL size is below 25 then drop EOL transform and try TEXT type
                 in->setpos(begin);
@@ -324,29 +315,23 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
                 tmp=new FileTmp();
                 dataf.encode(in, tmp, len,info&1); 
             }
-        }
-        else if (type==BASE64) dataf.encode(in, tmp, len,0);
+        } else if (type==BASE64) dataf.encode(in, tmp, len,0);
         else if (type==UUENC) dataf.encode(in, tmp, len,info);
         else if (type==BASE85) dataf.encode(in, tmp, len,info);
         else if (type==SZDD) {
             dataf.encode(in, tmp,0, info);
-        }
-        else if (type==ZLIB) {
+        } else if (type==ZLIB) {
             dataf.encode(in, tmp, len,0);   
             diffFound=dataf.diffFound;
-        }
-        else if (type==BZIP2){
+        } else if (type==BZIP2){
             dataf.encode(in, tmp, len,info);
-        }
-        else if (type==CD) dataf.encode(in, tmp, (len), info);
+        } else if (type==CD) dataf.encode(in, tmp, (len), info);
         else if (type==MDF) {
             dataf.encode(in, tmp, len,0);
-        }
-        else if (type==GIF)  {
+        } else if (type==GIF)  {
             dataf.encode(in, tmp, len,0);
             diffFound=dataf.diffFound;
-        }
-        else if (type==WIT) {
+        } else if (type==WIT) {
             dataf.encode(in, tmp, len,0);
             winfo=dataf.fsize;
         }
@@ -354,100 +339,67 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         const U64 tmpsize= tmp->curpos();
         int tfail=0;
         tmp->setpos(0);
-        en.setFile(tmp);
         
         if (type==BZIP2 || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
-        type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
+                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
             
-         in->setpos(begin);
-        if (type==BASE64 ) {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==UUENC ) {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==BASE85 ) {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==ZLIB && !diffFound) {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==BZIP2  )     {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=info+256*17), FCOMPARE);
-        }
-        else if (type==GIF && !diffFound) {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==MRBR || type==MRBR4) {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        else if (type==RLE)           {
-            diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }
-        else if (type==LZW) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<tmpsize; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }
-        else if (type==DECA) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<tmpsize; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }
-        else if (type==ARM) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<tmpsize; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }
-        else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<tmpsize; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        }
-        else if ((type==WIT) ) {
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(winfo), FCOMPARE);
-        }
-        else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
-        else if (type==EOLTEXT ){
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-        }
-        if (type==EOLTEXT && (diffFound )) {
-            // if fail fall back to text
-            diffFound=0,info=-1, in->setpos(begin),type=TEXT,dataf=GetFilter(type),tmp->close(),tmp=new FileTmp(),dataf.encode(in, tmp, len,0); 
-        }  else if (type==BZIP2 && (diffFound) ) {
-            // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
             in->setpos(begin);
-            tmp->setpos(0);
-            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
-        }            
-        tfail=(diffFound || tmp->getc()!=EOF); 
+            if (type==BASE64 ) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==UUENC ) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==BASE85 ) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==ZLIB && !diffFound) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==BZIP2  )     {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=info+256*17), FCOMPARE);
+            } else if (type==GIF && !diffFound) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==MRBR || type==MRBR4) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==RLE)           {
+                diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+            } else if (type==LZW) {
+                diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+            } else if (type==DECA) {
+                diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+            } else if (type==ARM) {
+                diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+            } else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
+                diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+            } else if ((type==WIT) ) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(winfo), FCOMPARE);
+            }
+            else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
+            else if (type==EOLTEXT ){
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            }
+            if (type==EOLTEXT && (diffFound )) {
+                // if fail fall back to text
+                diffFound=0,info=-1, in->setpos(begin),type=TEXT,dataf=GetFilter(type),tmp->close(),tmp=new FileTmp(),dataf.encode(in, tmp, len,0); 
+            }  else if (type==BZIP2 && (diffFound) ) {
+                // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
+                in->setpos(begin);
+                tmp->setpos(0);
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
+            }            
+            tfail=(diffFound || tmp->getc()!=EOF); 
         }
         // Test fails, compress without transform
         if (tfail) {
             if (verbose>2) printf(" Transform fails at %0lu, skipping...\n", diffFound-1);
-             in->setpos(begin);
-             Filetype type2;
-             if (type==ZLIB || (type==BZIP2))  type2=CMP; else type2=DEFAULT;
-              
+            in->setpos(begin);
+            Filetype type2;
+            if (type==ZLIB || (type==BZIP2))  type2=CMP; else type2=DEFAULT;
+            
             direct_encode_blockstream(type2, in, len);
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
             typenamess[type2][it]+=len,  typenamesc[type2][it]++; // default info
         } else {
             tmp->setpos(0);
             if (type==EXE) {
-               direct_encode_blockstream(type, tmp, tmpsize);
+                direct_encode_blockstream(type, tmp, tmpsize);
             } else if (type==DECA || type==ARM) {
                 direct_encode_blockstream(type, tmp, tmpsize);
             } else if (type==IMAGE24 || type==IMAGE32) {
@@ -481,7 +433,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
                 if (it==itcount)    itcount=it+1;
                 typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
-            }else if (type==GIF) {
+            } else if (type==GIF) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=(tmp->getc()<<8)+tmp->getc();
                 tmp->setpos(0);
@@ -492,24 +444,23 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
             } else if (type==AUDIO) {
                 segment->putdata(type,len,info2); //original lenght
                 direct_encode_blockstream(type, tmp, tmpsize, info);
-            } else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0)  ) {
-                   if ( len>0xA00000){ //if WRT is smaller then original block 
-                      if (tmpsize>(len-256) ) {
-                         in->setpos( begin);
-                         direct_encode_blockstream(NOWRT, in, len); }
-                      else
-                        direct_encode_blockstream(BIGTEXT, tmp, tmpsize);}
-                   else if (tmpsize< (len*2-len/2)||len) {
-                        // encode as text without wrt transoform, 
-                        // this will be done when stream is compressed
+            } else if (type==TEXT || type==TXTUTF8 ||type==TEXT0) {
+                if ( len>0xA00000) { //if WRT is smaller then original block 
+                    if (tmpsize>(len-256) ) {
                         in->setpos( begin);
-                        direct_encode_blockstream(type, in, len);
-                   }
-                   else {
-                        // wrt size was bigger, encode as NOWRT and put in bigtext stream.
-                        in->setpos(begin);
-                        direct_encode_blockstream(NOWRT, in, len);
-                   }
+                        direct_encode_blockstream(NOWRT, in, len); }
+                    else
+                    direct_encode_blockstream(BIGTEXT, tmp, tmpsize);
+                } else if (tmpsize< (len*2-len/2)||len) {
+                    // encode as text without wrt transoform, 
+                    // this will be done when stream is compressed
+                    in->setpos( begin);
+                    direct_encode_blockstream(type, in, len);
+                } else {
+                    // wrt size was bigger, encode as NOWRT and put in bigtext stream.
+                    in->setpos(begin);
+                    direct_encode_blockstream(NOWRT, in, len);
+                }
             }else if (type==EOLTEXT) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=tmp->get32();
@@ -519,7 +470,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
                 typenamess[CMP][it+1]+=hdrsize,  typenamesc[CMP][it+1]++; 
                 direct_encode_blockstream(CMP, tmp, hdrsize);
                 typenamess[TEXT][it+1]+=tmpsize-hdrsize,  typenamesc[TEXT][it+1]++;
-                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize, en, -1,-1, blstr, it, hdrsize); 
+                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize,  -1,-1, blstr, it, hdrsize); 
             } else if (streams->GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
                 if (type==SZDD ||  type==ZLIB  || type==BZIP2) isinfo=info;
@@ -534,12 +485,12 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
                     direct_encode_blockstream(HDR,  tmp, hdrsize);
                     if (info){
                         typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                        transform_encode_block(type2,  tmp, tmpsize-hdrsize, en, info&0xffffff,-1, blstr, it, hdrsize); }
+                        transform_encode_block(type2,  tmp, tmpsize-hdrsize,  info&0xffffff,-1, blstr, it, hdrsize); }
                     else{
-                         EncodeFileRecursive( tmp, tmpsize-hdrsize, en, blstr,it+1);//it+1
+                        EncodeFileRecursive( tmp, tmpsize-hdrsize,  blstr,it+1);//it+1
                     }
                 } else {     
-                    EncodeFileRecursive( tmp, tmpsize, en, blstr,it+1);//it+1
+                    EncodeFileRecursive( tmp, tmpsize,  blstr,it+1);//it+1
                     tmp->close();
                     return;
                 }    
@@ -550,42 +501,42 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         
 #define tarpad  //remove for filesize padding \0 and add to default stream as hdr        
         //do tar recursion, no transform
-        if (type==TAR){
-        int tarl=int(len),tarn=0,blnum=0,pad=0;;
-        TARheader tarh;
-        char b2[32];
-        strcpy(b2, blstr);
-        if (b2[0]) strcat(b2, "-");
-        while (tarl>0){
-            tarl=tarl-pad;
-            U64 savedpos= in->curpos(); 
-            in->setpos(savedpos+pad);
-            in->blockread( (U8*)&tarh,  sizeof(tarh)  );
-            in->setpos(savedpos);
-            if (tarend((char*)&tarh)) {
-                tarn=512+pad;
-                if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[BINTEXT],tarn,savedpos,savedpos+tarn-1);
-                typenamess[BINTEXT][it+1]+=tarn,  typenamesc[BINTEXT][it+1]++; 
-                direct_encode_blockstream(BINTEXT, in, tarn);
-               }
-            else if (!tarchecksum((char*)&tarh))  
-                quit("tar checksum error\n");
-            else{
-                int a=getoct(tarh.size,12);
-                int b=a-(a/512)*512;
-                if (b) tarn=512+(a/512)*512;
-                else if (a==0) tarn=512;
-                else tarn= a;
-                sprintf(blstr,"%s%d",b2,blnum++);
-                int tarover=512+pad;
-                //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
-                if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[BINTEXT],tarover,savedpos,savedpos+tarover-1,tarh.name);
-                typenamess[BINTEXT][it+1]+=tarover,  typenamesc[BINTEXT][it+1]++; 
-                if (it==itcount)    itcount=it+1;
-                direct_encode_blockstream(BINTEXT, in, tarover);
-                pad=0;
-                if (a!=0){
-                    #ifdef tarpad
+        if (type==TAR) {
+            int tarl=int(len),tarn=0,blnum=0,pad=0;;
+            TARheader tarh;
+            char b2[32];
+            strcpy(b2, blstr);
+            if (b2[0]) strcat(b2, "-");
+            while (tarl>0) {
+                tarl=tarl-pad;
+                U64 savedpos= in->curpos(); 
+                in->setpos(savedpos+pad);
+                in->blockread( (U8*)&tarh,  sizeof(tarh)  );
+                in->setpos(savedpos);
+                if (tarend((char*)&tarh)) {
+                    tarn=512+pad;
+                    if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[BINTEXT],tarn,savedpos,savedpos+tarn-1);
+                    typenamess[BINTEXT][it+1]+=tarn,  typenamesc[BINTEXT][it+1]++; 
+                    direct_encode_blockstream(BINTEXT, in, tarn);
+                }
+                else if (!tarchecksum((char*)&tarh))  {
+                    quit("tar checksum error\n");
+                } else {
+                    int a=getoct(tarh.size,12);
+                    int b=a-(a/512)*512;
+                    if (b) tarn=512+(a/512)*512;
+                    else if (a==0) tarn=512;
+                    else tarn= a;
+                    sprintf(blstr,"%s%d",b2,blnum++);
+                    int tarover=512+pad;
+                    //if (a && a<=512) tarover=tarover+tarn,a=0,tarn+=512;
+                    if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[BINTEXT],tarover,savedpos,savedpos+tarover-1,tarh.name);
+                    typenamess[BINTEXT][it+1]+=tarover,  typenamesc[BINTEXT][it+1]++; 
+                    if (it==itcount)    itcount=it+1;
+                    direct_encode_blockstream(BINTEXT, in, tarover);
+                    pad=0;
+                    if (a!=0) {
+                        #ifdef tarpad
                         int filenamesize=strlen(tarh.name);
                         U64 ext=0;
                         if( filenamesize>4) for (int i=5;i>0;i--) {
@@ -594,36 +545,34 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
                             ext=(ext<<8)+ch;
                         }
                         
-                        if( filenamesize>3 && (
-                        (ext&0xffff)==0x2E63 ||  // .c
-                        (ext&0xffff)==0x2E68||   //.h
-                        (ext&0xffffffff)==0x2E747874 ||   //.txt
-                        (ext&0xffffffffff)==0x2E68746D6C ||  //.html
-                        (ext&0xffffffff)==0x2E637070 ||   //.cpp
-                        (ext&0xffffff)==0x2E706F // .po
-                       // ((tarh.name[filenamesize-1]=='c' || tarh.name[filenamesize-1]=='h') && tarh.name[filenamesize-2]=='.') ||
-                      //  (tarh.name[filenamesize-4]=='.' && tarh.name[filenamesize-3]=='t' && tarh.name[filenamesize-2]=='x' &&  tarh.name[filenamesize-1]=='t')
-                        )){
-                           if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
-                             direct_encode_blockstream(TEXT, in, a);
-                        }else{
-                        
- 
-                        EncodeFileRecursive(in, a, en, blstr, 0);
+                        if (filenamesize>3 && (
+                                    (ext&0xffff)==0x2E63 ||  // .c
+                                    (ext&0xffff)==0x2E68||   //.h
+                                    (ext&0xffffffff)==0x2E747874 ||   //.txt
+                                    (ext&0xffffffffff)==0x2E68746D6C ||  //.html
+                                    (ext&0xffffffff)==0x2E637070 ||   //.cpp
+                                    (ext&0xffffff)==0x2E706F // .po
+                                    // ((tarh.name[filenamesize-1]=='c' || tarh.name[filenamesize-1]=='h') && tarh.name[filenamesize-2]=='.') ||
+                                    //  (tarh.name[filenamesize-4]=='.' && tarh.name[filenamesize-3]=='t' && tarh.name[filenamesize-2]=='x' &&  tarh.name[filenamesize-1]=='t')
+                                    )){
+                            if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
+                            direct_encode_blockstream(TEXT, in, a);
+                        } else {
+                            EncodeFileRecursive(in, a, blstr, 0);
                         }
                         pad=tarn-a; 
                         tarn=a+512;
-                    #else
-                        EncodeFileRecursive(in, tarn, en, blstr, 0);
+                        #else
+                        EncodeFileRecursive(in, tarn, blstr, 0);
                         pad=0;
                         tarn+=512;
-                    #endif
-               }
-             }
-             tarl-=tarn;
-             }
-             if (verbose>2) printf("\n");
-        }else {
+                        #endif
+                    }
+                }
+                tarl-=tarn;
+            }
+            if (verbose>2) printf("\n");
+        } else {
             const int i1=(streams->GetTypeInfo(type)&TR_INFO)?info:-1;
             direct_encode_blockstream(type, in, len, i1);
         }

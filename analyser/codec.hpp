@@ -2,7 +2,6 @@
 #pragma once
 #include "../prt/file.hpp"
 #include "../prt/enums.hpp"
-#include "../prt/coder.hpp"
 #include "../prt/segment.hpp"
 #include "../prt/textinfo.hpp"
 
@@ -39,7 +38,7 @@ class Codec {
     
     void AddFilter(Filter *f);
     void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0);
-    void transform_encode_block(Filetype type, File*in, U64 len, Encoder &en, int info, int info2, char *blstr, int it, U64 begin);
+    void transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin);
 	public:
 		Codec(FMode m, Streams *s, Segment *g);
 		virtual ~Codec();
@@ -48,7 +47,7 @@ class Codec {
 		virtual Filter& GetFilter(Filetype f);
 	protected:
 	    virtual uint64_t DecodeFromStream(File *out, uint64_t size, FMode mode, int it=0);
-        virtual void EncodeFileRecursive(File*in, uint64_t n, Encoder &en, char *blstr, int it=0);
+        virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0);
 };
 
 struct TARheader{

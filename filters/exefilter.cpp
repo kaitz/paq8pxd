@@ -8,12 +8,12 @@ ExeFilter::ExeFilter(std::string n, Filetype f) {
 void ExeFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
   U32 begin=U32(info&0xffffffff);
   const int BLOCK=0x10000;
-  Array<U8> blk(BLOCK);
+  U8 blk[BLOCK];
   out->put32((U32)begin);
   // Transform
   for (uint64_t offset=0; offset<size; offset+=BLOCK) {
     int rsize=min(int(size)-int(offset), BLOCK);
-    int bytesRead= in->blockread(&blk[0],   rsize );
+    int bytesRead= in->blockread(&blk[0], rsize);
     //if (bytesRead!=size) quit("encode_exe read error");
     for (int i=bytesRead-1; i>=5; --i) {
       if ((blk[i-4]==0xe8 || blk[i-4]==0xe9 || (blk[i-5]==0x0f && (blk[i-4]&0xf0)==0x80))
@@ -27,7 +27,7 @@ void ExeFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
         blk[i-3]=(a>>16)^176;
       }
     }
-    out->blockwrite(&blk[0],   bytesRead  );
+    out->blockwrite(&blk[0], bytesRead);
   }
 } 
 
