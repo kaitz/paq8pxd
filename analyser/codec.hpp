@@ -26,6 +26,7 @@
 #include "../filters/bzip2filter.hpp"
 #include "../filters/decafilter.hpp"
 #include "../filters/rlefilter.hpp"
+#include "../filters/base85filter.hpp"
 #include "../filters/defaultfilter.hpp"
 
 class Codec {

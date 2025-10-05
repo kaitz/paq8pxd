@@ -31,6 +31,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new bzip2Filter(std::string("bzip2"),BZIP2));
     AddFilter( new DecAFilter(std::string("dec alpha"),DECA));
     AddFilter( new rleFilter(std::string("rle tga"),RLE));
+    AddFilter( new base85Filter(std::string("base85"),BASE85));
     AddFilter( new DefaultFilter(std::string("default"),DEFAULT)); // must be last
 }
 
@@ -169,7 +170,10 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, Encoder& en, FMode mo
                     diffFound=dataf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
                     len=dataf.fsize; // get decoded size
                 }
-                //else if (type==BASE85) len=decode_ascii85(&tmp, int(len), out, mode, diffFound);
+                else if (type==BASE85) {
+                    diffFound=dataf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
+                    len=dataf.fsize; // get decoded size
+                }
                 else if (type==SZDD)  {
                     diffFound=dataf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
                     len=dataf.fsize; // get decoded size
@@ -401,7 +405,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         }
         else if (type==BASE64) dataf.encode(in, tmp, len,0);
         else if (type==UUENC) dataf.encode(in, tmp, len,info);
-        //else if (type==BASE85) encode_ascii85(in, tmp, int(len));
+        else if (type==BASE85) dataf.encode(in, tmp, len,info);
         else if (type==SZDD) {
             dataf.encode(in, tmp,0, info);
         }
@@ -441,7 +445,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         else if (type==UUENC ) {
             diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
         }
-        //else if (type==BASE85 ) decode_ascii85(tmp, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==BASE85 ) {
+            diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+        }
         else if (type==ZLIB && !diffFound) {
             diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
         }
