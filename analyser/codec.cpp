@@ -32,6 +32,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new DecAFilter(std::string("dec alpha"),DECA));
     AddFilter( new rleFilter(std::string("rle tga"),RLE));
     AddFilter( new base85Filter(std::string("base85"),BASE85));
+    AddFilter( new armFilter(std::string("arm"),ARM));
     AddFilter( new DefaultFilter(std::string("default"),DEFAULT)); // must be last
 }
 
@@ -146,7 +147,16 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, Encoder& en, FMode mo
             diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
             len=dataf.fsize; // get decoded size
         }
-        //else if (type==ARM)     len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
+        else if (type==ARM)    {
+            FileTmp tmp;
+            for (uint64_t j=0; j<len; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+            len=dataf.fsize; // get decoded size
+        }
+        //len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
         else if (type==BIGTEXT) {
             FileTmp tmp;
             for (uint64_t j=0; j<len; j++) {
@@ -374,7 +384,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         //else if (type==LZW) encode_lzw(in, tmp, len, info2);
         else if (type==EXE) dataf.encode(in, tmp, len, begin);
         else if (type==DECA) dataf.encode(in, tmp, (len), (begin));
-        //else if (type==ARM) encode_arm(in, tmp, int(len), int(begin));
+        else if (type==ARM) dataf.encode(in, tmp, len, begin);
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
             if ( type!=TXTUTF8 ){
             dataf.encode(in, tmp, (len),1);
@@ -472,7 +482,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
             tmp.setpos(0);
             diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
         }
-        //else if (type==ARM) decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
+        else if (type==ARM) {
+            FileTmp tmp;
+            for (uint64_t j=0; j<tmpsize; j++) {
+                tmp.putc(en.decompress());
+            }
+            tmp.setpos(0);
+            diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+        //decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
+        }
         else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
             FileTmp tmp;
             for (uint64_t j=0; j<tmpsize; j++) {
