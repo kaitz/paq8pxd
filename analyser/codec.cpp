@@ -17,6 +17,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new Img24Filter( std::string("image 24bit"),IMAGE24));
     AddFilter( new Img32Filter( std::string("image 32bit"),IMAGE32));
     AddFilter( new ImgMRBFilter(std::string("image mrb"),MRBR));
+    AddFilter( new ImgMRBFilter(std::string("image mrb4"),MRBR4));
     AddFilter( new ExeFilter(std::string("exe"),EXE));
     AddFilter( new TextFilter(std::string("text"),TEXT));
     AddFilter( new EOLFilter(std::string("eol"),EOLTEXT));
@@ -34,6 +35,8 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new base85Filter(std::string("base85"),BASE85));
     AddFilter( new armFilter(std::string("arm"),ARM));
     AddFilter( new lzwFilter(std::string("lzw"),LZW));
+    AddFilter( new TextFilter(std::string("TXTUTF8"),TXTUTF8));
+    AddFilter( new TextFilter(std::string("BIGTEXT"),BIGTEXT));
     AddFilter( new DefaultFilter(std::string("default"),DEFAULT)); // must be last
 }
 
@@ -55,15 +58,12 @@ Filter& Codec::GetFilter(Filetype f) {
 void Codec::DecodeFile(const char* filename, uint64_t filesize) {
       FMode mode=FDECOMPRESS;
   assert(filename && filename[0]);
-  FileTmp  tmp;
-  Predictors *t; //dummy
-  t=0;
-  Encoder en(COMPRESS, &tmp,*t);
   // Test if output file exists.  If so, then compare.
   FileDisk f;
   bool success=f.open(filename,false);
-  if (success) mode=FCOMPARE,printf("Comparing");
-  else {
+  if (success) {
+      mode=FCOMPARE,printf("Comparing");
+  } else {
     // Create file
     f.create(filename);
     mode=FDECOMPRESS, printf("Extracting");
@@ -71,13 +71,12 @@ void Codec::DecodeFile(const char* filename, uint64_t filesize) {
   printf(" %s %0.0f -> \n", filename, filesize+0.0);
 
   // Decompress/Compare
-  U64 r=DecodeFromStream(&f, filesize, en, mode);
+  U64 r=DecodeFromStream(&f, filesize, mode);
   if (mode==FCOMPARE && !r && f.getc()!=EOF) printf("file is longer\n");
   else if (mode==FCOMPARE && r) printf("differ at %0lu\n",r-1);
   else if (mode==FCOMPARE) printf("identical\n");
   else printf("done   \n");
   f.close();
-  tmp.close();
 }
 
 void Codec::EncodeFile(const char* filename, uint64_t filesize) {
@@ -98,148 +97,51 @@ void Codec::EncodeFile(const char* filename, uint64_t filesize) {
 }
 #define PNGFlag (1<<31)
 #define GrayFlag (1<<30)
-uint64_t Codec::DecodeFromStream(File *out, uint64_t size, Encoder& en, FMode mode, int it, U64 s1, U64 s2) {
+uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
     Filetype type;
     U64 len,i,diffFound;
     len=i=diffFound=0L;
     int info=-1;
-    s2+=size;
+    File *in;
     while (i<size) {
         type=(Filetype)segment->Get();
         for (int k=0; k<8; k++) len=len<<8,len+=segment->Get();
         for (int k=info=0; k<4; ++k) info=(info<<8)+segment->Get();
-        int srid=streams->GetStreamID(type);
-        if (srid>=0) en.setFile(&streams->GetStreamFile(srid));
+        Streamtype srid=streams->GetStreamID(type);
+        int ti=streams->GetTypeInfo(type);
+        if (srid>STR_NONE) in=&streams->GetStreamFile(srid);
         #ifdef VERBOSE  
          printf(" %d  %-9s |%0lu [%0lu]\n",it, typenames[type],len,i );
         #endif
-        Filter& dataf=GetFilter(type);
-        if (type==IMAGE24 && !(info&PNGFlag))   {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-            //tmp.close();
+        Filter& dataf=GetFilter(type); 
+        if (srid>STR_NONE && srid!=STR_TEXT0 && srid!=STR_TEXT && (ti&TR_TRANSFORM)==TR_TRANSFORM) {
+            printf("Filter: %s\n",dataf.name.c_str());
+            diffFound=dataf.CompareFiles(in,out,len,uint64_t(info),mode);
+            len=dataf.fsize;
         }  
-        else if (type==IMAGE32 && !(info&PNGFlag)) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-        }
-        else if (type==EXE) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-        }
-        else if (type==DECA)    {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-            len=dataf.fsize; // get decoded size
-        }
-        else if (type==ARM)    {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-            len=dataf.fsize; // get decoded size
-        }
-        //len=decode_arm(en, int(len), out, mode, diffFound, int(s1), int(s2));
-        else if (type==BIGTEXT) {
-            FileTmp tmp;
-            for (uint64_t j=0; j<len; j++) {
-                tmp.putc(en.decompress());
-            }
-            tmp.setpos(0);
-            diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-            len=dataf.fsize; // get decoded size
-        }
         // LZW ?
-        else if (type==BASE85 || type==BASE64 || type==UUENC || type==SZDD || type==ZLIB || type==BZIP2 || type==CD || type==MDF  || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||type==EOLTEXT||type==WIT) {
+        else if (srid==STR_NONE) {
             FileTmp tmp;
-            DecodeFromStream(&tmp, len, en, FDECOMPRESS, it+1, s1+i, s2-len);
+            DecodeFromStream(&tmp, len, FDECOMPRESS, it+1);
             if (mode!=FDISCARD) {
                 tmp.setpos(0);
-                if (type==BASE64) {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==UUENC) {
-                    diffFound=dataf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==BASE85) {
-                    diffFound=dataf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==SZDD)  {
-                    diffFound=dataf.CompareFiles(&tmp,out,info,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==ZLIB)  {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==BZIP2) {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==CD)     {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==MDF)    {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==GIF) {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==MRBR|| type==MRBR4)   {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==EOLTEXT){
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
-                else if (type==RLE) {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }   //len=decode_rle(&tmp, len, out, mode, diffFound);
-                else if ((type==WIT) ) {
-                    diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
-                    len=dataf.fsize; // get decoded size
-                }
+                diffFound=dataf.CompareFiles(&tmp,out,len,uint64_t(info),mode);
+                len=dataf.fsize; // get decoded size
             }
             tmp.close();
         }
         else {
-            for (U64 j=i+s1; j<i+s1+len; ++j) {
+            for (U64 j=i; j<i+len; ++j) {
                 //if (!(j&0x1ffff)) printStatus(j, s2);
-                if (mode==FDECOMPRESS) out->putc(en.decompress());
+                if (mode==FDECOMPRESS) out->putc(in->getc());
                 else if (mode==FCOMPARE) {
                     int a=out->getc();
-                    int b=en.decompress();
+                    int b=in->getc();
                     if (a!=b && !diffFound) {
                         mode=FDISCARD;
                         diffFound=j+1;
                     }
-                } else en.decompress();
+                } else in->getc();
             }
         }
         i+=len;
@@ -380,11 +282,11 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         if (type==IMAGE24) dataf.encode(in, tmp, len, uint64_t(info));
         else if (type==IMAGE32) dataf.encode(in, tmp, len, uint64_t(info));
         else if (type==MRBR) dataf.encode(in, tmp, len, uint64_t(info)+(uint64_t(info2)<<32));
-        else if (type==MRBR4) dataf.encode(in, tmp, len,     uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
-        else if (type==RLE) dataf.encode(in, tmp, len, info);//, info2
+        else if (type==MRBR4) dataf.encode(in, tmp, len, uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
+        else if (type==RLE) dataf.encode(in, tmp, len, info);
         else if (type==LZW) dataf.encode(in, tmp, len, info);
         else if (type==EXE) dataf.encode(in, tmp, len, begin);
-        else if (type==DECA) dataf.encode(in, tmp, (len), (begin));
+        else if (type==DECA) dataf.encode(in, tmp, len, begin);
         else if (type==ARM) dataf.encode(in, tmp, len, begin);
         else if ((type==TEXT || type==TXTUTF8 ||type==TEXT0||type==ISOTEXT) ) {
             if ( type!=TXTUTF8 ){
@@ -412,7 +314,16 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
         }
         else if (type==EOLTEXT) {
             dataf.encode(in, tmp, len,info&1);
-            diffFound=dataf.diffFound;
+            //diffFound=dataf.diffFound;
+            if (dataf.diffFound) {
+                // if EOL size is below 25 then drop EOL transform and try TEXT type
+                in->setpos(begin);
+                type=TEXT;
+                dataf=GetFilter(type);
+                tmp->close();
+                tmp=new FileTmp();
+                dataf.encode(in, tmp, len,info&1); 
+            }
         }
         else if (type==BASE64) dataf.encode(in, tmp, len,0);
         else if (type==UUENC) dataf.encode(in, tmp, len,info);
@@ -439,16 +350,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
             dataf.encode(in, tmp, len,0);
             winfo=dataf.fsize;
         }
-        if (type==EOLTEXT && diffFound) {
-            // if EOL size is below 25 then drop EOL transform and try TEXT type
-            diffFound=0, in->setpos(begin),type=TEXT,dataf=GetFilter(type),tmp->close(),tmp=new FileTmp(),dataf.encode(in, tmp, len,info&1); 
-        }
+        
         const U64 tmpsize= tmp->curpos();
         int tfail=0;
         tmp->setpos(0);
         en.setFile(tmp);
         
-        if (type==BZIP2 || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
+        if (type==BZIP2 || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
+        type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
+            
          in->setpos(begin);
         if (type==BASE64 ) {
             diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
@@ -497,7 +407,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, Encoder &en,
             }
             tmp.setpos(0);
             diffFound=dataf.CompareFiles(&tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-        //decode_arm(en, int(tmpsize), in, FCOMPARE, diffFound);
         }
         else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
             FileTmp tmp;

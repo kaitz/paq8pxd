@@ -5,7 +5,7 @@
 
 struct datainfo{
     Filetype type;
-    int info;
+    int info; //Streamtypeinfo
 };
 //base class
 class Stream {

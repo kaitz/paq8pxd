@@ -11,8 +11,8 @@ public:
     ~Streams();
     Streams();
     int Count();
-    int GetStreamID(Filetype type)  ;
+    Streamtype GetStreamID(Filetype type);
     bool isStreamType(Filetype type,int id);
-    int GetTypeInfo(Filetype type) ;
-    File& GetStreamFile(int id)  ;
+    int GetTypeInfo(Filetype type);
+    File& GetStreamFile(Streamtype id);
 };

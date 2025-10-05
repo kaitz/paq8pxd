@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd112"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd113"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -2517,6 +2517,7 @@ printf("\n");
             DEFAULT_OPTION);
             quit("");
         }
+        clock_t start_time=clock();  // in ticks
 #if defined(WINDOWS)      
         hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
@@ -2821,10 +2822,12 @@ printf("\n");
             }
         }
         archive->close();
+        printf("Time %1.2f sec.\n", double(clock()-start_time)/CLOCKS_PER_SEC);
     }
     catch(const char* s) {
         if (s) printf("%s\n", s);
     }
+    
     if (pause) {
         printf("\nClose this window or press ENTER to continue...\n");
         getchar();

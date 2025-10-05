@@ -47,7 +47,7 @@ class Codec {
 		virtual void EncodeFile(const char* filename, uint64_t filesize);
 		virtual Filter& GetFilter(Filetype f);
 	protected:
-	    virtual uint64_t DecodeFromStream(File *out, uint64_t size, Encoder& en, FMode mode, int it=0, U64 s1=0, U64 s2=0);
+	    virtual uint64_t DecodeFromStream(File *out, uint64_t size, FMode mode, int it=0);
         virtual void EncodeFileRecursive(File*in, uint64_t n, Encoder &en, char *blstr, int it=0);
 };
 

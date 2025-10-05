@@ -71,7 +71,7 @@ Streams::Streams():streams(0){
     streams[10]->dataType.push_back({TXTUTF8,TR_NONE|TR_TRANSFORM});
     streams[10]->dataType.push_back({DICTTXT,TR_NONE});
     //STR_BIGTEXT
-    streams[11]->dataType.push_back({BIGTEXT,TR_NONE});
+    streams[11]->dataType.push_back({BIGTEXT,TR_NONE|TR_TRANSFORM});
     streams[11]->dataType.push_back({NOWRT,TR_NONE});
     //STR_DECA
     streams[12]->dataType.push_back({DECA,TR_NONE|TR_TRANSFORM});
@@ -91,7 +91,7 @@ int Streams::Count() {
     return streams.size();
 }
 
-int Streams::GetStreamID(Filetype type) {
+Streamtype Streams::GetStreamID(Filetype type) {
     assert(type<TYPELAST);
     size_t s=Count();
     for(size_t i=0;i<s; i++) {
@@ -124,12 +124,7 @@ int Streams::GetTypeInfo(Filetype type) {
     return TR_NONE;    
 }
 
-  File& Streams::GetStreamFile(int id) {
-      return streams[id]->file;
+  File& Streams::GetStreamFile(Streamtype id) {
+      return streams[int(id)]->file;
   }
-
-
-
-
-
 
