@@ -13,7 +13,6 @@ TextFilter::TextFilter(std::string n, Filetype f) {
     Type=f;
 }
 
-// simple color transform (b, g, r) -> (g, g-r, g-b)
 void TextFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     int wrtn=int(info&0xffffffff);
     assert(wrtn<2);

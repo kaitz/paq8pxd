@@ -4,11 +4,10 @@
 class gifFilter: public Filter {
 
 public:
-  gifFilter(std::string n, Filetype f=DEFAULT);
-  ~gifFilter();
-  void encode(File *in, File *out, uint64_t size, uint64_t info);
-  uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);
-  
+    gifFilter(std::string n, Filetype f=DEFAULT);
+    ~gifFilter();
+    void encode(File *in, File *out, uint64_t size, uint64_t info);
+    uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);
 };
 
 #define LZW_TABLE_SIZE 9221

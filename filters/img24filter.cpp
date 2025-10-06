@@ -1,64 +1,64 @@
 #include "img24filter.hpp"
+// simple color transform (b, g, r) -> (g, g-r, g-b)
 
 Img24Filter::Img24Filter(std::string n, Filetype f) {  
     name=n;
     Type=f;
 }
 
-// simple color transform (b, g, r) -> (g, g-r, g-b)
 void Img24Filter::encode(File *in, File *out, uint64_t size, uint64_t info) {
-  int r,g,b, total=0;
-  bool isPossibleRGB565 = true;
-  int witdh=int(info&0xffffffff);
-  for (uint64_t i=0; i<size/witdh; i++) {
-    for (int j=0; j<witdh/3; j++) {
-      b=in->getc(), g=in->getc(), r=in->getc();
-      if (isPossibleRGB565) {
-        int pTotal=total;
-        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
-        if (total>RGB565_MIN_RUN || pTotal>=RGB565_MIN_RUN) {
-          b^=(b&8)-((b>>3)&1);
-          g^=(g&4)-((g>>2)&1);
-          r^=(r&8)-((r>>3)&1);
+    int r,g,b, total=0;
+    bool isPossibleRGB565 = true;
+    int witdh=int(info&0xffffffff);
+    for (uint64_t i=0; i<size/witdh; i++) {
+        for (int j=0; j<witdh/3; j++) {
+            b=in->getc(), g=in->getc(), r=in->getc();
+            if (isPossibleRGB565) {
+                int pTotal=total;
+                total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
+                if (total>RGB565_MIN_RUN || pTotal>=RGB565_MIN_RUN) {
+                    b^=(b&8)-((b>>3)&1);
+                    g^=(g&4)-((g>>2)&1);
+                    r^=(r&8)-((r>>3)&1);
+                }
+                isPossibleRGB565=total>0;
+            }
+            out->putc(g);
+            out->putc(g-r);
+            out->putc(g-b);
         }
-        isPossibleRGB565=total>0;
-      }
-      out->putc(g);
-      out->putc(g-r);
-      out->putc(g-b);
+        for (int j=0; j<witdh%3; j++) out->putc(in->getc());
     }
-    for (int j=0; j<witdh%3; j++) out->putc(in->getc());
-  }
 } 
 
 uint64_t Img24Filter::decode(File *in, File *out, uint64_t size, uint64_t info) {
-  int r,g,b,p, total=0;
-  bool isPossibleRGB565 = true;
-  int witdh=int(info&0xffffffff);
-  for (uint64_t i=0; i<size/witdh; i++) {
-    p=i*witdh;
-    for (int j=0; j<witdh/3; j++) {
-      g=in->getc(), r=in->getc(), b=in->getc();
-      r=g-r, b=g-b;
-      if (isPossibleRGB565){
-        if (total>=RGB565_MIN_RUN) {
-          b^=(b&8)-((b>>3)&1);
-          g^=(g&4)-((g>>2)&1);
-          r^=(r&8)-((r>>3)&1);
+    int r,g,b,p, total=0;
+    bool isPossibleRGB565 = true;
+    int witdh=int(info&0xffffffff);
+    for (uint64_t i=0; i<size/witdh; i++) {
+        p=i*witdh;
+        for (int j=0; j<witdh/3; j++) {
+            g=in->getc(), r=in->getc(), b=in->getc();
+            r=g-r, b=g-b;
+            if (isPossibleRGB565){
+                if (total>=RGB565_MIN_RUN) {
+                    b^=(b&8)-((b>>3)&1);
+                    g^=(g&4)-((g>>2)&1);
+                    r^=(r&8)-((r>>3)&1);
+                }
+                total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
+                isPossibleRGB565=total>0;
+            }
+            out->putc(b);
+            out->putc(g);
+            out->putc(r);
         }
-        total=min(total+1, 0xFFFF)*((b&7)==((b&8)-((b>>3)&1)) && (g&3)==((g&4)-((g>>2)&1)) && (r&7)==((r&8)-((r>>3)&1)));
-        isPossibleRGB565=total>0;
-      }
-      out->putc(b);
-      out->putc(g);
-      out->putc(r);
+        for (int j=0; j<witdh%3; j++) {
+            out->putc(in->getc());
+        }
     }
-    for (int j=0; j<witdh%3; j++) {
-        out->putc(in->getc());
-    }
-  }
-  fsize=size;
-  return size;
+    fsize=size;
+    return size;
 }
 
 Img24Filter::~Img24Filter() {

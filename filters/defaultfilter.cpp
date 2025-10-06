@@ -20,7 +20,6 @@ uint64_t DefaultFilter::decode(File *in, File *out, uint64_t size, uint64_t info
     U8 blk[BLOCK];
     diffFound=0;
     uint64_t remaining=size;
-
     while (remaining) {
         size_t reads=min(BLOCK, remaining);
         int ReadIn=in->blockread(&blk[0], reads);
@@ -30,7 +29,6 @@ uint64_t DefaultFilter::decode(File *in, File *out, uint64_t size, uint64_t info
    fsize=size;
    return size;
 }
-
 
 DefaultFilter::~DefaultFilter() {
 }

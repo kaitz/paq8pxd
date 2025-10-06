@@ -131,21 +131,10 @@ uint64_t base85Filter::decode(File *in, File *out, uint64_t size, uint64_t info)
         tuple = 0;
         count = 0;
     }
-    //if (mode==FDECOMPRESS){
-        out->blockwrite(&ptr[0],   outlen  );
-    /*}
-    else if (mode==FCOMPARE){
-        for(i=0;i<outlen;i++){
-            U8 b=ptr[i];
-            if (b!=out->getc() && !diffFound) diffFound= out->curpos();
-        }
-    }*/
-    //return outlen;
-  fsize=outlen;
-
+    out->blockwrite(&ptr[0],   outlen  );
+    fsize=outlen;
     return fsize;
 }
-
 
 base85Filter::~base85Filter() {
 }

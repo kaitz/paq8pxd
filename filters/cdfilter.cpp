@@ -63,7 +63,6 @@ uint64_t CDFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     return i2;
 }
 
-
 CDFilter::~CDFilter() {
 }
 

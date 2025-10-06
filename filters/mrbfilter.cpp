@@ -49,8 +49,7 @@ void ImgMRBFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
 } 
 
 uint64_t ImgMRBFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
-    
-  if (size==0) {
+    if (size==0) {
         diffFound=1;
         return 0;
     }
@@ -61,12 +60,12 @@ uint64_t ImgMRBFilter::decode(File *in, File *out, uint64_t size, uint64_t info)
     int len=in->get32();
     Array<U8,1> fptr(size+4);
     Array<U8,1> ptr(size+4);
-    in->blockread(&fptr[0], size );
+    in->blockread(&fptr[0], size);
     encodeRLE(&ptr[0],&fptr[0],size-2-4-diffcount*4,len); //size - header
     //Write out or compare
     int diffo=diffpos[0]>>8;
     int diffp=0;
-    for(int i=0;i<len;i++){
+    for(int i=0;i<len;i++) {
         if (i==diffo && diffcount) {             
             ptr[i]=diffpos[diffp]&255,diffp++,diffo=diffpos[diffp]>>8 ;
         }
@@ -77,11 +76,10 @@ uint64_t ImgMRBFilter::decode(File *in, File *out, uint64_t size, uint64_t info)
     return len;
 }
 
-
-int ImgMRBFilter::encodeRLE(U8 *dst, U8 *ptr, int src_end, int maxlen){
+int ImgMRBFilter::encodeRLE(U8 *dst, U8 *ptr, int src_end, int maxlen) {
     int i=0;
     int ind=0;
-    for(ind=0;ind<src_end; ){
+    for(ind=0;ind<src_end; ) {
         if (i>maxlen) return i;
         if (ptr[ind+0]!=ptr[ind+1] || ptr[ind+1]!=ptr[ind+2]) {
             // Guess how many non repeating bytes we have
@@ -96,14 +94,13 @@ int ImgMRBFilter::encodeRLE(U8 *dst, U8 *ptr, int src_end, int maxlen){
                 if (i>maxlen) return i;              
             }
             ind=ind+pixels;
-        }
-        else {
+        } else {
             // Get the number of repeating bytes
             int j=0;
-            for(  j=ind+1;j<(src_end);j++)
-            if (ptr[j+0]!=ptr[j+1]) break;
+            for (j=ind+1;j<(src_end);j++)
+                if (ptr[j+0]!=ptr[j+1]) break;
             int pixels=j-ind+1;          
-            if (j==src_end && pixels<4){
+            if (j==src_end && pixels<4) {
                 pixels--;              
                 dst[i]=U8(0x80 |pixels);
                 i++ ;
@@ -114,8 +111,7 @@ int ImgMRBFilter::encodeRLE(U8 *dst, U8 *ptr, int src_end, int maxlen){
                     if (i>maxlen) return i;
                 }
                 ind=ind+pixels;
-            }
-            else{ 
+            } else { 
                 j=pixels;  
                 while (pixels>127) {
                     dst[i++]=127;                

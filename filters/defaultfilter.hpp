@@ -1,7 +1,6 @@
 #pragma once
 #include "filter.hpp"
 
-
 class DefaultFilter: public Filter {
 
 public:

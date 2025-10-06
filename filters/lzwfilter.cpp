@@ -40,8 +40,9 @@ void lzwFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
             }
         }
     }
-} 
-inline void writeCode(File *f, int32_t *buffer, U64 *pos, int32_t *bitsUsed, const int32_t bitsPerCode, const int32_t code){
+}
+
+inline void writeCode(File *f, int32_t *buffer, U64 *pos, int32_t *bitsUsed, const int32_t bitsPerCode, const int32_t code) {
     *buffer<<=bitsPerCode; *buffer|=code;
     (*bitsUsed)+=bitsPerCode;
     while ((*bitsUsed)>7) {

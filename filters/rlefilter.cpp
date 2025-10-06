@@ -9,15 +9,13 @@ void rleFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     U8 b, c=in->getc();
     int i=1, maxBlockSize=info&0xFFFFFF;
     out->put32(maxBlockSize);
-    //hdrsize=(4);
     while (i<(int)size) {
         b=in->getc(), i++;
         if (c==0x80) { c=b; continue; }
         else if (c>0x7F) {
             for (int j=0; j<=(c&0x7F); j++) out->putc(b);
             c=in->getc(), i++;
-        }
-        else {
+        } else {
             for (int j=0; j<=c; j++, i++) { out->putc(b), b=in->getc(); }
             c=b;
         }
@@ -34,11 +32,11 @@ uint64_t rleFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
         U64 remaining = in->blockread(&inBuffer[0], maxBlockSize);
         U8 *inPtr = (U8*)inBuffer;
         U8 *outPtr= (U8*)outBuffer;
-        U8 *lastLiteral = nullptr;
-        state = BASE;
-        while (remaining>0){
-            U8 byte = *inPtr++, loop = 0;
-            int run = 1;
+        U8 *lastLiteral=nullptr;
+        state=BASE;
+        while (remaining>0) {
+            U8 byte=*inPtr++, loop=0;
+            int run=1;
             for (remaining--; remaining>0 && byte==*inPtr; remaining--, run++, inPtr++);
             do {
                 loop = 0;
@@ -47,8 +45,7 @@ uint64_t rleFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
                         if (run>1) {
                             state = RUN;
                             rleOutputRun;
-                        }
-                        else {
+                        } else {
                             lastLiteral = outPtr;
                             *outPtr++ = 0, *outPtr++ = byte;
                             state = LITERAL;
@@ -59,8 +56,7 @@ uint64_t rleFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
                         if (run>1) {
                             state = LITERAL_RUN;
                             rleOutputRun;
-                        }
-                        else {
+                        } else {
                             if (++(*lastLiteral)==127)
                             state = BASE;
                             *outPtr++ = byte;
@@ -71,9 +67,8 @@ uint64_t rleFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
                         if (outPtr[-2]==0x81 && *lastLiteral<(125)) {
                             state = (((*lastLiteral)+=2)==127)?BASE:LITERAL;
                             outPtr[-2] = outPtr[-1];
-                        }
-                        else
-                        state = RUN;
+                        } else
+                            state = RUN;
                         loop = 1;
                     }
                 }

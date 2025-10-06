@@ -49,7 +49,6 @@ uint64_t MDFFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     return fsize;
 }
 
-
 MDFFilter::~MDFFilter() {
 }
 

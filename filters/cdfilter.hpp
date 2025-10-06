@@ -9,7 +9,6 @@ public:
   ~CDFilter();
   void encode(File *in, File *out, uint64_t size, uint64_t info);
   uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);
-  
 };
 
 // Function ecc_compute(), edc_compute() and eccedc_init() taken from 

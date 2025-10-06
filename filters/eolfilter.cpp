@@ -1,9 +1,7 @@
 #include "eolfilter.hpp"
 
- 
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski
  
-
 EOLFilter::EOLFilter(std::string n, Filetype f) {  
     name=n;
     Type=f;
@@ -60,14 +58,9 @@ uint64_t EOLFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
 
     bb= tmpout.curpos();
     tmpout.setpos(0);
-    for ( U64 i=0; i<bb; i++) {
+    for (U64 i=0; i<bb; i++) { // replace
         b=tmpout.getc();
-       /// if (mode==FDECOMPRESS) {
-            out->putc(b);
-       /// }
-       // else if (mode==FCOMPARE) {
-       //     if (b!=out->getc() && !diffFound) diffFound=i;
-       // }
+        out->putc(b);
     }
     delete eold;
     tmpout.close();
