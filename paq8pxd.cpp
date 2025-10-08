@@ -2714,7 +2714,7 @@ printf("\n");
             en->flush();
             delete en;
             delete predictord;
-            Codec codec(FDECOMPRESS, &streams, &segment);
+            Codec codec(FCOMPRESS, &streams, &segment);
             for (int i=0; i<files; ++i) {
                 printf("\n%d/%d  Filename: %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
                 codec.EncodeFile(fname[i], fsize[i]);// DetectStreams(fname[i], fsize[i]);

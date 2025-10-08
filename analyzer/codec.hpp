@@ -29,6 +29,7 @@
 #include "../filters/armfilter.hpp"
 #include "../filters/lzwfilter.hpp"
 #include "../filters/defaultfilter.hpp"
+#include "analyser.hpp"
 
 class Codec {
     FMode mode;

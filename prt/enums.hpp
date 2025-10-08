@@ -22,6 +22,6 @@ typedef enum {M_NO=-1,M_RECORD=0,M_IM8,M_IM24,M_SPARSE,M_JPEG,M_WAV,M_MATCH,M_MA
 static  std::string modelNames[M_MODEL_COUNT]={"RECORD","IM8","IM24","SPARSE","JPEG","WAV","MATCH","MATCH1","DISTANCE",
               "EXE","INDIRECT","DMC","NEST","NORMAL","IM1","XML","IM4","TEXT",
               "WORD","DEC","LINEAR","SPARSEMATCH","SPARSE_Y","M_PPM","M_CHART","M_LSTM"};
-typedef enum {FDECOMPRESS, FCOMPARE, FDISCARD,FEQUAL} FMode;
+typedef enum {FCOMPRESS,FDECOMPRESS, FCOMPARE, FDISCARD,FEQUAL} FMode;
 
-typedef enum {NONE=0,START,INFO,END,DISABLE=0xfffffffd,RESET=0xfffffffe,REQUEST=0xffffffff} DetectState; 
+typedef enum {NONE=0,START,INFO,END,DATA,DISABLE,RESET,REQUEST} DetectState; 

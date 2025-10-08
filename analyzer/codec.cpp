@@ -161,9 +161,11 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     direct_encode_blockstream(DEFAULT, in, n);
     return;
   }
+  Analyser an;
   // Transform and test in blocks
   while (n>0) {
-    if (it==0 && witmode==true) {
+     dType block=an.Detect(in,n,it);
+    /*if (it==0 && witmode==true) {
       len=end=end0,info=0,type=WIT;
     }
     else if (it==1 && witmode==true){    
@@ -218,13 +220,18 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     if (end>end0) {  // if some detection reports longer then actual size file is
       end=begin+1;
       type=nextType=DEFAULT;
-    }
-      len=U64(end-begin);
-    if (begin>end) len=0;
-    if (len>=2147483646) {  
+    }*/
+    end=block.end;
+    //begin=block.start;
+    info=block.info;
+      len=U64(block.end-block.start);
+      type=block.type;
+      in->setpos(begin);
+    //if (begin>end) len=0;
+    /*if (len>=2147483646) {  
       if (!(type==BZIP2||type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0 ||type==EOLTEXT))len=2147483646,type=DEFAULT; // force to int
     }
-   }
+   }*/
     if (len>0) {
     if ((type==EOLTEXT) && (len<1024*64 || len>0x1FFFFFFF)) type=TEXT;
     if (it>itcount)    itcount=it;
@@ -254,7 +261,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     }
     
     type=nextType;
-    begin=end;
+    begin+=len;
   }
 }
 
