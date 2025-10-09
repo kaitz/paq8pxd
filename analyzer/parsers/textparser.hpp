@@ -5,14 +5,14 @@
 #include <vector>
 
 
-class DefaultParser: public Parser {
+class TextParser: public Parser {
     uint64_t info;
     uint32_t i;
     Filetype type;
-    uint64_t jstart,jend,inpos;
+    uint64_t jstart,jend,inSize,inpos,txtStart,binLen,spaces,txtLen,txtMinLen;
 public:    
-    DefaultParser();
-    ~DefaultParser();
+    TextParser();
+    ~TextParser();
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos);
     dType getType(int i);
     int TypeCount();

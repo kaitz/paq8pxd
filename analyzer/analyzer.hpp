@@ -6,17 +6,21 @@
 #include <vector>
 #include "parsers/bmpparser.hpp"
 #include "parsers/default.hpp"
+#include "parsers/textparser.hpp"
 
 class Analyser {
     uint64_t info;
     std::vector<Parser*> parsers;
     void AddParser(Parser *p);
     uint64_t remaining;
-    dType def;
-    dType found;
+    std::vector<dType> types;
+    size_t lastType;
+    dType currentType;
+    dType emptyType;
     bool typefound;
 public:    
     Analyser();
     ~Analyser();
-    dType Detect(File* in, U64 n, int it=0);
+    bool Detect(File* in, U64 n, int it=0);
+    dType GetNext();
 };

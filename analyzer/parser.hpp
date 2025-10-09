@@ -33,4 +33,5 @@ public:
     virtual dType getType(int i)=0;
     virtual int TypeCount()=0;
     virtual void Reset()=0;
+    virtual void SetEnd(uint64_t e)=0;
 };

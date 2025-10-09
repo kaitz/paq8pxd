@@ -12,15 +12,15 @@ DefaultParser::~DefaultParser() {
 
 // loop over input block byte by byte and report state
 DetectState DefaultParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
-     int p ,c;
+   /*  int p ,c;
     
     if (inpos!=pos) {
         inpos=pos;
         i=pos;
-    }
+    }*/
     
     if (state==NONE){
-        state=START,jstart=i;
+        state=START,jstart=pos;
     } else if (state==START) {
             state=INFO;
             return state;
@@ -48,4 +48,8 @@ int DefaultParser::TypeCount() {
 void DefaultParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=0;
     info=i=0;
+}
+
+void DefaultParser::SetEnd(uint64_t e) {
+     jend=e;
 }

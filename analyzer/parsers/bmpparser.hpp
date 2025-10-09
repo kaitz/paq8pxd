@@ -4,15 +4,14 @@
 #include <cstdint>
 #include <vector>
 
-
 class BMPParser: public Parser {
-    int bmp, bpp, x, y;
-    int of, size, hdrless; 
+    int bpp, x, y, hdrless;
+    uint64_t bmp, of, size;
     uint64_t info;
-    uint32_t buf0,buf1;
+    uint32_t buf0, buf1;
     uint32_t i;
     Filetype type;
-    uint64_t jstart,jend,inSize,inpos;
+    uint64_t jstart, jend, inSize, inpos;
 public:    
     BMPParser();
     ~BMPParser();
@@ -20,4 +19,5 @@ public:
     dType getType(int i);
     int TypeCount();
     void Reset();
+    void SetEnd(uint64_t e);
 };

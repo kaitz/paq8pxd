@@ -131,9 +131,9 @@ inline int max(int a, int b) {return a<b?b:a;}
 #include "stream/streams.hpp"
 
 #include "filters/textfilter.hpp"
-#include "analyser/codec.hpp"
+#include "analyzer/codec.hpp"
 
-TextFilter   textf("text");
+
 Streams streams;
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
@@ -2057,15 +2057,16 @@ void compressStream(int streamid, U64 size, File* in, File* out) {
     if (i==8 || i==9) {
         bool dictFail=false;
         FileTmp tm;
+        TextFilter textf("text");
         textf.encode(in,&tm,datasegmentsize,i==8);
-        datasegmentlen= tm.curpos();
+        datasegmentlen=tm.curpos();
         streams.streams[i]->streamsize=datasegmentlen;
         // -e0 option ignores larger wrt size
         if (datasegmentlen>=datasegmentsize && minfq!=0){
             dictFail=true; //wrt size larger
-            if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize ); 
+            if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize); 
         }else{                            
-            if (verbose>0)printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
+            if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
         }
         tm.setpos(0);
         in->setpos(0);
@@ -2355,7 +2356,8 @@ void DecompressStreams(File *archive) {
                         datasegmentsize--;
                     }
                     if (doWRT==true) {
-                        tm.setpos( 0);
+                        tm.setpos(0);
+                        TextFilter textf("text");
                         textf.decode(&tm,&streams.streams[i]->file,datasegmentlen,0);
                     } else {
                         tm.setpos( 0);

@@ -162,9 +162,13 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     return;
   }
   Analyser an;
+  bool found=false;
   // Transform and test in blocks
   while (n>0) {
-     dType block=an.Detect(in,n,it);
+     if (found==false)
+         found=an.Detect(in,n,it);
+     dType block=an.GetNext();
+     if (block.end==0) found=false; // look for next type
     /*if (it==0 && witmode==true) {
       len=end=end0,info=0,type=WIT;
     }
@@ -225,14 +229,15 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     //begin=block.start;
     info=block.info;
       len=U64(block.end-block.start);
-      type=block.type;
-      in->setpos(begin);
+
     //if (begin>end) len=0;
     /*if (len>=2147483646) {  
       if (!(type==BZIP2||type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0 ||type==EOLTEXT))len=2147483646,type=DEFAULT; // force to int
     }
    }*/
     if (len>0) {
+              type=block.type;
+      in->setpos(begin);
     if ((type==EOLTEXT) && (len<1024*64 || len>0x1FFFFFFF)) type=TEXT;
     if (it>itcount)    itcount=it;
     if((len>>1)<(info) && type==DEFAULT && info<len) type=BINTEXT;
@@ -249,7 +254,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
       if (verbose>2) printf(" %-9s ",typenames[type]);
       SetConColor(7);
       if (verbose>2) {
-        printf("|%12.0f [%0.0f - %0.0f]",len+0.0,begin+0.0,(end-1)+0.0);
+        printf("|%12.0f [%0.0f - %0.0f]",len+0.0,begin+0.0,(begin+len-1)+0.0);
         if (type==AUDIO) printf(" (%s)", audiotypes[(info&31)%4+(info>>7)*2]);
         else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24 || type==MRBR|| type==MRBR4|| type==IMAGE8GRAY || type==IMAGE32 ||type==GIF) printf(" (width: %d)", info&0xFFFFFF);
         else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
@@ -258,10 +263,11 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
       }
       transform_encode_block(type, in, len,  info,info2, blstr, it, begin);
       n-=len;
-    }
     
-    type=nextType;
+    
+    //type=nextType;
     begin+=len;
+    }
   }
 }
 
