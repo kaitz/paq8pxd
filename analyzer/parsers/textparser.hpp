@@ -1,9 +1,7 @@
 #pragma once
 #include "../parser.hpp"
-#include "../prt/enums.hpp"
 #include <cstdint>
 #include <vector>
-
 
 class TextParser: public Parser {
     uint64_t info;
