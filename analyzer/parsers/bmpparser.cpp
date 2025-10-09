@@ -10,7 +10,7 @@ BMPParser::BMPParser() {
     priority=2;
     Reset();
     inpos=0;
-    name="bmp 24 bit";
+    name="bmp";
 }
 
 BMPParser::~BMPParser() {
@@ -33,19 +33,20 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
         // Detect for 'BM' or headerless DIB
         if (state==NONE && (((buf0&0xffff)==16973) || (!(buf0&0xFFFFFF) && ((buf0>>24)==0x28))) ){
             state=START;
-            hdrless=!(buf0&0xff),of=hdrless*54,bmp=i-hdrless*16; // TODO: test if valid
+            hdrless=!(buf0&0xff),of=hdrless*54;
+            bmp=i-hdrless*16;
         } else if (state==START) {
             int p=i-bmp;
             if (p==12) of=bswap(buf0);
-            else if (p==16 && buf0!=0x28000000) Reset();//BITMAPINFOHEADER (0x28)
+            else if (p==16 && buf0!=0x28000000) state=NONE;//BITMAPINFOHEADER (0x28)
             else if (p==20) x=bswap(buf0),bmp=((x==0||x>0x30000)?(hdrless=0):bmp); //width
             else if (p==24) y=abs(bswap(buf0)),bmp=((y==0||y>0x10000)?(hdrless=0):bmp); //height
             else if (p==27) bpp=c,bmp=((bpp!=1 && bpp!=4 && bpp!=8 && bpp!=24 && bpp!=32)?(hdrless=0):bmp);
-            else if ((p==31) && buf0) Reset();
+            else if ((p==31) && buf0) state=NONE;
             else if (p==36) size=bswap(buf0);
             // check number of colors in palette (4 bytes), must be 0 (default) or <= 1<<bpp.
             // also check if image is too small, since it might not be worth it to use the image models
-            else if (p==48){
+            else if (p==48) {
                 if ( (!buf0 || ((bswap(buf0)<=(1<<bpp)) && (bpp<=8))) && (((x*y*bpp)>>3)>64) ) {
                     // possible icon/cursor?
                     if (hdrless && (x*2==y) && bpp>1 && (
@@ -61,20 +62,34 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                     y=x;
                     // if DIB and not 24bpp, we must calculate the data offset based on BPP or num. of entries in color palette
                     if (hdrless && (bpp<24))
-                    of=of+((buf0)?bswap(buf0)*4:4<<bpp);
+                        of=of+((buf0)?bswap(buf0)*4:4<<bpp);
                     of=of+(bmp-1)*(bmp<1);
                     if (hdrless && size && size<((x*y*bpp)>>3)) { }//Guard against erroneous DIB detections
-                    else  if (bpp==24){
-                        info=((x*3)+3)& 0xFFFFFFFC;// -4;
-                        type=IMAGE24;
-                        state=INFO;
-                        jstart=of+bmp-1;
-                        jend=info*y+jstart;
-                        return state;
+                    else { 
+                        if (bpp==24) {
+                            info=((x*3)+3)&0xFFFFFFFC;// -4;
+                            type=IMAGE24;
+                        } else  if (bpp==4) {
+                            info=((x*4+31)>>5)*4;
+                            type=IMAGE4;
+                        } else  if (bpp==8) {
+                            info=(x+3)&0xFFFFFFFC;// -4;
+                            type=IMAGE8;
+                        } else  if (bpp==1) {
+                            info=(((x-1)>>5)+1)*4;
+                            type=IMAGE1;
+                        }
+                        if (type!=DEFAULT){
+                            state=INFO;
+                            jstart=of+bmp-1;
+                            jend=info*y+jstart;
+                            // report state only if larger then block
+                            if ((jend-jstart)>len) return state;
+                        }
                     }
                 }
-                Reset();
             }
+            if (p>48) state=NONE;
         } else if (state==INFO && i==(jend-1)) {
             state=END;
             return state;
@@ -109,5 +124,5 @@ void BMPParser::Reset() {
     bmp=bpp=x=y=of=size=hdrless=info=i=inSize=0;
 }
 void BMPParser::SetEnd(uint64_t e) {
-     jend=e;
+    jend=e;
 }

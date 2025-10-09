@@ -7,6 +7,7 @@
 #include "parsers/bmpparser.hpp"
 #include "parsers/default.hpp"
 #include "parsers/textparser.hpp"
+#include "parsers/decaparser.hpp"
 
 class Analyser {
     uint64_t info;
