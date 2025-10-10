@@ -9,6 +9,7 @@
 #include "parsers/textparser.hpp"
 #include "parsers/decaparser.hpp"
 #include "parsers/mrbparser.hpp"
+#include "parsers/exeparser.hpp"
 
 class Analyser {
     uint64_t info;

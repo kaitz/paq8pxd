@@ -52,7 +52,7 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
         buf0=(buf0<<8)+c;
         if (state==NONE && ((buf0&0xffFFFF)==0x00006c70 || (buf0&0xFFFF)==0x6C50) ){
             state=START;
-            mrb=i,mrbsize=0,mrbPictureType=mrbmulti=0; 
+            mrb=i,mrbsize=0,mrbPictureType=mrbmulti=0; // TODO test if not end of the block
         } 
         else if (state==START) {
             const uint64_t p=(i-mrb)-mrbmulti*4; // Select only first image from multiple
