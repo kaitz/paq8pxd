@@ -433,12 +433,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   static U64 prv_start=0;
   prv_start = start;    // for DEC Alpha detection
   start= in->curpos();
-  // For EXE detection
-  Array<U64> abspos(256),  // CALL/JMP abs. addr. low byte -> last offset
-    relpos(256);    // CALL/JMP relative addr. low byte -> last offset
-  int e8e9count=0;  // number of consecutive CALL/JMPs
-  U64 e8e9pos=0;    // offset of first CALL or JMP instruction
-  U64 e8e9last=0;   // offset of most recent CALL or JMP
+  
   // For ARM detection
   Array<U64> absposARM(256),  // CALL/JMP abs. addr. low byte -> last offset
     relposARM(256);    // CALL/JMP relative addr. low byte -> last offset
@@ -1485,34 +1480,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
       }
     }
     
-    // Detect EXE if the low order byte (little-endian) XX is more
-    // recently seen (and within 4K) if a relative to absolute address
-    // conversion is done in the context CALL/JMP (E8/E9) XX xx xx 00/FF
-    // 4 times in a row.  Detect end of EXE at the last
-    // place this happens when it does not happen for 64KB.
-
-    if (((buf1&0xfe)==0xe8 || (buf1&0xfff0)==0x0f80) && ((buf0+1)&0xfe)==0) {
-      int r=buf0>>24;  // relative address low 8 bits
-      int a=((buf0>>24)+i)&0xff;  // absolute address low 8 bits
-      U64 rdist=(i-relpos[r]);
-      U64 adist=(i-abspos[a]);
-      if (adist<rdist && adist<0x800 && abspos[a]>5) {
-        e8e9last=i;
-        ++e8e9count;
-        if (e8e9pos==0 || e8e9pos>abspos[a]) e8e9pos=abspos[a];
-      }
-      else e8e9count=0;
-      if (type==DEFAULT && e8e9count>=4 && e8e9pos>5)
-        return  in->setpos( start+e8e9pos-5), EXE;
-      abspos[a]=i;
-      relpos[r]=i;
-    }
-    if (i-e8e9last>0x4000) {
-      if (type==EXE) return  in->setpos( start+e8e9last), DEFAULT;
-      e8e9count=0,e8e9pos=0;
-    }
-    if (type==EXE) continue;
-
+    
     
     // ARM
     op=(buf0)>>26; 
@@ -1522,7 +1490,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&& e8e9count==0 && textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits

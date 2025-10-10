@@ -8,6 +8,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new DECaParser());
     AddParser( new mrbParser());
     AddParser( new EXEParser());
+    AddParser( new zlibParser());
     
     emptyType.start=0;
     emptyType.end=0;
