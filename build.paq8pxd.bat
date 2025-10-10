@@ -6,7 +6,7 @@ set path=%cdir%\tools\mingw64\bin\..\;%cdir%\tools\mingw64\x86_64-w64-mingw32\li
 set gcc=%cdir%\tools\mingw64\bin\g++.exe 
 set src=%cdir%
 rem -ffp-model=fast 
-set options=-DWINDOWS -DNDEBUG -DMT  -DSM  -m64 -Wall -std=gnu++11 -mavx2 -O3 -fno-threadsafe-statics -Wno-unused-variable  -Wno-unused-but-set-variable -Wno-format -mfpmath=sse -march=corei7 -ffast-math -fno-math-errno -fno-trapping-math 
+set options=-DWINDOWS -DNDEBUG -DMT  -DSM  -m64 -Wall -std=gnu++11 -mavx2 -O3 -flto -fwhole-program  -fno-threadsafe-statics -Wno-unused-variable  -Wno-unused-but-set-variable -Wno-format -mfpmath=sse -march=corei7 -ffast-math -fno-math-errno -fno-trapping-math 
 
 del _error_log.txt  >nul 2>&1
 del paq8pxd.exe      >nul 2>&1

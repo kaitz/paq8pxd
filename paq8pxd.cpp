@@ -252,10 +252,6 @@ deth=(-1),detd=int(base85len),\
 deth=(-1),detd=int(base64len),info=(unsize),\
  in->setpos(start+start_pos),DEFAULT
 
-#define MRBRLE_DET(type,start_pos,header_len,data_len,width,height) return dett=(type),\
-deth=(header_len),detd=(data_len),info=(((width+3)/4)*4),info2=(height),\
- in->setpos(start+(start_pos)),HDR
-
 #define TIFFJPEG_DET(start_pos,header_len,data_len) return dett=(JPEG),\
 deth=(header_len),detd=(data_len),info=(-1),info2=(-1),\
  in->setpos(start+(start_pos)),HDR
@@ -268,22 +264,6 @@ inline bool is_base85(unsigned char c) {
     return (isalnum(c) || (c==13) || (c==10) || (c=='y') || (c=='z') || (c>='!' && c<='u'));
 }
 
-//read compressed word,dword
-U32 GetCDWord(File*f){
-    U16 w = f->getc();
-    w=w | (f->getc()<<8);
-    if(w&1){
-        U16 w1 = f->getc();
-        w1=w1 | (f->getc()<<8);
-        return ((w1<<16)|w)>>1;
-    }
-    return w>>1;
-}
-U8 GetCWord(File*f){
-    U8 b=f->getc();
-    if(b&1) return ((f->getc()<<8)|b)>>1;
-    return b>>1;
-}
 
 bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   U64 offset = in->curpos();
@@ -488,15 +468,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U32 cdf=0;
   TextInfo text = {}; // For TEXT
   
-  // For DEC Alpha detection
-  struct {
-    Array<uint64_t> absPos{ 256 };
-    Array<uint64_t> relPos{ 256 };
-    uint32_t opcode = 0u, idx = 0u, count[4] = { 0 }, branches[4] = { 0 };
-    uint64_t offset = 0u, last = 0u;
-  } DEC_ALPHA;
-  
-
  ///
    U64 uuds=0,uuds1=0,uudp=0,uudslen=0,uudh=0;//,b64i=0;
   U64 uudstart=0,uudend=0,uudline=0,uudnl=0,uudlcount=0,uuc=0;
@@ -1173,117 +1144,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
       }
     }
    
-    //detect rle encoded mrb files inside windows hlp files 506C
-    if (!mrb && ((buf0&0xFFFF)==0x6c70 || (buf0&0xFFFF)==0x6C50) && !b64s1 && !b64s && !b85s1 && !b85s && type!=MDF &&  !cdi)
-        mrb=i,mrbsize=0,mrbPictureType=mrbmulti=0; 
-    if (mrb){
-        U32 BitCount=0;
-        const int p=int(i-mrb)-mrbmulti*4; //select only first image from multiple
-        if (p==1 && c>1 && c<4&& mrbmulti==0)    mrbmulti=c-1;
-        if (p==1 && c==0) mrb=0;
-        if (p==7 ){  // 5=DDB   6=DIB   8=metafile
-            if ((c==5 || c==6 )) mrbPictureType=c;
-            else mrb=0;
-         }
-        if (p==8) {         // 0=uncomp 1=RunLen 2=LZ77 3=both
-           if(c==1||c==2||c==3||c==0) mrbPackingMethod=c;
-           else mrb=0;
-        }
-        if (p==10){
-          if (mrbPictureType==6 && (mrbPackingMethod==1 || mrbPackingMethod==2)){
-        //save ftell
-        mrbTell= in->curpos()-2;
-         in->setpos(mrbTell);
-        U32 Xdpi=GetCDWord(in);
-        U32 Ydpi=GetCDWord(in);
-        U32 Planes=GetCWord(in);
-         BitCount=GetCWord(in);
-        mrbw=GetCDWord(in);
-        mrbh=GetCDWord(in);
-        U32 ColorsUsed=GetCDWord(in);
-        U32 ColorsImportant=GetCDWord(in);
-        mrbcsize=GetCDWord(in);
-        U32 HotspotSize=GetCDWord(in);
-        int CompressedOffset=(in->getc()<<24)|(in->getc()<<16)|(in->getc()<<8)|in->getc();
-        int HotspotOffset=(in->getc()<<24)|(in->getc()<<16)|(in->getc()<<8)|in->getc();
-        CompressedOffset=bswap(CompressedOffset);
-        HotspotOffset=bswap(HotspotOffset);
-        mrbsize=mrbcsize+ in->curpos()-mrbTell+10+(1<<BitCount)*4; // ignore HotspotSize
-        int pixelBytes = (mrbw * mrbh * BitCount) >> 3;
-        mrbTell=mrbTell+2;
-            in->setpos(mrbTell);
-        if (!(BitCount==8 || BitCount==4)|| mrbw<4 || mrbw>1024 || mrbPackingMethod==2|| mrbPackingMethod==3|| mrbPackingMethod==0) {
-            if ((type==CMP ) &&   (mrbPackingMethod==2|| mrbPackingMethod==2) && mrbsize){
-               return  in->setpos(start+mrbsize),DEFAULT;
-            }      
-            if( mrbPackingMethod==2 || mrbPackingMethod==2) MRBRLE_DET(CMP,mrb-1, mrbsize-mrbcsize, mrbcsize, mrbw, mrbh);
-            mrbPictureType=mrb=mrbsize=mrbmulti=0;
-            
-        }else if (mrbPackingMethod <= 1 && pixelBytes < 360) {
-            //printf("MRB: skipping\n");
-            mrbPictureType=mrb=mrbsize=mrbmulti=0; // block is too small to be worth processing as a new block
-        }
-       } else mrbPictureType=mrb=mrbsize=0;
-       }
-       
-       if ((type==MRBR || type==MRBR4 ) &&   (mrbPictureType==6 || mrbPictureType==8) && mrbsize){
-        return  in->setpos(start+mrbsize),DEFAULT;
-       }
-       if ( (mrbPictureType==6 && BitCount==8) && mrbsize && mrbw>4 && mrbh>4){
-        MRBRLE_DET(MRBR,mrb-1, mrbsize-mrbcsize, mrbcsize, mrbw, mrbh);
-       }
-       else if ( (mrbPictureType==6 && BitCount==4) && mrbsize && mrbw>4 && mrbh>4){
-        MRBRLE_DET(MRBR4,mrb-1, mrbsize-mrbcsize, mrbcsize, mrbw, mrbh);
-       }
-    }
-    // Detect .bmp image
-    if ( !(bmp.bmp || bmp.hdrless) && (((buf0&0xffff)==16973) || (!(buf0&0xFFFFFF) && ((buf0>>24)==0x28))) ) //possible 'BM' or headerless DIB
-      bmp = {},bmp.hdrless=!(U8)buf0,bmp.of=bmp.hdrless*54,bmp.bmp=i-bmp.hdrless*16;
-    if (bmp.bmp || bmp.hdrless) {
-      const int p=i-bmp.bmp;
-      if (p==12) bmp.of=bswap(buf0);
-      else if (p==16 && buf0!=0x28000000) bmp = {}; //BITMAPINFOHEADER (0x28)
-      else if (p==20) bmp.x=bswap(buf0),bmp.bmp=((bmp.x==0||bmp.x>0x30000)?(bmp.hdrless=0):bmp.bmp); //width
-      else if (p==24) bmp.y=abs((int)bswap(buf0)),bmp.bmp=((bmp.y==0||bmp.y>0x10000)?(bmp.hdrless=0):bmp.bmp); //height
-      else if (p==27) bmp.bpp=c,bmp.bmp=((bmp.bpp!=1 && bmp.bpp!=4 && bmp.bpp!=8 && bmp.bpp!=24 && bmp.bpp!=32)?(bmp.hdrless=0):bmp.bmp);
-      else if ((p==31) && buf0) bmp = {};
-      else if (p==36) bmp.size=bswap(buf0);
-      // check number of colors in palette (4 bytes), must be 0 (default) or <= 1<<bpp.
-      // also check if image is too small, since it might not be worth it to use the image models
-      else if (p==48){
-        if ( (!buf0 || ((bswap(buf0)<=(U32)(1<<bmp.bpp)) && (bmp.bpp<=8))) && (((bmp.x*bmp.y*bmp.bpp)>>3)>64) ) {
-          // possible icon/cursor?
-          if (bmp.hdrless && (bmp.x*2==bmp.y) && bmp.bpp>1 &&
-             (
-              (bmp.size>0 && bmp.size==( (bmp.x*bmp.y*(bmp.bpp+1))>>4 )) ||
-              ((!bmp.size || bmp.size<((bmp.x*bmp.y*bmp.bpp)>>3)) && (
-               (bmp.x==8)   || (bmp.x==10) || (bmp.x==14) || (bmp.x==16) || (bmp.x==20) ||
-               (bmp.x==22)  || (bmp.x==24) || (bmp.x==32) || (bmp.x==40) || (bmp.x==48) ||
-               (bmp.x==60)  || (bmp.x==64) || (bmp.x==72) || (bmp.x==80) || (bmp.x==96) ||
-               (bmp.x==128) || (bmp.x==256)
-              ))
-             )
-          )
-            bmp.y=bmp.x;
-
-          // if DIB and not 24bpp, we must calculate the data offset based on BPP or num. of entries in color palette
-          if (bmp.hdrless && (bmp.bpp<24))
-            bmp.of+=((buf0)?bswap(buf0)*4:4<<bmp.bpp);
-          bmp.of+=(bmp.bmp-1)*(bmp.bmp<1);
-
-          if (bmp.hdrless && bmp.size && bmp.size<((bmp.x*bmp.y*bmp.bpp)>>3)) { }//Guard against erroneous DIB detections
-          else if (bmp.bpp==1) IMG_DET(IMAGE1,max(0,bmp.bmp-1),bmp.of,(((bmp.x-1)>>5)+1)*4,bmp.y);
-          else if (bmp.bpp==4) IMG_DET(IMAGE4,max(0,bmp.bmp-1),bmp.of,((bmp.x*4+31)>>5)*4,bmp.y);
-          else if (bmp.bpp==8){
-             in->setpos(start+bmp.bmp+53);
-            IMG_DET( (IsGrayscalePalette(in, (buf0)?bswap(buf0):1<<bmp.bpp, 1))?IMAGE8GRAY:IMAGE8,max(0,bmp.bmp-1),bmp.of,(bmp.x+3)&-4,bmp.y);
-          }
-          else if (bmp.bpp==24) IMG_DET(IMAGE24,max(0,bmp.bmp-1),bmp.of,((bmp.x*3)+3)&-4,bmp.y);
-          else if (bmp.bpp==32) IMG_DET(IMAGE32,max(0,bmp.bmp-1),bmp.of,bmp.x*4,bmp.y);
-        }
-        bmp = {};
-      }
-    }
+    
     // Detect .pbm .pgm .ppm .pam image
     if ((buf0&0xfff0ff)==0x50300a && textparser.validlength()<TEXT_MIN_SIZE ) { 
       pgmn=(buf0&0xf00)>>8;
@@ -1652,46 +1513,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     }
     if (type==EXE) continue;
 
-    // DEC Alpha
-        // detect DEC Alpha
-    DEC_ALPHA.idx = i & 3u;
-    DEC_ALPHA.opcode = bswap(buf0);
-    DEC_ALPHA.count[DEC_ALPHA.idx] = ((i >= 3u) && DECAlpha::IsValidInstruction(DEC_ALPHA.opcode)) ? DEC_ALPHA.count[DEC_ALPHA.idx] + 1u : DEC_ALPHA.count[DEC_ALPHA.idx] >> 3u;
-    DEC_ALPHA.opcode >>= 21u;
-    //test if bsr opcode and if last 4 opcodes are valid
-    if (
-      (DEC_ALPHA.opcode == (0x34u << 5u) + 26u) &&
-      (DEC_ALPHA.count[DEC_ALPHA.idx] > 4u) &&
-      ((e8e9count == 0) && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga)
-    ) {
-      std::uint32_t const absAddrLSB = DEC_ALPHA.opcode & 0xFFu; // absolute address low 8 bits
-      std::uint32_t const relAddrLSB = ((DEC_ALPHA.opcode & 0x1FFFFFu) + static_cast<std::uint32_t>(i) / 4u) & 0xFFu; // relative address low 8 bits
-      std::uint64_t const absPos = DEC_ALPHA.absPos[absAddrLSB];
-      std::uint64_t const relPos = DEC_ALPHA.relPos[relAddrLSB];
-      std::uint64_t const curPos = static_cast<std::uint64_t>(i);
-      if ((absPos > relPos) && (curPos < absPos + 0x8000ull) && (absPos > 16u) && (curPos > absPos + 16ull) && (((curPos-absPos) & 3ull) == 0u)) {
-        DEC_ALPHA.last = curPos;
-        DEC_ALPHA.branches[DEC_ALPHA.idx]++;      
-        if ((DEC_ALPHA.offset == 0u) || (DEC_ALPHA.offset > DEC_ALPHA.absPos[absAddrLSB])) {
-          std::uint64_t const addr = curPos - (DEC_ALPHA.count[DEC_ALPHA.idx] - 1u) * 4ull;          
-          DEC_ALPHA.offset = ((start > 0u) && (start == prv_start)) ? DEC_ALPHA.absPos[absAddrLSB] : std::min<std::uint64_t>(DEC_ALPHA.absPos[absAddrLSB], addr);
-        }
-      }
-      else
-        DEC_ALPHA.branches[DEC_ALPHA.idx] = 0u;
-      DEC_ALPHA.absPos[absAddrLSB] = DEC_ALPHA.relPos[relAddrLSB] = curPos;
-    }
-     
-    if ((type == DEFAULT) && (DEC_ALPHA.branches[DEC_ALPHA.idx] >= 16u))
-      return in->setpos(start + DEC_ALPHA.offset - (start + DEC_ALPHA.offset) % 4), DECA;    
-   
-    if ((i + 1 == n) ||(static_cast<std::uint64_t>(i) > DEC_ALPHA.last + (type==DECA ? 0x8000ull : 0x4000ull)) && (DEC_ALPHA.count[DEC_ALPHA.offset & 3] == 0u)) {
-      if (type == DECA)
-        return in->setpos(start + DEC_ALPHA.last - (start + DEC_ALPHA.last) % 4), DEFAULT;
-      DEC_ALPHA.last = 0u, DEC_ALPHA.offset = 0u;
-       memset(&DEC_ALPHA.branches[0], 0u, sizeof(DEC_ALPHA.branches));
-    }
-    if (type==DECA) continue;
     
     // ARM
     op=(buf0)>>26; 

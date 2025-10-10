@@ -89,8 +89,6 @@ void Codec::EncodeFile(const char* filename, uint64_t filesize) {
     in.close();
 }
 
-//#define PNGFlag (1<<31)
-//#define GrayFlag (1<<30)
 uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
     Filetype type;
     U64 len,i,diffFound;
@@ -227,9 +225,10 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     }*/
     end=block.end;
     //begin=block.start;
-    info=block.info;
+    info=(block.info)&0xffffffff;
+    info2=(block.info>>32);
       len=U64(block.end-block.start);
-
+    if (len>n) len=n;
     //if (begin>end) len=0;
     /*if (len>=2147483646) {  
       if (!(type==BZIP2||type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0 ||type==EOLTEXT))len=2147483646,type=DEFAULT; // force to int
