@@ -9,6 +9,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new mrbParser());
     AddParser( new EXEParser());
     AddParser( new zlibParser());
+    AddParser( new NesParser());
     
     emptyType.start=0;
     emptyType.end=0;
@@ -27,7 +28,7 @@ Analyser::~Analyser() {
 
 bool Analyser::Detect(File* in, U64 n, int it) {
     const int BLOCK=0x10000;  // block size
-    U8 blk[BLOCK];
+    uint8_t blk[BLOCK];
     Filetype type=DEFAULT;
     bool pri[5]={false};
     typefound=false;
@@ -67,19 +68,18 @@ bool Analyser::Detect(File* in, U64 n, int it) {
         // Test valid parsers and disable lower priority ones that are not detected a new type. 
         // Priority 4 not tested as it is default
         if (typefound==false){
-        
-        for (size_t i=0; i<4; i++) {
-            bool p=pri[i];
-            if (p) {
-                for (size_t j=0; j<parsers.size(); j++) {
-                    if (parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
-                        parsers[j]->state=DISABLE;
-                        //printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
+            for (size_t i=0; i<4; i++) {
+                bool p=pri[i];
+                if (p) {
+                    for (size_t j=0; j<parsers.size(); j++) {
+                        if (parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
+                            parsers[j]->state=DISABLE;
+                            //printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
+                        }
                     }
+                    break;
                 }
-                break;
             }
-        }
         }
         // We found new type. Is some parser still detecting?
         if (typefound==true) {
@@ -124,6 +124,7 @@ bool Analyser::Detect(File* in, U64 n, int it) {
     //printf("T=%d parser default\n Start %d,%d\n",0,def.start,def.end);
     return true;
 }
+
 dType Analyser::GetNext() {
     if (types.size()>lastType) {
         currentType=types[lastType];

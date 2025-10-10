@@ -11,6 +11,7 @@
 #include "parsers/mrbparser.hpp"
 #include "parsers/exeparser.hpp"
 #include "parsers/zlibparser.hpp"
+#include "parsers/nesparser.hpp"
 
 class Analyser {
     uint64_t info;
