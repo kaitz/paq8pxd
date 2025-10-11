@@ -1,8 +1,15 @@
+v113
+    -Update build script
+    -Add default, bmp, text (very agressive), DEC Alpha, mrb (.hlp),
+     exe, zlib, nes rom and MS-Zip (.cab) parsers.
+    -Add analyzer (detect replacement)
+    -Hevy cleanup of code
+    -Enable MRBR4, TXTUTF8 and BIGTEXT filters
 v112
     -More refactoring of source code
 v111
     -Refactored source code
-    -Add build sripts for Windows
+    -Add build script for Windows
 v110
     -In BZip2 recompression add a new parameter to BZ2_bzCompressInit API.
      In BZip2 v1.0.3 maxLen was changed from 20 to 17. Test 20 if 17 fails.

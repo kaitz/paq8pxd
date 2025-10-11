@@ -705,33 +705,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
         continue;
     }
 
-    if ((buf0)==0x0080434b && MSZip==0  && !cdi  && type!=MDF) {
-       MSZ=i;
-       MSZip=i-4,MSZipz=(buf1&0xffff);
-       MSZipz=((MSZipz&0xff)<<8) +(MSZipz >>8);
-       zlen=MSZipz;
-       yu=1;
-    }
-    if ( MSZip) {
-        const int p=int(i-MSZip-12);        
-        if (p==zlen) {
-            MSZip=i-4;
-            zlen=(buf1&0xffff);
-            zlen=((zlen&0xff)<<8) +(zlen >>8);
-            if( buf0==0x0080434b ) {    //32768 CK
-                MSZipz+=zlen;           //12?
-                yu++;
-            }else if( (buf0&0xffff)==0x434b && zlen<32768) {                      //if final part <32768 CK
-                yu++;
-                MSZipz+=zlen+yu*8; //4 2 2
-                if (type==MSZIP ) return  in->setpos(start+MSZipz),DEFAULT;
-                return  in->setpos(start+MSZ-3),MSZIP;
-            }else  {   
-                MSZip=MSZipz=zlen=0;
-            }
-       }
-    }
-    
+       
     // ZLIB stream detection
     histogram[c]++;
     if (i>=256)
@@ -830,30 +804,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
        && buf0==0x6e656e74 && zbuf[(zbufpos-32+15)&0xFF]=='/') pdfim=4,pdfimb=0; // /BitsPerComponent
     if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
 }
-    // NES rom 
-    //The format of the header is as follows:
-    //0-3: Constant $4E $45 $53 $1A ("NES" followed by MS-DOS end-of-file)
-    //4: Size of PRG ROM in 16 KB units
-    //5: Size of CHR ROM in 8 KB units (Value 0 means the board uses CHR RAM)
-    //6: Flags 6
-    //7: Flags 7
-    //8: Size of PRG RAM in 8 KB units (Value 0 infers 8 KB for compatibility; see PRG RAM circuit)
-    //9: Flags 9
-    //10: Flags 10 (unofficial)
-    //11-15: Zero filled
-    if (buf0==0x4E45531A && type!=MDF &&  !cdi) nesh=i,nesp=0;
-    if (nesh) {
-      const int p=int(i-nesh);
-      if (p==1) nesp=buf0&0xff; //count of pages*0x3FFF
-      else if (p==2) nesc=buf0&0xff; //count of CHR*0x1FFF
-      else if (p==6 && ((buf0&0xfe)!=0) )nesh=0; // flags 9
-      else if (p==11 && (buf0!=0) )nesh=0;
-      else if (p==12) {
-        if (nesp>0 && nesp<129) NES_DET(NESROM,nesh-3,0,nesp*0x3FFF+nesc*0x1FFF+15);
-        nesh=0;
-      }
-    }
-    
+       
     // dBASE VERSIONS
     //  '02' > FoxBase
     //  '03' > dBase III without memo file

@@ -107,67 +107,74 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                     && buf0==0x6e656e74 && zbuf[(zbufpos-32+15)&0xFF]=='/') pdfim=4,pdfimb=0; // /BitsPerComponent
             if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
             if (valid || zzippos==i || state==START) {
-                int streamLength=0, ret=0, brute=(zh==-1 && zzippos!=i);
-                // Quick check possible stream by decompressing first 32 bytes
-                strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
-                strm->next_in=Z_NULL; strm->avail_in=0;
-                if (zlib_inflateInit(strm,zh)==Z_OK) {
-                    strm->next_in=&zbuf[(zbufpos-(brute?0:32))&0xFF]; strm->avail_in=32;
-                    strm->next_out=zout; strm->avail_out=1<<16;
-                    ret=inflate(strm, Z_FINISH);
-                    ret=(inflateEnd(strm)==Z_OK && (ret==Z_STREAM_END || ret==Z_BUF_ERROR) && strm->total_in>=16);
+                // look for MS ZIP header, if found disable zlib
+                int j=i-(brute?255:31);
+                if (j<len && data[j-4]==0x00 && data[j-3]==0x80 && data[j-2]==0x43 && data[j-1]==0x4b/* && ((data[j]>>1)&3)!=3 */) {
+                    valid=false,state=DISABLE;
                 }
-                if (ret) {
-                    // Verify valid stream and determine stream length
+                if (state!=DISABLE){
+                    
+                    int streamLength=0, ret=0, brute=(zh==-1 && zzippos!=i);
+                    // Quick check possible stream by decompressing first 32 bytes
                     strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
-                    strm->next_in=Z_NULL; strm->avail_in=0; strm->total_in=strm->total_out=0;
+                    strm->next_in=Z_NULL; strm->avail_in=0;
                     if (zlib_inflateInit(strm,zh)==Z_OK) {
-                        for (uint64_t j=i-(brute?255:31); j<len; j+=1<<16) {
-                            unsigned int blsize=min(len-j,1<<16);
-                            memcpy(&zin[0], &data[j], blsize);
-                            strm->next_in=zin; strm->avail_in=blsize;
-                            do {
-                                strm->next_out=zout; strm->avail_out=1<<16;
-                                ret=inflate(strm, Z_FINISH);
-                            } while (strm->avail_out==0 && ret==Z_BUF_ERROR);
-                            if (ret==Z_STREAM_END) streamLength=strm->total_in;
-                            if (ret==Z_BUF_ERROR) {
-                                // our input block ended so report info
-                                if (jstart=i-(brute?255:31)+blsize==len){
-                                    jstart=i-(brute?255:31);
-                                    state=INFO;
-                                    return state;
-                                }
-                                state=NONE;
-                            }
-                        }
-                        if (inflateEnd(strm)!=Z_OK) streamLength=0;
+                        strm->next_in=&zbuf[(zbufpos-(brute?0:32))&0xFF]; strm->avail_in=32;
+                        strm->next_out=zout; strm->avail_out=1<<16;
+                        ret=inflate(strm, Z_FINISH);
+                        ret=(inflateEnd(strm)==Z_OK && (ret==Z_STREAM_END || ret==Z_BUF_ERROR) && strm->total_in>=16);
                     }
-                    /*if (streamLength>(brute<<7)&&i!=0) {
+                    if (ret) {
+                        // Verify valid stream and determine stream length
+                        strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
+                        strm->next_in=Z_NULL; strm->avail_in=0; strm->total_in=strm->total_out=0;
+                        if (zlib_inflateInit(strm,zh)==Z_OK) {
+                            for (uint64_t j=i-(brute?255:31); j<len; j+=1<<16) {
+                                unsigned int blsize=min(len-j,1<<16);
+                                memcpy(&zin[0], &data[j], blsize);
+                                strm->next_in=zin; strm->avail_in=blsize;
+                                do {
+                                    strm->next_out=zout; strm->avail_out=1<<16;
+                                    ret=inflate(strm, Z_FINISH);
+                                } while (strm->avail_out==0 && ret==Z_BUF_ERROR);
+                                if (ret==Z_STREAM_END) streamLength=strm->total_in;
+                                if (ret==Z_BUF_ERROR) {
+                                    // our input block ended so report info
+                                    if (jstart=i-(brute?255:31)+blsize==len){
+                                        jstart=i-(brute?255:31);
+                                        state=INFO;
+                                        return state;
+                                    }
+                                    state=NONE;
+                                }
+                            }
+                            if (inflateEnd(strm)!=Z_OK) streamLength=0;
+                        }
+                        /*if (streamLength>(brute<<7)&&i!=0) {
                         type=DEFAULT;
                         jend=i;
                         state=INFO;
                     }*/
-                }
-                if (streamLength>(brute<<7)) {
-                    info=0;
-                    SetPdfImageInfo();
-                    /*else if (png && pngw<0x1000000 && lastchunk==0x49444154){//IDAT
+                    }
+                    if (streamLength>(brute<<7)) {
+                        info=0;
+                        SetPdfImageInfo();
+                        /*else if (png && pngw<0x1000000 && lastchunk==0x49444154){//IDAT
         if (pngbps==8 && pngtype==2 && (int)strm.total_out==(pngw*3+1)*pngh) info=(PNG24<<24)|(pngw*3), png=0;
         else if (pngbps==8 && pngtype==6 && (int)strm.total_out==(pngw*4+1)*pngh) info=(PNG32<<24)|(pngw*4), png=0;
         else if (pngbps==8 && (!pngtype || pngtype==3) && (int)strm.total_out==(pngw+1)*pngh) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw), png=0;
         }*/
-                    //return in->setpos( start+i-(brute?255:31)),detd=streamLength,ZLIB;
-                    jstart=i-(brute?255:31);
-                    jend=jstart+streamLength;
-                    state=END;
-                    type=ZLIB;
-                    return state;
+                        //return in->setpos( start+i-(brute?255:31)),detd=streamLength,ZLIB;
+                        jstart=i-(brute?255:31);
+                        jend=jstart+streamLength;
+                        state=END;
+                        type=ZLIB;
+                        return state;
+                    }
+                    state=NONE;
                 }
-                state=NONE;
+                
             }
-            
-            
         } else if (state==INFO) {
             // continue larger zlib block
             int streamLength=0, ret=0;

@@ -10,6 +10,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new EXEParser());
     AddParser( new zlibParser());
     AddParser( new NesParser());
+    AddParser( new MSZIPParser());
     
     emptyType.start=0;
     emptyType.end=0;
@@ -27,12 +28,12 @@ Analyser::~Analyser() {
 }
 
 bool Analyser::Detect(File* in, U64 n, int it) {
-    const int BLOCK=0x10000;  // block size
+    const int BLOCK=0x10000;  // block size 64k
     uint8_t blk[BLOCK];
     Filetype type=DEFAULT;
     bool pri[5]={false};
     typefound=false;
-    // Add case for multipart detection
+    // Add case for multipart/container detection
     // Reset all parsers
     for (size_t j=0; j<parsers.size(); j++) {
         parsers[j]->Reset();
@@ -118,6 +119,7 @@ bool Analyser::Detect(File* in, U64 n, int it) {
         //
         remaining-=ReadIn;
     }
+    // Nothing found so add default type
     dType def=parsers[0]->getType(0);
     def.end=n;
     types.push_back(def);
