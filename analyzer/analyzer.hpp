@@ -13,6 +13,7 @@
 #include "parsers/zlibparser.hpp"
 #include "parsers/nesparser.hpp"
 #include "parsers/mszipparser.hpp"
+#include "parsers/jpegparser.hpp"
 
 class Analyser {
     uint64_t info;

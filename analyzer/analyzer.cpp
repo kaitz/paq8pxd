@@ -11,6 +11,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new zlibParser());
     AddParser( new NesParser());
     AddParser( new MSZIPParser());
+    AddParser( new JPEGParser());
     
     emptyType.start=0;
     emptyType.end=0;
