@@ -1015,49 +1015,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     }
    
     
-    // Detect .pbm .pgm .ppm .pam image
-    if ((buf0&0xfff0ff)==0x50300a && textparser.validlength()<TEXT_MIN_SIZE ) { 
-      pgmn=(buf0&0xf00)>>8;
-     if ((pgmn>=4 && pgmn<=6) || pgmn==7) pgm=i,pgm_ptr=pgmw=pgmh=pgmc=pgmcomment=pamatr=pamd=0;
-    }
-    if (pgm) {
-      if (i-pgm==1 && c==0x23) pgmcomment=1; //pgm comment
-      if (!pgmcomment && pgm_ptr) {
-        int s=0;
-        if (pgmn==7) {
-           if ((buf1&0xffff)==0x5749 && buf0==0x44544820) pgm_ptr=0, pamatr=1; // WIDTH
-           if ((buf1&0xffffff)==0x484549 && buf0==0x47485420) pgm_ptr=0, pamatr=2; // HEIGHT
-           if ((buf1&0xffffff)==0x4d4158 && buf0==0x56414c20) pgm_ptr=0, pamatr=3; // MAXVAL
-           if ((buf1&0xffff)==0x4445 && buf0==0x50544820) pgm_ptr=0, pamatr=4; // DEPTH
-           if ((buf2&0xff)==0x54 && buf1==0x55504c54 && buf0==0x59504520) pgm_ptr=0, pamatr=5; // TUPLTYPE
-           if ((buf1&0xffffff)==0x454e44 && buf0==0x4844520a) pgm_ptr=0, pamatr=6; // ENDHDR
-           if (c==0x0a) {
-             if (pamatr==0) pgm=0;
-             else if (pamatr<5) s=pamatr;
-             if (pamatr!=6) pamatr=0;
-           }
-        }
-        else if ((c==0x20|| c==0x0a) && !pgmw) s=1;
-        else if (c==0x0a && !pgmh) s=2;
-        else if (c==0x0a && !pgmc && pgmn!=4) s=3;
-        if (s) {
-          if (pgm_ptr>=32) pgm_ptr=31;
-          pgm_buf[pgm_ptr++]=0;
-          int v=atoi(&pgm_buf[0]);
-          if (v<0 || v>20000) v=0;
-          if (s==1) pgmw=v; else if (s==2) pgmh=v; else if (s==3) pgmc=v; else if (s==4) pamd=v;
-          if (v==0 || (s==3 && v>255)) pgm=0; else pgm_ptr=0;
-        }
-      }
-      if (!pgmcomment) pgm_buf[pgm_ptr++]=((c>='0' && c<='9') || ' ')?c:0;
-      if (pgm_ptr>=32) pgm=pgm_ptr=0;
-      if (i-pgm>255) pgm=pgm_ptr=0;
-      if (pgmcomment && c==0x0a) pgmcomment=0;
-      if (pgmw && pgmh && !pgmc && pgmn==4) IMG_DET(IMAGE1,pgm-2,i-pgm+3,(pgmw+7)/8,pgmh);
-      if (pgmw && pgmh && pgmc && (pgmn==5 || (pgmn==7 && pamd==1 && pamatr==6))) IMG_DET(IMAGE8GRAY,pgm-2,i-pgm+3,pgmw,pgmh);
-      if (pgmw && pgmh && pgmc && (pgmn==6 || (pgmn==7 && pamd==3 && pamatr==6))) IMG_DET(IMAGE24,pgm-2,i-pgm+3,pgmw*3,pgmh);
-      if (pgmw && pgmh && pgmc && (pgmn==7 && pamd==4 && pamatr==6)) IMG_DET(IMAGE32,pgm-2,i-pgm+3,pgmw*4,pgmh);
-    }
     
    // image in pdf
    //  'BI

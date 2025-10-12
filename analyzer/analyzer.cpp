@@ -14,6 +14,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new MSZIPParser());
     AddParser( new JPEGParser());
     AddParser( new WAVParser());
+    AddParser( new PNMParser());
     
     emptyType.start=0;
     emptyType.end=0;
@@ -61,7 +62,7 @@ bool Analyser::Detect(File* in, U64 n, int it) {
                     //printf("T=%d END\n",j);
                     // request current state data
                     parsers[j]->state=END;
-                    typefound=true;
+                    typefound=true; // we should ignore pri=4 in some cases?
                     break;
                 } else if (dstate==DISABLE) {
                     //printf("T=%d DISABLE\n",j);
@@ -89,6 +90,7 @@ bool Analyser::Detect(File* in, U64 n, int it) {
         if (typefound==true) {
             // Scan for overlaping types and report first detected type
             // TODO: look for largest detected type, not first
+            // TODO: trim low priority types and add but do not report if higher priority type has returned info.
             for (size_t j=0; j<parsers.size(); j++) {
                 if (parsers[j]->state==END) { // partial/damaged files?
                     dType d=parsers[0]->getType(0);

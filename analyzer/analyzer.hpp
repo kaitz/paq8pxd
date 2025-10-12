@@ -15,7 +15,7 @@
 #include "parsers/mszipparser.hpp"
 #include "parsers/jpegparser.hpp"
 #include "parsers/wavparser.hpp"
-
+#include "parsers/pnmparser.hpp"
 
 class Analyser {
     uint64_t info;
