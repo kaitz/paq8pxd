@@ -1,7 +1,7 @@
 v113
     -Update build script
     -Add default, bmp, text (very agressive), DEC Alpha, mrb (.hlp),
-     exe, zlib, nes rom and MS-Zip (.cab) parsers.
+     exe, zlib, nes rom, jpeg, wav and MS-Zip (.cab) parsers.
     -Add analyzer (detect replacement)
     -Hevy cleanup of code
     -Enable MRBR4, TXTUTF8 and BIGTEXT filters

@@ -8,10 +8,12 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new DECaParser());
     AddParser( new mrbParser());
     AddParser( new EXEParser());
-    AddParser( new zlibParser());
+    AddParser( new zlibParser());      // brute=true, low priority
+    AddParser( new zlibParser(false)); // brute=false, high priority
     AddParser( new NesParser());
     AddParser( new MSZIPParser());
     AddParser( new JPEGParser());
+    AddParser( new WAVParser());
     
     emptyType.start=0;
     emptyType.end=0;

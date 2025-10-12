@@ -4,12 +4,13 @@
     +    (((x) & 0x00ff0000) >>  8) | \
     +    (((x) & 0x0000ff00) <<  8) | \
     +    (((x) & 0x000000ff) << 24))
-zlibParser::zlibParser() {
-    priority=1;
+    
+zlibParser::zlibParser(bool b) {
+    priority=b==true?3:1;
     Reset();
     inpos=0;
     name="zlib";
-    brute=true;
+    brute=priority==1?false:true;
     strm=(z_stream*)calloc( 1,sizeof(z_stream));
     pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
 }

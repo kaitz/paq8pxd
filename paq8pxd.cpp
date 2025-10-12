@@ -950,55 +950,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (type==CD) continue;
  
   
-//if (tiffImages>=0) continue;
-    // Detect .wav file header
-    if (buf0==0x52494646) wavi=i,wavm=0;
-    if (wavi) {
-            int p=i-wavi;
-            if (p==4) wavsize=bswap(buf0);
-            else if (p==8){
-                wavtype=(buf0==0x57415645)?1:(buf0==0x7366626B)?2:0;
-                if (!wavtype) wavi=0;
-            }
-            else if (wavtype){
-                if (wavtype==1) {
-                    if (p==16 && (buf1!=0x666d7420 || bswap(buf0)!=16)) wavi=0;
-                    else if (p==20) wavt=bswap(buf0)&0xffff;
-                    else if (p==22) wavch=bswap(buf0)&0xffff;
-                    else if (p==24) wavsr=bswap(buf0) ;
-                    else if (p==34) wavbps=bswap(buf0)&0xffff;
-                    else if (p==40+wavm && buf1!=0x64617461) wavm+=bswap(buf0)+8,wavi=(wavm>0xfffff?0:wavi);
-                    else if (p==40+wavm) {
-                        int wavd=bswap(buf0);
-                        info2=wavsr;
-                        if ((wavch==1 || wavch==2) && (wavbps==8 || wavbps==16) && wavt==1 && wavd>0 && wavsize>=wavd+36
-                             && wavd%((wavbps/8)*wavch)==0 && wavsr>=0) AUD_DET(AUDIO,wavi-3,44+wavm,wavd,wavch+wavbps/4-3);
-                        wavi=0;
-                    }
-                }
-                else{
-                    if ((p==16 && buf1!=0x4C495354) || (p==20 && buf0!=0x494E464F))
-                        wavi=0;
-                    else if (p>20 && buf1==0x4C495354 && (wavi*=(buf0!=0))){
-                        wavlen = bswap(buf0);
-                        wavlist = i;
-                    }
-                    else if (wavlist){
-                        p=i-wavlist;
-                        if (p==8 && (buf1!=0x73647461 || buf0!=0x736D706C))
-                            wavi=0;
-                        else if (p==12){
-                            int wavd = bswap(buf0);
-                            info2=44100;
-                            if (wavd && (wavd+12)==wavlen)
-                                AUD_DET(AUDIO,wavi-3,(12+wavlist-(wavi-3)+1)&~1,wavd,1+16/4-3);
-                            wavi=0;
-                        }
-                    }
-                }
-            }
-    }
-
     // Detect .aiff file header
     if (buf0==0x464f524d) aiff=i,aiffs=0; // FORM
     if (aiff) {

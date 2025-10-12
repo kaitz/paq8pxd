@@ -23,7 +23,7 @@ class zlibParser: public Parser {
     z_stream *strm;
     void SetPdfImageInfo();
 public:    
-    zlibParser();
+    zlibParser(bool b=true);
     ~zlibParser();
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos);
     dType getType(int i);

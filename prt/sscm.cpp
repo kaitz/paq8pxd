@@ -12,7 +12,7 @@ Uses (2^(BitsOfContext+1))*((2^InputBits)-1) bytes of memory.
 */
 
 SmallStationaryContextMap::SmallStationaryContextMap(int BitsOfContext, int InputBits ) : Data((1ull<<BitsOfContext)*((1ull<<InputBits)-1)), Context(0), Mask((1<<BitsOfContext)-1), Stride((1<<InputBits)-1), bCount(0), bTotal(InputBits), B(0) {
-    assert(BitsOfContext<=16);
+    assert(BitsOfContext<=17);
     assert(InputBits>0 && InputBits<=8);
     Reset();
     cp=&Data[0];
