@@ -16,6 +16,7 @@
 #include "parsers/jpegparser.hpp"
 #include "parsers/wavparser.hpp"
 #include "parsers/pnmparser.hpp"
+#include "parsers/pdflzwparser.hpp"
 
 class Analyser {
     uint64_t info;

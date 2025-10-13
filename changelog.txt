@@ -1,9 +1,11 @@
+v114
+    -Add pdf lzw parser.
 v113
     -Update build script
     -Add default, bmp, text (very agressive), DEC Alpha, mrb (.hlp),
      exe, zlib, nes rom, jpeg, wav, pnm and MS-Zip (.cab) parsers.
     -Add analyzer (detect replacement)
-    -Hevy cleanup of code
+    -Heavy cleanup of code
     -Enable MRBR4, TXTUTF8 and BIGTEXT filters
 v112
     -More refactoring of source code

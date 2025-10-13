@@ -15,6 +15,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new JPEGParser());
     AddParser( new WAVParser());
     AddParser( new PNMParser());
+    AddParser( new PDFLzwParser());
     
     emptyType.start=0;
     emptyType.end=0;

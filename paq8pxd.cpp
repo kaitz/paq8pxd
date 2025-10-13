@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd113"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd114"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -1058,20 +1058,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
       if (pdfiw && pdfih && pdfic==1 && pdfin==5) IMG_DETP(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
       if (pdfiw && pdfih && pdfic==8 && pdfin==5) IMG_DETP(IMAGE8,pdfi1-3,i-pdfi1+4,pdfiw,pdfih);
     }
-    //detect lzw in pdf
-    //headers: /LZWDecode >>stream 0x2F4C5A57 0x4465636F 0x64650D0A 0x3E3E0D0A 0x73747265 0x616D0D0A
-    if (pLzw==0 && buf4==0x2F4C5A57 && buf3==0x4465636F && buf2==0x64650D0A && buf1==0x3E3E0D0A && buf0==0x73747265){
-        pLzw=1,pLzwp=i-(5*4);
-    }
-    else if (pLzw==1 && buf0==0x616D0D0A){
-             pLzw=2;
-         }
-    else if (pLzw==2 &&    buf1==0x0D0A656E &&    buf0==0x64737472){ //endstr
-            pLzw=0;
-            info2=0;
-            B85_DET(CMP,(pLzwp+6*4+1),0,((i-2*4) -(pLzwp+6*4+1)+2));//type startpos 0 len
-    }
-   
+
     
     // Detect .rgb image
     if ((buf0&0xffff)==0x01da) rgbi=i,rgbx=rgby=0;
