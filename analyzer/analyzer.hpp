@@ -21,6 +21,7 @@
 #include "parsers/dbaseparser.hpp"
 #include "parsers/pdfbiparser.hpp"
 #include "parsers/aiffparser.hpp"
+#include "parsers/ascii85parser.hpp"
 
 
 class Analyzer {

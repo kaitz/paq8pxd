@@ -1,5 +1,5 @@
 v114
-    -Add pdf lzw, gif, dBase, pdf bitmap, aiff, parser.
+    -Add pdf lzw, gif, dBase, pdf bitmap, aiff, ascii85 parser.
     -Change Analyzer and Codec so that parent type is passed on in recursion.
     -Move LZSS to separate header
     -Disable zlib parser if parent type is ZLIB

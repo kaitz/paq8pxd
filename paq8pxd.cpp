@@ -240,10 +240,6 @@ deth=(-1),detd=int(base64len),\
 deth=(-1),detd=int(base64len),info=(is96),\
  in->setpos(start+start_pos),DEFAULT
  
-#define B85_DET(type,start_pos,header_len,base85len) return dett=(type),\
-deth=(-1),detd=int(base85len),\
- in->setpos(start+start_pos),DEFAULT
-
 #define SZ_DET(type,start_pos,header_len,base64len,unsize) return dett=(type),\
 deth=(-1),detd=int(base64len),info=(unsize),\
  in->setpos(start+start_pos),DEFAULT
@@ -256,9 +252,6 @@ deth=(header_len),detd=(data_len),info=(-1),info2=(-1),\
 deth=(-1),detd=int(base64len),\
  in->setpos(start+start_pos),DEFAULT
 
-inline bool is_base85(unsigned char c) {
-    return (isalnum(c) || (c==13) || (c==10) || (c=='y') || (c=='z') || (c>='!' && c<='u'));
-}
 
 
 bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
@@ -294,7 +287,7 @@ bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
 }
 
 #define base64max 0x8000000 //128M limit
-#define base85max 0x8000000 //128M limit
+
 /*
 struct TARheader{
     char name[100];
@@ -371,25 +364,8 @@ struct TextInfo {
   U32 countUTF8;
   bool isLetter, isUTF8, needsEolTransform, seenNL, isNumbertext;
 };
-struct bmpInfo {
-U64 bmp;
-  int bpp,
-  x,
-  y,
-  of,
-  size,
-  hdrless; 
-};  
-struct gifInfo {
-U64 gif,
-    a,
-  i,
-  w,
-  c,
-  b,
-  plt,
-  gray  ; 
-};  
+
+
 
 #define UTF8_ACCEPT 0
 #define UTF8_REJECT 12
@@ -442,7 +418,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   int wavsize=0,wavch=0,wavbps=0,wavm=0,wavsr=0,wavt=0,wavtype=0,wavlen=0;  // For WAVE detection
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
-  bmpInfo bmp = {};    // For BMP detection
+  
   U64 rgbi=0;
   int rgbx=0,rgby=0;  // For RGB detection
   U64 tga=0;
@@ -463,11 +439,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   //base64
   U64 b64s=0,b64s1=0,b64p=0,b64slen=0,b64h=0;//,b64i=0;
   U64 base64start=0,base64end=0,b64line=0,b64nl=0,b64lcount=0;
-  //base85
-  U64 b85s=0,b85s1=0,b85p=0,b85slen=0,b85h=0;
-  U64 base85start=0,base85end=0,b85line=0;
-  //U64 gif=0,gifa=0,gifi=0,gifw=0,gifc=0,gifb=0,gifplt=0,gifgray=0; // For GIF detection
-  gifInfo gif = {};
+
   U64 png=0, lastchunk=0, nextchunk=0;               // For PNG detection
   int pngw=0, pngh=0, pngbps=0, pngtype=0,pnggray=0; 
   //MSZip
@@ -701,7 +673,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (zbufpos<32)
       zbuf[zbufpos+256] = c;
     zbufpos=(zbufpos+1)&0xFF;
-    if(!cdi && !mdfa && type!=MDF && b85s==0)  {
+    if(!cdi && !mdfa && type!=MDF )  {
       int zh=parse_zlib_header(((int)zbuf[(zbufpos-32)&0xFF])*256+(int)zbuf[(zbufpos-32+1)&0xFF]);
     bool valid = (i>=31 && zh!=-1);
     if (!valid && brute && i>=255){
@@ -1160,7 +1132,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi && !bmp.bmp && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits
@@ -1270,33 +1242,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     else if (b64s==2 && (is_base64(c) || c=='='))   ;//continue;
     else if (b64s==2)   b64s=0;
     
-    //detect ascii85 encoded data
-    //headers: stream\n stream\r\n oNimage\n utimage\n \nimage\n
-    if (b85s==0 && ((buf0==0x65616D0A && (buf1&0xffffff)==0x737472)|| (buf0==0x616D0D0A && buf1==0x73747265)|| (buf0==0x6167650A && buf1==0x6F4E696D) || (buf0==0x6167650A && buf1==0x7574696D) || (buf0==0x6167650A && (buf1&0xffffff)==0x0A696D))){
-        b85s=1,b85p=i-6,b85h=0,b85slen=0;//,b85lcount=0; // 
-        b85s=2,b85h=i+1,b85slen=b85h-b85p;
-        base85start=i;//+1;
-        if (b85slen>128) b85s=0; //drop if header is larger 
-        //txtStart=0;
-        }
-    else if (b85s==2){
-        if  ((buf0&0xff)==0x0d && b85line==0) {
-            b85line=i-base85start;//,b85nl=i+2;//capture line lenght
-            if (b85line<=25 || b85line>255) b85s=0;
-        }
-        
-        else if ( (buf0&0xff)==0x7E)  { //if padding '~' or '=='
-            base85end=i-1;//2
-            b85s=0;
-            if (((base85end-base85start)>60) && ((base85end-base85start)<base85max))
-            B85_DET(BASE85,b85h,b85slen,base85end -base85start);
-        }
-        else if ( (is_base85(c)))          ;
-        else if  ((buf0&0xff)==0x0d && b85line!=0) {
-            if (b85line!=i-base85start) b85s=0;
-        }
-        else     b85s=0;   
-    }
+    
     
     // Detect text, utf-8, eoltext and text0
     text.isLetter = tolower(c)!=toupper(c);

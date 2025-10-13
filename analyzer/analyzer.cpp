@@ -24,6 +24,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
        AddParser( new pdfBiParser()); // Enable only inside ZLIB block
     }
     AddParser( new AIFFParser());
+    AddParser( new ascii85Parser());
     
     emptyType.start=0;
     emptyType.end=0;
