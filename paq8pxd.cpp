@@ -440,8 +440,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 soi=0, sof=0, sos=0, app=0,eoi=0;  // For JPEG detection - position where found
   U64 wavi=0,wavlist=0;
   int wavsize=0,wavch=0,wavbps=0,wavm=0,wavsr=0,wavt=0,wavtype=0,wavlen=0;  // For WAVE detection
-  U64 aiff=0;
-  int aiffm=0,aiffs=0;  // For AIFF detection
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
   bmpInfo bmp = {};    // For BMP detection
@@ -493,12 +491,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 nesh=0,nesp=0,nesc=0;
   int textbin=0,txtpdf=0; //if 1/3 is text
    
-  // pdf image
-  U64 pdfi1=0,pdfiw=0,pdfih=0,pdfic=0;
-  char pdfi_buf[32];
-  int pdfi_ptr=0,pdfin=0;
-  U64 pLzwp=0;
-  int pLzw=0;
+
   //BZip2
   U64 BZip2=0;
   bz_stream stream;
@@ -892,17 +885,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (type==CD) continue;
  
   
-    // Detect .aiff file header
-    if (buf0==0x464f524d) aiff=i,aiffs=0; // FORM
-    if (aiff) {
-      const int p=int(i-aiff);
-      if (p==12 && (buf1!=0x41494646 || buf0!=0x434f4d4d)) aiff=0; // AIFF COMM
-      else if (p==24) {
-        const int bits=buf0&0xffff, chn=buf1>>16;
-        if ((bits==8 || bits==16) && (chn==1 || chn==2)) aiffm=chn+bits/4+1; else aiff=0;
-      } else if (p==42+aiffs && buf1!=0x53534e44) aiffs+=(buf0+8)+(buf0&1),aiff=(aiffs>0x400?0:aiff);
-      else if (p==42+aiffs) AUD_DET(AUDIO,aiff-3,54+aiffs,buf0-8,aiffm);
-    }
+    
 
     // Detect .mod file header 
     if ((buf0==0x4d2e4b2e || buf0==0x3643484e || buf0==0x3843484e  // M.K. 6CHN 8CHN
@@ -956,50 +939,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
       }
     }
    
-    
-    
-   // image in pdf
-   //  'BI
-   //   /W 86
-   ///   /H 85
-   //   /BPC 1 
-    //  /IM true
-   //   ID '
-   /// 
-    if ((buf0)==0x42490D0A  && pdfi1==0 ) { // 'BI\r\n'
-        pdfi1=i,pdfi_ptr=pdfiw=pdfih=pdfic=pdfi_ptr=0;
-    }
-    if (pdfi1) {
-      if (pdfi_ptr) {
-        int s=0;
-        if ((buf0&0xffffff)==0x2F5720) pdfi_ptr=0, pdfin=1; // /W 
-        if ((buf0&0xffffff)==0x2F4820 ) pdfi_ptr=0, pdfin=2; // /H
-        if ((buf1&0xff)==0x2F && buf0==0x42504320) pdfi_ptr=0, pdfin=3; // /BPC
-        if (buf1==0x2F494D20 && buf0==0x74727565) pdfi_ptr=0, pdfin=4; // /IM
-        if ((buf0&0xffffff)==0x435320) pdfi_ptr=0, pdfin=-1; // CS
-        if ((buf0&0xffffff)==0x494420) pdfi_ptr=0, pdfin=5; // ID
-        if (c==0x0a) {
-           if (pdfin==0) pdfi1=0;
-           else if (pdfin>0 && pdfin<4) s=pdfin;
-           if (pdfin==-1) pdfi_ptr=0;
-           if (pdfin!=5) pdfin=0;
-           
-        }
-        if (s) {
-          if (pdfi_ptr>=16) pdfi_ptr=16;
-          pdfi_buf[pdfi_ptr++]=0;
-          int v=atoi(&pdfi_buf[0]);
-          if (v<0 || v>1000) v=0;
-          if (s==1) pdfiw=v; else if (s==2) pdfih=v; else if (s==3) pdfic=v; else if (s==4) { };
-          if (v==0 || (s==3 && v>255)) pdfi1=0; else pdfi_ptr=0;
-        }
-      }
-      pdfi_buf[pdfi_ptr++]=((c>='0' && c<='9') || ' ')?c:0;
-      if (pdfi_ptr>=16) pdfi1=pdfi_ptr=0;
-      if (i-pdfi1>63) pdfi1=pdfi_ptr=0;
-      if (pdfiw && pdfih && pdfic==1 && pdfin==5) IMG_DETP(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
-      if (pdfiw && pdfih && pdfic==8 && pdfin==5) IMG_DETP(IMAGE8,pdfi1-3,i-pdfi1+4,pdfiw,pdfih);
-    }
 
     
     // Detect .rgb image

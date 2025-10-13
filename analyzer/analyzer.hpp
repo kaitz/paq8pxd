@@ -20,6 +20,8 @@
 #include "parsers/gifparser.hpp"
 #include "parsers/dbaseparser.hpp"
 #include "parsers/pdfbiparser.hpp"
+#include "parsers/aiffparser.hpp"
+
 
 class Analyzer {
     uint64_t info;
