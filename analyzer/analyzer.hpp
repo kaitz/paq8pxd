@@ -18,6 +18,7 @@
 #include "parsers/pnmparser.hpp"
 #include "parsers/pdflzwparser.hpp"
 #include "parsers/gifparser.hpp"
+#include "parsers/dbaseparser.hpp"
 
 class Analyser {
     uint64_t info;

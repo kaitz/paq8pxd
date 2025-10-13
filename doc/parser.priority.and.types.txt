@@ -14,6 +14,7 @@ zlibparser      3     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4
 pnmpparser      2     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
 pdflzwparser    2     CMP
 gifparser       2     GIF (CMP)
+dbaseparser     2     DBASE
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

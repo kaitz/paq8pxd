@@ -36,7 +36,7 @@ DetectState GIFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
             gif=1,gifi=i+5;
         } 
          if (state==START || state==INFO) {
-            if (gif==1 && i==gifi) gif=2,gifi = i+5+(plt=(c&128)?(3*(2<<(c&7))):0);//,brute=false;
+            if (gif==1 && i==gifi) gif=2,gifi = i+5+(plt=(c&128)?(3*(2<<(c&7))):0);
             if (gif==2 && plt && i==gifi-plt-3) /*gray = IsGrayscalePalette(in, plt/3),*/ plt = 0;
             if (gif==2 && i==gifi) {
                 if ((buf0&0xff0000)==0x210000) gif=5,gifi=i;

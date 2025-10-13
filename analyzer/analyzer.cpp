@@ -17,6 +17,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new PNMParser());
     AddParser( new PDFLzwParser());
     AddParser( new GIFParser());
+    AddParser( new dBaseParser());
     
     emptyType.start=0;
     emptyType.end=0;

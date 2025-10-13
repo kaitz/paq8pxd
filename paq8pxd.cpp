@@ -224,10 +224,6 @@ deth=int(header_len),detd=int((width)*(height)),info=int(width),\
 deth=int(header_len),detd=int((width)*(height)),info=int(width),\
  in->setpos(start+(start_pos)),TEXT
  
-#define DBS_DET(type,start_pos,header_len,datalen,reclen) return dett=(type),\
-deth=int(header_len),detd=int(datalen),info=int(reclen),\
- in->setpos(start+(start_pos)),HDR
-
 #define IMG_DETX(type,start_pos,header_len,width,height) return dett=(type),\
 deth=-1,detd=int((width)*(height)),info=int(width),\
  in->setpos(start+(start_pos)),DEFAULT
@@ -339,12 +335,12 @@ bool tarend(const char *p){
     for (int n=511; n>=0; --n) if (p[n] != '\0') return false;
     return true;
 }
-struct dBASE {
+/*struct dBASE {
   U8 Version;
   U32 nRecords;
   U16 RecordLength, HeaderLength;
   int Start, End;
-};
+};*/
 
 struct dTIFF {
   U32 size;
@@ -496,9 +492,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U32 op=0;//DEC A
   U64 nesh=0,nesp=0,nesc=0;
   int textbin=0,txtpdf=0; //if 1/3 is text
-  dBASE dbase;
-  U64 dbasei=0;
-  memset(&dbase, 0, sizeof(dBASE));
+   
   // pdf image
   U64 pdfi1=0,pdfiw=0,pdfih=0,pdfic=0;
   char pdfi_buf[32];
@@ -805,60 +799,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
 }
        
-    // dBASE VERSIONS
-    //  '02' > FoxBase
-    //  '03' > dBase III without memo file
-    //  '04' > dBase IV without memo file
-    //  '05' > dBase V without memo file
-    //  '07' > Visual Objects 1.x
-    //  '30' > Visual FoxPro
-    //  '31' > Visual FoxPro with AutoIncrement field
-    //  '43' > dBASE IV SQL table files, no memo
-    //  '63' > dBASE IV SQL system files, no memo
-    //  '7b' > dBase IV with memo file
-    //  '83' > dBase III with memo file
-    //  '87' > Visual Objects 1.x with memo file
-    //  '8b' > dBase IV with memo file
-    ///  '8e' > dBase IV with SQL table
-    //  'cb' > dBASE IV SQL table files, with memo
-    //  'f5' > FoxPro with memo file - tested
-    //  'fb' > FoxPro without memo file
-    //
-    if (dbasei==0 && ((c&7)==3 || (c&7)==4 || (c>>4)==3|| c==0xf5 || c==0x30) && tiffImages==-1) {
-        dbasei=i+1,dbase.Version = ((c>>4)==3)?3:c&7;
-        dbase.HeaderLength=dbase.Start=dbase.nRecords=dbase.RecordLength=0;
-    }
-    if (dbasei) {
-      const int p=int(i-dbasei+1);
-      if (p==2 && !(c>0 && c<13)) dbasei=0;      //month
-      else if (p==3 && !(c>0 && c<32)) dbasei=0; //day
-      else if (p==7 && !((dbase.nRecords = bswap(buf0)) > 0 && dbase.nRecords<0xFFFFF)) dbasei=0;
-      else if (p==9 && !((dbase.HeaderLength = ((buf0>>8)&0xff)|(c<<8)) > 32 && ( ((dbase.HeaderLength-32-1)%32)==0 || (dbase.HeaderLength>255+8 && (((dbase.HeaderLength-=255+8)-32-1)%32)==0) )) ) dbasei=0;
-      else if (p==11 && !(((dbase.RecordLength = ((buf0>>8)&0xff)|(c<<8))) > 8) ) dbasei=0;
-      else if (p==15 && ((buf0&0xfffffefe)!=0 && ((buf0>>8)&0xfe)>1 && ((buf0)&0xfe)>1  )) dbasei=0;
-      else if (p==16 && dbase.RecordLength >4000)dbasei=0;
-      else if (p==17) {
-          //Field Descriptor terminator 
-          U64 savedpos = in->curpos();
-          in->setpos(savedpos+dbase.HeaderLength-19);
-          U8 marker=in->getc();
-          if (marker!=0xd) dbasei=0,in->setpos(savedpos); 
-          else{
-            dbase.Start = 0;//dbase.HeaderLength;
-            dbase.End =  dbase.Start + dbase.nRecords * dbase.RecordLength;
-            U32 seekpos = dbase.End+in->curpos();
-            in->setpos(seekpos);
-            // get file end marker, fail if not present
-            marker=in->getc();
-            if (marker!=0x1a) dbasei=0, in->setpos(savedpos);
-            else{
-               in->setpos(savedpos);
-               DBS_DET(DBASE,dbasei- 1,dbase.HeaderLength, dbase.nRecords * dbase.RecordLength+1,dbase.RecordLength); 
-            }
-          }
-     }
-     else if (p>dbase.HeaderLength && p>68) dbasei=0; // Fail if past Field Descriptor terminator
-    }
+
+   
     
     //detect LZSS compressed data in compress.exe generated archives
     if ((buf0==0x88F02733 && buf1==0x535A4444 && !cdi  && type!=MDF) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
