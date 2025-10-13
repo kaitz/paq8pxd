@@ -1194,14 +1194,14 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     // base64 encoded data detection
     // detect base64 in html/xml container, single stream
     // ';base64,' or '![CDATA[' :image> 3a696d6167653e
-    if (b64s1==0 &&   ((buf1==0x3b626173 && buf0==0x6536342c)||(buf1==0x215b4344 && buf0==0x4154415b) )) b64s1=1,b64h=i+1,base64start=i+1; //' base64' ||((buf1&0xffffff)==0x3a696d && buf0==0x6167653e)
+   /* if (b64s1==0 &&   ((buf1==0x3b626173 && buf0==0x6536342c)||(buf1==0x215b4344 && buf0==0x4154415b) )) b64s1=1,b64h=i+1,base64start=i+1; //' base64' ||((buf1&0xffffff)==0x3a696d && buf0==0x6167653e)
     else if (b64s1==1 && (isalnum(c) || (c == '+') || (c == '/')||(c == '=')) ) {
         continue;
         }  
     else if (b64s1==1) {
          base64end=i,b64s1=0;
          if (base64end -base64start>128) B64_DET(BASE64,b64h, 8,base64end -base64start);
-    }
+    }*/
    
    // detect base64 in eml, etc. multiline
    if (b64s==0 && buf0==0x73653634 && ((buf1&0xffffff)==0x206261 || (buf1&0xffffff)==0x204261)) b64s=1,b64p=i-6,b64h=0,b64slen=0,b64lcount=0; //' base64' ' Base64'

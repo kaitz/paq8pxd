@@ -25,6 +25,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     }
     AddParser( new AIFFParser());
     AddParser( new ascii85Parser());
+    AddParser( new base64_1Parser());
     
     emptyType.start=0;
     emptyType.end=0;
@@ -117,7 +118,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     // Look for all parsers still detecting
                     // and limit type end to start of any good priority parser still detecting
                     for (size_t j=0; j<parsers.size(); j++) {
-                        if (parsers[j]->state==INFO /*&& parsers[j]->priority<=p*/) {
+                        if (parsers[j]->state==INFO && parsers[j]->priority<=p) {
                             dType det=parsers[j]->getType(0);
                             if (t.end>det.start && det.start) {
                                 t.end=det.start;

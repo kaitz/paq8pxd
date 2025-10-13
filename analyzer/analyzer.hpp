@@ -22,7 +22,7 @@
 #include "parsers/pdfbiparser.hpp"
 #include "parsers/aiffparser.hpp"
 #include "parsers/ascii85parser.hpp"
-
+#include "parsers/base641parser.hpp"
 
 class Analyzer {
     uint64_t info;
