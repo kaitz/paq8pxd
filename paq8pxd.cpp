@@ -1670,10 +1670,10 @@ void compressStream(int streamid, U64 size, File* in, File* out) {
         datasegmentlen=tm.curpos();
         streams.streams[i]->streamsize=datasegmentlen;
         // -e0 option ignores larger wrt size
-        if (datasegmentlen>=datasegmentsize && minfq!=0){
+        if (datasegmentlen>=datasegmentsize && minfq!=0) {
             dictFail=true; //wrt size larger
             if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize); 
-        }else{                            
+        } else {
             if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
         }
         tm.setpos(0);
@@ -1684,8 +1684,12 @@ void compressStream(int streamid, U64 size, File* in, File* out) {
             threadencode->predictor.x.finfo=-1;
         }
         if (dictFail==true) {
-            streams.streams[i]->streamsize=datasegmentlen+1;
+            streams.streams[i]->streamsize=datasegmentsize+1;
+            datasegmentlen=datasegmentsize;
             threadencode->compress(0xAA); //flag
+        }else {
+            streams.streams[i]->streamsize=datasegmentlen+1;
+            threadencode->compress(0); //flag
         }
         for (U64 k=0; k<datasegmentlen; ++k) {
             if (!(k&0x1fff)) printStatus(k, datasegmentlen,i);
