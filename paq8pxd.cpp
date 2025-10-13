@@ -1270,36 +1270,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
         tga=0;
       }
     }
-    // Detect .gif
-    if (type==DEFAULT && dett==GIF && i==0) {
-      dett=DEFAULT;
-      if (c==0x2c || c==0x21) gif.gif=2,gif.i=2;
-      else gif.gray=0;
-    }
-    if (!gif.gif && (buf1&0xffff)==0x4749 && (buf0==0x46383961 || buf0==0x46383761)) gif.gif=1,gif.i=i+5;
-    if (gif.gif) {
-      if (gif.gif==1 && i==gif.i) gif.gif=2,gif.i = i+5+(gif.plt=(c&128)?(3*(2<<(c&7))):0),brute=false;
-      if (gif.gif==2 && gif.plt && i==gif.i-gif.plt-3) gif.gray = IsGrayscalePalette(in, gif.plt/3), gif.plt = 0;
-      if (gif.gif==2 && i==gif.i) {
-        if ((buf0&0xff0000)==0x210000) gif.gif=5,gif.i=i;
-        else if ((buf0&0xff0000)==0x2c0000) gif.gif=3,gif.i=i;
-        else gif.gif=0;
-      }
-      if (gif.gif==3 && i==gif.i+6) gif.w=(bswap(buf0)&0xffff);
-      if (gif.gif==3 && i==gif.i+7) gif.gif=4,gif.c=gif.b=0,gif.a=gif.i=i+2+(gif.plt=((c&128)?(3*(2<<(c&7))):0));
-      if (gif.gif==4 && gif.plt) gif.gray = IsGrayscalePalette(in, gif.plt/3), gif.plt = 0;
-      if (gif.gif==4 && i==gif.i) {
-        if (c>0 && gif.b && gif.c!=gif.b) gif.w=0;
-        if (c>0) gif.b=gif.c,gif.c=c,gif.i+=c+1;
-        else if (!gif.w) gif.gif=2,gif.i=i+3;
-        else return  in->setpos( start+gif.a-1),detd=i-gif.a+2,info=((gif.gray?IMAGE8GRAY:IMAGE8)<<24)|gif.w,dett=GIF;
-      }
-      if (gif.gif==5 && i==gif.i) {
-        if (c>0) gif.i+=c+1; else gif.gif=2,gif.i=i+3;
-      }
-    }
-    
-    
     
     // ARM
     op=(buf0)>>26; 

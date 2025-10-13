@@ -1,5 +1,5 @@
 v114
-    -Add pdf lzw parser.
+    -Add pdf lzw, gif parser.
 v113
     -Update build script
     -Add default, bmp, text (very agressive), DEC Alpha, mrb (.hlp),

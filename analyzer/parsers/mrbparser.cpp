@@ -132,7 +132,7 @@ dType mrbParser::getType(int i) {
     t.info=info;      // info of the block if present
     t.rpos=0;      // pos where start was set in block
     t.type=type;
-    t.recursive=true;
+    t.recursive=false;
     return t;
 }
 

@@ -16,6 +16,7 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new WAVParser());
     AddParser( new PNMParser());
     AddParser( new PDFLzwParser());
+    AddParser( new GIFParser());
     
     emptyType.start=0;
     emptyType.end=0;
@@ -38,10 +39,10 @@ bool Analyser::Detect(File* in, U64 n, int it) {
     Filetype type=DEFAULT;
     bool pri[5]={false};
     typefound=false;
-    // Add case for multipart/container detection
-    // Reset all parsers
+    // Reset all parsers exept recursive
     for (size_t j=0; j<parsers.size(); j++) {
-        parsers[j]->Reset();
+        dType t=parsers[j]->getType(0);
+        if (t.recursive==false) parsers[j]->Reset();
     }
     remaining=n;
     while (remaining) {
