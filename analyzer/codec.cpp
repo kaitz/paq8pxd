@@ -141,7 +141,7 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
     return diffFound;
 }
 
-void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
+void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filetype ptype) {
     static const char* audiotypes[6]={"8b mono","8b stereo","16b mono","16b stereo","32b mono","32b stereo"};
   Filetype type=DEFAULT;
   int blnum=0, info,info2;  // image width or audio type
@@ -159,7 +159,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it) {
     direct_encode_blockstream(DEFAULT, in, n);
     return;
   }
-  Analyser an;
+  Analyzer an(it,ptype);
   bool found=false;
   // Transform and test in blocks
   while (n>0) {
@@ -499,7 +499,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                         typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                         transform_encode_block(type2,  tmp, tmpsize-hdrsize,  info&0xffffff,-1, blstr, it, hdrsize); }
                     else{
-                        EncodeFileRecursive( tmp, tmpsize-hdrsize,  blstr,it+1);//it+1
+                        EncodeFileRecursive( tmp, tmpsize-hdrsize,  blstr,it+1,ZLIB);//it+1
                     }
                 } else {     
                     EncodeFileRecursive( tmp, tmpsize,  blstr,it+1);//it+1

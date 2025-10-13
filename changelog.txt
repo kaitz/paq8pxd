@@ -1,5 +1,9 @@
 v114
-    -Add pdf lzw, gif, dBase parser.
+    -Add pdf lzw, gif, dBase, pdf bitmap, parser.
+    -Change Analyzer and Codec so that parent type is passed on in recursion.
+    -Move LZSS to separate header
+    -Disable zlib parser if parent type is ZLIB
+    -Enable pdf bitmap parser only if parent type is ZLIB
 v113
     -Update build script
     -Add default, bmp, text (very agressive), DEC Alpha, mrb (.hlp),

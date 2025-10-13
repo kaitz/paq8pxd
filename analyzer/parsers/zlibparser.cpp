@@ -48,7 +48,7 @@ void zlibParser::SetPdfImageInfo() {
 // loop over input block byte by byte and report state
 DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
     // To small? 
-    if (pos==0 && len<128) return DISABLE;
+    if (pos==0 && len<16) return DISABLE;
     // Are we in new data block, if so reset inSize and restart
     if (inpos!=pos) {
         inSize=0,inpos=pos;

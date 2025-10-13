@@ -19,8 +19,9 @@
 #include "parsers/pdflzwparser.hpp"
 #include "parsers/gifparser.hpp"
 #include "parsers/dbaseparser.hpp"
+#include "parsers/pdfbiparser.hpp"
 
-class Analyser {
+class Analyzer {
     uint64_t info;
     std::vector<Parser*> parsers;
     void AddParser(Parser *p);
@@ -30,9 +31,11 @@ class Analyser {
     dType currentType;
     dType emptyType;
     bool typefound;
+    int iter;
+    Filetype ptype;
 public:    
-    Analyser();
-    ~Analyser();
+    Analyzer(int it,Filetype p=DEFAULT);
+    ~Analyzer();
     bool Detect(File* in, U64 n, int it=0);
     dType GetNext();
 };

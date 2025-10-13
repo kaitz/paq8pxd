@@ -966,7 +966,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     //  /IM true
    //   ID '
    /// 
-    if ((buf0)==0x42490D0A  && pdfi1==0 ) { 
+    if ((buf0)==0x42490D0A  && pdfi1==0 ) { // 'BI\r\n'
         pdfi1=i,pdfi_ptr=pdfiw=pdfih=pdfic=pdfi_ptr=0;
     }
     if (pdfi1) {

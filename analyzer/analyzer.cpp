@@ -1,15 +1,17 @@
 //#pragma once
 #include "analyzer.hpp"
 
-Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
+Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p) {
     AddParser( new DefaultParser());
     AddParser( new BMPParser());
     AddParser( new TextParser());
     AddParser( new DECaParser());
     AddParser( new mrbParser());
     AddParser( new EXEParser());
-    AddParser( new zlibParser());      // brute=true, low priority
-    AddParser( new zlibParser(false)); // brute=false, high priority
+    if (ptype!=ZLIB){
+        AddParser( new zlibParser());      // brute=true, low priority
+        AddParser( new zlibParser(false)); // brute=false, high priority
+    }
     AddParser( new NesParser());
     AddParser( new MSZIPParser());
     AddParser( new JPEGParser());
@@ -18,6 +20,9 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     AddParser( new PDFLzwParser());
     AddParser( new GIFParser());
     AddParser( new dBaseParser());
+    if (ptype==ZLIB) {
+       AddParser( new pdfBiParser()); // Enable only inside ZLIB block
+    }
     
     emptyType.start=0;
     emptyType.end=0;
@@ -27,14 +32,14 @@ Analyser::Analyser():info(0),remaining(0),typefound(false),lastType(0) {
     emptyType.recursive=false;
 }
 
-void Analyser::AddParser(Parser *p) {
+void Analyzer::AddParser(Parser *p) {
     parsers.push_back(p);
 }
 
-Analyser::~Analyser() {
+Analyzer::~Analyzer() {
 }
 
-bool Analyser::Detect(File* in, U64 n, int it) {
+bool Analyzer::Detect(File* in, U64 n, int it) {
     const int BLOCK=0x10000;  // block size 64k
     uint8_t blk[BLOCK];
     Filetype type=DEFAULT;
@@ -135,7 +140,7 @@ bool Analyser::Detect(File* in, U64 n, int it) {
     return true;
 }
 
-dType Analyser::GetNext() {
+dType Analyzer::GetNext() {
     if (types.size()>lastType) {
         currentType=types[lastType];
         lastType++;

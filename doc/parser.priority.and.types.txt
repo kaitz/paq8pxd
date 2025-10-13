@@ -15,6 +15,7 @@ pnmpparser      2     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
 pdflzwparser    2     CMP
 gifparser       2     GIF (CMP)
 dbaseparser     2     DBASE
+pdfbiparser     2     IMAGE1 IMAGE8
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

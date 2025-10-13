@@ -48,7 +48,7 @@ class Codec {
 		virtual Filter& GetFilter(Filetype f);
 	protected:
 	    virtual uint64_t DecodeFromStream(File *out, uint64_t size, FMode mode, int it=0);
-        virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0);
+        virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0,Filetype p=DEFAULT);
 };
 
 struct TARheader{
