@@ -4,7 +4,7 @@ base64_1Parser::base64_1Parser() {
     priority=2;
     Reset();
     inpos=0;
-    name="base85";
+    name="base64 1";
 }
 
 base64_1Parser::~base64_1Parser() {

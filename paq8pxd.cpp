@@ -286,8 +286,6 @@ bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   return (res>>8)>0;
 }
 
-#define base64max 0x8000000 //128M limit
-
 /*
 struct TARheader{
     char name[100];
@@ -328,12 +326,7 @@ bool tarend(const char *p){
     for (int n=511; n>=0; --n) if (p[n] != '\0') return false;
     return true;
 }
-/*struct dBASE {
-  U8 Version;
-  U32 nRecords;
-  U16 RecordLength, HeaderLength;
-  int Start, End;
-};*/
+
 
 struct dTIFF {
   U32 size;
@@ -436,16 +429,10 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
  ///
    U64 uuds=0,uuds1=0,uudp=0,uudslen=0,uudh=0;//,b64i=0;
   U64 uudstart=0,uudend=0,uudline=0,uudnl=0,uudlcount=0,uuc=0;
-  //base64
-  U64 b64s=0,b64s1=0,b64p=0,b64slen=0,b64h=0;//,b64i=0;
-  U64 base64start=0,base64end=0,b64line=0,b64nl=0,b64lcount=0;
-
+  
   U64 png=0, lastchunk=0, nextchunk=0;               // For PNG detection
   int pngw=0, pngh=0, pngbps=0, pngtype=0,pnggray=0; 
-  //MSZip
-  U64 MSZip=0, MSZ=0, MSZipz=0;
-  int yu=0;
-  int zlen=0;
+  
   U64 fSZDD=0; //
   LZSS* lz77;
   U8 zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
@@ -454,15 +441,12 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   bool brute = true;
   int pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
   U64 pdfimp=0;
-  U64 mrb=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0; // For MRB detection
-  U32 mrbmulti=0;
   //
   U64 tar=0,tarn=0,tarl=0,utar=0;
   TARheader tarh;
   U32 op=0;//DEC A
-  U64 nesh=0,nesp=0,nesc=0;
+
   int textbin=0,txtpdf=0; //if 1/3 is text
-   
 
   //BZip2
   U64 BZip2=0;
@@ -1191,58 +1175,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     else if (uuds==2 && (c>=32 && c<=96)) {if (uuc==0 && c==96) uuc=1;} // some files use char 96, set for info;
     else if (uuds==2)   uuds=0;
     
-    // base64 encoded data detection
-    // detect base64 in html/xml container, single stream
-    // ';base64,' or '![CDATA[' :image> 3a696d6167653e
-   /* if (b64s1==0 &&   ((buf1==0x3b626173 && buf0==0x6536342c)||(buf1==0x215b4344 && buf0==0x4154415b) )) b64s1=1,b64h=i+1,base64start=i+1; //' base64' ||((buf1&0xffffff)==0x3a696d && buf0==0x6167653e)
-    else if (b64s1==1 && (isalnum(c) || (c == '+') || (c == '/')||(c == '=')) ) {
-        continue;
-        }  
-    else if (b64s1==1) {
-         base64end=i,b64s1=0;
-         if (base64end -base64start>128) B64_DET(BASE64,b64h, 8,base64end -base64start);
-    }*/
-   
-   // detect base64 in eml, etc. multiline
-   if (b64s==0 && buf0==0x73653634 && ((buf1&0xffffff)==0x206261 || (buf1&0xffffff)==0x204261)) b64s=1,b64p=i-6,b64h=0,b64slen=0,b64lcount=0; //' base64' ' Base64'
-    else if (b64s==1 && buf0==0x0D0A0D0A ) {
-        b64s=2,b64h=i+1,b64slen=b64h-b64p;
-        base64start=i+1;
-        if (b64slen>192) b64s=0; //drop if header is larger 
-        }
-    else if (b64s==2 && (buf0&0xffff)==0x0D0A && b64line==0) {
-         b64line=i-base64start,b64nl=i+2;//capture line lenght
-         if (b64line<=4 || b64line>255) b64s=0;
-         //else continue;
-    }
-    else if (b64s==2 && (buf0&0xffff)==0x0D0A  && b64line!=0 && (buf0&0xffffff)!=0x3D0D0A && buf0!=0x3D3D0D0A ){
-         if (i-b64nl+1<b64line && buf0!=0x0D0A0D0A) { // if smaller and not padding
-            base64end=i-1;
-            if (((base64end-base64start)>512) && ((base64end-base64start)<base64max)){
-             b64s=0;
-             B64_DET(BASE64,b64h,b64slen,base64end -base64start);
-            }
-         }
-         else if (buf0==0x0D0A0D0A) { // if smaller and not padding
-           base64end=i-1-2;
-           if (((base64end-base64start)>512) && ((base64end-base64start)<base64max))
-               B64_DET(BASE64,b64h,b64slen,base64end -base64start);
-           b64s=0;
-         }
-         b64nl=i+2; //update 0x0D0A pos
-         b64lcount++;
-         //continue;
-         }
-    else if (b64s==2 && ((buf0&0xffffff)==0x3D0D0A ||buf0==0x3D3D0D0A)) { //if padding '=' or '=='
-        base64end=i-1;
-        b64s=0;
-        if (((base64end-base64start)>512) && ((base64end-base64start)<base64max))
-            B64_DET(BASE64,b64h,b64slen,base64end -base64start);
-    }
-    else if (b64s==2 && (is_base64(c) || c=='='))   ;//continue;
-    else if (b64s==2)   b64s=0;
-    
-    
+      
     
     // Detect text, utf-8, eoltext and text0
     text.isLetter = tolower(c)!=toupper(c);

@@ -25,7 +25,8 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     }
     AddParser( new AIFFParser());
     AddParser( new ascii85Parser());
-    AddParser( new base64_1Parser());
+    AddParser( new base64_1Parser());  // stream
+    AddParser( new base64_2Parser());  // multiline
     
     emptyType.start=0;
     emptyType.end=0;
