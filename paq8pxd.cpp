@@ -220,22 +220,13 @@ size_t getPeakMemory(){
 #define IMG_DET(type,start_pos,header_len,width,height) return dett=(type),\
 deth=int(header_len),detd=int((width)*(height)),info=int(width),\
  in->setpos(start+(start_pos)),HDR
-#define IMG_DETP(type,start_pos,header_len,width,height) return dett=(type),\
-deth=int(header_len),detd=int((width)*(height)),info=int(width),\
- in->setpos(start+(start_pos)),TEXT
  
-#define IMG_DETX(type,start_pos,header_len,width,height) return dett=(type),\
-deth=-1,detd=int((width)*(height)),info=int(width),\
- in->setpos(start+(start_pos)),DEFAULT
 
 #define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
 deth=int(header_len),detd=(data_len),info=(wmode),\
  in->setpos(start+(start_pos)),HDR
 
 //Return only base64 data. No HDR.
-#define B64_DET(type,start_pos,header_len,base64len) return dett=(type),\
-deth=(-1),detd=int(base64len),\
- in->setpos(start+start_pos),DEFAULT
 #define UUU_DET(type,start_pos,header_len,base64len,is96) return dett=(type),\
 deth=(-1),detd=int(base64len),info=(is96),\
  in->setpos(start+start_pos),DEFAULT
@@ -247,12 +238,6 @@ deth=(-1),detd=int(base64len),info=(unsize),\
 #define TIFFJPEG_DET(start_pos,header_len,data_len) return dett=(JPEG),\
 deth=(header_len),detd=(data_len),info=(-1),info2=(-1),\
  in->setpos(start+(start_pos)),HDR
-
-#define NES_DET(type,start_pos,header_len,base64len) return dett=(type),\
-deth=(-1),detd=int(base64len),\
- in->setpos(start+start_pos),DEFAULT
-
-
 
 bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   U64 offset = in->curpos();
@@ -407,8 +392,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 ARMlast=0;   // offset of most recent CALL or JMP
 
   U64 soi=0, sof=0, sos=0, app=0,eoi=0;  // For JPEG detection - position where found
-  U64 wavi=0,wavlist=0;
-  int wavsize=0,wavch=0,wavbps=0,wavm=0,wavsr=0,wavt=0,wavtype=0,wavlen=0;  // For WAVE detection
+  
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
   
@@ -840,31 +824,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     }
     if (type==CD) continue;
  
-  
-    
-
-    // Detect .mod file header 
-    if ((buf0==0x4d2e4b2e || buf0==0x3643484e || buf0==0x3843484e  // M.K. 6CHN 8CHN
-       || buf0==0x464c5434 || buf0==0x464c5438) && (buf1&0xc0c0c0c0)==0 && i>=1083) {
-      int64_t savedpos= in->curpos();
-      const int chn=((buf0>>24)==0x36?6:(((buf0>>24)==0x38 || (buf0&0xff)==0x38)?8:4));
-      int len=0; // total length of samples
-      int numpat=1; // number of patterns
-      for (int j=0; j<31; j++) {
-         in->setpos(start+i-1083+42+j*30);
-        const int i1=in->getc();
-        const int i2=in->getc(); 
-        len+=i1*512+i2*2;
-      }
-       in->setpos(start+i-131);
-      for (int j=0; j<128; j++) {
-        int x=in->getc();
-        if (x+1>numpat) numpat=x+1;
-      }
-      if (numpat<65) AUD_DET(AUDIO,i-1083,1084+numpat*256*chn,len,4);
-       in->setpos(savedpos);
-    }
-    
     // Detect .s3m file header 
     if (buf0==0x1a100000) s3mi=i,s3mno=s3mni=0;
     if (s3mi) {
@@ -1116,7 +1075,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi && !wavi && !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi &&  !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits

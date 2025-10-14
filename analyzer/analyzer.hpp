@@ -24,6 +24,7 @@
 #include "parsers/ascii85parser.hpp"
 #include "parsers/base641parser.hpp"
 #include "parsers/base642parser.hpp"
+#include "parsers/modparser.hpp"
 
 class Analyzer {
     uint64_t info;
