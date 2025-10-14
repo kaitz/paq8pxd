@@ -25,6 +25,7 @@
 #include "parsers/base641parser.hpp"
 #include "parsers/base642parser.hpp"
 #include "parsers/modparser.hpp"
+#include "parsers/sgiparser.hpp"
 
 class Analyzer {
     uint64_t info;

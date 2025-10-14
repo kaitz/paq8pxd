@@ -28,6 +28,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new base64_1Parser());  // stream
     AddParser( new base64_2Parser());  // multiline
     AddParser( new MODParser());
+    AddParser( new sgiParser());
     
     emptyType.start=0;
     emptyType.end=0;

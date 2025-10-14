@@ -396,8 +396,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
   
-  U64 rgbi=0;
-  int rgbx=0,rgby=0;  // For RGB detection
+  
   U64 tga=0;
   U64 tgax=0;
   int tgay=0,tgaz=0,tgat=0,tgaid=0,tgamap=0;  // For TGA detection
@@ -856,22 +855,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
    
 
     
-    // Detect .rgb image
-    if ((buf0&0xffff)==0x01da) rgbi=i,rgbx=rgby=0;
-    if (rgbi) {
-      const int p=int(i-rgbi);
-      if (p==1 && c!=0) rgbi=0;
-      else if (p==2 && c!=1) rgbi=0;
-      else if (p==4 && (buf0&0xffff)!=1 && (buf0&0xffff)!=2 && (buf0&0xffff)!=3) rgbi=0;
-      else if (p==6) rgbx=buf0&0xffff,rgbi=(rgbx==0?0:rgbi);
-      else if (p==8) rgby=buf0&0xffff,rgbi=(rgby==0?0:rgbi);
-      else if (p==10) {
-        int z=buf0&0xffff;
-        if (rgbx && rgby && (z==1 || z==3 || z==4)) IMG_DET(IMAGE8,rgbi-1,512,rgbx,rgby*z);
-        rgbi=0;
-      }
-    }
-      
+
     // Detect .tiff file header (2/8/24 bit color, not compressed).
    if ( (((buf1==0x49492a00 ||(buf1==0x4949524f && buf0==0x8000000  ) ) && n>i+(int)bswap(buf0) && tiffImages==-1)|| 
        ((buf1==0x4d4d002a  ) && n>i+(int)(buf0) && tiffImages==-1)) && !soi){
@@ -1075,7 +1059,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm && !rgbi &&  !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm &&  !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits

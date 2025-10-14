@@ -21,6 +21,7 @@ ascii85parser   2     BASE85
 base641parser   2     BASE64
 base642parser   2     BASE64
 modparser       2     AUDIO
+sgiparser       2     IMAGE8
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.
