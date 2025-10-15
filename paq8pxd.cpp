@@ -396,10 +396,10 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
   
-  
+  /*
   U64 tga=0;
   U64 tgax=0;
-  int tgay=0,tgaz=0,tgat=0,tgaid=0,tgamap=0;  // For TGA detection
+  int tgay=0,tgaz=0,tgat=0,tgaid=0,tgamap=0;*/  // For TGA detection
   U64 pgm=0;
   int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0,pamatr=0,pamd=0;  // For PBM, PGM, PPM, PAM detection
   char pgm_buf[32];
@@ -996,7 +996,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     }
        
     // Detect .tga image (8-bit 256 colors or 24-bit uncompressed)
-    if ((buf1&0xFFF7FF)==0x00010100 && (buf0&0xFFFFFFC7)==0x00000100 && (c==16 || c==24 || c==32)) tga=i,tgax=tgay,tgaz=8,tgat=(buf1>>8)&0xF,tgaid=buf1>>24,tgamap=c/8;
+    /*if ((buf1&0xFFF7FF)==0x00010100 && (buf0&0xFFFFFFC7)==0x00000100 && (c==16 || c==24 || c==32)) tga=i,tgax=tgay,tgaz=8,tgat=(buf1>>8)&0xF,tgaid=buf1>>24,tgamap=c/8;
     else if ((buf1&0xFFFFFF)==0x00000200 && buf0==0x00000000) tga=i,tgax=tgay,tgaz=24,tgat=2;
     else if ((buf1&0xFFF7FF)==0x00000300 && buf0==0x00000000) tga=i,tgax=tgay,tgaz=8,tgat=(buf1>>8)&0xF;
     if (tga) {
@@ -1049,7 +1049,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
         }
         tga=0;
       }
-    }
+    }*/
     
     // ARM
     op=(buf0)>>26; 
@@ -1059,7 +1059,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm &&  !tga && (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm &&  (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits
