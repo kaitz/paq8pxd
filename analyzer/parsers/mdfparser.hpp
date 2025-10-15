@@ -4,7 +4,7 @@
 #include <vector>
 #include "../../filters/cdfilter.hpp"
 
-// CD sectors detection (mode 1 and mode 2 form 1+2 - 2352 bytes)
+// MDF (Alcohol 120%) CD (mode 1 and mode 2 form 1+2 - 2352 bytes+96 channel data)
 class mdfParser: public Parser {
     uint64_t mdfa;
     uint64_t cdi;

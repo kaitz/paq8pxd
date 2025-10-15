@@ -226,11 +226,6 @@ deth=int(header_len),detd=int((width)*(height)),info=int(width),\
 deth=int(header_len),detd=(data_len),info=(wmode),\
  in->setpos(start+(start_pos)),HDR
 
-//Return only base64 data. No HDR.
-#define UUU_DET(type,start_pos,header_len,base64len,is96) return dett=(type),\
-deth=(-1),detd=int(base64len),info=(is96),\
- in->setpos(start+start_pos),DEFAULT
- 
 #define SZ_DET(type,start_pos,header_len,base64len,unsize) return dett=(type),\
 deth=(-1),detd=int(base64len),info=(unsize),\
  in->setpos(start+start_pos),DEFAULT
@@ -399,15 +394,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 pgm=0;
   int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0,pamatr=0,pamd=0;  // For PBM, PGM, PPM, PAM detection
   char pgm_buf[32];
-  U64 cdi=0;
-  U64 mdfa=0;
-  int cda=0,cdm=0,cdif=0;   // For CD sectors detection
-  U32 cdf=0;
+
   TextInfo text = {}; // For TEXT
-  
- ///
-   U64 uuds=0,uuds1=0,uudp=0,uudslen=0,uudh=0;//,b64i=0;
-  U64 uudstart=0,uudend=0,uudline=0,uudnl=0,uudlcount=0,uuc=0;
   
   U64 png=0, lastchunk=0, nextchunk=0;               // For PNG detection
   int pngw=0, pngh=0, pngbps=0, pngtype=0,pnggray=0; 
@@ -636,7 +624,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (zbufpos<32)
       zbuf[zbufpos+256] = c;
     zbufpos=(zbufpos+1)&0xFF;
-    if(!cdi && !mdfa && type!=MDF )  {
+    /*if(!cdi && !mdfa && type!=MDF ) */ {
       int zh=parse_zlib_header(((int)zbuf[(zbufpos-32)&0xFF])*256+(int)zbuf[(zbufpos-32+1)&0xFF]);
     bool valid = (i>=31 && zh!=-1);
     if (!valid && brute && i>=255){
@@ -731,8 +719,8 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
    
     
     //detect LZSS compressed data in compress.exe generated archives
-    if ((buf0==0x88F02733 && buf1==0x535A4444 && !cdi  && type!=MDF) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
-    if (fSZDD  && type!=MDF && buf0!=0 && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733 && !cdi  && (i-fSZDD)==4))){
+    if ((buf0==0x88F02733 && buf1==0x535A4444 ) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
+    if (fSZDD  && type!=MDF && buf0!=0 && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733   && (i-fSZDD)==4))){
        int lz2=0;
         if (buf1!=0x88F02733 && (i-fSZDD)==4) lz2=2;  //+2 treshold
         U32 fsizez=bswap(buf0); //uncompressed file size
@@ -775,49 +763,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
         else fSZDD=0;
     } 
     
-     // MDF (Alcohol 120%) CD (mode 1 and mode 2 form 1+2 - 2352 bytes+96 channel data)
-    if ( !cdi && mdfa && type!=MDF)  return   in->setpos( start+mdfa-7), MDF;
-    if (buf1==0x00ffffff && buf0==0xffffffff   && !mdfa  && type==MDF) mdfa=i;
-    if (mdfa && i>mdfa) {
-        const int p=(i-mdfa)%2448;
-        if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) {
-          mdfa=0;
-          }
-        if (!mdfa && type==MDF)  return  in->setpos( start+i-p-7), DEFAULT;
-    }
-    if (type==MDF) continue;
-    
-    // CD sectors detection (mode 1 and mode 2 form 1+2 - 2352 bytes)
-    if (buf1==0x00ffffff && buf0==0xffffffff && !cdi && !mdfa) cdi=i,cda=-1,cdm=0;
-    if (cdi && i>cdi) {
-      const int p=(i-cdi)%2352;
-      if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) cdi=0; // FIX it ?
-      else if (p==16 && i+2336<n) {
-        U8 data[2352];
-        U64 savedpos= in->curpos();
-         in->setpos( start+i-23);
-        in->blockread(data,   2352  );
-        int t=expand_cd_sector(data, cda, 1);
-        if (t!=cdm) cdm=t*(i-cdi<2352);
-        if (cdm && cda!=10 && (cdm==1 || buf0==buf1) && type!=CD) {
-            //skip possible 96 byte channel data and test if another frame
-             in->setpos(  in->curpos()+96);
-            U32 mdf= (in->getc()<<24)+(in->getc()<<16)+(in->getc()<<8)+in->getc();
-            U32 mdf1=(in->getc()<<24)+(in->getc()<<16)+(in->getc()<<8)+in->getc();
-            if (mdf==0x00ffffff && mdf1==0xffffffff ) mdfa=cdi,cdi=cdm=0; //drop to mdf mode?
-        }
-         in->setpos( savedpos); // seek back if no mdf
-        if (cdm && cda!=10 && (cdm==1 || buf0==buf1)) {
-          if (type!=CD) return info=cdm, in->setpos( start+cdi-7), CD;
-          cdif=cdm;
-          cda=(data[12]<<16)+(data[13]<<8)+data[14];
-          if (cdm!=1 && i-cdi>2352 && buf0!=cdf) cda=10;
-          if (cdm!=1) cdf=buf0;
-        } else cdi=0;
-      }
-      if (!cdi && type==CD) return info=cdif, in->setpos( start+i-p-7), DEFAULT;
-    }
-    if (type==CD) continue;
+
  
     // Detect .s3m file header 
     if (buf0==0x1a100000) s3mi=i,s3mno=s3mni=0;
@@ -1026,40 +972,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
       memset(&absposARM[0], 0, sizeof(absposARM));
     }
     
-    // detect uuencoode in eml 
-    // only 61 byte linesize and, ignore with trailin 1 byte lines.
-    // 0A424547 494E2D2D 63757420
-   if (uuds==0 && ((buf0==0x67696E20 && (buf1&0xffffff)==0x0A6265) ||
-      ( buf2==0x0A424547&& buf1==0x494E2D2D&& buf0==0x63757420) )) uuds=1,uudp=i-8,uudh=0,uudslen=0,uudlcount=0; //'\n begin ' '\nBEGIN--cut '
-    else if (uuds==1 && (buf0&0xffff)==0x0A4D ) {
-        uuds=2,uudh=i,uudslen=uudh-uudp;
-        uudstart=i;
-        if (uudslen>40) uuds=0; //drop if header is larger 
-        }
-    else if (uuds==1 && (buf0&0xffff)==0x0A62 ) uuds=0; //reset for begin
-    else if (uuds==2 && (buf0&0xff)==0x0A && uudline==0) {
-         uudline=i-uudstart,uudnl=i;      //capture line lenght
-         if (uudline!=61) uuds=uudline=0; //drop if not
-    }
-    else if (uuds==2 &&( (buf0&0xff)==0x0A || (buf0==0x454E442D && (buf1&0xff)==0x0A))  && uudline!=0){// lf or END-
-         if ( (i-uudnl+1<uudline && (buf0&0xffff)!=0x0A0A) ||  ((buf0&0xffff)==0x0A0A) ) { // if smaller and not padding
-            uudend=i-1;
-            if ( (((uudend-uudstart)>128) && ((uudend-uudstart)<512*1024))  ){
-             uuds=0;
-             UUU_DET(UUENC,uudh,uudslen,uudend -uudstart,uuc);
-            }
-         }
-         else if(buf0==0x454E442D){ // 'END-'
-             uudend=i-5;
-              UUU_DET(UUENC,uudh,uudslen,uudend -uudstart,uuc);
-         }
-         uudnl=i+2; //update 0x0D0A pos
-         uudlcount++;
-         }
-    else if (uuds==2 && (c>=32 && c<=96)) {if (uuc==0 && c==96) uuc=1;} // some files use char 96, set for info;
-    else if (uuds==2)   uuds=0;
-    
-      
     
     // Detect text, utf-8, eoltext and text0
     text.isLetter = tolower(c)!=toupper(c);

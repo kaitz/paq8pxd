@@ -8,10 +8,10 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new DECaParser());
     AddParser( new mrbParser());
     AddParser( new EXEParser());
-    if (ptype!=ZLIB){
+    /*if (ptype!=ZLIB){
         AddParser( new zlibParser());      // brute=true, low priority
         AddParser( new zlibParser(false)); // brute=false, high priority
-    }
+    }*/
     AddParser( new NesParser());
     AddParser( new MSZIPParser());
     AddParser( new JPEGParser());
@@ -36,6 +36,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     if (ptype!=MDF && ptype!=CD) {
        AddParser( new mdfParser());
     }
+    AddParser( new uueParser());
     
     emptyType.start=0;
     emptyType.end=0;

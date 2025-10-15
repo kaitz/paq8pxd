@@ -29,7 +29,7 @@
 #include "parsers/tgaparser.hpp"
 #include "parsers/cdparser.hpp"
 #include "parsers/mdfparser.hpp"
-
+#include "parsers/uueparser.hpp"
 
 class Analyzer {
     uint64_t info;

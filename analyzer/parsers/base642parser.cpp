@@ -107,8 +107,8 @@ int base64_2Parser::TypeCount() {
 
 void base64_2Parser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
-    uint64_t b64s=b64p=b64slen=b64h=0;
-    uint64_t base64start=base64end=b64line=b64nl=b64lcount=0;
+    b64s=b64p=b64slen=b64h=0;
+    base64start=base64end=b64line=b64nl=b64lcount=0;
     info=i=inSize=0;
 }
 void base64_2Parser::SetEnd(uint64_t e) {
