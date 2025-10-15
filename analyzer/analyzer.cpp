@@ -30,6 +30,9 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new MODParser());
     AddParser( new sgiParser());
     AddParser( new TGAParser());
+    if (ptype!=CD) {
+       AddParser( new cdParser());
+    }
     
     emptyType.start=0;
     emptyType.end=0;

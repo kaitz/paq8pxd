@@ -23,6 +23,7 @@ base642parser   2     BASE64
 modparser       2     AUDIO
 sgiparser       2     IMAGE8
 tgaparser       2     IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32
+cdparser        0     CD
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

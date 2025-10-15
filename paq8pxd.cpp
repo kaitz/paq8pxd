@@ -396,10 +396,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
   
-  /*
-  U64 tga=0;
-  U64 tgax=0;
-  int tgay=0,tgaz=0,tgat=0,tgaid=0,tgamap=0;*/  // For TGA detection
   U64 pgm=0;
   int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0,pamatr=0,pamd=0;  // For PBM, PGM, PPM, PAM detection
   char pgm_buf[32];
@@ -995,61 +991,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
       in->setpos( savedpos);
     }
        
-    // Detect .tga image (8-bit 256 colors or 24-bit uncompressed)
-    /*if ((buf1&0xFFF7FF)==0x00010100 && (buf0&0xFFFFFFC7)==0x00000100 && (c==16 || c==24 || c==32)) tga=i,tgax=tgay,tgaz=8,tgat=(buf1>>8)&0xF,tgaid=buf1>>24,tgamap=c/8;
-    else if ((buf1&0xFFFFFF)==0x00000200 && buf0==0x00000000) tga=i,tgax=tgay,tgaz=24,tgat=2;
-    else if ((buf1&0xFFF7FF)==0x00000300 && buf0==0x00000000) tga=i,tgax=tgay,tgaz=8,tgat=(buf1>>8)&0xF;
-    if (tga) {
-      if (i-tga==8) tga=(buf1==0?tga:0),tgax=(bswap(buf0)&0xffff),tgay=(bswap(buf0)>>16);
-      else if (i-tga==10) {
-          if ((buf0&0xFFF7)==32<<8)
-          tgaz=32;
-        if ((tgaz<<8)==(int)(buf0&0xFFD7) && tgax && tgay && U32(tgax*tgay)<0xFFFFFFF) {
-          if (tgat==1){
-            in->setpos(start+tga+11+tgaid);
-            IMG_DET( (IsGrayscalePalette(in))?IMAGE8GRAY:IMAGE8,tga-7,18+tgaid+256*tgamap,tgax,tgay);
-          }
-          else if (tgat==2) IMG_DET((tgaz==24)?IMAGE24:IMAGE32,tga-7,18+tgaid,tgax*(tgaz>>3),tgay);
-          else if (tgat==3) IMG_DET(IMAGE8GRAY,tga-7,18+tgaid,tgax,tgay);
-          else if (tgat==9 || tgat==11) {
-              const U64 savedpos=in->curpos();
-            in->setpos(start+tga+11+tgaid);
-            if (tgat==9) {
-              info=(IsGrayscalePalette(in)?IMAGE8GRAY:IMAGE8)<<24;
-              in->setpos(start+tga+11+tgaid+256*tgamap);
-            }
-            else
-              info=IMAGE8GRAY<<24;
-            info|=tgax;
-            // now detect compressed image data size
-            detd=0;
-            int c=in->getc(), b=0, total=tgax*tgay, line=0;
-            while (total>0 && c>=0 && (++detd, b=in->getc())>=0){
-              if (c==0x80) { c=b; continue; }
-              else if (c>0x7F) {
-                total-=(c=(c&0x7F)+1); line+=c;
-                c=in->getc();
-                detd++;
-              }
-              else {
-                in->setpos(in->curpos()+c); 
-                detd+=++c; total-=c; line+=c;
-                c=in->getc();
-              }
-              if (line>tgax) break;
-              else if (line==tgax) line=0;
-            }
-            if (total==0) {
-              in->setpos(start+tga+11+tgaid+256*tgamap);
-              return dett=RLE;
-            }
-            else
-              in->setpos(savedpos);
-          }
-        }
-        tga=0;
-      }
-    }*/
     
     // ARM
     op=(buf0)>>26; 
