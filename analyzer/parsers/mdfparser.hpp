@@ -4,9 +4,9 @@
 #include <vector>
 #include "../../filters/cdfilter.hpp"
 
-
 // CD sectors detection (mode 1 and mode 2 form 1+2 - 2352 bytes)
-class cdParser: public Parser {
+class mdfParser: public Parser {
+    uint64_t mdfa;
     uint64_t cdi;
     int cda,cdm,cdif;   // For CD sectors detection
     uint32_t cdf;
@@ -18,8 +18,8 @@ class cdParser: public Parser {
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
 public:    
-    cdParser();
-    ~cdParser();
+    mdfParser();
+    ~mdfParser();
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos);
     dType getType(int i);
     int TypeCount();

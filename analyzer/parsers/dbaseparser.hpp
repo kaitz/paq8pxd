@@ -23,8 +23,6 @@
 //  'f5' > FoxPro with memo file - tested
 //  'fb' > FoxPro without memo file
 
-
-
 class dBaseParser: public Parser {
 struct dBASE {
   uint8_t Version;

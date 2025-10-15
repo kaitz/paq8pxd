@@ -1,10 +1,5 @@
 #include "mrbparser.hpp"
 
-#define bswap(x) \
-    +   ((((x) & 0xff000000) >> 24) | \
-    +    (((x) & 0x00ff0000) >>  8) | \
-    +    (((x) & 0x0000ff00) <<  8) | \
-    +    (((x) & 0x000000ff) << 24))
 uint32_t mrbParser::GetCDWord(unsigned char *data ){
     uint16_t w = data[inSize];inSize++; i++;
     w=w | (data[inSize]<<8);inSize++; i++;

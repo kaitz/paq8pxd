@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <vector>
 
-
 class DefaultParser: public Parser {
     uint64_t info;
     uint32_t i;

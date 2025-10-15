@@ -1,21 +1,21 @@
-#include "cdparser.hpp"
+#include "mdfparser.hpp"
 
-cdParser::cdParser() {
+mdfParser::mdfParser() {
     priority=0;
     Reset();
     inpos=0;
-    name="cd";
+    name="mdf";
     cdata=(uint8_t*)calloc(2353,1);
 }
 
-cdParser::~cdParser() {
+mdfParser::~mdfParser() {
     free(cdata);
 }
 
 // loop over input block byte by byte and report state
-DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
     // To small? 
-    if (pos==0 && len<2352) return DISABLE;
+    if (pos==0 && len<(2352+96)) return DISABLE;
     // Are we in new data block, if so reset inSize and restart
     if (inpos!=pos) {
         inSize=0,inpos=pos;
@@ -36,9 +36,13 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 assert(cdatai<2352);
                 cdata[cdatai++]=c;
                 const int p=(i-cdi)%2352;
-                if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) cdi=0,cdatai=0,state=NONE; // FIX it ?
-                else if (cdatai==2352) {
+                if (cdatai==2352) {
                     // We have whole sector, test it
+                    if (mdfa==0 && state==INFO) {
+                        uint32_t mdf= (cdata[96]<<24)+(cdata[96+1]<<16)+(cdata[96+2]<<8)+cdata[96+3];
+                        uint32_t mdf1=(cdata[96+4]<<24)+(cdata[96+5]<<16)+(cdata[96+6]<<8)+cdata[96+7];
+                        if (mdf==0x00ffffff && mdf1==0xffffffff ) mdfa=cdi,cdi=cdm=0; //drop to mdf mode?
+                    }
                     CDHeder *ch=(struct CDHeder*)&cdata[0];
                     int t=expand_cd_sector(cdata, cda, 1); 
                     if (t!=cdm) cdm=t*(i-cdi<2352);
@@ -49,19 +53,31 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                         if (cdm!=1 && i-cdi>2352 && ch->sub2!=cdf) cda=10;
                         if (cdm!=1) cdf=ch->sub2;
                         cdatai=0;
-                    } else if (state==START) {
+                    } else if (state==START && mdfa==0) {
                         cdi=0,cdatai=0,state=NONE;
-                    } else {
+                    } /*else {
                         jend=i-2352+1;
                         type=CD;
                         info=cdif;
                         state=END;
                         return state;
-                    }
+                    }*/
                 } else if (cdatai>2352) {
                     // This should never happen
                     cdi=0,cdatai=0,state=NONE;
                 }
+            } else if (i>mdfa) {
+                
+                const int p=(i-mdfa)%2448;
+                if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) {
+                    mdfa=0;
+                    jend=i-p-7;
+                    type=MDF;
+                    info=0;
+                    state=END;
+                    return state;
+                }
+
             }
         }
 
@@ -75,7 +91,7 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
     else return NONE;
 }
 
-dType cdParser::getType(int i) {
+dType mdfParser::getType(int i) {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -86,18 +102,19 @@ dType cdParser::getType(int i) {
     return t;
 }
 
-int cdParser::TypeCount() {
+int mdfParser::TypeCount() {
     return 1;
 }
 
-void cdParser::Reset() {
+void mdfParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
+    mdfa=0;
     cdi=0;
     cda=cdm=cdif=0;
     cdf=0;
     cdatai=0;
     info=i=inSize=0;
 }
-void cdParser::SetEnd(uint64_t e) {
+void mdfParser::SetEnd(uint64_t e) {
     jend=e;
 }

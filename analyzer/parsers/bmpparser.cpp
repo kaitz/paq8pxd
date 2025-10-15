@@ -1,11 +1,5 @@
 #include "bmpparser.hpp"
 
-#define bswap(x) \
-    +   ((((x) & 0xff000000) >> 24) | \
-    +    (((x) & 0x00ff0000) >>  8) | \
-    +    (((x) & 0x0000ff00) <<  8) | \
-    +    (((x) & 0x000000ff) << 24))
-
 BMPParser::BMPParser() {
     priority=2;
     Reset();
@@ -28,7 +22,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
     
     while (inSize<len) {
         buf1=(buf1<<8)|(buf0>>24);
-        int c=data[inSize];
+        uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
         // Detect for 'BM' or headerless DIB
         if (state==NONE && (((buf0&0xffff)==16973) || (!(buf0&0xFFFFFF) && ((buf0>>24)==0x28))) ){

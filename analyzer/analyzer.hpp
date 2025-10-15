@@ -28,6 +28,7 @@
 #include "parsers/sgiparser.hpp"
 #include "parsers/tgaparser.hpp"
 #include "parsers/cdparser.hpp"
+#include "parsers/mdfparser.hpp"
 
 
 class Analyzer {

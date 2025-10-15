@@ -4,7 +4,6 @@
 #include <vector>
 
 class MODParser: public Parser {
-     
     uint64_t info;
     uint32_t buf0, buf1;
     uint32_t i;

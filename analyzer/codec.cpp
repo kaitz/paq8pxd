@@ -504,7 +504,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                         EncodeFileRecursive( tmp, tmpsize-hdrsize,  blstr,it+1,ZLIB);//it+1
                     }
                 } else {     
-                    EncodeFileRecursive( tmp, tmpsize,  blstr,it+1);//it+1
+                    EncodeFileRecursive( tmp, tmpsize,  blstr,it+1,type);//it+1
                     tmp->close();
                     return;
                 }    

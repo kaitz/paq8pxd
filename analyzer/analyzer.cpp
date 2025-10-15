@@ -33,6 +33,9 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     if (ptype!=CD) {
        AddParser( new cdParser());
     }
+    if (ptype!=MDF && ptype!=CD) {
+       AddParser( new mdfParser());
+    }
     
     emptyType.start=0;
     emptyType.end=0;

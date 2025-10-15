@@ -2,6 +2,18 @@
 #include "filter.hpp"
 #include "../prt/types.hpp"
 
+struct CDHeder{
+    uint32_t sync1;
+    uint32_t sync2;
+    uint32_t sync3;
+    union  {
+        uint32_t a:24;
+        uint32_t m:8;
+    };
+    uint32_t sub1;
+    uint32_t sub2;
+};
+
 class CDFilter: public Filter {
 
 public:

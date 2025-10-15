@@ -1,17 +1,10 @@
 #include "dbaseparser.hpp"
 
-#define bswap(x) \
-    +   ((((x) & 0xff000000) >> 24) | \
-    +    (((x) & 0x00ff0000) >>  8) | \
-    +    (((x) & 0x0000ff00) <<  8) | \
-    +    (((x) & 0x000000ff) << 24))
-
 dBaseParser::dBaseParser() {
     priority=2;
     Reset();
     inpos=0;
     name="dBase";
-    
 }
 
 dBaseParser::~dBaseParser() {
