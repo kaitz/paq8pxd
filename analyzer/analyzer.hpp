@@ -30,6 +30,7 @@
 #include "parsers/cdparser.hpp"
 #include "parsers/mdfparser.hpp"
 #include "parsers/uueparser.hpp"
+#include "parsers/tiffparser.hpp"
 
 class Analyzer {
     uint64_t info;
