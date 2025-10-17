@@ -191,7 +191,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                     }
                     // Get next tag data offset
                     tagCx=NextTagContent(tagCx);
-                    if (tagCx && (tagCx+tiffi)<i) state=NONE, printf("Past tag data!\n");
+                    if (tagCx && (tagCx+tiffi)<i) state=NONE;//, printf("Past tag data!\n");
                     tagCdi=0;
                     // Was last tag?
                     if (tagCx==0) {
@@ -242,6 +242,9 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                     else if (tg.TagId==273 && tg.Count==1) idfImg.offset=tg.Offset;
                     else if (tg.TagId==279 && tg.Count==1) idfImg.size=tg.Offset;
                     else if (tg.TagId==277) idfImg.bits1=tg.Offset;
+                    else if (tg.TagId==513 && tg.Count==1) idfImg.offset=tg.Offset;
+                    else if (tg.TagId==514 && tg.Count==1) idfImg.size=tg.Offset,idfImg.compression=6;
+                    
                 }
                 count++; // IFD entry count
                 tagsIn=tagTx=0; 
@@ -264,6 +267,12 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 }
             }
         } else if (state==END && parseCount) {
+            if ((dtf.size()-parseCount)==0) {
+                // Sort out of order data in ascending orders
+                std::sort(dtf.begin(), dtf.end(), [](const detTIFF &a, const detTIFF &b) {
+                    return (a.offset < b.offset);
+                });
+            }
             detTIFF image=dtf[dtf.size()-parseCount];
             jstart=image.offset-(relAdd-tiffi);
             jend=jstart+image.size;
