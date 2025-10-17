@@ -295,6 +295,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 type=IMAGE8;
             } else type=DEFAULT;
             if (image.compression==6 || image.compression==7) type=JPEG,info=0;
+            if (image.compression==8 && type==IMAGE24) type=ZLIB,info=(IMAGE24<<24)|image.width*3;
             else if (image.compression!=0) type=CMP,info=0;
             parseCount--;
             return state;
