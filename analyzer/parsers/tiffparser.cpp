@@ -206,11 +206,11 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 tagCx=0;
                 for (int k=tagsIn; k>0;k--) {
                     TiffTag &tg=(struct TiffTag&)tagT[sizeof(TiffTag)*(tagsIn-k)];
-                    if (tiffMM==true){
+                    if (tiffMM==true) {
                         tg.TagId=bswap(tg.TagId);
                         tg.Type=bswap(tg.Type);
                         tg.Count=bswap(tg.Count);
-                        tg.Offset=bswap(tg.Offset);                    
+                        tg.Offset=bswap(tg.Offset);
                     }
                     //if (tg.TagId==259) { 
                     //    printf("%5d %10s %10d %10d %10s\n",tg.TagId,TIFFTypeStr(tg.Type).c_str(),tg.Count,tg.Offset,TIFFCompStr(tg.Offset).c_str());
@@ -251,9 +251,11 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
             }
         } else if (state==END && parseCount) {
             detTIFF image=dtf[dtf.size()-parseCount];
-            jstart=image.offset-relAdd;
+            jstart=image.offset-(relAdd-tiffi);
             jend=jstart+image.size;
-            relAdd+=jend;
+            relAdd+=jend-tiffi;
+            relAdd-=tiffi;
+            tiffi=0;
             info=image.width*image.bits1;
             if (image.size==image.width*image.bits1*image.height && image.compression!=0) {
                 image.compression=0;   // Uncompressed?
