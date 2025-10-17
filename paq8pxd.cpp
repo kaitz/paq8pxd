@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd114"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd115"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM

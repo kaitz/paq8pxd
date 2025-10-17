@@ -8,6 +8,10 @@
     +    (((x) & 0x00ff0000) >>  8) | \
     +    (((x) & 0x0000ff00) <<  8) | \
     +    (((x) & 0x000000ff) << 24))
+    
+#define bswap16(x) \
++    (((x) & 0xff00) >>  8) | \
++    (((x) & 0x00ff) <<  8)
 
 // base class for file type detection
 

@@ -159,36 +159,45 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                         int bits=0;
                         for (int k=0; k<tagCc; k++) {
                             uint16_t &tg=(uint16_t&)tagCd[sizeof(uint16_t)*(k)];
-                            bits=bits+tg; //=8?
+                            bits=bits+(tiffMM==true?bswap16(tg):tg); //=8?
                         }
                         //printf(" Bits: %d\n",bits);     //idfImg.bits1==bits/idfImg.bits1 ?
                         idfImg.bits=bits;
                         idfImg.bits1=tagCc;
-                    //	For each strip, the byte offset of that strip.
-                    } else if (tagCi==273) {
+                    // 273 For each strip, the byte offset of that strip.
+                    // 324 For each tile, the byte offset of that tile, as compressed and stored on disk.
+                    } else if (tagCi==273 || tagCi==324 ) {
                         uint32_t offs=0;
                         uint32_t &tg=(uint32_t&)tagCd[sizeof(uint32_t)*(0)];  // we only care for the first value - start offset
-                        offs=tg;
+                        offs=(tiffMM==true?bswap(tg):tg);
                         //printf("\n%d Data size: %d\n",offs,tagCs*tagCc);
-                        idfImg.offset=offs;
-                    //For each strip, the number of bytes in the strip after compression.
-                    } else if (tagCi==279) {
+                        if (idfImg.offset==0) idfImg.offset=offs;
+                        
+                    //279 For each strip, the number of bytes in the strip after compression.
+                    //325 For each tile, the number of (compressed) bytes in that tile.
+                    } else if (tagCi==279 || tagCi==325) {
                         uint32_t size=0;
                         for (int k=0; k<tagCc; k++) {
+                            if (tagCs==2){
                             uint16_t &tg=(uint16_t&)tagCd[sizeof(uint16_t)*(k)];
-                            size=size+tg;
+                            size=size+(tiffMM==true?bswap16(tg):tg);
+                            }  else if (tagCs==4){
+                                uint32_t &tg=(uint32_t&)tagCd[sizeof(uint32_t)*(k)];
+                            size=size+(tiffMM==true?bswap(tg):tg);
+                            }
                         }
                         //printf(" Size: %d Data size: %d\n",size,tagCs*tagCc);
-                        idfImg.size=size;
+                        if (idfImg.size==0) idfImg.size=size;
                     }
                     // Get next tag data offset
                     tagCx=NextTagContent(tagCx);
+                    if (tagCx && (tagCx+tiffi)<i) state=NONE, printf("Past tag data!\n");
                     tagCdi=0;
                     // Was last tag?
                     if (tagCx==0) {
                         if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                         if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
-                        dtf.push_back(idfImg);
+                        if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg);
                         //printf("Image(%d) offset: %d, size %d, bits %d\n",dtf.size(),idfImg.offset,idfImg.size,idfImg.bits);
                         if (dirEntry==0) parseCount=dtf.size(),jend=0,relAdd=tiffi,state=END; // Last entry?
                     }
@@ -197,7 +206,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 TiffIFD d;
                 d.NumDirEntries=tagsIn;
                 d.CurrentIFD=dirEntry;
-                dirEntry=int(d.NextIFD=tiffMM==true?bswap(buf0):bswap(buf0)); // ?
+                dirEntry=(d.NextIFD=(tiffMM==true?buf0:bswap(buf0))); // ?
                 //printf("Next: %d\n",d.NextIFD);
                 ifd.push_back(d);
                 //printf("Tag     Type          Count  Val/Offset\n");
@@ -207,18 +216,23 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 for (int k=tagsIn; k>0;k--) {
                     TiffTag &tg=(struct TiffTag&)tagT[sizeof(TiffTag)*(tagsIn-k)];
                     if (tiffMM==true) {
-                        tg.TagId=bswap(tg.TagId);
-                        tg.Type=bswap(tg.Type);
+                        tg.TagId=bswap16(tg.TagId);
+                        tg.Type=bswap16(tg.Type);
                         tg.Count=bswap(tg.Count);
+                        if (tg.Type==3 && tg.Count==1)tg.Offset=bswap16(tg.Offset);
+                        else 
                         tg.Offset=bswap(tg.Offset);
                     }
                     //if (tg.TagId==259) { 
                     //    printf("%5d %10s %10d %10d %10s\n",tg.TagId,TIFFTypeStr(tg.Type).c_str(),tg.Count,tg.Offset,TIFFCompStr(tg.Offset).c_str());
-                    //} else
+                    //} 
+                    //else if (tg.Type==3 && tg.Count==1)
+                    //printf("%5d %10s %10d %10d\n",tg.TagId,TIFFTypeStr(tg.Type).c_str(),tg.Count,tg.Offset&0xffff);
+                    //else
                     //    printf("%5d %10s %10d %10d\n",tg.TagId,TIFFTypeStr(tg.Type).c_str(),tg.Count,tg.Offset);
                     ifd[count].Tags.push_back(tg);
-                    // Read tag data for id=258,273,279
-                    if (tg.Count!=1 && (tg.TagId==258 || tg.TagId==273 || tg.TagId==279) && ((tg.Type==3?2:tg.Type)*tg.Count)<0x10000) {
+                    // Read tag data for id=258,273,279,324,325
+                    if (tg.Count!=1 && (tg.TagId==258 || tg.TagId==273 || tg.TagId==324|| tg.TagId==325 || tg.TagId==279) && ((tg.Type==3?2:tg.Type)*tg.Count)<0x10000) {
                         tagC.push_back(tg); // list of tag addresses to read
                     }
                     if (tg.TagId==256) idfImg.width=tg.Offset;
@@ -244,7 +258,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 if (tagCx==0){
                     if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                     if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
-                    dtf.push_back(idfImg);
+                    if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg);
                     //printf("Image(%d) offset: %d, size %d, bits %d\n",dtf.size(),idfImg.offset,idfImg.size,idfImg.bits);
                     if (dirEntry==0) parseCount=dtf.size(),jend=0,relAdd=tiffi,state=END; // Last entry?
                 }
@@ -264,8 +278,6 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                 type=IMAGE24;
             } else if (image.bits1==4) {
                 type=IMAGE32;
-            } else if (image.bits1==3) {
-                type=IMAGE24;
             } else if (image.bits==1) {
                 type=IMAGE1;info/=8;
             } else if (image.bits==4) {
@@ -273,7 +285,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
             } else if (image.bits==8) {
                 type=IMAGE8;
             } else type=DEFAULT;
-            if (image.compression==7) type=JPEG,info=0;
+            if (image.compression==6 || image.compression==7) type=JPEG,info=0;
             else if (image.compression!=0) type=CMP,info=0;
             parseCount--;
             return state;

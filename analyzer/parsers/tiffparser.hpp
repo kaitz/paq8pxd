@@ -6,24 +6,19 @@
 #include <mem.h>
 #include <algorithm>
 
-typedef enum {T_ImageWidth=256,T_ImageLength,T_BitsPerSample,T_Compression,
-              T_StripOffsets=273,
-              T_SamplesPerPixel=277,
-              T_StripByteCounts=279,
-              T_SubIFDs=330,
-              JPEGProc=513,
-              JPEGInterchangeFormat=514,
-              T_Exif_IFD=34665
-} TIFFTags;
+// Detect images in tiff conteiner. MM and II mode.
+// Image data can be out of order with tag data (data first, header after).
+// Addresses found in the tag list are sorted from smallest to largest
+// so that all the data can be read. Assuming data offsets point past the tag list.
+// Out of order tag locations not supported because parser cant read past info.
+
+
 typedef struct TiffTag;
 struct TiffTag {
-	uint16_t  TagId;   // identifier
+	uint16_t  TagId;   // Identifier
 	uint16_t  Type;    // The scalar type of the data items
 	uint32_t  Count;   // The number of items in the tag data
 	uint32_t  Offset;  // The byte offset to the data items
-	/*bool cmp(const TiffTag& a,const TiffTag& b)  {
-        return a.Offset < a.Offset;
-    }*/
 };
 
 struct TiffIFD {
