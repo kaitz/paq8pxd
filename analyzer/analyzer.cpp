@@ -38,6 +38,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     }
     AddParser( new uueParser());
     AddParser( new TIFFParser());
+    AddParser( new TARParser());
     
     emptyType.start=0;
     emptyType.end=0;
@@ -86,7 +87,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     // request current state data
                     parsers[j]->state=END;
                     typefound=true; // we should ignore pri=4 in some cases?
-                    break;
+                    //break;
                 } else if (dstate==DISABLE) {
                     //printf("T=%d DISABLE\n",j);
                     parsers[j]->state=DISABLE;

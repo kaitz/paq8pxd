@@ -266,24 +266,6 @@ bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   return (res>>8)>0;
 }
 
-/*
-struct TARheader{
-    char name[100];
-    char mode[8];
-    char uid[8];
-    char gid[8];
-    char size[12];
-    char mtime[12];
-    char chksum[8];
-    char linkflag;
-    char linkname[100];
-    char magic[8];
-    char uname[32];
-    char gname[32];
-    char major[8];
-    char minor[8];
-    char pad[167];
-};*/
 int getoct(const char *p, int n){
     int i = 0;
     while (*p<'0' || *p>'7') ++p, --n;
@@ -308,15 +290,7 @@ bool tarend(const char *p){
 }
 
 
-struct dTIFF {
-  U32 size;
-  U32 offset;
-  U8 compression;
-  U32 width;
-  U32 height;
-  U8 bits;
-  U8 bits1;
-};
+
 
 #define MIN_TEXT_SIZE 0x400 //1KB
 #define MAX_TEXT_MISSES 3 //number of misses in last 32 bytes before resetting
@@ -391,9 +365,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
   
-  U64 pgm=0;
-  int pgmcomment=0,pgmw=0,pgmh=0,pgm_ptr=0,pgmc=0,pgmn=0,pamatr=0,pamd=0;  // For PBM, PGM, PPM, PAM detection
-  char pgm_buf[32];
 
   TextInfo text = {}; // For TEXT
   
@@ -409,8 +380,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   int pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
   U64 pdfimp=0;
   //
-  U64 tar=0,tarn=0,tarl=0,utar=0;
-  TARheader tarh;
+
   U32 op=0;//DEC A
 
   int textbin=0,txtpdf=0; //if 1/3 is text
@@ -421,13 +391,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   char bzin[512],bzout[512];
   static int bzlevel=0;
   bool isBSDIFF=false;
-   // For image detection
-  static Array<U32> tfidf(0);
-  static int tiffImages=-1;
-  static Array<dTIFF> tiffFiles(10);
-  static U64 tiffImageStart=0;
-  static U64 tiffImageEnd=0;
-  bool tiffMM=false;
+  
 
   static int deth=0,detd=0;  // detected header/data size in bytes
   static Filetype dett;      // detected block type
@@ -455,37 +419,10 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     ((c>=0xd0 && c<=0xdf) ||(c>=0xc0 && c<=0xcf)||(c>=0xe0 && c<=0xef)||(c>=0xf0 && c<=0xff)));  //ISO latin
     if (isStandard || isExtended) textbin++,info=textbin;
     
-    if(tiffImages>=0){
-        brute=false;
-        textbin=0;
-    for (int o=0;o<tiffImages; o++) { 
-       if(  in->curpos()== tiffFiles[o].offset+1 ) {
-           if (tiffFiles[o].compression==6 || tiffFiles[o].compression==7  ) {
-               tiffImageEnd++;
-                 if (type!=JPEG)return  in->setpos( start+i),JPEG;
-                 else  return  in->setpos(start+tiffFiles[o].size),DEFAULT;
-               }else if ( tiffFiles[o].compression==2) {
-               tiffImageEnd++;
-                 if (type!=DEFAULT)return  in->setpos( start+i),DEFAULT;
-                 else  return  in->setpos(start+tiffFiles[o].size),DEFAULT;
-           } else if (tiffFiles[o].compression==1 ||tiffFiles[o].compression==255) {
-               tiffImageEnd++;
-                 if (tiffFiles[o].bits==1  &&type!=IMAGE8 && tiffFiles[o].bits1!=14 ) return info=tiffFiles[o].width, in->setpos(start+i),IMAGE8;
-                 if (tiffFiles[o].bits==1  &&type!=IMGUNK && tiffFiles[o].bits1==14  ) return info=0, in->setpos(start+i),IMGUNK;
-                 else if (tiffFiles[o].bits==3 &&type!=IMAGE24 ) return info=tiffFiles[o].width, in->setpos( start+i),IMAGE24;
-                 //else if (tiffFiles[o].bits==4 &&type!=IMAGE32 ) return info=tiffFiles[o].width, in->setpos( start+i),IMAGE32;
-                 else if (tiffFiles[o].bits==1 && type==IMAGE8 ) return info=tiffFiles[o].width, in->setpos(start+tiffFiles[o].size),DEFAULT;
-                 else if (tiffFiles[o].bits1==14 && type==IMGUNK ) return info=tiffFiles[o].width, in->setpos( start+tiffFiles[o].size),DEFAULT;
-                 else if (tiffFiles[o].bits==3 &&type==IMAGE24 ) return info=tiffFiles[o].width, in->setpos(start+tiffFiles[o].size),DEFAULT;
-                 //else if (tiffFiles[o].bits==4 &&type==IMAGE32 ) return info=tiffFiles[o].width, in->setpos(start+tiffFiles[o].size),DEFAULT;
-            } 
-       }
-       if(tiffImageEnd>>1==tiffImages) tiffImages=-1,tiffImageEnd=0;
-       }
-    }  
+    
     if (i==7 && buf1==0x42534449 && buf0==0x46463430/*-35*/) isBSDIFF=true;
     // BZhx = 0x425A68xx header, xx = level '1'-'9'
-    if (isBSDIFF==false && (buf0&0xffffff00)==0x425A6800 && type!=BZIP2 && tarl==0){
+    if (isBSDIFF==false && (buf0&0xffffff00)==0x425A6800 && type!=BZIP2){
         bzlevel=c-'0';
         if ((bzlevel>=1) && (bzlevel<=9)) {
             BZip2=i;
@@ -558,61 +495,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
           pnggray = (png && IsGrayscalePalette(in, buf1/3));
         }
       }
-    }
-    // tar    
-    // ustar header detection
-    if (((buf0)==0x61722020 || (buf0&0xffffff00)==0x61720000) && (buf1&0xffffff)==0x757374 && tar==0&&tarl==0) tar=i,tarn=0,tarl=1,utar=263;
-    // brute force detection on recursion level 0, at the block start only
-    if(tarl==0 && it==0 && i==512 && start==0){
-        U64 tarsave= in->curpos();
-        in->setpos( tarsave-513);
-        int bin=in->blockread((U8*) &tarh,  sizeof(tarh) );
-            if (tarchecksum((char*)&tarh)){
-                tar=i,tarn=512,tarl=2,utar=0;
-                tar=in->curpos();
-               int a=getoct(tarh.size,12);
-               int b=a-(a/512)*512;
-               if (b) tarn=tarn+512*2+(a/512)*512;
-               else if (a==0) tarn=tarn+512;
-               else tarn=tarn+512+(a/512)*512;
-               tarn=tarn+int(i-tar+utar);
-            } else  in->setpos(tarsave);
-    }
-    if (tarl) {
-        const int p=int(i-tar+utar);        
-        if (p==512 && tarn==0 && tarl==1) {
-            U64 savedpos= in->curpos();
-             in->setpos( savedpos-513);
-             int bin=in->blockread((U8*) &tarh,  sizeof(tarh) );
-            if (!tarchecksum((char*)&tarh)) tar=0,tarn=0,tarl=0;
-            else{
-                tarl=2;
-                tar=in->curpos();
-               int a=getoct(tarh.size,12);
-               int b=a-(a/512)*512;
-               if (b) tarn=tarn+512*2+(a/512)*512;
-               else if (a==0) tarn=tarn+512;
-               else tarn=tarn+512+(a/512)*512;
-               tarn=tarn+p;
-            }
-        }
-        if (tarn && tarl==2 && tarn==(start+i-tar+512)) {
-            U64 savedpos= in->curpos();
-             in->setpos(savedpos-512);
-            int bin=in->blockread((U8*) &tarh,  sizeof(tarh) );
-            if (!tarchecksum((char*)&tarh))  tarn=tar-512-start,tar=0,tarl=0;
-            if (tarend((char*)&tarh)==true) {
-                if (type==TAR) return  in->setpos(start+i),DEFAULT;
-                return  in->setpos(start+tarn),TAR;
-            } else{
-                int a=getoct(tarh.size,12);
-                int b=a-(a/512)*512;
-                if (b) tarn=tarn+512*2+(a/512)*512;
-                else if (a==0) tarn=tarn+512;
-                else tarn=tarn+512+(a/512)*512;
-            }
-        }
-        continue;
     }
 
        
@@ -796,148 +678,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     }
    
 
-    
-
-    // Detect .tiff file header (2/8/24 bit color, not compressed).
-   if ( (((buf1==0x49492a00 ||(buf1==0x4949524f && buf0==0x8000000  ) ) && n>i+(int)bswap(buf0) && tiffImages==-1)|| 
-       ((buf1==0x4d4d002a  ) && n>i+(int)(buf0) && tiffImages==-1)) && !soi){
-      if (buf1==0x4d4d002a) tiffMM=true;
-       tiffImageStart=0,tiffImages=-1;
-       U64 savedpos=in->curpos();
-       int dirEntry=tiffMM==true?(int)buf0:(int)bswap(buf0);
-       in->setpos(start+i+dirEntry-7);
-
-      // read directory
-      int dirsize=tiffMM==true?(in->getc()<<8|in->getc()):(in->getc()|(in->getc()<<8));
-      int tifx=0,tify=0,tifz=0,tifzb=0,tifc=0,tifofs=0,tifofval=0,b[12],tifsiz=0;
-      for (;;){
-        if (dirsize>0 && dirsize<256) {            
-        tiffImages++;
-        for (int i=0; i<dirsize; i++) {
-          for (int j=0; j<12; j++) b[j]=in->getc();
-          if (b[11]==EOF) break;
-          int tag=tiffMM==false? b[0]+(b[1]<<8):(int)bswap(b[0]+(b[1]<<8))>>16;;
-          int tagfmt=tiffMM==false? b[2]+(b[3]<<8):(int)bswap(b[2]+(b[3]<<8))>>16;;
-          int taglen=tiffMM==false?b[4]+(b[5]<<8)+(b[6]<<16)+(b[7]<<24):(int)bswap(b[4]+(b[5]<<8)+(b[6]<<16)+(b[7]<<24));;
-          int tagval=tiffMM==false?b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24):(int)bswap(b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24));;
-          //printf("Tag %d  val %d\n",tag, tagval);
-          if (tagfmt==3||tagfmt==4) {
-              tagval= (taglen==1 && tiffMM==true)?tagval>>16:tagval;
-            if (tag==256) tifx=tagval,tiffFiles[tiffImages].width=tifx;
-            else if (tag==257) tify=tagval,tiffFiles[tiffImages].height=tify;
-            else if (tag==258) tifzb=(tagval==12||tagval==14||tagval==16)?14:taglen==1?tagval:8,tiffFiles[tiffImages].bits1=tifzb; // bits per component
-            else if (tag==259) tifc=tagval, tiffFiles[tiffImages].compression=tifc ; // 1 = no compression, 6 jpeg
-            else if (tag==273 && tagfmt==4) tifofs=tagval,tifofval=(taglen<=1),tiffFiles[tiffImages].offset=tifofs&0xffff;
-            else if (tag==513 && tagfmt==4) tifofs=tagval,tifofval=(taglen<=1),tiffFiles[tiffImages].offset=tifofs; //jpeg
-            else if (tag==514 && tagfmt==4) tifsiz=tagval,tiffFiles[tiffImages].size=tifsiz,tiffFiles[tiffImages].compression=6; //jpeg
-            else if (tag==277) tifz=tagval,tiffFiles[tiffImages].bits=tifz; // components per pixel
-            else if (tag==279) tifsiz=tagval,tiffFiles[tiffImages].size=tifsiz;
-             else if (tag==50752 || tag==50649) tiffFiles[tiffImages].size=0; //to skip cr2 jpg
-            else if (tag==330 ||  tag==34665) {
-                int a=tfidf.size();
-                if (a==0) tfidf.resize(a+taglen);
-                U64 savedpos1= in->curpos();
-                 in->setpos( start+i+tagval-5);
-                if (a==0 && taglen==1) tfidf[a]=tagval;
-                else if (taglen==1) tfidf[a+1]=tagval;
-                else{
-                
-                for (int i2=0;i2<taglen; i2++) {
-                     int g;
-                     if (tiffMM==false) 
-                   g=(in->getc()|(in->getc()<<8)|(in->getc()<<16)|(in->getc()<<24));
-                    else
-                    g=(in->getc()<<24|(in->getc()<<16)|(in->getc()<<8)|(in->getc()));
-                    tfidf[i2]=g;
-                }
-                }
-                 in->setpos(savedpos1);               
-            }
-          }
-        }
-         if(tiffFiles[tiffImages].size==0)tiffImages--;
-        }
-        int gg=in->getc()|(in->getc()<<8)|(in->getc()<<24)|(in->getc()<<16);
-          gg=tiffMM==false?(int)gg:(int)bswap(gg);
-        if (gg>0) {
-         in->setpos( start+i+(gg)-7);
-        dirsize=tiffMM==true?(in->getc()<<8|in->getc()):(in->getc()|(in->getc()<<8));
-        }
-        else break;
         
-      }
-       //
-       if(int a=tfidf.size()>0){
-            a++;
-            for (int i2=0;i2<a; i2++) { 
-               in->setpos( start+i+tfidf[i2]-7);
-          // read directory
-      int dirsize=tiffMM==true?(in->getc()<<8|in->getc()):(in->getc()|(in->getc()<<8));
-      int tifx=0,tify=0,tifz=0,tifzb=0,tifc=0,tifofs=0,tifofval=0,b[12],tifsiz=0;
-      if (dirsize>0 && dirsize<256) {
-           tiffImages++;
-        for (int i1=0; i1<dirsize; i1++) {
-          for (int j=0; j<12; j++) b[j]=in->getc();
-          if (b[11]==EOF) break;
-          int tag=tiffMM==false? b[0]+(b[1]<<8):(int)bswap(b[0]+(b[1]<<8))>>16;;
-          int tagfmt=tiffMM==false? b[2]+(b[3]<<8):(int)bswap(b[2]+(b[3]<<8))>>16;;
-          int taglen=tiffMM==false?b[4]+(b[5]<<8)+(b[6]<<16)+(b[7]<<24):(int)bswap(b[4]+(b[5]<<8)+(b[6]<<16)+(b[7]<<24));;
-          int tagval=tiffMM==false?b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24):(int)bswap(b[8]+(b[9]<<8)+(b[10]<<16)+(b[11]<<24));;
-          // printf("Tag %d  val %d\n",tag, tagval);
-          if (tagfmt==3||tagfmt==4) {
-              tagval= (taglen==1 && tiffMM==true)?tagval>>16:tagval;
-            if (tag==256) tifx=tagval,tiffFiles[tiffImages].width=tifx;
-            else if (tag==257) tify=tagval,tiffFiles[tiffImages].height=tify;
-            else if (tag==258) tifzb=(tagval==12||tagval==14||tagval==16)?14:taglen==1?tagval:8,tiffFiles[tiffImages].bits1=tifzb; // bits per component
-            else if (tag==259) tifc=tagval, tiffFiles[tiffImages].compression=tifc ; // 1 = no compression, 6 jpeg
-            else if (tag==273 && tagfmt==4) tifofs=tagval,tifofval=(taglen<=1),tiffFiles[tiffImages].offset=tifofs;
-            else if (tag==513 && tagfmt==4) tifofs=tagval,tifofval=(taglen<=1),tiffFiles[tiffImages].offset=tifofs; //jpeg
-            else if (tag==514 && tagfmt==4) tifsiz=tagval,tiffFiles[tiffImages].size=tifsiz,tiffFiles[tiffImages].compression=6; //jpeg
-            else if (tag==277) tifz=tagval,tiffFiles[tiffImages].bits=tifz; // components per pixel
-            else if (tag==279) tifsiz=tagval,tiffFiles[tiffImages].size=tifsiz;
-            else if (tag==50752) tiffFiles[tiffImages].size=0;
-           
-          }
-        }
-        if(tiffFiles[tiffImages].size==0)tiffImages--;
-      }
-      }
-        
-      }
-      tiffImageStart= start+i-7;
-      tiffImages++;
-      for (int o=0;o<tiffImages; o++) { 
-      if (tiffFiles[o].height && tiffFiles[o].bits1==14)tiffFiles[o].width=tiffFiles[o].size/tiffFiles[o].height;
-       tiffFiles[o].offset+=tiffImageStart;
-       }
-       //
-      if (tifx>1 && tify && tifzb && (tifz==1 || tifz==3) && ((tifc==1) || (tifc==5 && tifsiz>0)) && (tifofs && tifofs+i<n)) {//tifc==5 LZW
-        if (!tifofval) {
-           in->setpos( start+i+tifofs-7);
-          for (int j=0; j<4; j++) b[j]=in->getc();
-          tifofs=b[0]+(b[1]<<8)+(b[2]<<16)+(b[3]<<24);
-          tifofs=tiffMM==false?(int)tifofs:(int)bswap(tifofs);          
-        }
-        if (tifofs && tifofs<(1<<18) && tifofs+i<n && tifx>1) {
-            if (tifc==1) {
-          if (tifz==1 && tifzb==1) IMG_DET(IMAGE1,i-7,tifofs,((tifx-1)>>3)+1,tify);
-          else if (tifz==1 && tifzb==8 && tifx<30000) IMG_DET(IMAGE8,i-7,tifofs,tifx,tify);
-          else if (tifz==3 && tifzb==8 && tifx<30000) IMG_DET(IMAGE24,i-7,tifofs,tifx*3,tify);
-        }
-        else if (tifc==5 && tifsiz>0) {
-            tifx=((tifx+8-tifzb)/(9-tifzb))*tifz;
-            info=tifz*tifzb;
-            info=(((info==1)?IMAGE1:((info==8)?IMAGE8:IMAGE24))<<24)|tifx;
-            detd=tifsiz;
-            in->setpos(start+i-7+tifofs);
-            return dett=LZW;
-          }
-        }
-      }
-      in->setpos( savedpos);
-    }
-       
-    
     // ARM
     op=(buf0)>>26; 
     //test if bl opcode and if last 3 opcodes are valid 
@@ -946,7 +687,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&&  textparser.validlength()<TEXT_MIN_SIZE && !tar && !soi && !pgm &&  (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&&  textparser.validlength()<TEXT_MIN_SIZE &&  !soi &&  (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits

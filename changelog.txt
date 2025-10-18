@@ -1,3 +1,12 @@
+v115
+    -Add tar parser.
+    -Tiff parser:
+     Detect more jpg data.
+     Sort image data offsets in to ascending order.
+     Enable some types and tags.
+     Fix MM mode detection.
+     If tag data pos is past current pos then ignore image.
+     Uncompressed data with more then 32bits are reported as DEFAULT.
 v114
     -Add pdf lzw, gif, dBase, pdf bitmap, aiff, ascii85,
      base64 (stream), base64 (multiline), mod, sgi/rgb,

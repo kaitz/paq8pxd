@@ -31,6 +31,7 @@
 #include "parsers/mdfparser.hpp"
 #include "parsers/uueparser.hpp"
 #include "parsers/tiffparser.hpp"
+#include "parsers/tarparser.hpp"
 
 class Analyzer {
     uint64_t info;

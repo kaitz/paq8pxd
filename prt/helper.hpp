@@ -31,11 +31,16 @@ constexpr auto isPowerOf2(T x) -> bool {
   return ((x & (x - 1)) == 0);
 }
 
+
+
+
+
 #define bswap(x) \
 +   ((((x) & 0xff000000) >> 24) | \
 +    (((x) & 0x00ff0000) >>  8) | \
 +    (((x) & 0x0000ff00) <<  8) | \
 +    (((x) & 0x000000ff) << 24))
+
 #define bswap64(n) ((bswap((n&0xFFFFFFFF00000000)>>32))|((bswap(n&0x00000000FFFFFFFF))<<32))
 U8 Clip(int const Px);
 

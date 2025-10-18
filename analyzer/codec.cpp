@@ -572,12 +572,12 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                             if (verbose>2) printf(" %-16s | %-9s |%12.0" PRIi64 " [%0lu - %0lu] %s\n",blstr,typenames[TEXT],a,0,a,"direct");
                             direct_encode_blockstream(TEXT, in, a);
                         } else {
-                            EncodeFileRecursive(in, a, blstr, 0);
+                            EncodeFileRecursive(in, a, blstr, it+1);
                         }
                         pad=tarn-a; 
                         tarn=a+512;
                         #else
-                        EncodeFileRecursive(in, tarn, blstr, 0);
+                        EncodeFileRecursive(in, tarn, blstr, it+1);
                         pad=0;
                         tarn+=512;
                         #endif

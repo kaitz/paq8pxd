@@ -51,7 +51,7 @@ class Codec {
         virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0,Filetype p=DEFAULT);
 };
 
-struct TARheader{
+/*struct TARheader{
     char name[100];
     char mode[8];
     char uid[8];
@@ -67,4 +67,4 @@ struct TARheader{
     char major[8];
     char minor[8];
     char pad[167];
-};
+};*/
