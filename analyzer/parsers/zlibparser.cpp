@@ -155,12 +155,6 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                     if (streamLength>(brute<<7)) {
                         info=0;
                         SetPdfImageInfo();
-                        /*else if (png && pngw<0x1000000 && lastchunk==0x49444154){//IDAT
-        if (pngbps==8 && pngtype==2 && (int)strm.total_out==(pngw*3+1)*pngh) info=(PNG24<<24)|(pngw*3), png=0;
-        else if (pngbps==8 && pngtype==6 && (int)strm.total_out==(pngw*4+1)*pngh) info=(PNG32<<24)|(pngw*4), png=0;
-        else if (pngbps==8 && (!pngtype || pngtype==3) && (int)strm.total_out==(pngw+1)*pngh) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw), png=0;
-        }*/
-                        //return in->setpos( start+i-(brute?255:31)),detd=streamLength,ZLIB;
                         jstart=i-(brute?255:31);
                         jend=jstart+streamLength;
                         state=END;

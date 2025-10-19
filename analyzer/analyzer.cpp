@@ -39,6 +39,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new uueParser());
     AddParser( new TIFFParser());
     AddParser( new TARParser());
+    AddParser( new PNGParser());
     
     emptyType.start=0;
     emptyType.end=0;

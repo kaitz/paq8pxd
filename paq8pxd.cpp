@@ -368,9 +368,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
 
   TextInfo text = {}; // For TEXT
   
-  U64 png=0, lastchunk=0, nextchunk=0;               // For PNG detection
-  int pngw=0, pngh=0, pngbps=0, pngtype=0,pnggray=0; 
-  
+ 
   U64 fSZDD=0; //
   LZSS* lz77;
   U8 zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
@@ -468,36 +466,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
         BZip2=bzlevel=0;
     }
     
-    // detect PNG images
-    if (!png && buf3==0x89504E47 && buf2==0x0D0A1A0A && buf1==0x0000000D && buf0==0x49484452) png=i, pngtype=-1, lastchunk=buf3;//%PNG
-    if (png){
-      const int p=i-png;
-      if (p==12){
-        pngw = buf2;
-        pngh = buf1;
-        pngbps = buf0>>24;
-        pngtype = (U8)(buf0>>16);
-        pnggray = 0;
-        png*=((buf0&0xFFFF)==0 && pngw && pngh && pngbps==8 && (!pngtype || pngtype==2 || pngtype==3 || pngtype==4 || pngtype==6));
-      }
-      else if (p>12 && pngtype<0)
-        png = 0;
-      else if (p==17){
-        png*=((buf1&0xFF)==0);
-        nextchunk =(png)?i+8:0;
-      }
-      else if (p>17 && i==nextchunk){
-        nextchunk+=buf1+4+8;//CRC, Chunk length+Id
-        lastchunk = buf0;
-        png*=(lastchunk!=0x49454E44);//IEND
-        if (lastchunk==0x504C5445){//PLTE
-          png*=(buf1%3==0);
-          pnggray = (png && IsGrayscalePalette(in, buf1/3));
-        }
-      }
-    }
-
-       
+      
     // ZLIB stream detection
     histogram[c]++;
     if (i>=256)
@@ -570,11 +539,11 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
           if (pdfimb==1 && (int)strm.total_out==((pdfimw+7)/8)*pdfimh) info=(IMAGE1<<24)|((pdfimw+7)/8);
           pdfgray=0;
         }
-        else if (png && pngw<0x1000000 && lastchunk==0x49444154){//IDAT
+        /*else if (png && pngw<0x1000000 && lastchunk==0x49444154){//IDAT
           if (pngbps==8 && pngtype==2 && (int)strm.total_out==(pngw*3+1)*pngh) info=(PNG24<<24)|(pngw*3), png=0;
           else if (pngbps==8 && pngtype==6 && (int)strm.total_out==(pngw*4+1)*pngh) info=(PNG32<<24)|(pngw*4), png=0;
           else if (pngbps==8 && (!pngtype || pngtype==3) && (int)strm.total_out==(pngw+1)*pngh) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw), png=0;
-        }
+        }*/
        return in->setpos( start+i-(brute?255:31)),detd=streamLength,ZLIB;
       }
     }

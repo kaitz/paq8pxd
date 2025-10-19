@@ -1,7 +1,7 @@
 #include "tarparser.hpp"
 
 TARParser::TARParser() {
-    priority=3;
+    priority=1;
     Reset();
     inpos=0;
     name="tar";

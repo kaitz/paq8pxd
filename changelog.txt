@@ -1,5 +1,5 @@
 v115
-    -Add tar parser.
+    -Add tar, png parser.
     -Tiff parser:
      Detect more jpg data.
      Sort image data offsets in to ascending order.

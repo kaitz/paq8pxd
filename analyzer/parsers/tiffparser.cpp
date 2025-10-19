@@ -1,7 +1,7 @@
 #include "tiffparser.hpp"
 
 TIFFParser::TIFFParser():dtf(0),ifd(0) {
-    priority=3;
+    priority=2;
     inpos=0;
     name="tiff";
     Reset();
