@@ -1,5 +1,5 @@
 v115
-    -Add tar, png, bzip2 parser.
+    -Add tar, png, bzip2, szdd parser.
     -Tiff parser:
      Detect more jpg data.
      Sort image data offsets in to ascending order.

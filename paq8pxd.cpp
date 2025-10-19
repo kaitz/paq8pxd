@@ -363,10 +363,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   
 
   TextInfo text = {}; // For TEXT
-  
- 
-  U64 fSZDD=0; //
-  LZSS* lz77;
+
   U8 zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
   int zbufpos=0, histogram[256]={};
   U64 zzippos=-1;
@@ -508,55 +505,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
 }
        
 
-   
-    
-    //detect LZSS compressed data in compress.exe generated archives
-    if ((buf0==0x88F02733 && buf1==0x535A4444 ) ||(buf1==0x535A2088 && buf0==0xF02733D1)) fSZDD=i;
-    if (fSZDD  && type!=MDF && buf0!=0 && (((i-fSZDD ==6) && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 ||(buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733   && (i-fSZDD)==4))){
-       int lz2=0;
-        if (buf1!=0x88F02733 && (i-fSZDD)==4) lz2=2;  //+2 treshold
-        U32 fsizez=bswap(buf0); //uncompressed file size
-        if (fsizez<0x1ffffff){
-            FileTmp outf;//=tmpfile2();          // try to decompress file
-            lz77=new LZSS(in,&outf,fsizez,lz2);
-            U64 savedpos= in->curpos();
-            U32 u=lz77->decompress(); //compressed size
-            int uf= lz77->usize; //uncompressed size
-            delete lz77;
-            U32 csize= in->curpos()-savedpos-(!in->eof()?1:0); //? overflow
-            if (u!=csize || u>fsizez) fSZDD=0;          // reset if not same size or compressed size > uncompressed size
-            else{
-                 outf.setpos(0);  // try to compress decompressed file
-                FileTmp out2;//=tmpfile2();
-                lz77=new LZSS(&outf,&out2,u,lz2);
-                U32 r=lz77->compress();
-                delete lz77;
-                //compare
-                out2.setpos(0); 
-                in->setpos(savedpos); 
-                if (r!=(csize)) fSZDD=csize=0;    // reset if not same size
-                for(int i=0;i<csize;i++){
-                    U8 b=out2.getc();
-                    if (b!=in->getc() ){
-                        r=fSZDD=0; // just fail
-                        break;
-                    } 
-                }
-                out2.close();
-                outf.close();
-                if (fSZDD!=0) {
-                     in->setpos( savedpos); //all good
-                    //flag for +2 treshold, set bit 25
-                    SZ_DET(SZDD,fSZDD+7-lz2,14-lz2,r,uf+(lz2?(1<<25):0)); 
-                }
-            }
-            outf.close();
-        }
-        else fSZDD=0;
-    } 
-    
-
- 
     // Detect .s3m file header 
     if (buf0==0x1a100000) s3mi=i,s3mno=s3mni=0;
     if (s3mi) {

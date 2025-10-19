@@ -34,6 +34,7 @@
 #include "parsers/tarparser.hpp"
 #include "parsers/pngparser.hpp"
 #include "parsers/bzip2parser.hpp"
+#include "parsers/szddparser.hpp"
 
 class Analyzer {
     uint64_t info;
