@@ -40,6 +40,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new TIFFParser());
     AddParser( new TARParser());
     AddParser( new PNGParser());
+    if (ptype!=BZIP2) AddParser( new bzip2Parser());
     
     emptyType.start=0;
     emptyType.end=0;

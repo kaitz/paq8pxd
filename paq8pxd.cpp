@@ -230,10 +230,6 @@ deth=int(header_len),detd=(data_len),info=(wmode),\
 deth=(-1),detd=int(base64len),info=(unsize),\
  in->setpos(start+start_pos),DEFAULT
 
-#define TIFFJPEG_DET(start_pos,header_len,data_len) return dett=(JPEG),\
-deth=(header_len),detd=(data_len),info=(-1),info2=(-1),\
- in->setpos(start+(start_pos)),HDR
-
 bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   U64 offset = in->curpos();
   int stride = 3+isRGBA, res = (n>0)<<8, order=1;
@@ -383,14 +379,6 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
 
   int textbin=0,txtpdf=0; //if 1/3 is text
 
-  //BZip2
-  U64 BZip2=0;
-  bz_stream stream;
-  char bzin[512],bzout[512];
-  static int bzlevel=0;
-  bool isBSDIFF=false;
-  
-
   static int deth=0,detd=0;  // detected header/data size in bytes
   static Filetype dett;      // detected block type
   if (deth >1) return  in->setpos(start+deth),deth=0,dett;
@@ -417,54 +405,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     ((c>=0xd0 && c<=0xdf) ||(c>=0xc0 && c<=0xcf)||(c>=0xe0 && c<=0xef)||(c>=0xf0 && c<=0xff)));  //ISO latin
     if (isStandard || isExtended) textbin++,info=textbin;
     
-    
-    if (i==7 && buf1==0x42534449 && buf0==0x46463430/*-35*/) isBSDIFF=true;
-    // BZhx = 0x425A68xx header, xx = level '1'-'9'
-    if (isBSDIFF==false && (buf0&0xffffff00)==0x425A6800 && type!=BZIP2){
-        bzlevel=c-'0';
-        if ((bzlevel>=1) && (bzlevel<=9)) {
-            BZip2=i;
-            U64 savepos=0;
-            stream.bzalloc=NULL;
-            stream.bzfree=NULL;
-            stream.opaque=NULL;
-            stream.avail_in=0;
-            stream.next_in=NULL;
-            int ret=BZ2_bzDecompressInit(&stream, 0, 0);
-            if (ret==BZ_OK){
-                savepos=in->curpos();
-                in->setpos(savepos-4);
-                stream.avail_in = in->blockread((U8*) &bzin, 512);
-                stream.next_in = (char*)&bzin;
-                stream.avail_out=512;
-                stream.next_out = (char*)&bzout;
-                ret = BZ2_bzDecompress(&stream);
-                if ((ret==BZ_OK) || (ret==BZ_STREAM_END)) {
-                    in->setpos(savepos);
-                   (void)BZ2_bzDecompressEnd(&stream);
-                   return in->setpos(start+BZip2-3),BZIP2;
-                }
-            }
-            in->setpos(savepos);
-            BZip2=bzlevel=0;
-        }
-    }
-    if (type==BZIP2){
-        U64 csize=0;
-        FileTmp outf;
-        U64 savepos=in->curpos();
-        info=bzlevel;
-        in->setpos(savepos-1);
-        U64 dsize=bzip2decompress(in,&outf, bzlevel, csize, false); // decompress only (false)
-        if (dsize>0){
-            in->setpos(savepos);
-            outf.close();
-            return in->setpos(start+csize),DEFAULT;
-        }
-        in->setpos(savepos);        
-        type=DEFAULT;
-        BZip2=bzlevel=0;
-    }
+   
     
       
     // ZLIB stream detection

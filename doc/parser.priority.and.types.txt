@@ -29,6 +29,7 @@ uueparser       2     UUENC
 tiffparser      2     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,CMP,JPEG,ZLIB,DEFAULT
 tarparser       1     TAR
 pngparser       1     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
+bzip2parser     1     BZIP2(CMP)
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

@@ -33,7 +33,7 @@
 #include "parsers/tiffparser.hpp"
 #include "parsers/tarparser.hpp"
 #include "parsers/pngparser.hpp"
-
+#include "parsers/bzip2parser.hpp"
 
 class Analyzer {
     uint64_t info;

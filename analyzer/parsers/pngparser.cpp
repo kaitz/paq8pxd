@@ -26,7 +26,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
         buf1=(buf1<<8)|(buf0>>24);
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
-        // Detect for 'BM' or headerless DIB
+
         if (state==NONE && (buf3==0x89504E47 && buf2==0x0D0A1A0A && buf1==0x0000000D && buf0==0x49484452) ){
             state=START;
             png=i, pngtype=-1, lastchunk=buf3;

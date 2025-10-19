@@ -336,7 +336,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             dataf.encode(in, tmp, len,0);   
             diffFound=dataf.diffFound;
         } else if (type==BZIP2){
-            dataf.encode(in, tmp, len,info);
+            dataf.encode(in, tmp, len,info=info+256*17);
         } else if (type==CD) dataf.encode(in, tmp, (len), info);
         else if (type==MDF) {
             dataf.encode(in, tmp, len,0);
@@ -397,7 +397,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 in->setpos(begin);
                 tmp->setpos(0);
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
-            }            
+            }         
             tfail=(diffFound || tmp->getc()!=EOF); 
         }
         // Test fails, compress without transform
