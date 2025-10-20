@@ -43,12 +43,12 @@ DetectState JPEGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 if (soi && (buf0&0xffff)==0xffd9) eoi=i;
                 if (soi && sos && eoi && (buf0&0xffff)==0xffd8) {
                     state=END;
-                    jend=jstart+i+1;
+                    jend=i+1;
                     type=JPEG;
                     return state;
                 } else if (sos && i>sos && (buf0&0xff00)==0xff00 && c!=0 && (c&0xf8)!=0xd0) {
                     state=END;
-                    jend=jstart+i+1;
+                    jend=i+1;
                     type=JPEG;
                     return state;
                 }

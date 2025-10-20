@@ -192,7 +192,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
             if (verbose>2) printf(" %-9s ",typenames[type]);
             SetConColor(7);
             if (verbose>2) {
-                printf("|%12.0f [%0.0f - %0.0f]%s ",len+0.0,begin+0.0,(begin+len-1)+0.0,block.pinfo.c_str());
+                printf("|%12.0f [%0.0f - %0.0f]%s \n",len+0.0,begin+0.0,(begin+len-1)+0.0,block.pinfo.c_str());
             }
             transform_encode_block(type, in, len, info,info2, blstr, it, begin);
             n-=len;
@@ -348,7 +348,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
             typenamess[type2][it]+=len,  typenamesc[type2][it]++; // default info
         } else {
-            if (verbose>2) printf("\n");
             tmp->setpos(0);
             if (type==EXE) {
                 direct_encode_blockstream(type, tmp, tmpsize);
@@ -379,7 +378,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
             } else if (type==LZW) {
                 segment->putdata(type,tmpsize,0);
-                int hdrsize=( 0);
+                int hdrsize=0;
                 Filetype type2 =(Filetype)(info>>24);
                 tmp->setpos(0);
                 if (it==itcount)    itcount=it+1;
@@ -435,13 +434,13 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     tmp->setpos(0);
                     typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
                     direct_encode_blockstream(HDR,  tmp, hdrsize);
-                    if (info){
+                    if (info) {
                         typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                        transform_encode_block(type2,  tmp, tmpsize-hdrsize,  info&0xffffff,-1, blstr, it, hdrsize); }
-                    else{
+                        transform_encode_block(type2,  tmp, tmpsize-hdrsize,  info&0xffffff,-1, blstr, it, hdrsize);
+                    } else {
                         EncodeFileRecursive( tmp, tmpsize-hdrsize,  blstr,it+1,ZLIB);//it+1
                     }
-                } else {     
+                } else {
                     EncodeFileRecursive( tmp, tmpsize,  blstr,it+1,type);//it+1
                     tmp->close();
                     return;
@@ -454,7 +453,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
 #define tarpad  //remove for filesize padding \0 and add to default stream as hdr        
         //do tar recursion, no transform
         if (type==TAR) {
-            if (verbose>2) printf("\n");
             EncodeFileRecursive( in, len,  blstr,it+1,type);//it+1
             /*int tarl=int(len),tarn=0,blnum=0,pad=0;;
             TARheader tarh;
@@ -527,7 +525,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             }
             if (verbose>2) printf("\n");*/
         } else {
-            if (verbose>2) printf("\n");
             const int i1=(streams->GetTypeInfo(type)&TR_INFO)?info:-1;
             direct_encode_blockstream(type, in, len, i1);
         }

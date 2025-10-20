@@ -135,7 +135,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     dType t=parsers[j]->getType(0);
                     //printf("T=%d parser %s\n",j,parsers[j]->name.c_str());
                     if (t.end>=maxP && t.start<=minP && P>parsers[j]->priority) {
-                        if (P) parsers[P]->state=DISABLE;
+                        if (P>0) parsers[largeP]->state=DISABLE;
                         P=parsers[j]->priority;
                         largeP=j;
                         maxP=t.end;

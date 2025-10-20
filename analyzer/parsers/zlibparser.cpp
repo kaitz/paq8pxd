@@ -32,12 +32,12 @@ int zlibParser::zlib_inflateInit(z_streamp strm, int zh) {
 
 void zlibParser::SetPdfImageInfo() {
     if (pdfimw>0 && pdfimw<0x1000000 && pdfimh>0) {
-        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh) info=((pdfgray?IMAGE8GRAY:IMAGE8)<<24)|pdfimw;
-        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh*3) info=(IMAGE24<<24)|pdfimw*3;
-        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh*4) info=(IMAGE32<<24)|pdfimw*4;
-        if (pdfimb==4 && (int)strm->total_out==((pdfimw+1)/2)*pdfimh) info=(IMAGE4<<24)|((pdfimw+1)/2);
-        if (pdfimb==1 && (int)strm->total_out==((pdfimw+7)/8)*pdfimh) info=(IMAGE1<<24)|((pdfimw+7)/8);
-        if (info) pinfo=" (width: "+ itos(info&0xffffff) +")";
+        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh) pinfo=" 8b image ",info=((pdfgray?IMAGE8GRAY:IMAGE8)<<24)|pdfimw;
+        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh*3) pinfo=" 24b image ",info=(IMAGE24<<24)|pdfimw*3;
+        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh*4) pinfo=" 32b image ",info=(IMAGE32<<24)|pdfimw*4;
+        if (pdfimb==4 && (int)strm->total_out==((pdfimw+1)/2)*pdfimh) pinfo=" 4b image ",info=(IMAGE4<<24)|((pdfimw+1)/2);
+        if (pdfimb==1 && (int)strm->total_out==((pdfimw+7)/8)*pdfimh) pinfo=" 1b image ",info=(IMAGE1<<24)|((pdfimw+7)/8);
+        if (info) pinfo+=" (width: "+ itos(info&0xffffff) +")";
         else pinfo="";
         pdfgray=0;
     }
@@ -180,9 +180,9 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 return DATA;
             }
             if (inflateEnd(strm)!=Z_OK) streamLength=0;
+            info=0;
             SetPdfImageInfo();
             if (streamLength>(brute<<7)) {
-                info=0;
                 jend=jstart+streamLength;
                 state=END;
                 type=ZLIB;

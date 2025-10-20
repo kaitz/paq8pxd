@@ -87,7 +87,7 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         jend=mrb-2;
                         state=END;
                         return state;
-                    }
+                    }else
                     if ((mrbPackingMethod==0 ||mrbPackingMethod==1) && mrb==2) {
                         if (mrbPackingMethod==0)  {
                             jstart=mrb+7+CompressedOffset,type=IMAGE1;info=(((mrbw-1)>>5)+1)*4; 
