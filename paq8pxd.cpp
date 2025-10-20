@@ -30,7 +30,7 @@
 
 #ifdef WINDOWS                       
 #ifdef MT
-//#define PTHREAD       //uncomment to force pthread to igore windows native threads !This seems broke!
+//#define PTHREAD       //uncomment to force pthread to igore windows native threads !This seems broken!
 #endif
 #endif
 
@@ -44,7 +44,6 @@
 #include <time.h>
 #include <math.h>
 #include <string>
-//#include "zlib/zlib.h"
 
 //#include <inttypes.h> // PRIi64 or 
 #include <cinttypes> // PRIi64
@@ -71,12 +70,6 @@
 #ifndef DEFAULT_OPTION
 #define DEFAULT_OPTION 8
 #endif
-
-// min, max functions
-/*#if  !defined(WINDOWS) || !defined (min)
-inline int min(int a, int b) {return a<b?a:b;}
-inline int max(int a, int b) {return a<b?b:a;}
-#endif*/
 
 #if defined(WINDOWS) || defined(_MSC_VER)
     #define atoll(S) _atoi64(S)
@@ -278,7 +271,7 @@ bool tarend(const char *p){
     return true;
 }
 
-
+/*
 void printStatus1(U64 n, U64 size) {
 fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
@@ -407,7 +400,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
 
 
 }
-
+*/
 // Print progress: n is the number of bytes compressed or decompressed
 void printStatus(U64 n, U64 size,int tid=-1) {
 if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
@@ -430,123 +423,120 @@ void SetConColor(int color) {
 #endif     
 }
 
-void compressStream(int streamid, U64 size, File* in, File* out) {
-    int i; //stream
-    i=streamid;
-    Encoder* threadencode;
-    Predictors* threadpredict;
-    U64 datasegmentsize;
-    U64 datasegmentlen;
-    int datasegmentpos;
-    int datasegmentinfo;
-    Filetype datasegmenttype;
+void compressStream(int sid, U64 size, File* in, File* out) {
+    Encoder* enc;
+    Predictors* pred;
+    U64 segmentsize;
+    U64 segmentlen;
+    int segmentpos;
+    int segmentinfo;
+    Filetype segmenttype;
     U64 scompsize=0;
-    datasegmentsize=size;
+    segmentsize=size;
     U64 total=size;
-    datasegmentpos=0;
-    datasegmentinfo=0;
-    datasegmentlen=0;
-    // datastreams
+    segmentpos=0;
+    segmentinfo=0;
+    segmentlen=0;
     if (level>0) {
-        switch(i) {
+        // Select predictor for a stream (sid)
+        switch(sid) {
         default:
-        case 0: { threadpredict=new Predictor(); break;}
-        case 1: { threadpredict=new PredictorJPEG(); break;}
-        case 2: { threadpredict=new PredictorIMG1(); break;}
-        case 3: { threadpredict=new PredictorIMG4(); break;}
-        case 4: { threadpredict=new PredictorIMG8(); break;}
-        case 5: { threadpredict=new PredictorIMG24(); break;}
-        case 6: { threadpredict=new PredictorAUDIO2(); break;}
-        case 7: { threadpredict=new PredictorEXE(); break;}
+        case 0: { pred=new Predictor(); break;}
+        case 1: { pred=new PredictorJPEG(); break;}
+        case 2: { pred=new PredictorIMG1(); break;}
+        case 3: { pred=new PredictorIMG4(); break;}
+        case 4: { pred=new PredictorIMG8(); break;}
+        case 5: { pred=new PredictorIMG24(); break;}
+        case 6: { pred=new PredictorAUDIO2(); break;}
+        case 7: { pred=new PredictorEXE(); break;}
         case 8: 
         case 9: 
-        case 10: { threadpredict=new PredictorTXTWRT(); break;}
-        case 11: { threadpredict=new PredictorDEC(); break;}
-        case 12: { threadpredict=new Predictor(); break;}
+        case 10: { pred=new PredictorTXTWRT(); break;}
+        case 11: { pred=new PredictorDEC(); break;}
+        case 12: { pred=new Predictor(); break;}
         }
     }
-    threadencode=new Encoder (COMPRESS, out,*threadpredict); 
-    if ((i>=0 && i<=7) || i==10 || i==11|| i==12) {
-        while (datasegmentsize>0) {
-            while (datasegmentlen==0) {
-                datasegmenttype=(Filetype)segment(datasegmentpos++);
-                for (int ii=0; ii<8; ii++) datasegmentlen<<=8,datasegmentlen+=segment(datasegmentpos++);
-                for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
-                if (!(streams.isStreamType(datasegmenttype,i) ))datasegmentlen=0;
-                if (level>0){
-                    threadencode->predictor.x.filetype=datasegmenttype;
-                    threadencode->predictor.x.blpos=0;
-                    threadencode->predictor.x.finfo=datasegmentinfo;
+    enc=new Encoder (COMPRESS, out,*pred); 
+    if ((sid>=0 && sid<=7) || sid==10 || sid==11|| sid==12) {
+        while (segmentsize>0) {
+            while (segmentlen==0) {
+                segmenttype=(Filetype)segment(segmentpos++);
+                for (int ii=0; ii<8; ii++) segmentlen<<=8,segmentlen+=segment(segmentpos++);
+                for (int ii=0; ii<4; ii++) segmentinfo=(segmentinfo<<8)+segment(segmentpos++);
+                if (!(streams.isStreamType(segmenttype,sid) )) segmentlen=0;
+                if (level>0) {
+                    enc->predictor.x.filetype=segmenttype;
+                    enc->predictor.x.blpos=0;
+                    enc->predictor.x.finfo=segmentinfo;
                 }
             }
-            for (U64 k=0; k<datasegmentlen; ++k) {
+            for (U64 k=0; k<segmentlen; ++k) {
                 //#ifndef MT
-                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
+                if (!(segmentsize&0x1fff)) printStatus(total-segmentsize, total,sid);
                 //#endif
-                threadencode->compress(in->getc());
-                datasegmentsize--;
+                enc->compress(in->getc());
+                segmentsize--;
             }
             /* #ifndef NDEBUG 
-                            printf("Stream(%d) block from %0lu to %0lu bytes\n",i,datasegmentlen, out->curpos()-scompsize);
+                            printf("Stream(%d) block from %0lu to %0lu bytes\n",i,segmentlen, out->curpos()-scompsize);
                             scompsize= out->curpos();
                             #endif */
-            datasegmentlen=0;
+            segmentlen=0;
         }
-        threadencode->flush();
+        enc->flush();
     }
-    if (i==8 || i==9) {
+    if (sid==8 || sid==9) {
         bool dictFail=false;
         FileTmp tm;
         TextFilter textf("text");
-        textf.encode(in,&tm,datasegmentsize,i==8);
-        datasegmentlen=tm.curpos();
-        streams.streams[i]->streamsize=datasegmentlen;
+        textf.encode(in,&tm,segmentsize,sid==8);
+        segmentlen=tm.curpos();
+        streams.streams[sid]->streamsize=segmentlen;
         // -e0 option ignores larger wrt size
-        if (datasegmentlen>=datasegmentsize && minfq!=0) {
+        if (segmentlen>=segmentsize && minfq!=0) {
             dictFail=true; //wrt size larger
-            if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",datasegmentlen-datasegmentsize); 
+            if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
         } else {
-            if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",datasegmentsize,datasegmentlen); 
+            if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
         }
         tm.setpos(0);
         in->setpos(0);
         if (level>0) {
-            threadencode->predictor.x.filetype=DICTTXT;
-            threadencode->predictor.x.blpos=0;
-            threadencode->predictor.x.finfo=-1;
+            enc->predictor.x.filetype=DICTTXT;
+            enc->predictor.x.blpos=0;
+            enc->predictor.x.finfo=-1;
         }
         if (dictFail==true) {
-            streams.streams[i]->streamsize=datasegmentsize+1;
-            datasegmentlen=datasegmentsize;
-            threadencode->compress(0xAA); //flag
+            streams.streams[sid]->streamsize=segmentsize+1;
+            segmentlen=segmentsize;
+            enc->compress(0xAA); //flag
         }else {
-            streams.streams[i]->streamsize=datasegmentlen+1;
-            threadencode->compress(0); //flag
+            streams.streams[sid]->streamsize=segmentlen+1;
+            enc->compress(0); //flag
         }
-        for (U64 k=0; k<datasegmentlen; ++k) {
-            if (!(k&0x1fff)) printStatus(k, datasegmentlen,i);
+        for (U64 k=0; k<segmentlen; ++k) {
+            if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
             #ifndef NDEBUG 
             if (!(k&0x3ffff) && k) {
-                if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",i,k, out->curpos()-scompsize);
+                if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
                 scompsize= out->curpos();
             }
             #endif
-            if (dictFail==false) threadencode->compress(tm.getc());
-            else                 threadencode->compress(in->getc());
+            if (dictFail==false) enc->compress(tm.getc());
+            else                 enc->compress(in->getc());
         }
         tm.close();
-        threadencode->flush();
-        //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,datasegmentlen+0.0,ftello(out)-scompsize+0.0);
-        datasegmentlen=datasegmentsize=0;   
+        enc->flush();
+        //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,segmentlen+0.0,ftello(out)-scompsize+0.0);
+        segmentlen=segmentsize=0;   
     }
     
-    
-    if (level>0) delete threadpredict;
-    delete threadencode;
+    if (level>0) delete pred;
+    delete enc;
     printf("Stream(");
-    SetConsoleTextAttribute(hConsole, i+2);
-    SetConColor(i+2);
-    printf("%d",i);
+    SetConsoleTextAttribute(hConsole, sid+2);
+    SetConColor(sid+2);
+    printf("%d",sid);
     SetConColor(7);
 
     printf(") compressed from %0" PRIi64 " to ",size);
@@ -895,7 +885,7 @@ int main(int argc, char** argv) {
         if (slow==true) printf("Slow mode\n");
         // Print help message quick 
         if (argc<2) {
-            printf(PROGNAME " archiver (C) 2021, Matt Mahoney et al.\n"
+            printf(PROGNAME " archiver (C) 2025, Matt Mahoney et al.\n"
             "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n");
 #ifdef __GNUC__     
             printf("Compiled %s, compiler gcc version %d.%d.%d\n\n",__DATE__, __GNUC__, __GNUC_MINOR__,__GNUC_PATCHLEVEL__);
