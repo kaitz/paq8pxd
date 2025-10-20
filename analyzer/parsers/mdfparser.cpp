@@ -80,8 +80,8 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             }
             if (last==true && (inSize+1)==len){
                 mdfa=0;
-                const int p=(i-mdfa)%2448;
-                jend=i-p-7;
+                const int p=(i+1-mdfa)%2448;
+                jend=i-p+1;
                 type=MDF;
                 info=0;
                 state=END;

@@ -285,13 +285,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         int tfail=0;
         tmp->setpos(0);
         
-        if (type==BZIP2|| type==CD || type==SZDD || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
+        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
                 type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
             
             in->setpos(begin);
             if (type==BASE64 ) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==UUENC ) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==MDF ) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==BASE85 ) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
