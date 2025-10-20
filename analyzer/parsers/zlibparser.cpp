@@ -1,11 +1,11 @@
 #include "zlibparser.hpp"
     
 zlibParser::zlibParser(bool b) {
-    priority=b==true?3:1;
+    priority=b==true?3:2;
     Reset();
     inpos=0;
     name="zlib";
-    brute=priority==1?false:true;
+    brute=priority==2?false:true;
     strm=(z_stream*)calloc( 1,sizeof(z_stream));
     pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
 }

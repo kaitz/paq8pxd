@@ -36,7 +36,7 @@ DetectState uueParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             if ((buf0&0xff)>='0' && (buf0&0xff)<='9') uudp=i-6;
         } else if (state==START || state==INFO) {
             if (uuds==1 && (buf0&0xffff)==0x0A4D ) {
-                uuds=2,uudh=i,uudslen=uudh-uudp;
+                uuds=2,jstart=uudh=i,uudslen=uudh-uudp;
                 uudstart=i;
                 if (uudslen>40) uuds=0,state=NONE;  //drop if header is larger 
             }
@@ -68,6 +68,7 @@ DetectState uueParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     return state;
                 }
                 uudnl=i+2; //update 0x0D0A pos
+                jend=jstart+i-1 -uudstart;
                 uudlcount++;
             }
             else if (uuds==2 && (c>=32 && c<=96)) {

@@ -51,12 +51,15 @@ DetectState GIFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     info=((gray?IMAGE8GRAY:IMAGE8)<<24)|gifw;
                     pinfo=" (width: "+ itos(gifw) +")";
                     type=GIF;
+                    if (data[inSize+1]==0x2c || data[inSize+1]==0x21) rec=true;
+                    else rec=false;
                     return state;
                 }
             }
             if (gif==5 && i==gifi) {
                 if (c>0) gifi+=c+1; else gif=2,gifi=i+3;
             }
+            if (state==NONE) rec=false;
         }
         if (state==END) {
             // Animated?
@@ -83,7 +86,7 @@ dType GIFParser::getType(int i) {
     t.info=info;      // info of the block if present
     t.rpos=0;      // pos where start was set in block
     t.type=type;
-    t.recursive=true;
+    t.recursive=rec;
     return t;
 }
 
@@ -95,6 +98,7 @@ void GIFParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     gif=gifa=gifi=gifw=gifc=gifb=plt=gray=0;
     info=i=inSize=0;
+    rec=false;
 }
 void GIFParser::SetEnd(uint64_t e) {
     jend=e;

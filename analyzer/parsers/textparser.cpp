@@ -45,9 +45,9 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         else if (text.lastNLpos>0 && c==NEW_LINE) {
             int tNL=i-text.lastNLpos;
             if (tNL<90 && tNL>45) 
-                text.countNL++;          //Count if in range   
+            text.countNL++;          //Count if in range   
             else 
-                text.totalNL+=tNL>3?1:0; //Total new line count
+            text.totalNL+=tNL>3?1:0; //Total new line count
             text.lastNLpos=i;
         }
         text.lastNL=(c==NEW_LINE || c==CARRIAGE_RETURN ||c==10|| c==5)?0:text.lastNL+1;
@@ -86,7 +86,19 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 else // Commit text block validation
                 {
                     textparser.next(i+1);
-                    //return type;
+                    uint64_t textstart=textparser._start[0];
+                    uint64_t textend=textparser._end[0];
+                    type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT;
+                    jstart=textparser._start[0];
+                    jend=jstart+textparser._end[0];
+                    uint64_t end=textparser._end[0]+1; 
+                    uint64_t nsize=textparser.number();
+                    if (nsize>((textparser._end[0]-nsize)>>1)) type=TEXT0;
+                    if (textparser.countUTF8>0xffff) type=TXTUTF8,info=0;
+                    state=END;
+                    textparser.reset(0);
+                    memset(&text,0,sizeof(TextInfo));
+                    return state;
                 }
             }
         }
@@ -125,7 +137,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             }
         } 
         if (state==INFO) {
-            if ((inSize+1)==len && last==true) {
+            if ((inSize+1)==len && last==true || ((textparser._end[0] - textparser._start[0] + 1) >= TEXT_MIN_SIZE && textparser.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE)) {
                 jstart=textparser._start[0];
                 jend=jstart+textparser._end[0];
                 uint64_t end=textparser._end[0]+1; 
@@ -133,6 +145,8 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 if (nsize>((textparser._end[0]-nsize)>>1)) type=TEXT0;
                 if (textparser.countUTF8>0xffff) type=TXTUTF8,info=0;
                 state=END;
+                textparser.reset(0);
+                memset(&text,0,sizeof(TextInfo));
                 return state;
             }
         }

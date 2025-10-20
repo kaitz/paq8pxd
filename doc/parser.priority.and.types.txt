@@ -10,7 +10,7 @@ nesparser       2     NESROM DEFAULT)
 textparser      4     TEXT
 wavparser       2     AUDIO
 zlibparser      1     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
-zlibparser      3     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
+zlibparser      2     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
 pnmpparser      2     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
 pdflzwparser    2     CMP
 gifparser       2     GIF (CMP)
@@ -26,7 +26,7 @@ tgaparser       2     IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32
 cdparser        0     CD
 mdfparser       0     MDF
 uueparser       2     UUENC
-tiffparser      2     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,CMP,JPEG,ZLIB,DEFAULT
+tiffparser      1     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,CMP,JPEG,ZLIB,DEFAULT
 tarparser       1     TAR
 pngparser       1     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
 bzip2parser     1     BZIP2(CMP)
@@ -38,9 +38,9 @@ Sup-type - is passed on by info parameter or desided by "codec" when transform f
 
 There are 5 levels of priority.
 
-0 - known container format (tar, cd, mdf, ...)
-1 - recursive types (zlib, bzip, ...)
-2 - regular type (images, ...)
+0 - known container format (cd, mdf, ...)
+1 - recursive types (tiff, gif, tar, ...)
+2 - regular type (images, zlib ...)
 3 - same as abowe with lower priority
 4 - default (unknown type) or hard to parse type (text, ...)
 

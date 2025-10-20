@@ -25,7 +25,7 @@ DetectState JPEGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
 
-        if (state==NONE && i>3 && (((buf0&0xffffff00)==0xffd8ff00 && ((c&0xfe)==0xC0 || c==0xC4 || (c>=0xDB && c<=0xFE))) ||
+        if (state==NONE && /*i>3 &&*/ (((buf0&0xffffff00)==0xffd8ff00 && ((c&0xfe)==0xC0 || c==0xC4 || (c>=0xDB && c<=0xFE))) ||
                 (buf0&0xfffffff0)==0xffd8ffe0)) {
             state=START;
             soi=i, app=i+2, sos=sof=0;

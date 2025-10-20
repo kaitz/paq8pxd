@@ -1,7 +1,7 @@
 #include "tiffparser.hpp"
 
 TIFFParser::TIFFParser():dtf(0),ifd(0) {
-    priority=2;
+    priority=1;
     inpos=0;
     name="tiff";
     Reset();
@@ -121,7 +121,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     if (inpos!=pos || pos==0) {
         inSize=0,inpos=pos;
         i=pos;
-        if (state==END && parseCount==0) state=NONE;
+        if (state==END && parseCount==0) state=NONE,rec=false;
     }
     uint64_t Tag279=0;
     while (inSize<len) {
@@ -147,7 +147,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             if (i==(dirEntry+1+tiffi) && tagsIn==0) {
                 tagsIn=tiffMM==true?(data[inSize-1]<<8|data[inSize]):(data[inSize-1]|(data[inSize]<<8));
                 //printf("Tags dir: %d\n",tagsIn);
-                if (tagsIn>255) state=NONE; // just fail if more then 255 tags
+                if (tagsIn>255) state=NONE,rec=false; // just fail if more then 255 tags
             } else if (tagsIn && tagTx<tagsIn*12 && i>=(dirEntry+tiffi)){ // read in tif tags
                 tagT[tagTx++]=c;
             }else if (tagCx && i>=(tagCx+tiffi)) {
@@ -191,13 +191,13 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     }
                     // Get next tag data offset
                     tagCx=NextTagContent(tagCx);
-                    if (tagCx && (tagCx+tiffi)<i) state=NONE;//, printf("Past tag data!\n");
+                    if (tagCx && (tagCx+tiffi)<i) state=NONE,rec=false;//, printf("Past tag data!\n");
                     tagCdi=0;
                     // Was last tag?
                     if (tagCx==0) {
                         if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                         if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
-                        if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg);
+                        if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg),rec=true;
                         //printf("Image(%d) offset: %d, size %d, bits %d\n",dtf.size(),idfImg.offset,idfImg.size,idfImg.bits);
                         if (dirEntry==0) parseCount=dtf.size(),jend=0,relAdd=tiffi,state=END; // Last entry?
                     }
@@ -261,7 +261,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 if (tagCx==0){
                     if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                     if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
-                    if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg);
+                    if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg),rec=true;
                     //printf("Image(%d) offset: %d, size %d, bits %d\n",dtf.size(),idfImg.offset,idfImg.size,idfImg.bits);
                     if (dirEntry==0) parseCount=dtf.size(),jend=0,relAdd=tiffi,state=END; // Last entry?
                 }
@@ -295,11 +295,13 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 type=IMAGE8;
             } else type=DEFAULT;
             if (image.compression==6 || image.compression==7) type=JPEG,info=0;
-            if (image.compression==8 && type==IMAGE24) type=ZLIB,info=(IMAGE24<<24)|image.width*3;
+            else if (image.compression==8 && type==IMAGE24) type=ZLIB,info=(IMAGE24<<24)|image.width*3;
             else if (image.compression!=0) type=CMP,info=0;
             if (info) pinfo=" (width: "+ itos(info&0xffffff) +")";
-            else pinfo="";
+            else pinfo=" "+TIFFCompStr(image.compression);
+            //else pinfo="";
             parseCount--;
+            if (parseCount==0) rec=false;
             return state;
         }
 
@@ -320,7 +322,7 @@ dType TIFFParser::getType(int i) {
     t.info=info;      // info of the block if present
     t.rpos=0;         // pos where start was set in block
     t.type=type;
-    t.recursive=true;
+    t.recursive=rec;
     return t;
 }
 
@@ -344,6 +346,7 @@ void TIFFParser::Reset() {
     parseCount=0;
     tagTx=0;
     tagCx=0;
+    rec=false;
 }
 void TIFFParser::SetEnd(uint64_t e) {
     jend=e;

@@ -8,7 +8,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new DECaParser());
     AddParser( new mrbParser());
     AddParser( new EXEParser());
-    if (ptype!=ZLIB){
+    if (ptype!=ZLIB) {
         AddParser( new zlibParser());      // brute=true, low priority
         AddParser( new zlibParser(false)); // brute=false, high priority
     }
@@ -38,7 +38,9 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     }
     AddParser( new uueParser());
     AddParser( new TIFFParser());
-    AddParser( new TARParser());
+    if (ptype!=TAR) {
+        AddParser( new TARParser());
+    }
     AddParser( new PNGParser());
     if (ptype!=BZIP2) AddParser( new bzip2Parser());
     AddParser( new SZDDParser());
@@ -67,9 +69,16 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
     bool pri[5]={false};
     typefound=false;
     // Reset all parsers exept recursive
+    int recP=0;
     for (size_t j=0; j<parsers.size(); j++) {
         dType t=parsers[j]->getType(0);
-        if (t.recursive==false) parsers[j]->Reset();
+        if (t.recursive==false) parsers[j]->Reset(),parsers[j]->state=NONE;
+        else recP=j;
+        
+    }
+    if (recP>0)
+    for (size_t j=1; j<parsers.size(); j++) {
+        if (j!=recP) parsers[j]->state=DISABLE;//,printf("T%d disabled\n",j);
     }
     remaining=n;
     while (remaining) {
@@ -85,10 +94,10 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     parsers[j]->state=INFO;
                     dType t=parsers[j]->getType(0);
                     type=t.type;
-                    //printf("T=%d INFO %d, %d-%d\n",j,t.info,t.start,t.end);
+                    //printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
                     pri[parsers[j]->priority]|=true;   // we have valid header, set priority true
                 } else if (dstate==END){
-                    //printf("T=%d END\n",j);
+                    //printf("T=%d END %s\n",j,parsers[j]->name.c_str());
                     // request current state data
                     parsers[j]->state=END;
                     typefound=true; // we should ignore pri=4 in some cases?
@@ -120,8 +129,24 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
             // Scan for overlaping types and report first detected type
             // TODO: look for largest detected type, not first
             // TODO: trim low priority types and add but do not report if higher priority type has returned info.
+            int largeP=0;int P=4;
+            uint64_t minP=-1,maxP=0;
             for (size_t j=0; j<parsers.size(); j++) {
-                if (parsers[j]->state==END) { // partial/damaged files?
+                if (parsers[j]->state==INFO || parsers[j]->state==END) { // partial/damaged files?
+                    dType t=parsers[j]->getType(0);
+                    //printf("T=%d parser %s\n",j,parsers[j]->name.c_str());
+                    if (t.end>=maxP && t.start<=minP && P>parsers[j]->priority) {
+                        if (P) parsers[P]->state=DISABLE;
+                        P=parsers[j]->priority;
+                        largeP=j;
+                        maxP=t.end;
+                        minP=t.start;
+                        //printf("T=%d parser %s is largest %d,%d\n",j,parsers[j]->name.c_str(),minP,maxP);
+                    }
+                }
+            }
+            for (size_t j=0; j<parsers.size(); j++) {
+                if (parsers[j]->state==END && j==largeP) { // partial/damaged files?
                     dType d=parsers[0]->getType(0);
                     dType t=parsers[j]->getType(0);
                     t.pinfo=parsers[j]->pinfo;
@@ -137,15 +162,15 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     }
                     // Look for all parsers still detecting
                     // and limit type end to start of any good priority parser still detecting
-                    for (size_t j=0; j<parsers.size(); j++) {
+                    /*for (size_t j=0; j<parsers.size(); j++) {
                         if (parsers[j]->state==INFO && parsers[j]->priority<=p) {
                             dType det=parsers[j]->getType(0);
                             if (t.end>det.start && det.start) {
                                 t.end=det.start;
-                                //printf("T=%d parser %s LIMITED\n",j,parsers[j]->name.c_str());
+                                printf("T=%d parser %s LIMITED\n",j,parsers[j]->name.c_str());
                             }
                         }
-                    }
+                    }*/
                     //printf("T=%d parser %s\n Start %d,%d\n",j,parsers[j]->name.c_str(),t.start,t.end);
                     types.push_back(t);
                     return true;

@@ -10,6 +10,7 @@ class GIFParser: public Parser {
     uint32_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
+    bool rec;
 public:    
     GIFParser();
     ~GIFParser();

@@ -67,6 +67,7 @@ class TIFFParser: public Parser {
     uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
+    bool rec;
     const std::string TIFFCompStr(int i);
     const std::string TIFFTypeStr(int i);
     const uint64_t NextTagContent(uint64_t x);

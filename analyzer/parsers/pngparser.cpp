@@ -63,7 +63,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             if (pngbps==8 && pngtype==2) info=(PNG24<<24)|(pngw*3);
                             else if (pngbps==8 && pngtype==6 ) info=(PNG32<<24)|(pngw*4);
                             else if (pngbps==8 && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw);
-                            pinfo=" (width: "+ itos(info&0xffffff) +")";
+                            pinfo=" (width: "+ itos(info&0xffffff) +") "+(pngtype==2?"PNG24":(pngtype==6?"PNG32":"PNG8"));
                         }
                         
                     } else if (lastchunk==0x49454E44) { //IEND)
