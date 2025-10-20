@@ -35,24 +35,20 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
             state=START;
             bzlevel=c-'0';
             BZip2=i-3;
-            csize=len-BZip2;
+            int csize=len-inSize+3;
             stream.bzalloc=NULL;
             stream.bzfree=NULL;
             stream.opaque=NULL;
             stream.avail_in=0;
             stream.next_in=NULL;
-            dsize=0;
             int ret;
-            blockz=csize?csize:BZ2BLOCK;
-            csize=0;
+            blockz=csize?csize:0x10000;
+            
             ret=BZ2_bzDecompressInit(&stream, 0, 0);
             if (ret!=BZ_OK) state=NONE;
-        } else if (state==START || state==INFO) {
-            int ret;
-            stream.avail_in=blockz;
-            inbytes=stream.avail_in;
-            if (stream.avail_in==0) break;
-            stream.next_in=(char*)&data[blockz==0x10000?0:BZip2];
+            else{
+                stream.avail_in=csize;
+                stream.next_in=(char*)&data[inSize-3];
 
             stream.avail_out=BZ2BLOCK;
             stream.next_out=(char*)&bzout[0];
@@ -62,16 +58,28 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                 state=NONE;
             }
             blockz=0x10000;
+            if (state!=NONE) {
+                state=INFO;
+            return INFO;
+        }
+            }
+        } else if (state==START || state==INFO) {
+            int ret;
+            stream.avail_in=min(len,blockz);
+            if (stream.avail_in==0) break;
+            stream.next_in=(char*)&data[0];
+            stream.avail_out=BZ2BLOCK;
+            stream.next_out=(char*)&bzout[0];
+            ret=BZ2_bzDecompress(&stream);
+            if ((ret!=BZ_OK) && (ret!=BZ_STREAM_END)) {
+                (void)BZ2_bzDecompressEnd(&stream);
+                state=NONE;
+            }
             state=INFO;
-            csize+=(inbytes-stream.avail_in);
-            inbytes=stream.avail_in;
-            part=BZ2BLOCK-stream.avail_out;
-            dsize+=part;
-            
             if (ret==BZ_STREAM_END) {
                 (void)BZ2_bzDecompressEnd(&stream);
                 jstart=BZip2;
-                jend=jstart+csize;
+                jend=jstart+(stream.total_in_lo32+(stream.total_in_hi32<<8));
                 info=bzlevel;
                 type=BZIP2;
                 state=END;
@@ -107,7 +115,7 @@ int bzip2Parser::TypeCount() {
 
 void bzip2Parser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=buf3=0;
-    BZip2=dsize=csize=blockz=inbytes=part=0;
+    BZip2=blockz=0;
     bzlevel=0;
     isBSDIFF=false;
     info=i=inSize=0;

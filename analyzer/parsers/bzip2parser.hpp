@@ -7,8 +7,8 @@
 
 
 class bzip2Parser: public Parser {
-    uint64_t BZip2,dsize;
-    int csize,blockz,inbytes,part;
+    uint64_t BZip2;
+    int blockz;
     bz_stream stream;
     int bzlevel;
     bool isBSDIFF;
