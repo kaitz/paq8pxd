@@ -7,7 +7,7 @@ v115
      Fix MM mode detection.
      If tag data pos is past current pos then ignore image.
      Uncompressed data with more then 32bits are reported as DEFAULT.
-    -Fixes for szdd, bmp, gif, tiff, jpeg, uue, cd, mdf parser.
+    -Fixes for szdd, bmp, gif, tiff, jpeg, uue, cd, mdf, bzip2 parser.
     -Update text parser.
     -In parser add last block flag.
     -Add parser info string (width, etc).
