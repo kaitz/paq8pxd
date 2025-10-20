@@ -77,7 +77,15 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     state=END;
                     return state;
                 }
-
+            }
+            if (last==true && (inSize+1)==len){
+                mdfa=0;
+                const int p=(i-mdfa)%2448;
+                jend=i-p-7;
+                type=MDF;
+                info=0;
+                state=END;
+                return state;
             }
         }
 

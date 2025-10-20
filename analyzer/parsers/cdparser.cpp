@@ -36,7 +36,9 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
                 assert(cdatai<2352);
                 cdata[cdatai++]=c;
                 const int p=(i-cdi)%2352;
-                if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) cdi=0,cdatai=0,state=NONE; // FIX it ?
+                if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) {
+                    cdi=0,cdatai=0,state=NONE; // FIX it ?
+                }
                 else if (cdatai==2352) {
                     // We have whole sector, test it
                     CDHeder *ch=(struct CDHeder*)&cdata[0];
@@ -53,6 +55,14 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
                         cdi=0,cdatai=0,state=NONE;
                     } else {
                         jend=i-2352+1;
+                        type=CD;
+                        info=cdif;
+                        pinfo=" (m"+ itos(info==1?1:2) +"/f"+ itos(info!=3?1:2) +")";
+                        state=END;
+                        return state;
+                    }
+                    if (last==true && (inSize+1)==len){
+                        jend=i+1;
                         type=CD;
                         info=cdif;
                         pinfo=" (m"+ itos(info==1?1:2) +"/f"+ itos(info!=3?1:2) +")";

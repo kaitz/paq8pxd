@@ -34,7 +34,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             if (p==12) of=bswap(buf0);
             else if (p==16 && buf0!=0x28000000) state=NONE;//BITMAPINFOHEADER (0x28)
             else if (p==20) x=bswap(buf0),bmp=((x==0||x>0x30000)?(hdrless=0):bmp); //width
-            else if (p==24) y=abs(bswap(buf0)),bmp=((y==0||y>0x10000)?(hdrless=0):bmp); //height
+            else if (p==24) y=abs(int32_t(bswap(buf0))),bmp=((y==0||y>0x10000)?(hdrless=0):bmp); //height
             else if (p==27) bpp=c,bmp=((bpp!=1 && bpp!=4 && bpp!=8 && bpp!=24 && bpp!=32)?(hdrless=0):bmp);
             else if ((p==31) && buf0) state=NONE;
             else if (p==36) size=bswap(buf0);
