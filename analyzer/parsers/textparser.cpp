@@ -1,7 +1,7 @@
 #include "textparser.hpp"
 
 TextParser::TextParser() {
-    priority=4;
+    priority=3;
     Reset();
     inpos=0;
     name="text";
@@ -139,7 +139,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         if (state==INFO) {
             if ((inSize+1)==len && last==true || ((textparser._end[0] - textparser._start[0] + 1) >= TEXT_MIN_SIZE && textparser.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE)) {
                 jstart=textparser._start[0];
-                jend=jstart+textparser._end[0];
+                jend=jstart+textparser._end[0]+1;
                 uint64_t end=textparser._end[0]+1; 
                 uint64_t nsize=textparser.number();
                 if (nsize>((textparser._end[0]-nsize)>>1)) type=TEXT0;

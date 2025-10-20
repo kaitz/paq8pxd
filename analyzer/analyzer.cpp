@@ -127,8 +127,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
         // We found new type. Is some parser still detecting?
         if (typefound==true) {
             // Scan for overlaping types and report first detected type
-            // TODO: look for largest detected type, not first
-            // TODO: trim low priority types and add but do not report if higher priority type has returned info.
+            // TODO: multiplie type detection (default-text-xType)
             int largeP=0;int P=4;
             uint64_t minP=-1,maxP=0;
             for (size_t j=0; j<parsers.size(); j++) {
