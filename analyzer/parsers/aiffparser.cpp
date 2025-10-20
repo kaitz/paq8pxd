@@ -22,7 +22,7 @@ DetectState AIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     
     while (inSize<len) {
         buf1=(buf1<<8)|(buf0>>24);
-        int c=data[inSize];
+        uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
 
         if (state==NONE && buf0==0x464f524d) { // 'FORM'
@@ -44,6 +44,7 @@ DetectState AIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 info=aiffm;
                 state=END;
                 type=AUDIO;
+                pinfo=" ("+audiotypes[(info&31)%4+(info>>7)*2]+")";
                 return state;
             }
         }

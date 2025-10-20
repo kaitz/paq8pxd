@@ -37,6 +37,8 @@ void zlibParser::SetPdfImageInfo() {
         if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh*4) info=(IMAGE32<<24)|pdfimw*4;
         if (pdfimb==4 && (int)strm->total_out==((pdfimw+1)/2)*pdfimh) info=(IMAGE4<<24)|((pdfimw+1)/2);
         if (pdfimb==1 && (int)strm->total_out==((pdfimw+7)/8)*pdfimh) info=(IMAGE1<<24)|((pdfimw+7)/8);
+        if (info) pinfo=" (width: "+ itos(info&0xffffff) +")";
+        else pinfo="";
         pdfgray=0;
     }
 }

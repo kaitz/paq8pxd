@@ -91,6 +91,7 @@ DetectState PNMParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 state=INFO;
             }
         } else if (state==INFO && i==(jend-1)) {
+            pinfo=" (width: "+ itos(info) +")";
             state=END;
             return state;
         }

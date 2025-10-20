@@ -47,6 +47,7 @@ DetectState sgiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     jend=jstart+rgbx*info;
                     state=END;
                     type=IMAGE8;
+                    pinfo=" (width: "+ itos(info) +")";
                     return state;
                 }
                 state=NONE;

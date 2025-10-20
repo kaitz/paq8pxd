@@ -55,6 +55,7 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
                         jend=i-2352+1;
                         type=CD;
                         info=cdif;
+                        pinfo=" (m"+ itos(info==1?1:2) +"/f"+ itos(info!=3?1:2) +")";
                         state=END;
                         return state;
                     }

@@ -12,7 +12,7 @@ extern void SetConColor(int color);
 extern int getoct(const char *p, int n);
 extern int tarchecksum(char *p);
 extern bool tarend(const char *p);
-
+extern U8 level;
 Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new Img24Filter( std::string("image 24bit"),IMAGE24));
     AddFilter( new Img32Filter( std::string("image 32bit"),IMAGE32));
@@ -53,6 +53,10 @@ Filter& Codec::GetFilter(Filetype f) {
     }
     // or else default filter
     return *filters[filters.size()-1];
+}
+
+void Codec::Status(uint64_t n, uint64_t size) {
+    fprintf(stderr,"F%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
 void Codec::DecodeFile(const char* filename, uint64_t filesize) {
@@ -142,132 +146,61 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
 }
 
 void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filetype ptype) {
-    static const char* audiotypes[6]={"8b mono","8b stereo","16b mono","16b stereo","32b mono","32b stereo"};
-  Filetype type=DEFAULT;
-  int blnum=0, info,info2;  // image width or audio type
-  U64 begin= in->curpos(), end0=begin+n;
-  U64 textstart;
-  U64 textend=0;
-  U64 end=0;U64 len;
-  Filetype nextType;
-  //Filetype nextblock_type;
-  Filetype nextblock_type_bak=DEFAULT; //initialized only to suppress a compiler warning, will be overwritten
-  char b2[32];
-  strcpy(b2, blstr);
-  if (b2[0]) strcat(b2, "-");
-  if (it==5) {
-    direct_encode_blockstream(DEFAULT, in, n);
-    return;
-  }
-  Analyzer an(it,ptype);
-  bool found=false;
-  // Transform and test in blocks
-  while (n>0) {
-     if (found==false)
-         found=an.Detect(in,n,it);
-     dType block=an.GetNext();
-     if (block.end==0) found=false; // look for next type
-    /*if (it==0 && witmode==true) {
-      len=end=end0,info=0,type=WIT;
+    Filetype type=DEFAULT;
+    int blnum=0;
+    uint32_t info,info2;  // image width or audio type
+    uint64_t begin=in->curpos(), end0=n;
+    uint64_t end=0;
+    uint64_t len;
+    char b2[32];
+    strcpy(b2, blstr);
+    if (b2[0]) strcat(b2, "-");
+    if (it==5) {
+        direct_encode_blockstream(DEFAULT, in, n);
+        return;
     }
-    else if (it==1 && witmode==true){    
-      len=end=end0,info=0,type=TXTUTF8;
-    } else {   
-    if(type==TEXT || type==EOLTEXT || type==TXTUTF8) { // it was a split block in the previous iteration: TEXT -> DEFAULT -> ...
-      nextType=nextblock_type_bak;
-      end=textend+1;
-    }
-    else {
-      nextType=detect(in, n, type, info,info2,it);
-      end=in->curpos();
-      in->setpos(begin);
-    }
-   // Filetype nextType=detect(in, n, type, info,info2,it,s1);
-   // U64 end= in->curpos();
-   //  in->setpos( begin);
-     // override (any) next block detection by a preceding text block
-    textstart=begin+textparser._start[0];
-    textend=begin+textparser._end[0];
-    if(textend>end-1)textend=end-1;
-    if(type==DEFAULT && textstart<textend) { // only DEFAULT blocks may be overridden
-     U64 nsize=0;
-      if(textstart==begin && textend == end-1) { // whole first block is text
-        type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // DEFAULT -> TEXT
-        U64 nsize=textparser.number();
-        if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
-        //if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8;
-      }
-      else if (textend - textstart + 1 >= TEXT_MIN_SIZE) { // we have one (or more) large enough text portion that splits DEFAULT
-        if (textstart != begin) { // text is not the first block 
-          end=textstart; // first block is still DEFAULT
-          nextblock_type_bak=nextType;
-          nextType=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; //next block is text
-          //if (textparser.number()>((end-begin)>>1))nextblock_type=TEXT0;
-           nsize=textparser.number();
-        if (nsize>(((end-begin)-nsize)>>1))nextType=TEXT0; 
-          textparser.removefirst();
-        } else {
-          type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // first block is text
-          nextType=DEFAULT;     // next block is DEFAULT
-          end=textend+1; 
-          //if (textparser.number()>((end-begin)>>1))type=TEXT0;
-           nsize=textparser.number();
-        if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
+    Analyzer an(it,ptype);
+    bool found=false;
+    // Transform and test in blocks
+    while (n>0) {
+        if (found==false){
+            found=an.Detect(in,n,it);
         }
-      }
-      if (type==TEXT && textparser.countUTF8>0xffff) type=TXTUTF8,info=0;
-      // no text block is found, still DEFAULT
-      
+        dType block=an.GetNext();
+        if (block.end==0) {
+            found=false;
+        }
+        end=block.end;
+        info=(block.info)&0xffffffff;
+        info2=(block.info>>32);
+        len=uint64_t(block.end-block.start);
+        if (len>n) len=n;
+        if (len>0) {
+            type=block.type;
+            in->setpos(begin);
+            if ((type==EOLTEXT) && (len<1024*64 || len>0x1FFFFFFF)) type=TEXT;
+            if (it>itcount)    itcount=it;
+            if((len>>1)<(info) && type==DEFAULT && info<len) type=BINTEXT;
+            if(len==info && type==DEFAULT ) type=ISOTEXT;
+            if(len<=TEXT_MIN_SIZE && type==TEXT0 ) type=TEXT;
+            typenamess[type][it]+=len,  typenamesc[type][it]++; 
+            sprintf(blstr,"%s%d",b2,blnum++);
+            if (verbose>2) printf(" %-16s |",blstr);
+            int streamcolor=streams->GetStreamID(type)+1+1;
+            if (streamcolor<1) streamcolor=7;
+            SetConColor(streamcolor);
+            if (verbose>2) printf(" %-9s ",typenames[type]);
+            SetConColor(7);
+            if (verbose>2) {
+                printf("|%12.0f [%0.0f - %0.0f]%s\n",len+0.0,begin+0.0,(begin+len-1)+0.0,block.pinfo.c_str());
+            }
+            transform_encode_block(type, in, len, info,info2, blstr, it, begin);
+            n-=len;
+
+            begin+=len;
+            Status(begin,end0);
+        }
     }
-    if (end>end0) {  // if some detection reports longer then actual size file is
-      end=begin+1;
-      type=nextType=DEFAULT;
-    }*/
-    end=block.end;
-    //begin=block.start;
-    info=(block.info)&0xffffffff;
-    info2=(block.info>>32);
-      len=U64(block.end-block.start);
-    if (len>n) len=n;
-    //if (begin>end) len=0;
-    /*if (len>=2147483646) {  
-      if (!(type==BZIP2||type==WIT ||type==TEXT || type==TXTUTF8 ||type==TEXT0 ||type==EOLTEXT))len=2147483646,type=DEFAULT; // force to int
-    }
-   }*/
-    if (len>0) {
-              type=block.type;
-      in->setpos(begin);
-    if ((type==EOLTEXT) && (len<1024*64 || len>0x1FFFFFFF)) type=TEXT;
-    if (it>itcount)    itcount=it;
-    if((len>>1)<(info) && type==DEFAULT && info<len) type=BINTEXT;
-    if(len==info && type==DEFAULT ) type=ISOTEXT;
-    if(len<=TEXT_MIN_SIZE && type==TEXT0 ) type=TEXT;
-    typenamess[type][it]+=len,  typenamesc[type][it]++; 
-      //s2-=len;
-      sprintf(blstr,"%s%d",b2,blnum++);
-      // printf(" %-11s | %-9s |%10.0" PRIi64 " [%0lu - %0lu]",blstr,typenames[type],len,begin,end-1);
-      if (verbose>2) printf(" %-16s |",blstr);
-      int streamcolor=streams->GetStreamID(type)+1+1;
-      if (streamcolor<1) streamcolor=7;
-      SetConColor(streamcolor);
-      if (verbose>2) printf(" %-9s ",typenames[type]);
-      SetConColor(7);
-      if (verbose>2) {
-        printf("|%12.0f [%0.0f - %0.0f]",len+0.0,begin+0.0,(begin+len-1)+0.0);
-        if (type==AUDIO) printf(" (%s)", audiotypes[(info&31)%4+(info>>7)*2]);
-        else if (type==IMAGE1 || type==IMAGE4 || type==IMAGE8 || type==IMAGE24 || type==MRBR|| type==MRBR4|| type==IMAGE8GRAY || type==IMAGE32 ||type==GIF) printf(" (width: %d)", info&0xFFFFFF);
-        else if (type==CD) printf(" (m%d/f%d)", info==1?1:2, info!=3?1:2);
-        else if (type==ZLIB && (info>>24) > 0) printf(" (%s)",typenames[info>>24]);
-        printf("\n");
-      }
-      transform_encode_block(type, in, len,  info,info2, blstr, it, begin);
-      n-=len;
-    
-    
-    //type=nextType;
-    begin+=len;
-    }
-  }
 }
 
 void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info) {

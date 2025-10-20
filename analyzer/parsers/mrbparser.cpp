@@ -91,12 +91,13 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     if ((mrbPackingMethod==0 ||mrbPackingMethod==1) && mrb==2) {
                         if (mrbPackingMethod==0)  {
                             jstart=mrb+7+CompressedOffset,type=IMAGE1;info=(((mrbw-1)>>5)+1)*4; 
+                            pinfo=" (width: "+ itos((((mrbw-1)>>5)+1)*4) +")";
                         }
                         else if (mrbPackingMethod==1)  {
                             jstart=mrb+7+CompressedOffset;
-                            if (   BitCount==8)type=MRBR;      
-                            if (   BitCount==4)type=MRBR4;     
-                            info=(((mrbw+3)/4)*4)+(mrbh<<32);
+                            if (   BitCount==8)type=MRBR,pinfo=" (width: "+ itos(mrbw) +")";
+                            if (   BitCount==4)type=MRBR4,pinfo=" (width: "+ itos(((mrbw+3)/4)*4) +")";
+                            info=(BitCount==8?mrbw:(((mrbw+3)/4)*4))+(mrbh<<32);
                         }
                         jend=jstart+mrbcsize;   
                         state=END;

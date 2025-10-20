@@ -10,6 +10,8 @@ v115
     -Fixes for szdd, bmp parser.
     -Update text parser.
     -In parser add last block flag.
+    -Add parser info string (width, etc).
+    -Add parser/codec progress status.
 v114
     -Add pdf lzw, gif, dBase, pdf bitmap, aiff, ascii85,
      base64 (stream), base64 (multiline), mod, sgi/rgb,

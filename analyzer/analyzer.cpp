@@ -57,7 +57,9 @@ void Analyzer::AddParser(Parser *p) {
 
 Analyzer::~Analyzer() {
 }
-
+void Analyzer::Status(uint64_t n, uint64_t size) {
+    fprintf(stderr,"P%6.2f%%\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+}
 bool Analyzer::Detect(File* in, U64 n, int it) {
     const int BLOCK=0x10000;  // block size 64k
     uint8_t blk[BLOCK];
@@ -122,6 +124,8 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                 if (parsers[j]->state==END) { // partial/damaged files?
                     dType d=parsers[0]->getType(0);
                     dType t=parsers[j]->getType(0);
+                    t.pinfo=parsers[j]->pinfo;
+                    d.pinfo=parsers[0]->pinfo;
                     int p=parsers[j]->priority;
                     // Do we have default type? If so add.
                     if (d.end>0 && t.start!=0) {
@@ -150,9 +154,11 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
         }
         //
         remaining-=ReadIn;
+        Status(n-remaining,n);
     }
     // Nothing found so add default type
     dType def=parsers[0]->getType(0);
+    def.pinfo=parsers[0]->pinfo;
     def.end=n;
     types.push_back(def);
     //printf("T=%d parser default\n Start %d,%d\n",0,def.start,def.end);
@@ -169,4 +175,8 @@ dType Analyzer::GetNext() {
         types.clear();
         return emptyType;
     }
+}
+
+std::string &Analyzer::GetInfo() {
+    return *pinfo;
 }

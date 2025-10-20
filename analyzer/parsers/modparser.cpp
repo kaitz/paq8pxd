@@ -47,6 +47,7 @@ DetectState MODParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 jend=jstart+len1;
                 type=AUDIO;
                 info=4;
+                pinfo=" ("+audiotypes[(info&31)%4+(info>>7)*2]+")";
                 state=END;
                 return state;
             }

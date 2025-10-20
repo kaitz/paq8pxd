@@ -2,6 +2,7 @@
 #include "../prt/enums.hpp"
 #include <cstdint>
 #include <vector>
+#include <assert.h>
 
 #define bswap(x) \
     +   ((((x) & 0xff000000) >> 24) | \
@@ -21,6 +22,7 @@ struct dType {
     uint64_t info;      // info of the block if present
     uint64_t rpos;      // pos where start was set in block
     Filetype type;
+    std::string pinfo;        // parser info string: width, etc
     bool     recursive; // is data recursive
 };
 
@@ -37,7 +39,9 @@ public:
                              // 2 - single or multi data (bmp, tif, ...)
                              // 3 - everything else (text, ...)
                              // 4 - default
-    std::string name;
+    std::string name;        // parser name
+    std::string pinfo;        // parser info string: width, etc
+    const std::string audiotypes[6]={"8b mono","8b stereo","16b mono","16b stereo","32b mono","32b stereo"};
     Parser();
     ~Parser();
     virtual DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last=false)=0;
@@ -45,4 +49,5 @@ public:
     virtual int TypeCount()=0;
     virtual void Reset()=0;
     virtual void SetEnd(uint64_t e)=0;
+    std::string itos(int64_t x, int n=1);
 };

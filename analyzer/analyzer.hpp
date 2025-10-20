@@ -48,9 +48,12 @@ class Analyzer {
     bool typefound;
     int iter;
     Filetype ptype;
+    std::string *pinfo;
+    void Status(uint64_t n, uint64_t size);
 public:    
     Analyzer(int it,Filetype p=DEFAULT);
     ~Analyzer();
     bool Detect(File* in, U64 n, int it=0);
     dType GetNext();
+    std::string &GetInfo();
 };

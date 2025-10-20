@@ -49,6 +49,7 @@ DetectState GIFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     jend=i+1;
                     state=END;
                     info=((gray?IMAGE8GRAY:IMAGE8)<<24)|gifw;
+                    pinfo=" (width: "+ itos(gifw) +")";
                     type=GIF;
                     return state;
                 }

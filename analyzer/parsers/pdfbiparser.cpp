@@ -66,13 +66,14 @@ DetectState pdfBiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                     pdfi1=pdfi_ptr=0;
                     type=IMAGE1;
                     state=END;
+                    pinfo=" (width: "+ itos(info) +")";
                     return state;
                 } //IMG_DETP(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
                 if (pdfiw && pdfih && pdfic==8 && pdfin==5) {
                     info=pdfiw;
                     jstart=i-pdfi1+4;
                     jend=jstart+pdfih*info;
-                    
+                    pinfo=" (width: "+ itos(info) +")";
                     type=IMAGE8;
                     state=END;
                     return state;

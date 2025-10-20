@@ -40,6 +40,7 @@ class Codec {
     void AddFilter(Filter *f);
     void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0);
     void transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin);
+    void Status(uint64_t n, uint64_t size);
 	public:
 		Codec(FMode m, Streams *s, Segment *g);
 		virtual ~Codec();
