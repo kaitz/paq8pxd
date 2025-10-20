@@ -34,7 +34,7 @@ bool TARParser::tarend(const char *p){
 }
 
 // loop over input block byte by byte and report state
-DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<1024) return DISABLE;
     // Are we in new data block, if so reset inSize and restart

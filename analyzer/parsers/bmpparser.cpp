@@ -11,7 +11,7 @@ BMPParser::~BMPParser() {
 }
 
 // loop over input block byte by byte and report state
-DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<128) return DISABLE;
     // Are we in new data block, if so reset inSize and restart
@@ -28,7 +28,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
         if (state==NONE && (((buf0&0xffff)==16973) || (!(buf0&0xFFFFFF) && ((buf0>>24)==0x28))) ){
             state=START;
             hdrless=!(buf0&0xff),of=hdrless*54;
-            bmp=i-hdrless*16;
+            bmp=int64_t(i)-int64_t(hdrless*16);
         } else if (state==START) {
             int p=i-bmp;
             if (p==12) of=bswap(buf0);
@@ -57,7 +57,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                     // if DIB and not 24bpp, we must calculate the data offset based on BPP or num. of entries in color palette
                     if (hdrless && (bpp<24))
                         of=of+((buf0)?bswap(buf0)*4:4<<bpp);
-                    of=of+(bmp-1)*(bmp<1);
+                    of=of+(bmp-1)*(bmp<1?-1:0);
                     if (hdrless && size && size<((x*y*bpp)>>3)) { }//Guard against erroneous DIB detections
                     else { 
                         if (bpp==24) {
@@ -79,6 +79,10 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
                             jend=info*y+jstart;
                             // report state only if larger then block
                             if ((jend-jstart)>len) return state;
+                            else if ((jend-jstart)<len) {
+                                state=END;
+                                return state;
+                            }
                         }
                     }
                 }

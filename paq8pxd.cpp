@@ -226,10 +226,6 @@ deth=int(header_len),detd=int((width)*(height)),info=int(width),\
 deth=int(header_len),detd=(data_len),info=(wmode),\
  in->setpos(start+(start_pos)),HDR
 
-#define SZ_DET(type,start_pos,header_len,base64len,unsize) return dett=(type),\
-deth=(-1),detd=int(base64len),info=(unsize),\
- in->setpos(start+start_pos),DEFAULT
-
 bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   U64 offset = in->curpos();
   int stride = 3+isRGBA, res = (n>0)<<8, order=1;
@@ -286,57 +282,6 @@ bool tarend(const char *p){
 }
 
 
-
-
-#define MIN_TEXT_SIZE 0x400 //1KB
-#define MAX_TEXT_MISSES 3 //number of misses in last 32 bytes before resetting
-struct TextInfo {
-  U64 start;
-  U32 lastSpace;
-  U32 lastNL;
-  U64 lastNLpos;
-  U32 wordLength;
-  U32 misses;
-  U32 missCount;
-  U32 zeroRun;
-  U32 spaceRun;
-  U32 countNL;
-  U32 totalNL;
-  U32 countLetters;
-  U32 countNumbers;
-  U32 countUTF8;
-  bool isLetter, isUTF8, needsEolTransform, seenNL, isNumbertext;
-};
-
-
-
-#define UTF8_ACCEPT 0
-#define UTF8_REJECT 12
-static const U8 utf8_state_table[] = {
-  // byte -> character class
-  // character_class = utf8_state_table[byte]
-  1,1,1,1,1,0,1,1,1,0,0,1,1,0,1,1,  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // 00..1f  
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 20..3f
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, // 40..5f
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1, // 60..7f
-  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9, // 80..9f
-  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7, // a0..bf
-  8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, // c0..df
- 10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8, // e0..ff
-  // validating automaton
-  // new_state = utf8_state_table[256*old_state + character_class]
-   0,12,24,36,60,96,84,12,12,12,48,72, // state  0-11
-  12,12,12,12,12,12,12,12,12,12,12,12, // state 12-23
-  12, 0,12,12,12,12,12, 0,12, 0,12,12, // state 24-35
-  12,24,12,12,12,12,12,24,12,24,12,12, // state 36-47
-  12,12,12,12,12,12,12,24,12,12,12,12, // state 48-59
-  12,24,12,12,12,12,12,12,12,24,12,12, // state 60-71
-  12,12,12,12,12,12,12,36,12,36,12,12, // state 72-83
-  12,36,12,12,12,12,12,36,12,36,12,12, // state 84-95
-  12,36,12,12,12,12,12,12,12,12,12,12  // state 96-108
-};
-#include "prt/textinfo.hpp"
-TextParserStateInfo textparser;
 void printStatus1(U64 n, U64 size) {
 fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
@@ -362,7 +307,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   int s3mno=0,s3mni=0;  // For S3M detection
   
 
-  TextInfo text = {}; // For TEXT
+  //TextInfo text = {}; // For TEXT
 
   U8 zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
   int zbufpos=0, histogram[256]={};
@@ -382,7 +327,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   else if (deth ==-1) return  in->setpos(start),deth=0,dett;
   else if (detd) return  in->setpos( start+detd),detd=0,DEFAULT;
  
-  textparser.reset(0);
+  //textparser.reset(0);
   for (U64 i=0; i<n; ++i) {
     int c=in->getc();
     if (c==EOF) return (Filetype)(-1);
@@ -545,7 +490,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
     (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
     (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&&  textparser.validlength()<TEXT_MIN_SIZE &&  !soi &&  (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
+    )&&    !soi &&  (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
       int a=(buf0)&0xff;// absolute address low 8 bits
       int r=(buf0)&0x3FFFFFF;
       r+=(i)/4;  // relative address low 8 bits
@@ -572,129 +517,7 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
     }
     
     
-    // Detect text, utf-8, eoltext and text0
-    text.isLetter = tolower(c)!=toupper(c);
-    //text.countLetters+=(text.isLetter)?1:0;
-    text.countNumbers+=(c>='0' && c<='9') ?1:0;
-    //text.isNumbertext=text.countLetters< text.countNumbers;
-    text.isUTF8 = ((c!=0xC0 && c!=0xC1 && c<0xF5) && (
-        (c<0x80) ||
-        // possible 1st byte of UTF8 sequence
-        ((buf0&0xC000)!=0xC000 && ((c&0xE0)==0xC0 || (c&0xF0)==0xE0 || (c&0xF8)==0xF0)) ||
-        // possible 2nd byte of UTF8 sequence
-        ((buf0&0xE0C0)==0xC080 && (buf0&0xFE00)!=0xC000) || (buf0&0xF0C0)==0xE080 || ((buf0&0xF8C0)==0xF080 && ((buf0>>8)&0xFF)<0xF5) ||
-        // possible 3rd byte of UTF8 sequence
-        (buf0&0xF0C0C0)==0xE08080 || ((buf0&0xF8C0C0)==0xF08080 && ((buf0>>16)&0xFF)<0xF5) ||
-        // possible 4th byte of UTF8 sequence
-        ((buf0&0xF8C0C0C0)==0xF0808080 && (buf0>>24)<0xF5)
-    ));
-     textparser.countUTF8+=((text.isUTF8 && !text.isLetter && (c>=0x80))?1:0);
-    if (text.lastNLpos==0 && c==NEW_LINE ) text.lastNLpos=i;
-    else if (text.lastNLpos>0 && c==NEW_LINE ) {
-        int tNL=i-text.lastNLpos;
-        if (tNL<90 && tNL>45) 
-            text.countNL++;          //Count if in range   
-        else 
-            text.totalNL+=tNL>3?1:0; //Total new line count
-        text.lastNLpos=i;
-    }
-    text.lastNL = (c==NEW_LINE || c==CARRIAGE_RETURN ||c==10|| c==5)?0:text.lastNL+1;
-   /* if (c==SPACE || c==TAB ||c==0x12 ){
-      text.lastSpace = 0;
-      text.spaceRun++;
-    }
-    else{
-      text.lastSpace++;
-      text.spaceRun = 0;
-    } 
-    text.wordLength = (text.isLetter)?text.wordLength+1:0;
-    text.missCount-=text.misses>>31;
-    text.misses<<=1;
-    text.zeroRun=(!c && text.zeroRun<32)?text.zeroRun+1:0;
-    //if (c==NEW_LINE || c==5){
-      //if (!text.seenNL)
-       // text.needsEolTransform = true;
-    //  text.seenNL = true;
-      //text.needsEolTransform&=(text.countNL>text.totalNL);//U8(buf0>>8)==CARRIAGE_RETURN;
-    //}
-   /* bool tspace=(c<SPACE && c!=TAB && (text.zeroRun<2 || text.zeroRun>8) && text.lastNL!=0);
-    //bool tcr=((buf0&0xFF00)==(CARRIAGE_RETURN<<8) || (buf0&0xFF00)==(10<<8));
-    bool tscr= (text.spaceRun>8 && text.lastNL>256 && !text.isUTF8); // utf8 line lenght can be more then 4 times longer
-    bool tword=(!text.isLetter && !text.isUTF8 &&  ( text.lastNL>256 || text.lastSpace > max( text.lastNL, text.wordLength*8) || text.wordLength>32) );
-    if (tspace || 
-       // tcr||
-        tscr||
-        tword
-     ) {
-        text.misses|=1;
-        text.missCount++;
-        int length = i-text.start-1; 
-        bool dtype=(png || pdfimw || cdi || soi || pgm || rgbi || tga || gif.gif || b64s||tar || bmp.bmp ||wavi ||b64s1 ||b85s1||b85s||DECcount||mrb||uuds );
-        if (((length<MIN_TEXT_SIZE && text.missCount>MAX_TEXT_MISSES) || dtype)){
-          text = {};
-          text.start = i+1;
-        }
-        else if (text.missCount>MAX_TEXT_MISSES ) {
-          text.needsEolTransform=(text.countNL>text.totalNL);
-          if (text.isNumbertext)     info=1;
-          in->setpos(start + text.start);
-          detd = length;
-          return (text.needsEolTransform)?EOLTEXT:(( text.isNumbertext)?TEXT0:(text.countUTF8>MIN_TEXT_SIZE?TXTUTF8:TEXT));
-        }
-    }
-    //disable zlib brute if text lenght is over minimum.
-    //if ( (i-text.start)>MIN_TEXT_SIZE) brute=false;
-  }
-    if (n-text.start>=MIN_TEXT_SIZE && ! (png || pdfimw || cdi || soi || pgm || rgbi || tga || gif.gif || b64s||tar || bmp.bmp ||wavi ||b64s1 ||b85s1||b85s||DECcount||mrb ||uuds) ||
-       (s1==0 && (n-text.start)==n && type==DEFAULT) // ignore minimum text lenght
-       ){
-        text.needsEolTransform=(text.countNL>text.totalNL);
-        in->setpos(start + text.start);
-        detd = n-text.start;
-        if ( text.isNumbertext)     info=1;
-    return (text.needsEolTransform)?EOLTEXT:(( text.isNumbertext)?TEXT0:(text.countUTF8>MIN_TEXT_SIZE?TXTUTF8:TEXT));*/
-    // Detect text
-    // This is different from the above detection routines: it's a negative detection (it detects a failure)
-    //text.countNumbers+=(c>='0' && c<='9') ?1:0;
-    textparser.set_number(text.countNumbers);
-    U32 t = utf8_state_table[c];
-    textparser.UTF8State = utf8_state_table[256 + textparser.UTF8State + t];
-
-    if(textparser.UTF8State == UTF8_ACCEPT) { // proper end of a valid utf8 sequence
-      if (c==NEW_LINE || c==5) {
-      //  if (((buf0>>8)&0xff) != CARRIAGE_RETURN)
-      //    textparser.setEOLType(2); // mixed or LF-only
-      //  else 
-      //    if (textparser.EOLType()==0)textparser.setEOLType(1); // CRLF-only
-      if (textparser.validlength()>TEXT_MIN_SIZE*64) brute=false; //4mb
-      if(textparser.invalidCount)textparser.invalidCount=0;
-      }
-      if(textparser.invalidCount)textparser.invalidCount=(textparser.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE);
-      
-      if(textparser.invalidCount==0){
-      textparser.setEOLType(text.countNL>text.totalNL);
-        textparser.setend(i); // a possible end of block position
-    }
-    }
-    else
-    if(textparser.UTF8State == UTF8_REJECT) { // illegal state
-      if(text.totalNL/(text.countNL+1)==0)textparser.invalidCount=0;
-      textparser.invalidCount = textparser.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE + TEXT_ADAPT_RATE;
-      textparser.UTF8State = UTF8_ACCEPT; // reset state
-      if (textparser.validlength()<TEXT_MIN_SIZE) {
-         // printf("%d",textparser.validlength());
-        textparser.reset(i+1); // it's not text (or not long enough) - start over
-        text.countNumbers=0;
-      }
-      else if (textparser.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE) {
-        if (textparser.validlength()<TEXT_MIN_SIZE)
-        {  textparser.reset(i+1); // it's not text (or not long enough) - start over
-          text.countNumbers=0;}
-        else // Commit text block validation
-          {
-          textparser.next(i+1);return type;}
-      }
-    }
+    
   }
   return type;
 
@@ -1088,7 +911,9 @@ void DecompressStreams(File *archive) {
                     for (U64 k=0; k<datasegmentlen; ++k) {
                         if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total,i);
                         U8 b=defaultencoder->decompress();
-                        if (k==0 && b==0xAA) doWRT=false; // flag set?
+                        if (k==0 ){
+                        if ( b==0xAA) doWRT=false; // flag set?
+                    }
                         else tm.putc(b);
                         datasegmentsize--;
                     }

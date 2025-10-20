@@ -11,7 +11,7 @@ DefaultParser::~DefaultParser() {
 }
 
 // loop over input block byte by byte and report state
-DetectState DefaultParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState DefaultParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     if (state==NONE) {
         state=START;
         jstart=pos;

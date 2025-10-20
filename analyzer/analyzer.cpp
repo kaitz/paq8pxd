@@ -78,7 +78,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
             if (parsers[j]->state!=DISABLE) {
                 //printf("T=%d parser %s PARSE\n",j,parsers[j]->name.c_str());
                 //open type detection file and load into memory
-                DetectState dstate=parsers[j]->Parse(&blk[0],BLOCK,n-remaining);
+                DetectState dstate=parsers[j]->Parse(&blk[0],BLOCK,n-remaining,(remaining-ReadIn)==0?true:false);
                 if (dstate==INFO) {
                     parsers[j]->state=INFO;
                     dType t=parsers[j]->getType(0);

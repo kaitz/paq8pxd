@@ -14,7 +14,7 @@ bool ascii85Parser::is_base85(unsigned char c) {
     return (isalnum(c) || (c==13) || (c==10) || (c=='y') || (c=='z') || (c>='!' && c<='u'));
 }
 // loop over input block byte by byte and report state
-DetectState ascii85Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState ascii85Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<128) return DISABLE;
     // Are we in new data block, if so reset inSize and restart

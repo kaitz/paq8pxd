@@ -40,7 +40,7 @@ public:
     std::string name;
     Parser();
     ~Parser();
-    virtual DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos)=0;
+    virtual DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last=false)=0;
     virtual dType getType(int i)=0;
     virtual int TypeCount()=0;
     virtual void Reset()=0;

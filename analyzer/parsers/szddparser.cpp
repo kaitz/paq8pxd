@@ -13,7 +13,7 @@ SZDDParser::~SZDDParser() {
 }
 
 // loop over input block byte by byte and report state
-DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<128) return DISABLE;
     // Are we in new data block, if so reset inSize and restart
@@ -128,7 +128,7 @@ int SZDDParser::TypeCount() {
 void SZDDParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     fSZDD=0;
-    int lz2=0;
+    lz2=0;
     fsizez=0;
     csize=usize=0;
     rpos=0;

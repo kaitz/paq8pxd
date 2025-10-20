@@ -32,7 +32,7 @@ mrbParser::~mrbParser() {
 }
 
 // loop over input block byte by byte and report state
-DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<128) return DISABLE;
     // Are we in new data block, if so reset inSize and restart

@@ -11,7 +11,7 @@ PDFLzwParser::~PDFLzwParser() {
 }
 
 // loop over input block byte by byte and report state
-DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<256) return DISABLE;
     // Are we in new data block, if so reset inSize and restart

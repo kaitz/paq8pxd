@@ -15,7 +15,7 @@ bool base64_2Parser::is_base64(unsigned char c) {
 }
 
 // loop over input block byte by byte and report state
-DetectState base64_2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState base64_2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<128) return DISABLE;
     // Are we in new data block, if so reset inSize and restart

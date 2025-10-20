@@ -14,7 +14,7 @@ class MSZIPParser: public Parser {
 public:    
     MSZIPParser();
     ~MSZIPParser();
-    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos);
+    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last);
     dType getType(int i);
     int TypeCount();
     void Reset();

@@ -352,7 +352,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         int tfail=0;
         tmp->setpos(0);
         
-        if (type==BZIP2|| type==CD || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
+        if (type==BZIP2|| type==CD || type==SZDD || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
                 type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
             
             in->setpos(begin);
@@ -379,6 +379,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             } else if (type==DECA) {
                 diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if (type==ARM) {
+                diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+            } else if (type==SZDD) {
                 diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
                 diffFound=dataf.CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);

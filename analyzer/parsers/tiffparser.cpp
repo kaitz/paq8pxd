@@ -13,7 +13,7 @@ TIFFParser::~TIFFParser() {
     free(tagT);
     free(tagCd);
 }
-const std::string  TIFFParser::TIFFCompStr(int i){
+const std::string  TIFFParser::TIFFCompStr(int i) {
     if (i==1) return "Uncompressed";
     else if (i==2) return "CCITT 1D";
     else if (i==3) return "Group 3 Fax"; 
@@ -70,7 +70,7 @@ const std::string  TIFFParser::TIFFCompStr(int i){
 // 10 = SRATIONAL Two SLONG’s: the first represents the numerator of a fraction, the second the denominator.
 // 11 = FLOAT Single precision (4-byte) IEEE format.
 // 12 = DOUBLE
-const std::string  TIFFParser::TIFFTypeStr(int i){
+const std::string  TIFFParser::TIFFTypeStr(int i) {
     if (i==1) return "BYTE";
     else if (i==2) return "ASCII";
     else if (i==3) return "SHORT";
@@ -114,7 +114,7 @@ const uint64_t TIFFParser::NextTagContent(uint64_t x) {
     return tagCx;
 }
 // loop over input block byte by byte and report state
-DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos) {
+DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
     if (pos==0 && len<128) return DISABLE;
     // Are we in new data block, if so reset inSize and restart
