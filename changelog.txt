@@ -7,6 +7,9 @@ v115
      Fix MM mode detection.
      If tag data pos is past current pos then ignore image.
      Uncompressed data with more then 32bits are reported as DEFAULT.
+    -Fixes for szdd, bmp parser.
+    -Update text parser.
+    -In parser add last block flag.
 v114
     -Add pdf lzw, gif, dBase, pdf bitmap, aiff, ascii85,
      base64 (stream), base64 (multiline), mod, sgi/rgb,
