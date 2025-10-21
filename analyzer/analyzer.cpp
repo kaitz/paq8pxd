@@ -134,8 +134,8 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                 if (parsers[j]->state==INFO || parsers[j]->state==END) { // partial/damaged files?
                     dType t=parsers[j]->getType(0);
                     //printf("T=%d parser %s\n",j,parsers[j]->name.c_str());
-                    if (t.end>=maxP && t.start<=minP && P>parsers[j]->priority) {
-                        if (P>0) parsers[largeP]->state=DISABLE;
+                    if (t.end && (t.start<=minP || P>parsers[j]->priority)) {
+                        if (largeP>0) parsers[largeP]->state=DISABLE;
                         P=parsers[j]->priority;
                         largeP=j;
                         maxP=t.end;

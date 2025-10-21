@@ -40,14 +40,14 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     pngtype = (uint8_t)(buf0>>16);
                     pnggray = 0;
                     png*=((buf0&0xFFFF)==0 && pngw && pngh && pngbps==8 && (!pngtype || pngtype==2 || pngtype==3 || pngtype==4 || pngtype==6));
-                    state=INFO;
+                    
                     //printf("PNG %d W:%d H:%d B:%d T:%d\n ",png,pngw,pngh,pngbps,pngtype);
                 } else if (p>12 && pngtype<0){
                     png = 0; state=NONE;    
                 } else if (p==17){
                     png*=((buf1&0xFF)==0);
                     nextchunk =(png)?i+8:0;
-                } else if (p>17 && i==nextchunk){
+                } else if (p>17 && i==nextchunk){state=INFO;
                     nextchunk+=buf1+4+8;//CRC, Chunk length+Id
                     lastchunk = buf0;
                     if (lastchunk==0x504C5445){//PLTE

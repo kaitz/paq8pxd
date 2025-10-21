@@ -127,7 +127,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                         strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
                         strm->next_in=Z_NULL; strm->avail_in=0; strm->total_in=strm->total_out=0;
                         if (zlib_inflateInit(strm,zh)==Z_OK) {
-                            for (uint64_t j=i-(brute?255:31); j<len; j+=1<<16) {
+                            for (uint64_t j=(i%0x10000)-(brute?255:31); j<len; j+=1<<16) {
                                 unsigned int blsize=min(len-j,1<<16);
                                 memcpy(&zin[0], &data[j], blsize);
                                 strm->next_in=zin; strm->avail_in=blsize;
@@ -137,8 +137,8 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                                 } while (strm->avail_out==0 && ret==Z_BUF_ERROR);
                                 if (ret==Z_STREAM_END) streamLength=strm->total_in;
                                 if (ret==Z_BUF_ERROR) {
-                                    // our input block ended so report info
-                                    if (jstart=i-(brute?255:31)+blsize==len){
+                                    // Our input block ended so report info
+                                    if (jstart=(i%0x10000)-(brute?255:31)+blsize==len){
                                         jstart=i-(brute?255:31);
                                         state=INFO;
                                         return state;
@@ -221,9 +221,10 @@ void zlibParser::Reset() {
     memset( &zbuf[0],0,256+32);
     memset( &zin[0],0,1<<16);
     memset( &zout[0],0,1<<16);
-    int zbufpos=0, histogram[256]={};
+    zbufpos=0, histogram[256]={};
     pdfimp=0;zzippos=-1;
     info=i=inSize=0;
+    priority=brute==true?3:2;
 }
 void zlibParser::SetEnd(uint64_t e) {
     jend=e;
