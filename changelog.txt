@@ -1,5 +1,5 @@
 v116
-    -Fix zlib parser.
+    -Fix zlib, mdf, exe parser.
     -Update wav parser.
     -Add mscf (MS Cab) parser.
     -Change Analyzer.

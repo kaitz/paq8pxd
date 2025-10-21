@@ -20,7 +20,7 @@ EXEParser::~EXEParser() {
         ++e8e9count;
         if (e8e9pos==0 || e8e9pos>abspos[a]) e8e9pos=abspos[a];
       }
-      else e8e9count=0;
+      else e8e9count=e8e9pos=0;
       if (state==NONE && e8e9count>=4 && e8e9pos>5){
                jstart=e8e9pos-5;
                type=EXE;
@@ -53,7 +53,7 @@ DetectState EXEParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         } else if (state==START || state==INFO) {
             ReadEXE();
             if (i-e8e9last>0x4000) {
-                jend=jstart+e8e9last;
+                jend=e8e9last;
                 state=END;
                 return state;
             }

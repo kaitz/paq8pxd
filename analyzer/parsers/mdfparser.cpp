@@ -43,6 +43,11 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         uint32_t mdf1=(cdata[96+4]<<24)+(cdata[96+5]<<16)+(cdata[96+6]<<8)+cdata[96+7];
                         if (mdf==0x00ffffff && mdf1==0xffffffff ) mdfa=cdi,cdi=cdm=0; //drop to mdf mode?
                     }
+                    if (cdscont>1) {
+                        // More then on valid cd sector
+                        state=DISABLE;
+                        return state;
+                    }
                     CDHeder *ch=(struct CDHeder*)&cdata[0];
                     int t=expand_cd_sector(cdata, cda, 1); 
                     if (t!=cdm) cdm=t*(i-cdi<2352);
@@ -53,6 +58,7 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         if (cdm!=1 && i-cdi>2352 && ch->sub2!=cdf) cda=10;
                         if (cdm!=1) cdf=ch->sub2;
                         cdatai=0;
+                        cdscont++;
                     } else if (state==START && mdfa==0) {
                         cdi=0,cdatai=0,state=NONE;
                     } /*else {
@@ -121,6 +127,7 @@ void mdfParser::Reset() {
     cda=cdm=cdif=0;
     cdf=0;
     cdatai=0;
+    cdscont=0;
     info=i=inSize=0;
 }
 void mdfParser::SetEnd(uint64_t e) {
