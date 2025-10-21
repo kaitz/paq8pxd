@@ -31,6 +31,8 @@ tarparser       1     TAR
 pngparser       1     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
 bzip2parser     1     BZIP2(CMP)
 szddparser      1     SZDD(CMP)
+szddparser      1     SZDD(CMP)
+mscfparser      2     CMP
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

@@ -44,6 +44,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new PNGParser());
     if (ptype!=BZIP2) AddParser( new bzip2Parser());
     AddParser( new SZDDParser());
+    AddParser( new MSCFParser());
 
     emptyType.start=0;
     emptyType.end=0;
