@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd116"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd117"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -534,7 +534,6 @@ void compressStream(int sid, U64 size, File* in, File* out) {
     if (level>0) delete pred;
     delete enc;
     printf("Stream(");
-    SetConsoleTextAttribute(hConsole, sid+2);
     SetConColor(sid+2);
     printf("%d",sid);
     SetConColor(7);

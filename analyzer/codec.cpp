@@ -28,7 +28,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new base64Filter(std::string("base64"),BASE64));
     AddFilter( new witFilter(std::string("wit"),WIT));
     AddFilter( new uudFilter(std::string("uuencode"),UUENC));
-    AddFilter( new zlibFilter(std::string("zlib"),ZLIB));
+    AddFilter( new preflateFilter(std::string("preflate"),ZLIB));
     AddFilter( new bzip2Filter(std::string("bzip2"),BZIP2));
     AddFilter( new DecAFilter(std::string("dec alpha"),DECA));
     AddFilter( new rleFilter(std::string("rle tga"),RLE));

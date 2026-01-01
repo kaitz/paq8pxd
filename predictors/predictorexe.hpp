@@ -1,5 +1,5 @@
 #pragma once
-#include "Predictors.hpp"
+#include "predictors.hpp"
 #include "../prt/mixer.hpp"
 #include "../prt/EAPM.hpp"
 #include "../prt/ESSE.hpp"

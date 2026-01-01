@@ -1,6 +1,6 @@
 #pragma once
 #include "types.hpp"
-#include <string>
+#include <cstring>
 
 U32 finalize32(const U32 hash, const int hashbits);
 U32 finalize64(const U64 hash, const int hashbits);

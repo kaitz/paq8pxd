@@ -1,4 +1,4 @@
-#include "lstm.hpp"
+#include "LSTM.hpp"
 //original source https://github.com/byronknoll/lstm-compress
 // v3
 

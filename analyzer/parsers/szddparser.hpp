@@ -2,7 +2,7 @@
 #include "../parser.hpp"
 #include <cstdint>
 #include <vector>
-#include <mem.h>
+#include <cstring>
 #include <deque>
 
 //detect LZSS compressed data in compress.exe generated archives

@@ -4,7 +4,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <cinttypes>
-#include <mem.h>
+#include <cstring>
+#include <cstdlib>
 //#ifndef NDEBUG
  void chkindex(U64 index, U64 upper_bound);
 //#endif

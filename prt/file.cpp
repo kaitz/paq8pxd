@@ -1,4 +1,9 @@
 #include "file.hpp"
+#ifdef UNIX
+#include <dirent.h>
+#include <sys/stat.h>
+#include <cerrno>
+#endif
 //////////////////////////// User Interface ////////////////////////////
 
 
@@ -83,7 +88,7 @@ int expand(std::string& archive, std::string& s, const char* fname, int base) {
     dirent *dp;
     while(errno=0, (dp=readdir(dirp))!=0) {
       if (!equals(dp->d_name, ".") && !equals(dp->d_name, "..")) {
-        String d(fname);
+        std::string d(fname);
         d+="/";
         d+=dp->d_name;
         result+=expand(archive, s, d.c_str(), base);
