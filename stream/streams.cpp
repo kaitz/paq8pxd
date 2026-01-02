@@ -32,6 +32,7 @@ Streams::Streams():streams(0){
     streams[0]->dataType.push_back({BZIP2,TR_INFO|TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({ZLIB,TR_INFO|TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({ZIP,TR_RECURSIVE|TR_TRANSFORM});
+    streams[0]->dataType.push_back({GZIP,TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({MDF,TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({EOLTEXT,TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({TAR,TR_NONE|TR_DIRECT});

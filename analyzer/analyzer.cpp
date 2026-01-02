@@ -43,6 +43,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     }
     AddParser( new PNGParser());
     AddParser( new ZIPParser());
+    AddParser( new GZIPParser());
     if (ptype!=BZIP2) AddParser( new bzip2Parser());
     AddParser( new SZDDParser());
     AddParser( new MSCFParser());
@@ -98,8 +99,9 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     type=t.type;
                     //printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
                     pri[parsers[j]->priority]|=true;   // we have valid header, set priority true
+                    break;  // Don't run other parsers while this one is actively detecting
                 } else if (dstate==END){
-                    //printf("T=%d END %s\n",j,parsers[j]->name.c_str());
+                    //printf("T=%zu END %s\n",j,parsers[j]->name.c_str());
                     // request current state data
                     parsers[j]->state=END;
                     typefound=true; // we should ignore pri=4 in some cases?
@@ -135,14 +137,16 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
             for (size_t j=0; j<parsers.size(); j++) {
                 if (parsers[j]->state==INFO || parsers[j]->state==END) { // partial/damaged files?
                     dType t=parsers[j]->getType(0);
-                    //printf("T=%d parser %s\n",j,parsers[j]->name.c_str());
+                    // Clip jend to file size if parser set it larger
+                    if (t.end > n) t.end = n;
+                    //printf("T=%zu parser %s start=%lu end=%lu pri=%d\n",j,parsers[j]->name.c_str(),t.start,t.end,parsers[j]->priority);
                     if (t.end && (t.start<=minP || P>parsers[j]->priority)) {
                         if (largeP>0) parsers[largeP]->state=DISABLE;
                         P=parsers[j]->priority;
                         largeP=j;
                         maxP=t.end;
                         minP=t.start;
-                        //printf("T=%d parser %s is largest %d,%d\n",j,parsers[j]->name.c_str(),minP,maxP);
+                        //printf("largeP=%zu set to %s\n",largeP,parsers[j]->name.c_str());
                     }
                 }
             }
@@ -173,6 +177,10 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                         }
                     }*/
                     //printf("T=%d parser %s\n Start %d,%d\n",j,parsers[j]->name.c_str(),t.start,t.end);
+                    // Clip jend to file size before adding
+                    // For GZIP, subtract 8 for the CRC32+ISIZE trailer
+                    if (t.type == GZIP && t.end > n - 8) t.end = n - 8;
+                    else if (t.end > n) t.end = n;
                     types.push_back(t);
                     return true;
                 }
