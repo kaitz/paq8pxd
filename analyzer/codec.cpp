@@ -29,6 +29,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new witFilter(std::string("wit"),WIT));
     AddFilter( new uudFilter(std::string("uuencode"),UUENC));
     AddFilter( new preflateFilter(std::string("preflate"),ZLIB));
+    AddFilter( new preflateFilter(std::string("zip"),ZIP));
     AddFilter( new bzip2Filter(std::string("bzip2"),BZIP2));
     AddFilter( new DecAFilter(std::string("dec alpha"),DECA));
     AddFilter( new rleFilter(std::string("rle tga"),RLE));
@@ -268,6 +269,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         } else if (type==ZLIB) {
             dataf.encode(in, tmp, len,0);   
             diffFound=dataf.diffFound;
+        } else if (type==ZIP) {
+            dataf.encode(in, tmp, len,0);   
+            diffFound=dataf.diffFound;
         } else if (type==BZIP2){
             dataf.encode(in, tmp, len,info=info+256*17);
         } else if (type==CD) dataf.encode(in, tmp, (len), info);
@@ -285,7 +289,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         int tfail=0;
         tmp->setpos(0);
         
-        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
+        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==ZLIB || type==ZIP || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
                 type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
             
             in->setpos(begin);
@@ -298,6 +302,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             } else if (type==BASE85 ) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==ZLIB && !diffFound) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==ZIP && !diffFound) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==BZIP2  )     {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=info+256*17), FCOMPARE);

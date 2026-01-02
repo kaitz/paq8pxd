@@ -94,12 +94,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     }
                 }
             }
-            if (zh==-1 && zbuf[(zbufpos-32)&0xFF]=='P' && zbuf[(zbufpos-32+1)&0xFF]=='K' && zbuf[(zbufpos-32+2)&0xFF]=='\x3'
-                    && zbuf[(zbufpos-32+3)&0xFF]=='\x4' && zbuf[(zbufpos-32+8)&0xFF]=='\x8' && zbuf[(zbufpos-32+9)&0xFF]=='\0') {
-                int nlen=(int)zbuf[(zbufpos-32+26)&0xFF]+((int)zbuf[(zbufpos-32+27)&0xFF])*256
-                +(int)zbuf[(zbufpos-32+28)&0xFF]+((int)zbuf[(zbufpos-32+29)&0xFF])*256;
-                if (nlen<256 && i+30+nlen<len/*n*/) zzippos=i+30+nlen;
-            }
+            // ZIP detection removed - now handled by ZIPParser
             if (i-pdfimp>1024) pdfim=pdfimw=pdfimh=pdfimb=pdfgray=0;
             if (pdfim>1 && !(isspace(c) || isdigit(c))) pdfim=1;
             if (pdfim==2 && isdigit(c)) pdfimw=pdfimw*10+(c-'0');
@@ -111,7 +106,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             if (pdfim && buf3==0x42697473 && buf2==0x50657243 && buf1==0x6f6d706f
                     && buf0==0x6e656e74 && zbuf[(zbufpos-32+15)&0xFF]=='/') pdfim=4,pdfimb=0; // /BitsPerComponent
             if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
-            if (valid || zzippos==i || state==START) {
+            if (valid || state==START) {
                 // look for MS ZIP header, if found disable zlib
                 int j=i-(brute?255:31);
                 if (j<len && data[j-4]==0x00 && data[j-3]==0x80 && data[j-2]==0x43 && data[j-1]==0x4b/* && ((data[j]>>1)&3)!=3 */) {
@@ -119,7 +114,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 }
                 if (state!=DISABLE){
                     
-                    int streamLength=0, ret=0, brute=(zh==-1 && zzippos!=i);
+                    int streamLength=0, ret=0, brute=(zh==-1);
                     // Quick check possible stream by decompressing first 32 bytes
                     strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
                     strm->next_in=Z_NULL; strm->avail_in=0;
@@ -229,7 +224,7 @@ void zlibParser::Reset() {
     memset( &zin[0],0,1<<16);
     memset( &zout[0],0,1<<16);
     zbufpos=0, histogram[256]={};
-    pdfimp=0;zzippos=-1;
+    pdfimp=0;
     info=i=inSize=0;
     priority=brute==true?3:2;
 }
