@@ -15,16 +15,23 @@ zlibParser::~zlibParser() {
 }
 
 int zlibParser::parse_zlib_header(int header) {
-    switch (header) {
-    case 0x2815 : return 0;  case 0x2853 : return 1;  case 0x2891 : return 2;  case 0x28cf : return 3;
-    case 0x3811 : return 4;  case 0x384f : return 5;  case 0x388d : return 6;  case 0x38cb : return 7;
-    case 0x480d : return 8;  case 0x484b : return 9;  case 0x4889 : return 10; case 0x48c7 : return 11;
-    case 0x5809 : return 12; case 0x5847 : return 13; case 0x5885 : return 14; case 0x58c3 : return 15;
-    case 0x6805 : return 16; case 0x6843 : return 17; case 0x6881 : return 18; case 0x68de : return 19;
-    case 0x7801 : return 20; case 0x785e : return 21; case 0x789c : return 22; case 0x78da : return 23;
-    }
-    return -1;
+    // RFC 1950: CMF*256 + FLG must be divisible by 31
+    if ((header % 31) != 0) return -1;
+    
+    int cmf = header >> 8;         // First byte
+    int flg = header & 0xFF;       // Second byte
+    int cm = cmf & 0x0F;           // Compression method (must be 8 for deflate)
+    int cinfo = cmf >> 4;          // Window size: log2(window_size) - 8
+    int fdict = (flg >> 5) & 1;    // Preset dictionary flag
+    
+    if (cm != 8) return -1;        // Must be deflate
+    if (fdict != 0) return -1;     // Preset dictionary not supported
+    if (cinfo > 7) return -1;      // Window size max 32K (cinfo=7 means 2^15)
+    
+    // Return window bits (8-15) for inflateInit2
+    return cinfo + 8;
 }
+
 
 int zlibParser::zlib_inflateInit(z_streamp strm, int zh) {
     if (zh==-1) return inflateInit2(strm, -MAX_WBITS); else return inflateInit(strm);
