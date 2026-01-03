@@ -301,8 +301,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         int tfail=0;
         tmp->setpos(0);
         
-        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==ZLIB || type==ZIP || type==GZIP || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
-                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY ){
+        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
+                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
             
             in->setpos(begin);
             if (type==BASE64 ) {
@@ -312,12 +312,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             } else if (type==MDF ) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==BASE85 ) {
-                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-            } else if (type==ZLIB && !diffFound) {
-                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-            } else if (type==ZIP && !diffFound) {
-                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-            } else if (type==GZIP && !diffFound) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==BZIP2  )     {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=info+256*17), FCOMPARE);
@@ -345,8 +339,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
             else if (type==EOLTEXT ){
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-            } else if ((type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && !diffFound) {
-                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             }
             if (type==EOLTEXT && (diffFound )) {
                 // if fail fall back to text
@@ -358,6 +350,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
             }         
             tfail=(diffFound || tmp->getc()!=EOF); 
+        }
+        // Preflate types (ZLIB, ZIP, GZIP, PNG) skip verification but check if encoding failed
+        if ((type==ZLIB || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
+            tfail = 1;
         }
         // Test fails, compress without transform
         if (tfail) {
