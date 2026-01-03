@@ -2,7 +2,7 @@
 #include "../parser.hpp"
 #include <cstdint>
 #include <vector>
-#include <mem.h>
+#include <cstring>
 // Detect EXE if the low order byte (little-endian) XX is more
 // recently seen (and within 4K) if a relative to absolute address
 // conversion is done in the context CALL/JMP (E8/E9) XX xx xx 00/FF

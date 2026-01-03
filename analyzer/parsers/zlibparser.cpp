@@ -15,16 +15,23 @@ zlibParser::~zlibParser() {
 }
 
 int zlibParser::parse_zlib_header(int header) {
-    switch (header) {
-    case 0x2815 : return 0;  case 0x2853 : return 1;  case 0x2891 : return 2;  case 0x28cf : return 3;
-    case 0x3811 : return 4;  case 0x384f : return 5;  case 0x388d : return 6;  case 0x38cb : return 7;
-    case 0x480d : return 8;  case 0x484b : return 9;  case 0x4889 : return 10; case 0x48c7 : return 11;
-    case 0x5809 : return 12; case 0x5847 : return 13; case 0x5885 : return 14; case 0x58c3 : return 15;
-    case 0x6805 : return 16; case 0x6843 : return 17; case 0x6881 : return 18; case 0x68de : return 19;
-    case 0x7801 : return 20; case 0x785e : return 21; case 0x789c : return 22; case 0x78da : return 23;
-    }
-    return -1;
+    // RFC 1950: CMF*256 + FLG must be divisible by 31
+    if ((header % 31) != 0) return -1;
+    
+    int cmf = header >> 8;         // First byte
+    int flg = header & 0xFF;       // Second byte
+    int cm = cmf & 0x0F;           // Compression method (must be 8 for deflate)
+    int cinfo = cmf >> 4;          // Window size: log2(window_size) - 8
+    int fdict = (flg >> 5) & 1;    // Preset dictionary flag
+    
+    if (cm != 8) return -1;        // Must be deflate
+    if (fdict != 0) return -1;     // Preset dictionary not supported
+    if (cinfo > 7) return -1;      // Window size max 32K (cinfo=7 means 2^15)
+    
+    // Return window bits (8-15) for inflateInit2
+    return cinfo + 8;
 }
+
 
 int zlibParser::zlib_inflateInit(z_streamp strm, int zh) {
     if (zh==-1) return inflateInit2(strm, -MAX_WBITS); else return inflateInit(strm);
@@ -87,12 +94,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     }
                 }
             }
-            if (zh==-1 && zbuf[(zbufpos-32)&0xFF]=='P' && zbuf[(zbufpos-32+1)&0xFF]=='K' && zbuf[(zbufpos-32+2)&0xFF]=='\x3'
-                    && zbuf[(zbufpos-32+3)&0xFF]=='\x4' && zbuf[(zbufpos-32+8)&0xFF]=='\x8' && zbuf[(zbufpos-32+9)&0xFF]=='\0') {
-                int nlen=(int)zbuf[(zbufpos-32+26)&0xFF]+((int)zbuf[(zbufpos-32+27)&0xFF])*256
-                +(int)zbuf[(zbufpos-32+28)&0xFF]+((int)zbuf[(zbufpos-32+29)&0xFF])*256;
-                if (nlen<256 && i+30+nlen<len/*n*/) zzippos=i+30+nlen;
-            }
+            // ZIP detection removed - now handled by ZIPParser
             if (i-pdfimp>1024) pdfim=pdfimw=pdfimh=pdfimb=pdfgray=0;
             if (pdfim>1 && !(isspace(c) || isdigit(c))) pdfim=1;
             if (pdfim==2 && isdigit(c)) pdfimw=pdfimw*10+(c-'0');
@@ -104,7 +106,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             if (pdfim && buf3==0x42697473 && buf2==0x50657243 && buf1==0x6f6d706f
                     && buf0==0x6e656e74 && zbuf[(zbufpos-32+15)&0xFF]=='/') pdfim=4,pdfimb=0; // /BitsPerComponent
             if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
-            if (valid || zzippos==i || state==START) {
+            if (valid || state==START) {
                 // look for MS ZIP header, if found disable zlib
                 int j=i-(brute?255:31);
                 if (j<len && data[j-4]==0x00 && data[j-3]==0x80 && data[j-2]==0x43 && data[j-1]==0x4b/* && ((data[j]>>1)&3)!=3 */) {
@@ -112,7 +114,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 }
                 if (state!=DISABLE){
                     
-                    int streamLength=0, ret=0, brute=(zh==-1 && zzippos!=i);
+                    int streamLength=0, ret=0, brute=(zh==-1);
                     // Quick check possible stream by decompressing first 32 bytes
                     strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
                     strm->next_in=Z_NULL; strm->avail_in=0;
@@ -222,7 +224,7 @@ void zlibParser::Reset() {
     memset( &zin[0],0,1<<16);
     memset( &zout[0],0,1<<16);
     zbufpos=0, histogram[256]={};
-    pdfimp=0;zzippos=-1;
+    pdfimp=0;
     info=i=inSize=0;
     priority=brute==true?3:2;
 }

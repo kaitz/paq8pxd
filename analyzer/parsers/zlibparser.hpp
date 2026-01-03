@@ -8,7 +8,6 @@
 class zlibParser: public Parser {
     uint8_t zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
     int zbufpos=0, histogram[256]={};
-    uint64_t zzippos;
     //bool valid;
     bool brute;
     int pdfim,pdfimw,pdfimh,pdfimb,pdfgray;

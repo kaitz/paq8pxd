@@ -36,6 +36,8 @@
 #include "parsers/bzip2parser.hpp"
 #include "parsers/szddparser.hpp"
 #include "parsers/mscfparser.hpp"
+#include "parsers/zipparser.hpp"
+#include "parsers/gzipparser.hpp"
 
 class Analyzer {
     uint64_t info;

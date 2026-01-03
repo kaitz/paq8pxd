@@ -16,6 +16,9 @@
 
 // base class for file type detection
 
+// Forward declaration - actual class in prt/file.hpp
+class File;
+
 struct dType {
     uint64_t start;     // start pos of type data in block
     uint64_t end;       // end pos of type data in block
@@ -29,6 +32,7 @@ struct dType {
 class Parser {
 public:
     DetectState state;       // State of current detection
+    File* file_handle;       // Optional file handle for parsers that need to probe ahead
     std::vector<dType> type; // For multiple data in detected format.
                              // Some formats (tar, tiff, etc..) have 
                              // multiple (non)recursive data types inside. We collect data for all

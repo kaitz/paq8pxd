@@ -4,7 +4,7 @@
 #include "array.hpp"
 #include "segment.hpp"
 #include "buffers.hpp"
-//#include <mem.h> 
+//#include <cstring> 
 U64 MEM();
 // Contain all global data usable between models
 class BlockData {

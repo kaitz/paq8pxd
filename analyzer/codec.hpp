@@ -21,7 +21,7 @@
 #include "../filters/base64filter.hpp"
 #include "../filters/witfilter.hpp"
 #include "../filters/uudfilter.hpp"
-#include "../filters/zlibfilter.hpp"
+#include "../filters/preflatefilter.hpp"
 #include "../filters/bzip2filter.hpp"
 #include "../filters/decafilter.hpp"
 #include "../filters/rlefilter.hpp"

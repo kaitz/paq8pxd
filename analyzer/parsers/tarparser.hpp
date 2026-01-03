@@ -2,7 +2,7 @@
 #include "../parser.hpp"
 #include <cstdint>
 #include <vector>
-#include <mem.h>
+#include <cstring>
 
 struct TARheader{
     char name[100];

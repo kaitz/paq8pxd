@@ -1,4 +1,5 @@
 #include "codec.hpp"
+#include "../filters/pngfilter.hpp"
 
 extern int verbose;
 extern bool witmode; //-w
@@ -28,8 +29,14 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new base64Filter(std::string("base64"),BASE64));
     AddFilter( new witFilter(std::string("wit"),WIT));
     AddFilter( new uudFilter(std::string("uuencode"),UUENC));
-    AddFilter( new zlibFilter(std::string("zlib"),ZLIB));
+    AddFilter( new preflateFilter(std::string("preflate"),ZLIB));
+    AddFilter( new preflateFilter(std::string("zip"),ZIP));
+    AddFilter( new preflateFilter(std::string("gzip"),GZIP));
     AddFilter( new bzip2Filter(std::string("bzip2"),BZIP2));
+    AddFilter( new PNGFilter(std::string("png"),PNG24));
+    AddFilter( new PNGFilter(std::string("png"),PNG32));
+    AddFilter( new PNGFilter(std::string("png"),PNG8));
+    AddFilter( new PNGFilter(std::string("png"),PNG8GRAY));
     AddFilter( new DecAFilter(std::string("dec alpha"),DECA));
     AddFilter( new rleFilter(std::string("rle tga"),RLE));
     AddFilter( new base85Filter(std::string("base85"),BASE85));
@@ -111,7 +118,7 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
         #endif
         Filter& dataf=GetFilter(type); 
         if (srid>STR_NONE && srid!=STR_TEXT0 && srid!=STR_TEXT && (ti&TR_TRANSFORM)==TR_TRANSFORM) {
-            printf("Filter: %s\n",dataf.name.c_str());
+            //printf("Filter: %s\n",dataf.name.c_str());
             diffFound=dataf.CompareFiles(in,out,len,uint64_t(info),mode);
             len=dataf.fsize;
         }  
@@ -268,6 +275,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         } else if (type==ZLIB) {
             dataf.encode(in, tmp, len,0);   
             diffFound=dataf.diffFound;
+        } else if (type==ZIP) {
+            dataf.encode(in, tmp, len,0);   
+            diffFound=dataf.diffFound;
+        } else if (type==GZIP) {
+            dataf.encode(in, tmp, len,0);   
+            diffFound=dataf.diffFound;
+        } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
+            dataf.encode(in, tmp, len, 0);
+            diffFound=dataf.diffFound;
         } else if (type==BZIP2){
             dataf.encode(in, tmp, len,info=info+256*17);
         } else if (type==CD) dataf.encode(in, tmp, (len), info);
@@ -285,7 +301,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         int tfail=0;
         tmp->setpos(0);
         
-        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==ZLIB || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
+        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
                 type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
             
             in->setpos(begin);
@@ -296,8 +312,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             } else if (type==MDF ) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==BASE85 ) {
-                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-            } else if (type==ZLIB && !diffFound) {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==BZIP2  )     {
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=info+256*17), FCOMPARE);
@@ -337,6 +351,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             }         
             tfail=(diffFound || tmp->getc()!=EOF); 
         }
+        // Preflate types (ZLIB, ZIP, GZIP, PNG) skip verification but check if encoding failed
+        if ((type==ZLIB || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
+            tfail = 1;
+        }
         // Test fails, compress without transform
         if (tfail) {
             if (verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
@@ -353,7 +371,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 direct_encode_blockstream(type, tmp, tmpsize);
             } else if (type==DECA || type==ARM) {
                 direct_encode_blockstream(type, tmp, tmpsize);
-            } else if (type==IMAGE24 || type==IMAGE32) {
+            } else if (type==IMAGE24 || type==IMAGE32 || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
                 direct_encode_blockstream(type, tmp, tmpsize, info);
             } else if (type==MRBR || type==MRBR4) {
                 segment->putdata(type,tmpsize,0);

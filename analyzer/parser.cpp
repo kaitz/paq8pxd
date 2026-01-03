@@ -1,6 +1,6 @@
 #include "parser.hpp"
 
-Parser::Parser():state(NONE),priority(0),name("default"),pinfo("") {
+Parser::Parser():state(NONE),priority(0),name("default"),pinfo(""),file_handle(nullptr) {
 }
 
 Parser::~Parser() {

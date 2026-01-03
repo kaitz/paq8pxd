@@ -534,7 +534,6 @@ void compressStream(int sid, U64 size, File* in, File* out) {
     if (level>0) delete pred;
     delete enc;
     printf("Stream(");
-    SetConsoleTextAttribute(hConsole, sid+2);
     SetConColor(sid+2);
     printf("%d",sid);
     SetConColor(7);

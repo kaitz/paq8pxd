@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <string>
-#include <mem.h>
+#include <cstring>
 #include <algorithm>
 
 // Detect images in tiff conteiner. MM and II mode.
