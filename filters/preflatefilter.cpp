@@ -1,6 +1,6 @@
 #include "preflatefilter.hpp"
 #include "preflate_adapters.hpp"
-#include "preflate/preflate.h"
+#include "../preflate/preflate.h"
 #include <vector>
 
 preflateFilter::preflateFilter(std::string n, Filetype f) {

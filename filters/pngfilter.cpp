@@ -1,6 +1,6 @@
 #include "pngfilter.hpp"
 #include "preflate_adapters.hpp"
-#include "preflate/preflate.h"
+#include "../preflate/preflate.h"
 #include <vector>
 #include <cstring>
 #include <algorithm>
