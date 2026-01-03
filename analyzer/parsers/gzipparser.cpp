@@ -1,4 +1,7 @@
 #include "gzipparser.hpp"
+#include "../../prt/file.hpp"
+#include "../../filters/preflate_adapters.hpp"
+#include "../../preflate/preflate.h"
 #include <cstdio>
 #include <cstring>
 
@@ -14,11 +17,7 @@ GZIPParser::~GZIPParser() {
 }
 
 // Detect GZip headers: \x1f\x8b\x08 (magic + deflate method)
-// Simple approach: detect header and return END with jend = UINT64_MAX - 8
-// The Analyzer clips jend to file_size, which works for whole-file gzip.
-// The preflateFilter handles actual deflate stream length during decode.
-// NOTE: This approach fails for small gzip files embedded in larger containers
-// (e.g., gzip inside tar). Proper support would require File* access from parser.
+// Uses file_handle to probe exact deflate stream length via preflate_decode
 
 DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     if (pos == 0 && len < 18) return DISABLE;
@@ -88,17 +87,48 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     // Deflate stream starts after header
                     jstart = hdr_start + header_len;
                     
-                    // Set jend to a very large value minus 8 (for CRC32+ISIZE trailer)
-                    // Analyzer will clip this to file_size - 8
-                    jend = UINT64_MAX - 8;
+                    // Use file_handle to probe exact stream length via preflate
+                    if (file_handle != nullptr) {
+                        // Save current file position
+                        uint64_t saved_pos = file_handle->curpos();
+                        
+                        // Seek to deflate stream start
+                        file_handle->setpos(jstart);
+                        
+                        // Use preflate_decode to find exact length
+                        // Use a large estimate for available data (will stop at stream end)
+                        uint64_t max_deflate = UINT64_MAX;  // Let preflate find the end
+                        FileInputStream fis(file_handle, max_deflate);
+                        
+                        std::vector<unsigned char> unpacked;
+                        std::vector<unsigned char> recon_info;
+                        uint64_t deflate_size = 0;
+                        
+                        bool ok = preflate_decode(unpacked, recon_info, deflate_size, fis,
+                                                  [](){}, 0);
+                        
+                        // Restore file position
+                        file_handle->setpos(saved_pos);
+                        
+                        if (ok && deflate_size > 0) {
+                            jend = jstart + deflate_size;
+                            type = GZIP;
+                            info = 0;
+                            state = END;
+                            return END;
+                        }
+                        // preflate failed (e.g., recursive stream with wrong file context)
+                    }
                     
+                    // Fall back to simple approach - set jend to max, Analyzer clips to file_size-8
+                    jend = UINT64_MAX - 8;
                     type = GZIP;
                     info = 0;
                     state = END;
                     return END;
-                }
-            }
-        }
+                }  // end if ((flags & 0xE0) == 0)
+            }  // end if ((buf0 >> 8) == 0x1F8B08)
+        }  // end if (state == NONE)
         
         inSize++;
         i++;

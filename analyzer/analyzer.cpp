@@ -41,7 +41,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     if (ptype!=TAR) {
         AddParser( new TARParser());
     }
-    AddParser( new PNGParser());
+    // AddParser( new PNGParser());  // DISABLED: being revamped, causes false INFO returns
     AddParser( new ZIPParser());
     AddParser( new GZIPParser());
     if (ptype!=BZIP2) AddParser( new bzip2Parser());
@@ -90,6 +90,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
         // Pass the data block to the parsers one by one
         for (size_t j=0; j<parsers.size(); j++) {
             if (parsers[j]->state!=DISABLE) {
+                parsers[j]->file_handle = in;  // Give parser access to file for probing
                 //printf("T=%d parser %s PARSE\n",j,parsers[j]->name.c_str());
                 //open type detection file and load into memory
                 DetectState dstate=parsers[j]->Parse(&blk[0],ReadIn,n-remaining,(remaining-ReadIn)==0?true:false);
@@ -99,7 +100,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     type=t.type;
                     //printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
                     pri[parsers[j]->priority]|=true;   // we have valid header, set priority true
-                    break;  // Don't run other parsers while this one is actively detecting
+                    // INFO means "might be something" - don't break, let other parsers check too
                 } else if (dstate==END){
                     //printf("T=%zu END %s\n",j,parsers[j]->name.c_str());
                     // request current state data
