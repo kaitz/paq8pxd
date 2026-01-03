@@ -117,15 +117,9 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                             state = END;
                             return END;
                         }
-                        // preflate failed (e.g., recursive stream with wrong file context)
+                        // preflate failed - not a valid GZIP stream, continue scanning
                     }
-                    
-                    // Fall back to simple approach - set jend to max, Analyzer clips to file_size-8
-                    jend = UINT64_MAX - 8;
-                    type = GZIP;
-                    info = 0;
-                    state = END;
-                    return END;
+                    // No file_handle or preflate failed - continue scanning for other matches
                 }  // end if ((flags & 0xE0) == 0)
             }  // end if ((buf0 >> 8) == 0x1F8B08)
         }  // end if (state == NONE)

@@ -1,3 +1,6 @@
+v121
+    -Fix GZIP parser false positive detection that suppressed bzip2/tar detection.
+     The fallback was incorrectly returning END even when preflate validation failed.
 v120
     -Reintroduce PNG (.png) file format detection and preprocessing support.
     -Understands multi-IDAT chunks.
