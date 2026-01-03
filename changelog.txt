@@ -1,3 +1,16 @@
+v119
+    -Add GZIP (.gz) file format detection and preprocessing support.
+    -Implement GZIP header detection with proper header length calculation.
+    -Integrate with deflate preprocessing filter for compression/decompression.
+v118
+    -Add ZIP file format detection and deflate compression handling.
+    -Enhance analyzer to detect ZIP files and handle their deflate streams.
+v117
+    -Replace zlib filter with preflate filter for improved compression.
+    -Add build support for the preflate library.
+    -Fix non-portable GCC-only compiler flags.
+    -Correct C++ standard header includes.
+    -Fix case-sensitivity in predictor includes.
 v116
     -Fix zlib, mdf, exe parser.
     -Update wav parser.
