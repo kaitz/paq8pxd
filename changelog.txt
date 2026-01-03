@@ -1,3 +1,7 @@
+v120
+    -Reintroduce PNG (.png) file format detection and preprocessing support.
+    -Understands multi-IDAT chunks.
+    -Non-standard and optimized images are recognized as well.
 v119
     -Add GZIP (.gz) file format detection and preprocessing support.
     -Implement GZIP header detection with proper header length calculation.

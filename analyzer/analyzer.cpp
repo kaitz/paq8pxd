@@ -41,7 +41,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     if (ptype!=TAR) {
         AddParser( new TARParser());
     }
-    // AddParser( new PNGParser());  // DISABLED: being revamped, causes false INFO returns
+    AddParser( new PNGParser());
     AddParser( new ZIPParser());
     AddParser( new GZIPParser());
     if (ptype!=BZIP2) AddParser( new bzip2Parser());

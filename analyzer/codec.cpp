@@ -1,4 +1,5 @@
 #include "codec.hpp"
+#include "../filters/pngfilter.hpp"
 
 extern int verbose;
 extern bool witmode; //-w
@@ -32,6 +33,10 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new preflateFilter(std::string("zip"),ZIP));
     AddFilter( new preflateFilter(std::string("gzip"),GZIP));
     AddFilter( new bzip2Filter(std::string("bzip2"),BZIP2));
+    AddFilter( new PNGFilter(std::string("png"),PNG24));
+    AddFilter( new PNGFilter(std::string("png"),PNG32));
+    AddFilter( new PNGFilter(std::string("png"),PNG8));
+    AddFilter( new PNGFilter(std::string("png"),PNG8GRAY));
     AddFilter( new DecAFilter(std::string("dec alpha"),DECA));
     AddFilter( new rleFilter(std::string("rle tga"),RLE));
     AddFilter( new base85Filter(std::string("base85"),BASE85));
@@ -276,6 +281,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         } else if (type==GZIP) {
             dataf.encode(in, tmp, len,0);   
             diffFound=dataf.diffFound;
+        } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
+            dataf.encode(in, tmp, len, 0);
+            diffFound=dataf.diffFound;
         } else if (type==BZIP2){
             dataf.encode(in, tmp, len,info=info+256*17);
         } else if (type==CD) dataf.encode(in, tmp, (len), info);
@@ -294,7 +302,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         tmp->setpos(0);
         
         if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==ZLIB || type==ZIP || type==GZIP || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
-                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
+                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY ){
             
             in->setpos(begin);
             if (type==BASE64 ) {
@@ -337,6 +345,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
             else if (type==EOLTEXT ){
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if ((type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && !diffFound) {
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             }
             if (type==EOLTEXT && (diffFound )) {
                 // if fail fall back to text
@@ -365,7 +375,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 direct_encode_blockstream(type, tmp, tmpsize);
             } else if (type==DECA || type==ARM) {
                 direct_encode_blockstream(type, tmp, tmpsize);
-            } else if (type==IMAGE24 || type==IMAGE32) {
+            } else if (type==IMAGE24 || type==IMAGE32 || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
                 direct_encode_blockstream(type, tmp, tmpsize, info);
             } else if (type==MRBR || type==MRBR4) {
                 segment->putdata(type,tmpsize,0);

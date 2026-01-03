@@ -54,13 +54,13 @@ Streams::Streams():streams(0){
     //STR_IMAGE8
     streams[5]->dataType.push_back({IMAGE8,TR_INFO});
     streams[5]->dataType.push_back({IMAGE8GRAY,TR_INFO});
-    streams[5]->dataType.push_back({PNG8,TR_INFO});
-    streams[5]->dataType.push_back({PNG8GRAY,TR_INFO});
+    streams[5]->dataType.push_back({PNG8,TR_INFO|TR_TRANSFORM});
+    streams[5]->dataType.push_back({PNG8GRAY,TR_INFO|TR_TRANSFORM});
     //STR_IMAGE24
     streams[6]->dataType.push_back({IMAGE24,TR_INFO|TR_TRANSFORM});
     streams[6]->dataType.push_back({IMAGE32,TR_INFO|TR_TRANSFORM});
-    streams[6]->dataType.push_back({PNG24,TR_INFO});
-    streams[6]->dataType.push_back({PNG32,TR_INFO});
+    streams[6]->dataType.push_back({PNG24,TR_INFO|TR_TRANSFORM});
+    streams[6]->dataType.push_back({PNG32,TR_INFO|TR_TRANSFORM});
     //STR_AUDIO
     streams[7]->dataType.push_back({AUDIO,TR_INFO});
     //STR_EXE

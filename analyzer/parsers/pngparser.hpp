@@ -12,6 +12,8 @@ class PNGParser: public Parser {
     uint32_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
+    uint64_t idat_end;
+    int idats;
 public:    
     PNGParser();
     ~PNGParser();
