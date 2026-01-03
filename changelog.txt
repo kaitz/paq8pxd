@@ -1,3 +1,6 @@
+v117
+    -Fix jpeg detection. 
+     Tiff can be as Exif image inside jpeg, so set same priority.
 v116
     -Fix zlib, mdf, exe parser.
     -Update wav parser.
