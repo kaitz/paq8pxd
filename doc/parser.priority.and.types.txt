@@ -3,7 +3,7 @@ bmpparser       2     IMAGE1 IMAGE8 IMAGE4 IMAGE24
 decaparser      2     DECA
 default         4     DEFAULT
 exeparser       2     EXE
-jpegparser      2     JPEG
+jpegparser      1     JPEG
 mrbparser       2     MRBR(IMAGE8,CMP) MRBR4(IMAGE4,CMP) IMAGE1
 mszipparser     2     MSZIP(CMP)
 nesparser       2     NESROM DEFAULT)

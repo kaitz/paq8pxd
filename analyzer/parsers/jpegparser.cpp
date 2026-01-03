@@ -1,7 +1,7 @@
 #include "jpegparser.hpp"
 
 JPEGParser::JPEGParser() {
-    priority=2;
+    priority=1;
     Reset();
     inpos=0;
     name="jpeg";
@@ -25,14 +25,14 @@ DetectState JPEGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
 
-        if (state==NONE && /*i>3 &&*/ (((buf0&0xffffff00)==0xffd8ff00 && ((c&0xfe)==0xC0 || c==0xC4 || (c>=0xDB && c<=0xFE))) ||
+        if (state==NONE && (((buf0&0xffffff00)==0xffd8ff00 && ((c&0xfe)==0xC0 || c==0xC4 || (c>=0xDB && c<=0xFE))) ||
                 (buf0&0xfffffff0)==0xffd8ffe0)) {
             state=START;
             soi=i, app=i+2, sos=sof=0;
         } else if (state==START || state==INFO) {
             if (app==i && (buf0>>24)==0xff &&
-                    ((buf0>>16)&0xff)>0xc1 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2;//,brute=false;
-            if (app<i && (buf1&0xff)==0xff && (buf0&0xfe0000ff)==0xc0000008) sof=i;//,brute=false;
+                    ((buf0>>16)&0xff)>0xc1 && ((buf0>>16)&0xff)<0xff) app=i+(buf0&0xffff)+2;
+            if (app<i && (buf1&0xff)==0xff && (buf0&0xfe0000ff)==0xc0000008) sof=i;
             if (sof && sof>soi && i-sof<0x1000 && (buf0&0xffff)==0xffda) {
                 sos=i;
                 jstart=soi-3;
@@ -58,7 +58,7 @@ DetectState JPEGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         inSize++;
         i++;
     }
-    if (state==INFO) return INFO;
+    if (state==INFO) {jend=i+1; return INFO;}
     // Are we still reading data for our type
     if (state!=NONE)
     return DATA;
