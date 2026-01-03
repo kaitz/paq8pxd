@@ -33,7 +33,7 @@ rem pause
 
 IF %ERRORLEVEL% NEQ 0 goto end
 
-%gcc% -static %options% %models_list% %predictors_list% %wrt_list% %prt_list% %stream_list% %filters_list% %analyzer_list% %parser_list% %src_list% -opaq8pxd.exe -s zlib.a bzip2.a  2>_error_log.txt
+%gcc% -static %options% %models_list% %predictors_list% %wrt_list% %prt_list% %stream_list% %filters_list% %analyzer_list% %parser_list% %src_list% -opaq8pxd.exe -s zlib.a bzip2.a preflate.a  2>_error_log.txt
 IF %ERRORLEVEL% NEQ 0 goto end
 
 :end
