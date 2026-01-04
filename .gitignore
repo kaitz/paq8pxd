@@ -1,2 +1,11 @@
+# CMake build directories
 build/
+build_*/
 .cache/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile

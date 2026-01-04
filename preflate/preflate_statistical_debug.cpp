@@ -13,6 +13,8 @@
    limitations under the License. */
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <string.h>
 #include "preflate_statistical_codec.h"
 #include "preflate_statistical_model.h"

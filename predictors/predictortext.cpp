@@ -166,7 +166,7 @@ void PredictorTXTWRT::update() {
         if (slow==true) models[M_PPM]->p(*m);
         if (slow==true) models[M_CHART]->p(*m);
         if (slow==true) models[M_LSTM]->p(*m);
-        int dd=(pr>>9)>0+(pr>>9)>14;//+pr>7;
+        int dd=((pr>>9)>0?1:0)+((pr>>9)>14?1:0);
         dd=(dd<<7)|(x.bc4&127);
         dd=(dd<<8)|(x.buf(1));
         dd=(dd<<8)|x.c0;
