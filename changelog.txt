@@ -1,4 +1,6 @@
-v122
+v124
+    -Fix detection
+v123
     -Fix gzip parsing.
     -Fix bzip2 memory leak.
 v122

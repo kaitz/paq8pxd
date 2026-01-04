@@ -121,7 +121,9 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                 if (p) {
                     for (size_t j=0; j<parsers.size(); j++) {
                         if (parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
-                            parsers[j]->state=DISABLE;
+                            //if (parsers[j]->state!=NONE) printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
+                            dType t=parsers[j]->getType(0);
+                            if (t.type!=DEFAULT)parsers[j]->state=DISABLE; // ignore default type
                             //printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                         }
                     }
