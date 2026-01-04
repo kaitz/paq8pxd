@@ -15,6 +15,7 @@
 #ifndef PREFLATE_SEQ_CHAIN_H
 #define PREFLATE_SEQ_CHAIN_H
 
+#include <cstdint>
 #include <algorithm>
 #include "preflate_input.h"
 

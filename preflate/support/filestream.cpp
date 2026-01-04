@@ -17,6 +17,11 @@
 #include <stdio.h>
 #include "filestream.h"
 
+#ifndef _WIN32
+#define _ftelli64 ftello64
+#define _fseeki64 fseeko64
+#endif
+
 FileStream::FileStream(FILE* f) : _f(f) {}
 
 bool FileStream::eof() const {

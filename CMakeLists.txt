@@ -20,8 +20,6 @@ file(GLOB MODEL_SOURCES "models/*.cpp")
 file(GLOB ZLIB_SOURCES "zlib/*.c")
 file(GLOB BZIP2_SOURCES "bzip2/*.c")
 
-# Exclude the old zlibfilter.cpp since we're replacing it with preflatefilter
-list(FILTER FILTER_SOURCES EXCLUDE REGEX "zlibfilter\\.cpp$")
 
 option(UNIX "Whether to build for Unix. Otherwise, build for Windows" OFF)
 option(NATIVECPU "Whether to build for your cpu (vs. the general public)" OFF)
