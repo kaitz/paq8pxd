@@ -1,3 +1,8 @@
+v122
+    -Re-enable zlibFilter.
+    -Add PREFLATE type.
+    -Test ZLIB transform fail and use PREFLATE if needed.
+    -Fix for bzip2, tar parser.
 v121
     -Fix GZIP parser false positive detection that suppressed bzip2/tar detection.
      The fallback was incorrectly returning END even when preflate validation failed.

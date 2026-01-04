@@ -29,7 +29,8 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new base64Filter(std::string("base64"),BASE64));
     AddFilter( new witFilter(std::string("wit"),WIT));
     AddFilter( new uudFilter(std::string("uuencode"),UUENC));
-    AddFilter( new preflateFilter(std::string("preflate"),ZLIB));
+    AddFilter( new preflateFilter(std::string("preflate"),PREFLATE));
+    AddFilter( new zlibFilter(std::string("zlib"),ZLIB));
     AddFilter( new preflateFilter(std::string("zip"),ZIP));
     AddFilter( new preflateFilter(std::string("gzip"),GZIP));
     AddFilter( new bzip2Filter(std::string("bzip2"),BZIP2));
@@ -348,11 +349,17 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 in->setpos(begin);
                 tmp->setpos(0);
                 diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
+            }  else if (type==ZLIB && (diffFound) ) {
+                type=PREFLATE;
+                dataf=GetFilter(type);
+                in->setpos(begin);
+                tmp->setpos(0);
+                diffFound=dataf.CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             }         
             tfail=(diffFound || tmp->getc()!=EOF); 
         }
-        // Preflate types (ZLIB, ZIP, GZIP, PNG) skip verification but check if encoding failed
-        if ((type==ZLIB || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
+        // Preflate types (ZLIB, PREFLATE, ZIP, GZIP, PNG) skip verification but check if encoding failed
+        if ((type==ZLIB || type==PREFLATE || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
             tfail = 1;
         }
         // Test fails, compress without transform
@@ -442,10 +449,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 transform_encode_block(TEXT,  tmp, tmpsize-hdrsize,  -1,-1, blstr, it, hdrsize); 
             } else if (streams->GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
-                if (type==SZDD ||  type==ZLIB  || type==BZIP2) isinfo=info;
+                if (type==SZDD ||  type==ZLIB/*||  type==PREFLATE */ || type==BZIP2) isinfo=info;
                 else if (type==WIT) isinfo=winfo;
                 segment->putdata(type,tmpsize,isinfo);
-                if (type==ZLIB) {// PDF or PNG image && info
+                if (type==ZLIB/*||  type==PREFLATE*/) {// PDF or PNG image && info
                     Filetype type2 =(Filetype)(info>>24);
                     if (it==itcount)    itcount=it+1;
                     int hdrsize=7+5*tmp->getc();

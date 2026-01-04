@@ -60,8 +60,8 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
             blockz=0x10000;
             if (state!=NONE) {
                 state=INFO;
-            return INFO;
-        }
+               return INFO;
+            }
             }
         } else if (state==START || state==INFO) {
             int ret;
@@ -74,7 +74,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
             if ((ret!=BZ_OK) && (ret!=BZ_STREAM_END)) {
                 (void)BZ2_bzDecompressEnd(&stream);
                 state=NONE;
-            }
+            }else
             state=INFO;
             if (ret==BZ_STREAM_END) {
                 (void)BZ2_bzDecompressEnd(&stream);
@@ -91,7 +91,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
         inSize++;
         i++;
     }
-    if (state==INFO) return INFO;
+    if (state==INFO) {jend=i+1; return INFO;}
     // Are we still reading data for our type
     if (state!=NONE)
     return DATA;

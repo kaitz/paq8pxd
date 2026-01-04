@@ -111,7 +111,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         inSize++;
         i++;
     }
-    if (state==INFO) return INFO;
+    if (state==INFO) {jend=i+1; return INFO;}
     // Are we still reading data for our type
     if (state!=NONE)
     return DATA;
