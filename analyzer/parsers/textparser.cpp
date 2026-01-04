@@ -88,7 +88,8 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     textparser.next(i+1);
                     uint64_t textstart=textparser._start[0];
                     uint64_t textend=textparser._end[0];
-                    type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT;
+                    //type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT;
+                    type=TEXT;
                     jstart=textparser._start[0];
                     jend=jstart+textparser._end[0];
                     uint64_t end=textparser._end[0]+1; 
@@ -126,7 +127,8 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         if (nsize>(((end-begin)-nsize)>>1))nextType=TEXT0; 
         textparser.removefirst();
         } else*/ {
-                        type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // first block is text
+                        //type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT; // first block is text
+                        type=TEXT;
                         uint64_t end=textend+1; 
                         nsize=textparser.number();
                         if (nsize>(((end)-nsize)>>1))type=TEXT0;
