@@ -91,9 +91,11 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     if (file_handle != nullptr) {
                         // Save current file position
                         uint64_t saved_pos = file_handle->curpos();
-                        
+
                         // Seek to deflate stream start
-                        file_handle->setpos(jstart);
+                        uint64_t seek_pos=jstart;
+                        if (jstart < 0x10000 && saved_pos > jstart ) seek_pos=saved_pos-(0x10000-jstart); // ?
+                        file_handle->setpos((seek_pos));
                         
                         // Use preflate_decode to find exact length
                         // Use a large estimate for available data (will stop at stream end)
@@ -115,7 +117,7 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                             type = GZIP;
                             info = 0;
                             state = END;
-                            return END;
+                            return state;
                         }
                         // preflate failed - not a valid GZIP stream, continue scanning
                     }
@@ -123,7 +125,6 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 }  // end if ((flags & 0xE0) == 0)
             }  // end if ((buf0 >> 8) == 0x1F8B08)
         }  // end if (state == NONE)
-        
         inSize++;
         i++;
     }

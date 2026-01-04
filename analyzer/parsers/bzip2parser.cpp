@@ -3,14 +3,14 @@
 
 bzip2Parser::bzip2Parser() {
     priority=1;
+    bzout=nullptr;
     Reset();
     inpos=0;
     name="bzip2";
-    bzout=(uint8_t*)calloc(BZ2BLOCK,1);
 }
 
 bzip2Parser::~bzip2Parser() {
-    free(bzout);
+    if (bzout!=nullptr) free(bzout),bzout=nullptr;
 }
 
 // loop over input block byte by byte and report state
@@ -47,6 +47,8 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
             ret=BZ2_bzDecompressInit(&stream, 0, 0);
             if (ret!=BZ_OK) state=NONE;
             else{
+                if (bzout!=nullptr) free(bzout);
+                bzout=(uint8_t*)calloc(BZ2BLOCK,1);
                 stream.avail_in=csize;
                 stream.next_in=(char*)&data[inSize-3];
 
@@ -74,6 +76,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
             if ((ret!=BZ_OK) && (ret!=BZ_STREAM_END)) {
                 (void)BZ2_bzDecompressEnd(&stream);
                 state=NONE;
+                if (bzout!=nullptr) free(bzout),bzout=nullptr;
             }else
             state=INFO;
             if (ret==BZ_STREAM_END) {
@@ -83,6 +86,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                 info=bzlevel;
                 type=BZIP2;
                 state=END;
+                if (bzout!=nullptr) free(bzout),bzout=nullptr;
                 return state;
             }
             if (state==INFO) return INFO;
@@ -119,6 +123,7 @@ void bzip2Parser::Reset() {
     bzlevel=0;
     isBSDIFF=false;
     info=i=inSize=0;
+    if (bzout!=nullptr) free(bzout),bzout=nullptr;
 }
 void bzip2Parser::SetEnd(uint64_t e) {
     jend=e;

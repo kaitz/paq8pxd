@@ -1,4 +1,7 @@
 v122
+    -Fix gzip parsing.
+    -Fix bzip2 memory leak.
+v122
     -Re-enable zlibFilter.
     -Add PREFLATE type.
     -Test ZLIB transform fail and use PREFLATE if needed.
