@@ -42,14 +42,14 @@ class Codec {
     void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0);
     void transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin);
     void Status(uint64_t n, uint64_t size);
-	public:
-		Codec(FMode m, Streams *s, Segment *g);
-		virtual ~Codec();
-		virtual void DecodeFile(const char* filename, uint64_t filesize);
-		virtual void EncodeFile(const char* filename, uint64_t filesize);
-		virtual Filter& GetFilter(Filetype f);
-	protected:
-	    virtual uint64_t DecodeFromStream(File *out, uint64_t size, FMode mode, int it=0);
+    public:
+        Codec(FMode m, Streams *s, Segment *g);
+        virtual ~Codec();
+        virtual void DecodeFile(const char* filename, uint64_t filesize);
+        virtual void EncodeFile(const char* filename, uint64_t filesize);
+        virtual Filter* GetFilter(Filetype f);
+    protected:
+        virtual uint64_t DecodeFromStream(File *out, uint64_t size, FMode mode, int it=0);
         virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0,Filetype p=DEFAULT);
 };
 

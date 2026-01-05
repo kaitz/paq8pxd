@@ -1,3 +1,7 @@
+v125
+    -Fix mdf detection
+    -Fix codec reference rebound issue
+    -Re-enable EOLTEXT
 v124
     -Fix detection
 v123
