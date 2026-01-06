@@ -33,6 +33,8 @@ bzip2parser     1     BZIP2(CMP)
 szddparser      1     SZDD(CMP)
 szddparser      1     SZDD(CMP)
 mscfparser      2     CMP
+zipparser       1     ZIP
+gzipparser      1     GZIP
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

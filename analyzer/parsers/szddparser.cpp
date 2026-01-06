@@ -40,10 +40,10 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 memset(&LZringbuffer[0],' ',N-F);
                 r=N-F;
                 state=INFO;
-                fSZDD=i+1;
+                fSZDD=i+1; d.clear();rpos=0;
             }
         } else if (state==INFO) {
-            if (rpos==3) {
+            if (rpos==4) {
 
                 for(;;) {
                     // Get a byte. For each bit of this byte:

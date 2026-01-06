@@ -79,7 +79,7 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
         inSize++;
         i++;
     }
-    if (state==INFO) return INFO;
+    if (state==INFO) {jend=i+1; return INFO;}
     // Are we still reading data for our type
     if (state!=NONE)
     return DATA;

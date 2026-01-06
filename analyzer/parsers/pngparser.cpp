@@ -85,11 +85,10 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             else if ((pngbps==8||pngbps==16) && pngtype==6 ) info=(PNG32<<24)|(pngw*4), type=PNG32;
                             else if ((pngbps==8||pngbps==16) && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw), type=(!pngtype || pnggray)?PNG8GRAY:PNG8;
                             else type=PNG24, info=(PNG24<<24)|(pngw*3);
-                            pinfo=" (width: "+ itos(info&0xffffff) +") "+(pngtype==2?"PNG24":(pngtype==6?"PNG32":"PNG8"));
                         } else {
                             type=PNG24;
                         }
-
+                        pinfo=" (width: "+ itos(info&0xffffff) +") "+(type==PNG24?"PNG24":(type==PNG32?"PNG32":"PNG8"));
                         // Next chunk's Type ends after: CRC(4) + Length(4) + Type(4) = 12 bytes from current
                         nextchunk = i + 12;
                     }
@@ -109,11 +108,10 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                                 else if (pngbps==8 && pngtype==6 ) info=(PNG32<<24)|(pngw*4), type=PNG32;
                                 else if (pngbps==8 && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw), type=(!pngtype || pnggray)?PNG8GRAY:PNG8;
                                 else type=PNG24, info=(PNG24<<24)|(pngw*3);
-                                
-                                pinfo=" (width: "+ itos(info&0xffffff) +") "+(pngtype==2?"PNG24":(pngtype==6?"PNG32":"PNG8"));
                             } else {
                                 type=PNG24;
                             }
+                            pinfo=" (width: "+ itos(info&0xffffff) +") "+(type==PNG24?"PNG24":(type==PNG32?"PNG32":"PNG8"));
                         }
                         idats++;
                         // End of this IDAT = i + data_len + CRC(4) + 1 to get past last byte

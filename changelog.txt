@@ -1,3 +1,6 @@
+v126
+    -Fix cd, szdd parser
+    -Display correct image info in pngparser
 v125
     -Fix mdf detection
     -Fix codec reference rebound issue
