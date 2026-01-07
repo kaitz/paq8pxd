@@ -1,7 +1,7 @@
 #include "pdfbiparser.hpp"
 
 pdfBiParser::pdfBiParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="pdf bitmap";
@@ -117,6 +117,7 @@ void pdfBiParser::Reset() {
     //memset(&pdfi_buf[0], 0, 32); 
     pdfi_ptr=pdfin=0;
     info=i=inSize=0;
+    priority=3;
 }
 void pdfBiParser::SetEnd(uint64_t e) {
     jend=e;

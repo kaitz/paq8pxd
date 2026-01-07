@@ -1,7 +1,7 @@
 #include "exeparser.hpp"
 
 EXEParser::EXEParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="exe";
@@ -95,6 +95,7 @@ void EXEParser::Reset() {
     e8e9count=0;
     e8e9pos=e8e9last=0;  
     info=i=inSize=0;
+    priority=3;
 }
 void EXEParser::SetEnd(uint64_t e) {
     jend=e;

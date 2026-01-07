@@ -1,7 +1,7 @@
 #include "nesparser.hpp"
 
 NesParser::NesParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="nes";
@@ -73,6 +73,7 @@ void NesParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=0;
     nesh=nesp=nesc=0;
     info=i=inSize=0;
+    priority=3;
 }
 void NesParser::SetEnd(uint64_t e) {
     jend=e;

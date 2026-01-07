@@ -22,7 +22,7 @@ uint8_t mrbParser::GetC(unsigned char *data ){
 }
 
 mrbParser::mrbParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="mrb";
@@ -140,6 +140,7 @@ void mrbParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     mrb=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0;
     info=i=inSize=0;
+    priority=3;
 }
 void mrbParser::SetEnd(uint64_t e) {
     jend=e;

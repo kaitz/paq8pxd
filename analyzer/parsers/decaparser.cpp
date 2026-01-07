@@ -1,7 +1,7 @@
 #include "decaparser.hpp"
 
 DECaParser::DECaParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="DECa";
@@ -103,6 +103,7 @@ void DECaParser::Reset() {
     bmp=bpp=x=y=of=size=hdrless=info=inSize=i=0;
     dec.last = 0u, dec.offset = 0u;
     memset(&dec.branches[0], 0u, sizeof(dec.branches));
+    priority=3;
 }
 void DECaParser::SetEnd(uint64_t e) {
     jend=e;

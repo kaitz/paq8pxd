@@ -1,7 +1,7 @@
 #include "uueparser.hpp"
 
 uueParser::uueParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="uue";
@@ -110,6 +110,7 @@ void uueParser::Reset() {
     uuds=uuds1=uudp=uudslen=uudh=0;
     uudstart=uudend=uudline=uudnl=uudlcount=uuc=0;
     info=i=inSize=0;
+    priority=3;
 }
 void uueParser::SetEnd(uint64_t e) {
     jend=e;

@@ -2,7 +2,7 @@
 #define BZ2BLOCK 100*1024*100
 
 bzip2Parser::bzip2Parser() {
-    priority=1;
+    priority=2;
     bzout=nullptr;
     Reset();
     inpos=0;
@@ -125,6 +125,7 @@ void bzip2Parser::Reset() {
     isBSDIFF=false;
     info=i=inSize=0;
     if (bzout!=nullptr) free(bzout),bzout=nullptr;
+    priority=2;
 }
 void bzip2Parser::SetEnd(uint64_t e) {
     jend=e;

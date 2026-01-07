@@ -1,7 +1,7 @@
 #include "base642parser.hpp"
 
 base64_2Parser::base64_2Parser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="base64 2";
@@ -110,6 +110,7 @@ void base64_2Parser::Reset() {
     b64s=b64p=b64slen=b64h=0;
     base64start=base64end=b64line=b64nl=b64lcount=0;
     info=i=inSize=0;
+    priority=3;
 }
 void base64_2Parser::SetEnd(uint64_t e) {
     jend=e;

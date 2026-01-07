@@ -1,7 +1,7 @@
 #include "mscfparser.hpp"
 
 MSCFParser::MSCFParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="MSCF";
@@ -102,6 +102,7 @@ void MSCFParser::Reset() {
     files=folders=0;
     info=i=inSize=0;
     pinfo="";
+    priority=3;
 }
 void MSCFParser::SetEnd(uint64_t e) {
     jend=e;

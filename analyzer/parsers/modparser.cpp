@@ -1,7 +1,7 @@
 #include "modparser.hpp"
 
 MODParser::MODParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="mod";
@@ -80,7 +80,7 @@ int MODParser::TypeCount() {
 
 void MODParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
-    
+    priority=3;
     info=i=inSize=0;
 }
 void MODParser::SetEnd(uint64_t e) {

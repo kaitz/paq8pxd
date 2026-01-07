@@ -1,7 +1,7 @@
 #include "mszipparser.hpp"
 
 MSZIPParser::MSZIPParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="MS Zip";
@@ -87,6 +87,7 @@ void MSZIPParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     MSZ=MSZip=MSZipz=zlen=count=0;
     info=i=inSize=0;
+    priority=3;
 }
 void MSZIPParser::SetEnd(uint64_t e) {
     jend=e;

@@ -1,7 +1,7 @@
 #include "pdflzwparser.hpp"
 
 PDFLzwParser::PDFLzwParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="pdf lzw";
@@ -82,6 +82,7 @@ void PDFLzwParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=buf3=buf4=0;
     pLzwp=0;
     info=i=inSize=0;
+    priority=3;
 }
 void PDFLzwParser::SetEnd(uint64_t e) {
     jend=e;

@@ -1,7 +1,7 @@
 #include "tgaparser.hpp"
 
 TGAParser::TGAParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="tga";
@@ -139,6 +139,7 @@ void TGAParser::Reset() {
     tgax=0;
     tgay=tgaz=tgat=tgaid=tgamap=0;
     info=i=inSize=0;
+    priority=3;
 }
 void TGAParser::SetEnd(uint64_t e) {
     jend=e;

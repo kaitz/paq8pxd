@@ -42,6 +42,7 @@ int DefaultParser::TypeCount() {
 void DefaultParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=0;
     info=i=0;
+    priority=MAX_PRI-1;
 }
 
 void DefaultParser::SetEnd(uint64_t e) {

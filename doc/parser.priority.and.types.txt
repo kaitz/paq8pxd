@@ -1,40 +1,39 @@
 Parser      Priority  Types (sub-types)
-bmpparser       2     IMAGE1 IMAGE8 IMAGE4 IMAGE24
-decaparser      2     DECA
-default         5     DEFAULT
-exeparser       2     EXE
-jpegparser      1     JPEG
-mrbparser       2     MRBR(IMAGE8,CMP) MRBR4(IMAGE4,CMP) IMAGE1
-mszipparser     2     MSZIP(CMP)
-nesparser       2     NESROM DEFAULT)
+bmpparser       3     IMAGE1 IMAGE8 IMAGE4 IMAGE24
+decaparser      3     DECA
+default         6     DEFAULT
+exeparser       3     EXE
+jpegparser      2     JPEG
+mrbparser       3     MRBR(IMAGE8,CMP) MRBR4(IMAGE4,CMP) IMAGE1
+mszipparser     3     MSZIP(CMP)
+nesparser       3     NESROM DEFAULT)
 textparser      4     TEXT
-wavparser       2     AUDIO
-zlibparser      1     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
-zlibparser      2     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
-pnmpparser      2     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
-pdflzwparser    2     CMP
-gifparser       2     GIF (CMP)
-dbaseparser     2     DBASE
-pdfbiparser     2     IMAGE1 IMAGE8
-aiffparser      2     AUDIO
-ascii85parser   2     BASE85
-base641parser   2     BASE64
-base642parser   2     BASE64
-modparser       2     AUDIO
-sgiparser       2     IMAGE8
-tgaparser       2     IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32
-cdparser        0     CD
-mdfparser       0     MDF
-uueparser       2     UUENC
-tiffparser      1     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,CMP,JPEG,ZLIB,DEFAULT
-tarparser       1     TAR
-pngparser       1     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
-bzip2parser     1     BZIP2(CMP)
-szddparser      1     SZDD(CMP)
-szddparser      1     SZDD(CMP)
-mscfparser      2     CMP
-zipparser       1     ZIP
-gzipparser      1     GZIP
+wavparser       3     AUDIO
+zlibparser      3     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
+zlibparser      4     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
+pnmpparser      3     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
+pdflzwparser    3     CMP
+gifparser       3     GIF (CMP)
+dbaseparser     3     DBASE
+pdfbiparser     3     IMAGE1 IMAGE8
+aiffparser      3     AUDIO
+ascii85parser   3     BASE85
+base641parser   3     BASE64
+base642parser   3     BASE64
+modparser       3     AUDIO
+sgiparser       3     IMAGE8
+tgaparser       3     IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32
+cdparser        1     CD
+mdfparser       1     MDF
+uueparser       3     UUENC
+tiffparser      2     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,CMP,JPEG,ZLIB,DEFAULT
+tarparser       2     TAR
+pngparser       2     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
+bzip2parser     2     BZIP2(CMP)
+szddparser      3     SZDD(CMP)
+mscfparser      3     CMP
+zipparser       2     ZIP
+gzipparser      2     GZIP
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

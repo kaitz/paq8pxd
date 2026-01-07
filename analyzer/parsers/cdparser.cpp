@@ -1,7 +1,7 @@
 #include "cdparser.hpp"
 
 cdParser::cdParser() {
-    priority=0;
+    priority=1;
     Reset();
     inpos=0;
     name="cd";
@@ -108,6 +108,7 @@ void cdParser::Reset() {
     cdf=0;
     cdatai=0;
     info=i=inSize=0;
+    priority=1;
 }
 void cdParser::SetEnd(uint64_t e) {
     jend=e;

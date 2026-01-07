@@ -1,7 +1,7 @@
 #include "tarparser.hpp"
 
 TARParser::TARParser() {
-    priority=1;
+    priority=2;
     Reset();
     inpos=0;
     name="tar";
@@ -138,6 +138,7 @@ void TARParser::Reset() {
     tar=0,tarn=0,tarl=0,utar=0;tarsi=0;
     info=i=inSize=0;
     memset(&tars[0], 0, 256);
+    priority=2;
 }
 void TARParser::SetEnd(uint64_t e) {
     jend=e;

@@ -1,7 +1,7 @@
 #include "mdfparser.hpp"
 
 mdfParser::mdfParser() {
-    priority=0;
+    priority=1;
     Reset();
     inpos=0;
     name="mdf";
@@ -129,6 +129,7 @@ void mdfParser::Reset() {
     cdatai=0;
     cdscont=0;
     info=i=inSize=0;
+    priority=1;
 }
 void mdfParser::SetEnd(uint64_t e) {
     jend=e;

@@ -1,7 +1,7 @@
 #include "szddparser.hpp"
 
 SZDDParser::SZDDParser() {
-    priority=2;
+    priority=3;
     LZringbuffer=nullptr;
     Reset();
     inpos=0;
@@ -138,6 +138,7 @@ void SZDDParser::Reset() {
     icount=incount=0;
     if (LZringbuffer!=nullptr) free(LZringbuffer),LZringbuffer=nullptr;
     info=i=inSize=0;
+    priority=3;
 }
 void SZDDParser::SetEnd(uint64_t e) {
     jend=e;

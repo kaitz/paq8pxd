@@ -1,11 +1,11 @@
 #include "zlibparser.hpp"
     
 zlibParser::zlibParser(bool b) {
-    priority=b==true?3:2;
+    priority=b==true?4:3;
     Reset();
     inpos=0;
     name="zlib";
-    brute=priority==2?false:true;
+    brute=priority==3?false:true;
     strm=(z_stream*)calloc( 1,sizeof(z_stream));
     pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
 }
@@ -226,7 +226,7 @@ void zlibParser::Reset() {
     zbufpos=0, histogram[256]={};
     pdfimp=0;
     info=i=inSize=0;
-    priority=brute==true?3:2;
+    priority=brute==true?4:3;
 }
 void zlibParser::SetEnd(uint64_t e) {
     jend=e;

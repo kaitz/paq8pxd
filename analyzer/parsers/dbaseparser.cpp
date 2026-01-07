@@ -1,7 +1,7 @@
 #include "dbaseparser.hpp"
 
 dBaseParser::dBaseParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="dBase";
@@ -93,6 +93,7 @@ void dBaseParser::Reset() {
     memset(&dbase, 0, sizeof(dBASE));
     dbasei=term=0;
     info=i=inSize=0;
+    priority=3;
 }
 void dBaseParser::SetEnd(uint64_t e) {
     jend=e;

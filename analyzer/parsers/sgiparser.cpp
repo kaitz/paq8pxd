@@ -1,7 +1,7 @@
 #include "sgiparser.hpp"
 
 sgiParser::sgiParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="sgi/rgb";
@@ -83,6 +83,7 @@ void sgiParser::Reset() {
     rgbi=0;
     rgbx=rgby=0;
     info=i=inSize=0;
+    priority=3;
 }
 void sgiParser::SetEnd(uint64_t e) {
     jend=e;

@@ -1,7 +1,7 @@
 #include "pngparser.hpp"
 
 PNGParser::PNGParser() {
-    priority=1;
+    priority=2;
     Reset();
     inpos=0;
     name="png";
@@ -171,6 +171,7 @@ void PNGParser::Reset() {
     info=i=inSize=0;
     idats=0;
     idat_end=0;
+    priority=2;
 }
 
 void PNGParser::SetEnd(uint64_t e) {

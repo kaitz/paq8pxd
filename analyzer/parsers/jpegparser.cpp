@@ -1,7 +1,7 @@
 #include "jpegparser.hpp"
 
 JPEGParser::JPEGParser() {
-    priority=1;
+    priority=2;
     Reset();
     inpos=0;
     name="jpeg";
@@ -84,6 +84,7 @@ void JPEGParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     soi=sof=sos=app=eoi=0;
     info=i=inSize=0;
+    priority=2;
 }
 void JPEGParser::SetEnd(uint64_t e) {
     jend=e;

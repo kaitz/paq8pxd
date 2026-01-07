@@ -6,7 +6,7 @@
 #include <cstring>
 
 GZIPParser::GZIPParser() {
-    priority = 1;
+    priority = 2;
     strm = new z_stream;
     Reset();
     name = "gzip";
@@ -153,6 +153,7 @@ void GZIPParser::Reset() {
     jstart = jend = buf0 = buf1 = buf2 = buf3 = 0;
     info = i = inSize = inpos = expected_next_pos = 0;
     memset(zout, 0, sizeof(zout));
+    priority = 2;
 }
 
 void GZIPParser::SetEnd(uint64_t e) {

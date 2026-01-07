@@ -1,7 +1,7 @@
 #include "pnmparser.hpp"
 
 PNMParser::PNMParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="pnm";
@@ -126,6 +126,7 @@ void PNMParser::Reset() {
     pgm=0;
     pgmcomment=pgmw=pgmh=pgm_ptr=pgmc=pgmn=pamatr=pamd=0;
     info=i=inSize=0;
+    priority=3;
 }
 void PNMParser::SetEnd(uint64_t e) {
     jend=e;

@@ -1,7 +1,7 @@
 #include "wavparser.hpp"
 
 WAVParser::WAVParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="wav";
@@ -117,6 +117,7 @@ void WAVParser::Reset() {
     wavi=wavlist=0;
     wavsize=wavch=wavbps=wavm=wavsr=wavt=wavtype=wavlen=0;
     info=info2=i=inSize=0;
+    priority=3;
 }
 void WAVParser::SetEnd(uint64_t e) {
     jend=e;

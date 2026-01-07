@@ -1,7 +1,7 @@
 #include "gifparser.hpp"
 
 GIFParser::GIFParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="gif";
@@ -99,6 +99,7 @@ void GIFParser::Reset() {
     gif=gifa=gifi=gifw=gifc=gifb=plt=gray=0;
     info=i=inSize=0;
     rec=false;
+    priority=3;
 }
 void GIFParser::SetEnd(uint64_t e) {
     jend=e;

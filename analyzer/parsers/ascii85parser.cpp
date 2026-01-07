@@ -1,7 +1,7 @@
 #include "ascii85parser.hpp"
 
 ascii85Parser::ascii85Parser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="base85";
@@ -93,6 +93,7 @@ void ascii85Parser::Reset() {
     b85s=b85s1=b85p=b85slen=b85h=0;
     base85start=base85end=b85line=0;
     info=i=inSize=0;
+    priority=3;
 }
 void ascii85Parser::SetEnd(uint64_t e) {
     jend=e;

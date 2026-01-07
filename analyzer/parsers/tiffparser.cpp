@@ -1,7 +1,7 @@
 #include "tiffparser.hpp"
 
 TIFFParser::TIFFParser():dtf(0),ifd(0) {
-    priority=1;
+    priority=2;
     inpos=0;
     name="tiff";
     Reset();
@@ -347,6 +347,7 @@ void TIFFParser::Reset() {
     tagTx=0;
     tagCx=0;
     rec=false;
+    priority=2;
 }
 void TIFFParser::SetEnd(uint64_t e) {
     jend=e;

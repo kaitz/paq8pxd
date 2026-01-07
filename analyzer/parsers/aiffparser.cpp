@@ -1,7 +1,7 @@
 #include "aiffparser.hpp"
 
 AIFFParser::AIFFParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="AIFF";
@@ -76,6 +76,7 @@ int AIFFParser::TypeCount() {
 void AIFFParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     aiff=0;
+    priority=3;
     aiffm=aiffs=0; 
     info=i=inSize=0;
 }

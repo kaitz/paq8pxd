@@ -2,7 +2,7 @@
 #include <cstdio>
 
 ZIPParser::ZIPParser() {
-    priority = 1;
+    priority = 2;
     Reset();
     name = "zip";
 }
@@ -105,6 +105,7 @@ void ZIPParser::Reset() {
     type = DEFAULT;
     jstart = jend = buf0 = buf1 = buf2 = buf3 = 0;
     info = i = inSize = inpos = 0;
+    priority = 2;
 }
 
 void ZIPParser::SetEnd(uint64_t e) {

@@ -206,6 +206,7 @@ void TextParser::Reset() {
     memset(&text,0,sizeof(TextInfo));
     buf0=0;
     textparser.reset(0);
+    priority=4;
 }
 
 void TextParser::SetEnd(uint64_t e) {

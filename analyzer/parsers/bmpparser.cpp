@@ -1,7 +1,7 @@
 #include "bmpparser.hpp"
 
 BMPParser::BMPParser() {
-    priority=2;
+    priority=3;
     Reset();
     inpos=0;
     name="bmp";
@@ -121,6 +121,7 @@ int BMPParser::TypeCount() {
 void BMPParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     bmp=bpp=x=y=of=size=hdrless=info=i=inSize=0;
+    priority=3;
 }
 void BMPParser::SetEnd(uint64_t e) {
     jend=e;
