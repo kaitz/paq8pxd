@@ -1,3 +1,9 @@
+v128
+    -Change priority to 0 in parsers:
+     bzip2 - after 4 blocks
+     cd - after 32 sectors
+     mdf - after 32 sectors
+     tar - after 4 files
 v127
     -Expand priority range to 0-6, 6=default
     -Fix tar, bzip2, text parser

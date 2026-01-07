@@ -29,7 +29,7 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
 
         if (state==NONE && buf1==0x00ffffff && buf0==0xffffffff) {
             state=START;
-            cdi=i,cda=-1,cdm=0;cdatai=0;
+            cdi=i,cda=-1,cdm=0;cdatai=mdfdatai=0;
             cdata[cdatai++]=0; for(int j=0;j<7;j++) cdata[cdatai++]=0xff;
         } else if (state==START || state==INFO) {
             if (cdi && i>cdi) {
@@ -82,7 +82,8 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     info=0;
                     state=END;
                     return state;
-                }
+                } else mdfdatai++;
+                if (mdfdatai>32) priority=0;// after 32 sectors set priority to 0
             }
             if (last==true && (inSize+1)==len){
                 mdfa=0;
@@ -126,7 +127,7 @@ void mdfParser::Reset() {
     cdi=0;
     cda=cdm=cdif=0;
     cdf=0;
-    cdatai=0;
+    cdatai=mdfdatai=0;
     cdscont=0;
     info=i=inSize=0;
     priority=1;

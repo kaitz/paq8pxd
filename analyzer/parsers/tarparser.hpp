@@ -32,6 +32,7 @@ class TARParser: public Parser {
     uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
+    uint32_t flCount;
     int getoct(const char *p, int n);
     int tarchecksum(char *p);
     bool tarend(const char *p);

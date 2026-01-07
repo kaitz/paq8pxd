@@ -15,6 +15,7 @@ class bzip2Parser: public Parser {
     uint8_t *bzout;
     uint64_t info;
     uint32_t buf0, buf1, buf2, buf3;
+    uint32_t blCount;
     uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;

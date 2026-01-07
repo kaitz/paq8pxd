@@ -101,6 +101,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             tarn=tarn+a+512;
                         }
                         state=INFO;
+                        if (flCount++>4) priority=0;// after 4 files set priority to 0
                     }
                 }
                 tars[tarsi++]=c;
@@ -139,6 +140,7 @@ void TARParser::Reset() {
     info=i=inSize=0;
     memset(&tars[0], 0, 256);
     priority=2;
+    flCount=0;
 }
 void TARParser::SetEnd(uint64_t e) {
     jend=e;

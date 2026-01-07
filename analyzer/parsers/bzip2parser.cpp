@@ -43,7 +43,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
             stream.next_in=NULL;
             int ret;
             blockz=csize?csize:0x10000;
-            
+            blCount=0;
             ret=BZ2_bzDecompressInit(&stream, 0, 0);
             if (ret!=BZ_OK) state=NONE;
             else{
@@ -78,7 +78,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                 state=NONE;
                 if (bzout!=nullptr) free(bzout),bzout=nullptr;
             }else
-            state=INFO;
+            state=INFO,blCount++;
             if (ret==BZ_STREAM_END) {
                 (void)BZ2_bzDecompressEnd(&stream);
                 jstart=BZip2;
@@ -89,6 +89,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                 if (bzout!=nullptr) free(bzout),bzout=nullptr;
                 return state;
             }
+            if (blCount>4) priority=0;// after 4 blocks set priority to 0
             jend=i+1;
             if (state==INFO) return INFO;
         }
@@ -126,6 +127,7 @@ void bzip2Parser::Reset() {
     info=i=inSize=0;
     if (bzout!=nullptr) free(bzout),bzout=nullptr;
     priority=2;
+    blCount=0;
 }
 void bzip2Parser::SetEnd(uint64_t e) {
     jend=e;

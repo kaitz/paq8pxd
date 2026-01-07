@@ -11,7 +11,7 @@ class cdParser: public Parser {
     int cda,cdm,cdif;   // For CD sectors detection
     uint32_t cdf;
     uint8_t *cdata;
-    uint32_t cdatai;
+    uint32_t cdatai,cdscont;
     uint64_t info;
     uint32_t buf0, buf1;
     uint64_t i;

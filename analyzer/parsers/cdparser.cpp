@@ -51,6 +51,8 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
                         if (cdm!=1 && i-cdi>2352 && ch->sub2!=cdf) cda=10;
                         if (cdm!=1) cdf=ch->sub2;
                         cdatai=0;
+                        cdscont++;
+                        if (cdscont>32) priority=0;// after 32 sectors set priority to 0
                     } else if (state==START) {
                         cdi=0,cdatai=0,state=NONE;
                     } else {
@@ -106,7 +108,7 @@ void cdParser::Reset() {
     cdi=0;
     cda=cdm=cdif=0;
     cdf=0;
-    cdatai=0;
+    cdatai=cdscont=0;
     info=i=inSize=0;
     priority=1;
 }
