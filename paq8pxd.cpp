@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd125"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd127"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -74,7 +74,7 @@
 #if defined(WINDOWS) || defined(_MSC_VER)
     #define atoll(S) _atoi64(S)
 #endif
-
+#define _FILE_OFFSET_BITS 64
 #ifdef _MSC_VER  
 #define fseeko(a,b,c) _fseeki64(a,b,c)
 #define ftello(a) _ftelli64(a)
@@ -1068,7 +1068,7 @@ printf("\n");
             if (segment.hpos==0 || segment.pos==0) quit("Segment data not found.");
             segment.setsize(segment.pos);
             currentpos= archive->curpos();
-             archive->setpos( segment.hpos); 
+             archive->setpos( segment.hpos);
             if (archive->blockread( &segment[0],   segment.pos  )<segment.pos) quit("Segment data corrupted.");
             // Decompress segment data 
             Encoder* segencode;
@@ -1077,7 +1077,7 @@ printf("\n");
             tmp.blockwrite(&segment[0],   segment.pos  ); 
             tmp.setpos(0); 
             segpredict=new Predictor();
-            segencode=new Encoder (DECOMPRESS, &tmp ,*segpredict); 
+            segencode=new Encoder (DECOMPRESS, &tmp ,*segpredict);
             segment.pos=0;
             for (U32 k=0; k<segpos; ++k) {
                  segment.put1( segencode->decompress());
@@ -1088,7 +1088,8 @@ printf("\n");
             //read stream sizes if stream bit is set
             for (int i=0;i<streams.Count();i++){
                 if ((streambit>>(streams.Count()-i))&1){
-                   streams.streams[i]->streamsize=archive->getVLI();
+                   streams.streams[i]->streamsize=archive->get64();
+                   uint64_t ofg=streams.streams[i]->streamsize;
                 }
             }
             archive->setpos(currentpos); 
@@ -1208,7 +1209,7 @@ printf("\n");
             archive->blockwrite(&segment[0], segment.pos); //write out segment data
             //write stream size if present
             for (int i=0;i<streams.Count();i++){
-                if (streams.streams[i]->streamsize>0) archive->putVLI(streams.streams[i]->streamsize);
+                if (streams.streams[i]->streamsize>0) archive->put64(streams.streams[i]->streamsize);
             }
             printf("Total %0" PRIi64 " bytes compressed to %0" PRIi64 " bytes.\n", total_size,  archive->curpos()); 
         }

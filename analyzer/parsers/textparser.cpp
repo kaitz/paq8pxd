@@ -91,7 +91,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     type=(textparser._EOLType[0]==1)?EOLTEXT:TEXT;
                     //type=TEXT;
                     jstart=textparser._start[0];
-                    jend=jstart+textparser._end[0];
+                    jend=textparser._end[0];
                     uint64_t end=textparser._end[0]+1; 
                     uint64_t nsize=textparser.number();
                     if (nsize>((textparser._end[0]-nsize)>>1)) type=TEXT0;
@@ -157,6 +157,20 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             jend=jstart+textparser._end[0];
             state=END;
             return state;
+       /* } else if (state==INFO && i>( 0x40000000 )) { // Split at 1GB
+            type=TEXT;
+            jstart=textparser._start[0];
+            jend=jstart+textparser._end[0]+1;
+            uint64_t end=textparser._end[0]+1; 
+            uint64_t nsize=textparser.number();
+            if (nsize>((textparser._end[0]-nsize)>>1)) type=TEXT0;
+            if (textparser.countUTF8>0xffff) type=TXTUTF8,info=0;
+            state=END;
+            textparser.reset(0);
+            memset(&text,0,sizeof(TextInfo));
+            return state;*/
+        } else if (state==INFO && i>0x2000000) { // At 32mb switch to 0 priority
+            priority=0;
         }
         inSize++;
         i++;
@@ -186,6 +200,7 @@ int TextParser::TypeCount() {
 void TextParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=0;
     info=i=inSize=0;
+    priority=3;
     //txtStart=binLen=spaces=txtLen=0;
     //txtMinLen=65536;
     memset(&text,0,sizeof(TextInfo));

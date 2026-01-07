@@ -24,9 +24,13 @@ public:
   virtual U64 blockwrite(U8 *ptr, U64 count) = 0;
   U32 get32() { return (getc() << 24) | (getc() << 16) | (getc() << 8) | (getc()); }
   void put32(U32 x){putc((x >> 24) & 255); putc((x >> 16) & 255); putc((x >> 8) & 255); putc(x & 255);}
-  U64 get64() { return ((U64)getc() << 56) | ((U64)getc() << 48) | ((U64)getc() << 40) | ((U64)getc() << 32) | (getc() << 24) | (getc() << 16) | (getc() << 8) | (getc()); }
+  U64 get64() { 
+  uint64_t u64val=0;
+     for (int i=0; i<8; i++)u64val=(u64val<<8)+getc();
+    return u64val; 
+  }
   void put64(U64 x){putc((x >> 56) & 255);putc((x >> 48) & 255);putc((x >> 40) & 255);putc((x >> 32) & 255);putc((x >> 24) & 255); putc((x >> 16) & 255); putc((x >> 8) & 255); putc(x & 255);}
-  U64 getVLI() {
+  /*U64 getVLI() {
       U64 i = 0;
       int k = 0;
       U8 b = 0;
@@ -43,10 +47,10 @@ public:
           i >>= 7U;
       }
       putc(U8(i));
-  }
+  }*/
   virtual void setpos(U64 newpos) = 0;
   virtual void setend() = 0;
-  virtual U64 curpos() = 0;
+  virtual _off64_t curpos() = 0;
   virtual bool eof() = 0;
   virtual void dumpToDisk() = 0;
 };
@@ -83,9 +87,9 @@ public:
   void putc(U8 c) { fputc(c, file); }
   U64 blockread(U8 *ptr, U64 count) {return fread(ptr,1,count,file);}
   U64 blockwrite(U8 *ptr, U64 count) {return fwrite(ptr,1,count,file);}
-  void setpos(U64 newpos) { fseeko(file, newpos, SEEK_SET); }
-  void setend() { fseeko(file, 0, SEEK_END); }
-  U64 curpos() { return ftello(file); }
+  void setpos(U64 newpos) { fseeko64(file, newpos, SEEK_SET); }
+  void setend() { fseeko64(file, 0, SEEK_END); }
+  _off64_t curpos() { return ftello64(file); }
   bool eof() { return feof(file)!=0; }
 };
 
@@ -206,7 +210,7 @@ public:
     if(content_in_ram) filepos = filesize;
     else (*file_on_disk).setend();
   }
-  U64 curpos() { 
+  _off64_t curpos() { 
     if(content_in_ram) return filepos;
     else return (*file_on_disk).curpos();
   }

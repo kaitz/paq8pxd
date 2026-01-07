@@ -54,7 +54,7 @@ class TextParser: public Parser {
     TextParserStateInfo textparser;
     TextInfo text; 
     uint64_t info;
-    uint32_t i;
+    uint64_t i;
     uint32_t buf0;
     Filetype type;
     uint64_t jstart,jend,inSize,inpos;

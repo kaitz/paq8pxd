@@ -66,10 +66,10 @@ void Analyzer::Status(uint64_t n, uint64_t size) {
     fprintf(stderr,"P%6.2f%%\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 bool Analyzer::Detect(File* in, U64 n, int it) {
-    const int BLOCK=0x10000;  // block size 64k
+    const uint64_t BLOCK=0x10000;  // block size 64k
     uint8_t blk[BLOCK];
     Filetype type=DEFAULT;
-    bool pri[5]={false};
+    bool pri[MAX_PRI]={false};
     typefound=false;
     // Reset all parsers exept recursive
     int recP=0;
@@ -85,8 +85,8 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
     }
     remaining=n;
     while (remaining) {
-        size_t reads=min(BLOCK, remaining);
-        int ReadIn=in->blockread(&blk[0], reads);
+        size_t reads=min64(BLOCK, remaining);
+        uint64_t ReadIn=in->blockread(&blk[0], reads);
         // Pass the data block to the parsers one by one
         for (size_t j=0; j<parsers.size(); j++) {
             if (parsers[j]->state!=DISABLE) {
@@ -99,6 +99,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     dType t=parsers[j]->getType(0);
                     type=t.type;
                     //printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
+                    assert(parsers[j]->priority<MAX_PRI);
                     pri[parsers[j]->priority]|=true;   // we have valid header, set priority true
                     // INFO means "might be something" - don't break, let other parsers check too
                 } else if (dstate==END){
@@ -114,16 +115,16 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
             }
         }
         // Test valid parsers and disable lower priority ones that are not detected a new type. 
-        // Priority 4 not tested as it is default
+        // Priority MAX_PRI-1 not tested as it is default
         if (typefound==false){
-            for (size_t i=0; i<4; i++) {
+            for (size_t i=0; i<(MAX_PRI-1); i++) {
                 bool p=pri[i];
                 if (p) {
                     for (size_t j=0; j<parsers.size(); j++) {
                         if (parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
                             //if (parsers[j]->state!=NONE) printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                             dType t=parsers[j]->getType(0);
-                            if (t.type!=DEFAULT)parsers[j]->state=DISABLE; // ignore default type
+                            if (t.type!=DEFAULT || parsers[j]->priority!=(MAX_PRI-1))parsers[j]->state=DISABLE; // ignore default type or lowest priority
                             //printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                         }
                     }
@@ -135,7 +136,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
         if (typefound==true) {
             // Scan for overlaping types and report first detected type
             // TODO: multiplie type detection (default-text-xType)
-            int largeP=0;int P=4;
+            int largeP=0;int P=MAX_PRI-1;
             uint64_t minP=-1,maxP=0;
             for (size_t j=0; j<parsers.size(); j++) {
                 if (parsers[j]->state==INFO || parsers[j]->state==END) { // partial/damaged files?

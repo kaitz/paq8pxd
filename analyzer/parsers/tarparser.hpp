@@ -29,7 +29,7 @@ class TARParser: public Parser {
     uint32_t tarsi;
     uint64_t info;
     uint32_t buf0, buf1;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
     int getoct(const char *p, int n);

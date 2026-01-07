@@ -9,7 +9,7 @@ class base64_1Parser: public Parser {
     uint64_t base64end,b64h,base64start;
     uint64_t info;
     uint32_t buf0, buf1;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
 public:    

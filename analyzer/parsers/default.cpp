@@ -1,7 +1,7 @@
 #include "default.hpp"
  
 DefaultParser::DefaultParser() {
-    priority=4;
+    priority=MAX_PRI-1;
     Reset();
     inpos=0;
     name="default";

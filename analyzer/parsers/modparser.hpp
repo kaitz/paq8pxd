@@ -6,7 +6,7 @@
 class MODParser: public Parser {
     uint64_t info;
     uint32_t buf0, buf1;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
 public:    

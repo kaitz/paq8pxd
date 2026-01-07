@@ -9,7 +9,7 @@ class PNGParser: public Parser {
     int pngw, pngh, pngbps, pngtype,pnggray; 
     uint64_t info;
     uint32_t buf0, buf1, buf2, buf3;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
     uint64_t idat_end;

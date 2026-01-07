@@ -18,7 +18,7 @@ class NesParser: public Parser {
     uint64_t nesh,nesp,nesc;
     uint64_t info;
     uint32_t buf0;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
 public:    

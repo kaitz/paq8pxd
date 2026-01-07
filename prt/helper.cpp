@@ -142,6 +142,7 @@ U32 utf8_check(U8 *s) {
   return i;
 }
  int min(int a, int b) {return a<b?a:b;}
+ uint64_t min64(uint64_t a, uint64_t b) {return a<b?a:b;}
  int max(int a, int b) {return a<b?b:a;}
 
 U64 CMlimit(U64 size){

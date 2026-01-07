@@ -82,14 +82,14 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     }
                 }else if (tarn && tarl==2 && (tarn+tar)==i) {
                     TARheader &tarh=(TARheader&)tars[0];
-                    if (!tarchecksum((char*)&tarh))  state=NONE,tarl=0;
+                    if (!tarchecksum((char*)&tarh))  state=NONE,tarl=jend=0;
                     if (tarend((char*)&tarh)==true) {
                         jstart=tar;
                         jend=i+512;
                         type=TAR;
                         state=END;
                         return state;
-                    } else{
+                    } else if (state!=NONE){
                         int a=getoct(tarh.size,12);
                         int b=a&511;
                         //int pad=512-(a%512);

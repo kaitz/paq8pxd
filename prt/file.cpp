@@ -24,7 +24,7 @@ int putsize(std::string& archive, std::string& s, const char* fname, int base) {
   bool success=f.open(fname,true);
   if (success) {
     f.setend();
-    U64 len=f.curpos();
+    _off64_t len=f.curpos();
     if (len>=0) {
       static char blk[24];
       sprintf(blk, "%0.0f\t", len+0.0);

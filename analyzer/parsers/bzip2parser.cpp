@@ -89,6 +89,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                 if (bzout!=nullptr) free(bzout),bzout=nullptr;
                 return state;
             }
+            jend=i+1;
             if (state==INFO) return INFO;
         }
 

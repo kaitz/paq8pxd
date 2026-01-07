@@ -1,7 +1,7 @@
-Parser      Priority  Types (sup-types)
+Parser      Priority  Types (sub-types)
 bmpparser       2     IMAGE1 IMAGE8 IMAGE4 IMAGE24
 decaparser      2     DECA
-default         4     DEFAULT
+default         5     DEFAULT
 exeparser       2     EXE
 jpegparser      1     JPEG
 mrbparser       2     MRBR(IMAGE8,CMP) MRBR4(IMAGE4,CMP) IMAGE1
@@ -38,13 +38,16 @@ gzipparser      1     GZIP
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.
-Sup-type - is passed on by info parameter or desided by "codec" when transform fails or not.
+Sub-type - is passed on by info parameter or desided by "codec" when transform fails or not.
 
 There are 5 levels of priority.
 
-0 - known container format (cd, mdf, ...)
-1 - recursive types (tiff, gif, tar, ...)
-2 - regular type (images, zlib ...)
-3 - same as abowe with lower priority
-4 - default (unknown type) or hard to parse type (text, ...)
+0 - root parser (any below, only one can be set to 0)
+1 - known container format (cd, mdf, ...)
+2 - recursive types (tiff, gif, tar, ...)
+3 - regular type (images, zlib ...)
+4 - same as abowe with lower priority
+5 - hard to parse type (text, ...)
+6 - default (unknown type)
 
+If some parser sets its priority to 0 then all other parsers are disabled, exept default parser (priority 6).

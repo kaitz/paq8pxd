@@ -11,7 +11,7 @@ class base64_2Parser: public Parser {
     uint64_t base64start,base64end,b64line,b64nl,b64lcount;
     uint64_t info;
     uint32_t buf0, buf1;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
     bool is_base64(unsigned char c);

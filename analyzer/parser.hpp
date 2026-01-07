@@ -14,6 +14,7 @@
 +    (((x) & 0xff00) >>  8) | \
 +    (((x) & 0x00ff) <<  8)
 
+#define MAX_PRI 7
 // base class for file type detection
 
 // Forward declaration - actual class in prt/file.hpp

@@ -11,7 +11,7 @@ class mrbParser: public Parser {
     uint32_t poffset=0;
     uint64_t info;
     uint32_t buf0, buf1;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
     uint32_t GetCDWord(unsigned char *data );

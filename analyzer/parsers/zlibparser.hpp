@@ -14,7 +14,7 @@ class zlibParser: public Parser {
     uint64_t pdfimp;
     uint64_t info;
     uint32_t buf0, buf1, buf2, buf3;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
     int parse_zlib_header(int header);

@@ -9,7 +9,7 @@ class MSCFParser: public Parser {
     uint64_t  of, size;
     uint64_t info;
     uint32_t buf0, buf1, buf2;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
 public:    

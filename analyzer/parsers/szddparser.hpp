@@ -19,7 +19,7 @@ class SZDDParser: public Parser {
             uint32_t i1,c1, j, k;
     uint64_t info;
     uint32_t buf0, buf1;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
 public:    

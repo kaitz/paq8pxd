@@ -1,3 +1,8 @@
+v127
+    -Expand priority range to 0-6, 6=default
+    -Fix tar, bzip2, text parser
+    -Add support for files larger then 2GB
+    -In text parser switch to 0 priority when at least 32MB is processed (parsing from ~6mb/s to ~40mb/s)
 v126
     -Fix cd, szdd parser
     -Display correct image info in pngparser

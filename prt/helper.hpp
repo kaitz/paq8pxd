@@ -51,6 +51,7 @@ U8 Clip(int const Px);
 #define QUOTE 0x22
 #define APOSTROPHE 0x27
 
+ uint64_t min64(uint64_t a, uint64_t b);
  int min(int a, int b);
  int max(int a, int b);
 

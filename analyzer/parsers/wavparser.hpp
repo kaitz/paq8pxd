@@ -8,7 +8,7 @@ class WAVParser: public Parser {
     int wavsize,wavch,wavbps,wavm,wavsr,wavt,wavtype,wavlen;
     uint64_t info,info2;
     uint32_t buf0, buf1;
-    uint32_t i;
+    uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
 public:    

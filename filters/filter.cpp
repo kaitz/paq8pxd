@@ -13,7 +13,7 @@ FMode Filter::compare(File *in, File *out, uint64_t size) {
     uint64_t remaining=size;
 
     while (remaining) {
-        size_t reads=min(BLOCK, remaining);
+        size_t reads=min64(BLOCK, remaining);
         int ReadIn=in->blockread(&blkin[0], reads);
         int ReadOut=out->blockread(&blkout[0], reads);
         if (memcmp(blkin, blkout, ReadIn)!=0 || ReadIn!=reads || ReadIn!=ReadOut) {
