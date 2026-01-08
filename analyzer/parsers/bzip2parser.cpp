@@ -60,6 +60,16 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                     state=NONE;
                     if (bzout!=nullptr) free(bzout),bzout=nullptr;
                 }
+                if (ret==BZ_STREAM_END) {
+                    (void)BZ2_bzDecompressEnd(&stream);
+                    jstart=BZip2;
+                    jend=jstart+(stream.total_in_lo32+(stream.total_in_hi32<<8));
+                    info=bzlevel;
+                    type=BZIP2;
+                    state=END;
+                    if (bzout!=nullptr) free(bzout),bzout=nullptr;
+                    return state;
+                }
                 blockz=0x10000;
                 if (state!=NONE) {
                     state=INFO;

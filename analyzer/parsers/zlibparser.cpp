@@ -143,6 +143,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                                     if (jstart=(i%0x10000)-(brute?255:31)+blsize==len){
                                         jstart=i-(brute?255:31);
                                         state=INFO;
+                                        priority=0;
                                         return state;
                                     }
                                     state=NONE;
@@ -190,6 +191,8 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 type=ZLIB;
                 return state;
             }
+            state=NONE;
+            return state;
         }
         inSize++;
         i++;
