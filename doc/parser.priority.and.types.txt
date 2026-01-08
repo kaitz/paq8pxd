@@ -9,8 +9,8 @@ mszipparser     3     MSZIP(CMP)
 nesparser       3     NESROM DEFAULT)
 textparser      4     TEXT
 wavparser       3     AUDIO
-zlibparser      3     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
-zlibparser      4     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
+zlibparser      2     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
+zlibparser      5     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
 pnmpparser      3     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
 pdflzwparser    3     CMP
 gifparser       3     GIF (CMP)

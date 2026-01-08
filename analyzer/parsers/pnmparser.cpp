@@ -99,6 +99,7 @@ DetectState PNMParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         inSize++;
         i++;
     }
+    if (state==INFO && (i-jstart)>64000) { priority=0;}
     if (state==INFO) return INFO;
     // Are we still reading data for our type
     if (state!=NONE)

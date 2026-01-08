@@ -92,11 +92,12 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         } else if (state==INFO && i==(jend-1)) {
             state=END;
             return state;
-        }
+        }  
 
         inSize++;
         i++;
     }
+    if (state==INFO && (i-jstart)>64000) { priority=0; return INFO;}
     // Are we still reading data for our type
     if (state!=NONE)
     return DATA;

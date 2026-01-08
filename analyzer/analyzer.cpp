@@ -70,7 +70,8 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
     uint8_t blk[BLOCK];
     Filetype type=DEFAULT;
     bool pri[MAX_PRI]={false};
-    typefound=false;
+    typefound=zeroParser=false;
+    zpID=-1;                        // Set zero parser ID to none
     // Reset all parsers exept recursive
     int recP=0;
     for (size_t j=0; j<parsers.size(); j++) {
@@ -90,7 +91,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
         // Pass the data block to the parsers one by one
         for (size_t j=0; j<parsers.size(); j++) {
             if (parsers[j]->state!=DISABLE) {
-                parsers[j]->file_handle = in;  // Give parser access to file for probing
+                parsers[j]->file_handle = in;  // Give parser access to file for probing. This should not be necessary.
                 //printf("T=%d parser %s PARSE\n",j,parsers[j]->name.c_str());
                 //open type detection file and load into memory
                 DetectState dstate=parsers[j]->Parse(&blk[0],ReadIn,n-remaining,(remaining-ReadIn)==0?true:false);
@@ -98,9 +99,11 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     parsers[j]->state=INFO;
                     dType t=parsers[j]->getType(0);
                     type=t.type;
-                    //printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
-                    assert(parsers[j]->priority<MAX_PRI);
+                    //if (parsers[j]->priority==0 && zeroParser==false) printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
+                    assert(parsers[j]->priority>=0 && parsers[j]->priority<MAX_PRI);
                     pri[parsers[j]->priority]|=true;   // we have valid header, set priority true
+                    //if (parsers[j]->priority==0 && zpID!=-1 && zpID!=j) printf("T=%d ERROR, parser %s enabled. Parser %s ignored.\n",j,parsers[zpID]->name.c_str(),parsers[j]->name.c_str());
+                    if (parsers[j]->priority==0 && zeroParser==false) zeroParser=true,zpID=j;
                     // INFO means "might be something" - don't break, let other parsers check too
                 } else if (dstate==END){
                     //printf("T=%zu END %s\n",j,parsers[j]->name.c_str());
@@ -111,27 +114,36 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                 } else if (dstate==DISABLE) {
                     //printf("T=%d DISABLE\n",j);
                     parsers[j]->state=DISABLE;
+                } else if (j==zpID && parsers[j]->state==NONE) { // Priority 0 parser fail, re-enable all
+                    //printf("T=%zu PARSER FAIL %s. Enable all.\n",zpID,parsers[j]->name.c_str());
+                    for (size_t i=0; i<parsers.size(); i++) {
+                        parsers[i]->Reset();
+                        parsers[i]->state=NONE;
+                    }
+                    for (size_t i=0; i<(MAX_PRI-1); i++) pri[i]=false; // Reset all exept default
+                    zeroParser=false;
+                    zpID=-1;
                 }
             }
         }
         // Test valid parsers and disable lower priority ones that are not detected a new type. 
         // Priority MAX_PRI-1 not tested as it is default
-        if (typefound==false){
+        if (typefound==false) {
             for (size_t i=0; i<(MAX_PRI-1); i++) {
                 bool p=pri[i];
                 if (p) {
                     for (size_t j=0; j<parsers.size(); j++) {
-                        if (parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
+                        if (j!=zpID && parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
                             //if (parsers[j]->priority!=(MAX_PRI-1)) printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                             dType t=parsers[j]->getType(0);
-                            if (/*t.type!=DEFAULT ||*/ parsers[j]->priority!=(MAX_PRI-1))parsers[j]->state=DISABLE; // ignore default type or lowest priority
+                            if (/*t.type!=DEFAULT &&*/ parsers[j]->priority!=(MAX_PRI-1))parsers[j]->state=DISABLE; // ignore default type or lowest priority
                             //printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                         }
                     }
-                    /*if (pri[0]) { // Show 0 priority parsers
+                    /*if (pri[0]) { // Show 0 priority parser
                         for (size_t j=0; j<parsers.size(); j++) {
                             if (parsers[j]->state!=DISABLE) {
-                                printf("T=%d parser %s ENABLED\n",j,parsers[j]->name.c_str());
+                                printf("T=%d parser %s ENABLED pri %d\n",j,parsers[j]->name.c_str(),parsers[j]->priority);
                             }
                         }
                     }*/

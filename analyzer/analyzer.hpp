@@ -48,7 +48,8 @@ class Analyzer {
     size_t lastType;
     dType currentType;
     dType emptyType;
-    bool typefound;
+    bool typefound,zeroParser;
+    int zpID;
     int iter;
     Filetype ptype;
     std::string *pinfo;

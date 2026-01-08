@@ -121,7 +121,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     if (inpos!=pos || pos==0) {
         inSize=0,inpos=pos;
         i=pos;
-        if (state==END && parseCount==0) state=NONE,rec=false;
+        if (state==END && parseCount==0) state=NONE,priority=2,rec=false;
     }
     uint64_t Tag279=0;
     while (inSize<len) {
@@ -132,16 +132,13 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         buf0=(buf0<<8)+c;
 
         if (state==NONE && (
-                    (buf1==0x49492a00 ||(buf1==0x4949524f && buf0==0x8000000  ) ) /*&& (i+len)>(i+(int)bswap(buf0))*/ || 
-                    ((buf1==0x4d4d002a  ) /*&& (i+len)>(i+(int)(buf0) )*/
-                        ))) {
+                    (buf1==0x49492a00 || (buf1==0x4949524f && buf0==0x8000000) ) || (buf1==0x4d4d002a) )) {
             state=START;
             if (buf1==0x4d4d002a) tiffMM=true;
             tiffImageStart=0,tiffImages=-1;
             dirEntry=tiffMM==true?buf0:bswap(buf0);
             tiffi=i-7;
             //printf("First dir: %d\n",dirEntry);
-            state=INFO;
             memset(&idfImg, 0, sizeof(idfImg));
         } else if (state==START || state==INFO) {
             if (i==(dirEntry+1+tiffi) && tagsIn==0) {
@@ -154,6 +151,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 // Read in tag content if any and parse
                 tagCd[tagCdi++]=c;
                 if (tagCdi==(tagCs*tagCc)) {
+                     state=INFO;
                     //Number of bits per component
                     if (tagCi==258) {
                         int bits=0;
