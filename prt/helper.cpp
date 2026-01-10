@@ -211,6 +211,14 @@ ParserType GetTypeFromExt(std::string ext) {
        return P_WAV;
     else if (ext=="tar")
        return P_TAR;
+    else if (ext=="png")
+       return P_PNG;
+    else if (ext=="zip")
+       return P_ZIP;
+    else if (ext=="gif")
+       return P_GIF;
+    else if (ext=="ppm" || ext=="pgm" || ext=="pbm")
+       return P_PNM;
     else if (ext=="exe" || ext=="drv" || ext=="dll" || ext=="ocx")
        return P_WEXE;
     else if (ext=="jpg" || ext=="jpeg")
