@@ -11,6 +11,13 @@
 int putsize(std::string& archive, std::string& s, const char* fname, int base);
 int expand(std::string& archive, std::string& s, const char* fname, int base);
 
+/////////////////////////// File /////////////////////////////
+// The main purpose of these classes is to keep temporary files in 
+// RAM as mush as possible. The default behaviour is to simply pass 
+// function calls to the operating system - except in case of temporary 
+// files.
+
+
 class File {
 public:
   virtual ~File(){};// = default;

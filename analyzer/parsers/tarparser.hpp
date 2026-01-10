@@ -4,8 +4,6 @@
 #include <cstdint>
 #include <vector>
 #include <cstring>
-//#include <deque>
-
 
 struct TARheader{
     char name[100];
@@ -24,11 +22,13 @@ struct TARheader{
     char minor[8];
     char pad[167];
 };
-struct TARfile{
-        uint64_t start;
-        uint64_t size;
-        ParserType p;
-    };
+
+struct TARfile {
+    uint64_t start;
+    uint64_t size;
+    ParserType p;
+};
+
 class TARParser: public Parser {
     uint64_t tar,tarn,tarl,utar;
     TARheader tarh;

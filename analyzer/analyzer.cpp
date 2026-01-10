@@ -30,10 +30,14 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
         SelectParser(P_EXE);
         SelectParser(P_BMP);
         SelectParser(P_DECA);
-        SelectParser(P_WAV);     // is something missing?
-    } else if (eparser==P_WJPG) { // Virtual file parser for jpg jpeg
+        SelectParser(P_WAV);     // is something missing? P_TXT, P_GZIP,...
+        SelectParser(P_MSCF);
+    } else if (eparser==P_WPDF) { // Virtual file parser for pdf
         SelectParser(P_DEF);
+        SelectParser(P_TXT);
         SelectParser(P_JPG);
+        SelectParser(P_PLZW);
+        SelectParser(P_ZLIB);
     // This needs to be last
     } else if (eparser!=P_DEF) { // We have extension based parser, use only that
         SelectParser(P_DEF);

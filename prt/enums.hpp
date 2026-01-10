@@ -11,7 +11,7 @@ typedef enum {// real parsers
               P_ZIP, P_GZIP, P_BZIP2, P_SZDD, P_MSCF, P_ZLIB, P_ZLIBP,
               // virtual parsers, see analyzer
               P_PBIT,
-              P_WEXE, P_WJPG,
+              P_WEXE, P_WPDF,
               P_LAST} ParserType;              
 
 typedef enum {DEFAULT=0,BINTEXT,ISOTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,

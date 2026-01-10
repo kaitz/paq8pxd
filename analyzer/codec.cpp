@@ -98,15 +98,7 @@ void Codec::EncodeFile(const char* filename, uint64_t filesize) {
     if (verbose>2) printf("Block segmentation:\n");
     char blstr[32]="";
     std::string fname=filename;
-    std::string ext="";
-    ParserType etype=P_DEF; // expected file content parser
-    size_t lastdot=fname.find_last_of(".");
-    if (lastdot!=std::string::npos && fname.size()!=lastdot) {
-        ext=fname.substr(lastdot + 1);
-        //printf("File extension: %s\n",ext.c_str());
-        etype=GetTypeFromExt(ext);
-        //if (etype!=P_DEF) printf("Parser selected.\n");
-    }
+    ParserType  etype=GetTypeFromExt(fname);
     EncodeFileRecursive(&in, filesize,  blstr, 0, DEFAULT, etype);
     in.close();
 }

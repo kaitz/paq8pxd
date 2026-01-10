@@ -58,12 +58,6 @@ void makedirectories(const char* filename) {
   }
 }
 
-/////////////////////////// File /////////////////////////////
-// The main purpose of these classes is to keep temporary files in 
-// RAM as mush as possible. The default behaviour is to simply pass 
-// function calls to the operating system - except in case of temporary 
-// files.
-
 // Helper function: create a temporary file
 //
 // On Windows when using tmpfile() the temporary file may be created 
@@ -141,47 +135,47 @@ U32 utf8_check(U8 *s) {
       return i;
   return i;
 }
- int min(int a, int b) {return a<b?a:b;}
- uint64_t min64(uint64_t a, uint64_t b) {return a<b?a:b;}
- int max(int a, int b) {return a<b?b:a;}
 
-U64 CMlimit(U64 size){
+int min(int a, int b) {return a<b?a:b;}
+uint64_t min64(uint64_t a, uint64_t b) {return a<b?a:b;}
+int max(int a, int b) {return a<b?b:a;}
+
+U64 CMlimit(U64 size) {
     //if (size>(0x100000000UL)) return (0x100000000UL); //limit to 4GB, using this will consume lots of memory above level 11
     if (size>(0x80000000UL)) return (0x80000000UL); //limit to 2GB
     return (size);
 }
 
-U64 MEM(){
-     return 0x10000UL<<level;
+U64 MEM() {
+    return 0x10000UL<<level;
 }
 
-U8 Clip(int const Px){
+U8 Clip(int const Px) {
   if(Px>255)return 255;
   if(Px<0)return 0;
   return Px;
 }
-
-
-
  
-  U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4){
+U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4) {
   int maximum=n1;if(maximum<n2)maximum=n2;if(maximum<n3)maximum=n3;if(maximum<n4)maximum=n4;
   int minimum=n1;if(minimum>n2)minimum=n2;if(minimum>n3)minimum=n3;if(minimum>n4)minimum=n4;
   if(Px<minimum)return minimum;
   if(Px>maximum)return maximum;
   return Px;
 }
-  U8 LogMeanDiffQt(const U8 a, const U8 b, const U8 limit ){
+
+U8 LogMeanDiffQt(const U8 a, const U8 b, const U8 limit) {
   if (a==b) return 0;
   U8 sign=a>b?8:0;
   return sign | min(limit, ilog2((a+b)/max(2,abs(a-b)*2)+1));
 }
-  U32 LogQt(const U8 Px, const U8 bits){
+
+U32 LogQt(const U8 Px, const U8 bits) {
   return (U32(0x100|Px))>>max(0,(int)(ilog2(Px)-bits));
 }
 
 
-  U8 Paeth(U8 W, U8 N, U8 NW){
+U8 Paeth(U8 W, U8 N, U8 NW) {
   int p = W+N-NW;
   int pW=abs(p-(int)W), pN=abs(p-(int)N), pNW=abs(p-(int)NW);
   if (pW<=pN && pW<=pNW) return W;
@@ -189,7 +183,7 @@ U8 Clip(int const Px){
   return NW;
 }
 
-  bool CharInArray(const char c, const char a[], const int len) {
+bool CharInArray(const char c, const char a[], const int len) {
   if (*a==0)
     return false;
   int i=0;
@@ -197,9 +191,18 @@ U8 Clip(int const Px){
   return i<len;
 }
 
-// Converst file extension(s) to file parsers
-ParserType GetTypeFromExt(std::string ext) {
-    if (ext=="bmp")
+// Converst file extension to file parser
+ParserType GetTypeFromExt(std::string fname) {
+    std::string ext="";
+    size_t lastdot=fname.find_last_of(".");
+    if (lastdot!=std::string::npos && fname.size()!=lastdot) {
+        ext=fname.substr(lastdot + 1);
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return std::tolower(c); });
+        //printf("File extension: %s\n",ext.c_str());
+    } else {
+        return P_DEF;
+    }
+    if (ext=="bmp" || ext=="ico")
        return P_BMP;
     else if (ext=="txt" || ext=="c" || ext=="cpp" || ext=="hpp")
        return P_TXT;
@@ -217,12 +220,24 @@ ParserType GetTypeFromExt(std::string ext) {
        return P_ZIP;
     else if (ext=="gif")
        return P_GIF;
+    else if (ext=="bz2")
+       return P_BZIP2;
+    else if (ext=="nes")
+       return P_NES;
+    else if (ext=="dbf")
+       return P_DBS;
+    else if (ext=="gz" || ext=="svgz" || ext=="tgz")
+       return P_GZIP;
+    else if (ext=="tif" || ext=="tiff" || ext=="cr2" || ext=="dng")
+       return P_TIFF;
     else if (ext=="ppm" || ext=="pgm" || ext=="pbm")
        return P_PNM;
     else if (ext=="exe" || ext=="drv" || ext=="dll" || ext=="ocx")
        return P_WEXE;
     else if (ext=="jpg" || ext=="jpeg")
-       return P_WJPG;
+       return P_JPG;
+    else if (ext=="pdf")
+       return P_WPDF;
     else {
         return P_DEF;
     }

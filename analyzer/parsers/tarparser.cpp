@@ -80,15 +80,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             tf.start=i-(tarFiles==0?0:tar);
                             tf.size=a;//+(512-(a%512)); // to include pad
                             std::string fname=tarh.name;
-                            std::string ext="";
-                            ParserType etype=P_DEF; // expected file content parser
-                            size_t lastdot=fname.find_last_of(".");
-                            if (lastdot!=std::string::npos && fname.size()!=lastdot) {
-                                ext=fname.substr(lastdot+1);
-                                etype=GetTypeFromExt(ext);
-                                /*printf("File extension: %s\n",ext.c_str());
-                                if (etype!=P_DEF) printf("Parser selected.\n");*/
-                            }
+                            ParserType etype=GetTypeFromExt(fname);
                             tf.p=etype;
                             tarF.push_back(tf);
                         }
@@ -129,15 +121,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             tf.start=i-(tarFiles==0?0:tar);
                             tf.size=a;//+(512-(a%512)); // to include pad
                             std::string fname=tarh.name;
-                            std::string ext="";
-                            ParserType etype=P_DEF; // expected file content parser
-                            size_t lastdot=fname.find_last_of(".");
-                            if (lastdot!=std::string::npos && fname.size()!=lastdot) {
-                                ext=fname.substr(lastdot+1);
-                                etype=GetTypeFromExt(ext);
-                                /*printf("File extension: %s\n",ext.c_str());
-                                if (etype!=P_DEF) printf("Parser selected.\n");*/
-                            }
+                            ParserType etype=GetTypeFromExt(fname);
                             tf.p=etype;
                             tarF.push_back(tf);
                             tarFiles++;

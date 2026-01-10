@@ -1,6 +1,6 @@
     /* paq8pxd file compressor/archiver.  Release by Kaido Orav
 
-    Copyright (C) 2008-2025 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
+    Copyright (C) 2008-2026 Matt Mahoney, Serge Osnach, Alexander Ratushnyak,
     Bill Pettis, Przemyslaw Skibinski, Matthew Fite, wowtiger, Andrew Paterson,
     Jan Ondrus, Andreas Morphis, Pavel L. Holoborodko, Kaido Orav, Simon Berger,
     Neill Corlett
@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd131"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd132"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -884,7 +884,7 @@ int main(int argc, char** argv) {
         if (slow==true) printf("Slow mode\n");
         // Print help message quick 
         if (argc<2) {
-            printf(PROGNAME " archiver (C) 2025, Matt Mahoney et al.\n"
+            printf(PROGNAME " archiver (C) 2026, Matt Mahoney et al.\n"
             "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n");
 #ifdef __GNUC__     
             printf("Compiled %s, compiler gcc version %d.%d.%d\n\n",__DATE__, __GNUC__, __GNUC_MINOR__,__GNUC_PATCHLEVEL__);
