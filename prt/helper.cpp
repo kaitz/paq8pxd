@@ -196,3 +196,26 @@ U8 Clip(int const Px){
   for (; i<len && c!=a[i]; i++);
   return i<len;
 }
+
+// Converst file extension(s) to file parsers
+ParserType GetTypeFromExt(std::string ext) {
+    if (ext=="bmp")
+       return P_BMP;
+    else if (ext=="txt" || ext=="c" || ext=="cpp" || ext=="hpp")
+       return P_TXT;
+    else if (ext=="mdf")
+       return P_MDF;
+    else if (ext=="zip")
+       return P_ZIP;
+    else if (ext=="wav")
+       return P_WAV;
+    else if (ext=="tar")
+       return P_TAR;
+    else if (ext=="exe" || ext=="drv" || ext=="dll" || ext=="ocx")
+       return P_WEXE;
+    else if (ext=="jpg" || ext=="jpeg")
+       return P_WJPG;
+    else {
+        return P_DEF;
+    }
+}

@@ -1,3 +1,6 @@
+v131
+    -Add file extension based parser selection and virtual files
+    -Enable tar recursion mode, select parser for each file from file extension
 v130
     -Fix large memory leaks in parser, now mem usage ~400MB RAM, before in GB
     -Add tar parser recursive mode (disabled)

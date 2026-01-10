@@ -5,11 +5,9 @@ mdfParser::mdfParser():cdata(2353) {
     Reset();
     inpos=0;
     name="mdf";
-    //cdata=(uint8_t*)calloc(2353,1);
 }
 
 mdfParser::~mdfParser() {
-    //free(cdata);
 }
 
 // loop over input block byte by byte and report state
@@ -61,13 +59,7 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         cdscont++;
                     } else if (state==START && mdfa==0) {
                         cdi=0,cdatai=0,state=NONE;
-                    } /*else {
-                        jend=i-2352+1;
-                        type=CD;
-                        info=cdif;
-                        state=END;
-                        return state;
-                    }*/
+                    }
                 } else if (cdatai>2352) {
                     // This should never happen
                     cdi=0,cdatai=0,state=NONE;

@@ -2,7 +2,17 @@
 #include <string>
 typedef enum {STR_NONE=-1,STR_DEFAULT=0,STR_JPEG, STR_IMAGE1, STR_IMAGE4, STR_IMAGE8, STR_IMAGE24, STR_AUDIO, STR_EXE, STR_TEXT0,STR_TEXT,STR_BIGTEXT,STR_DECA,STR_CMP,STR_LAST} Streamtype;
 typedef enum {TR_NONE=0,TR_INFO=1,TR_RECURSIVE=2,TR_TRANSFORM=4, TR_FORWARD=8, TR_REVERSE=16,TR_DIRECT=32} Streamtypeinfo;
-              
+
+// Parser types
+typedef enum {// real parsers
+              P_DEF=0,P_BMP,P_TXT,P_DECA, P_MRB, P_EXE, P_NES, P_MZIP,P_JPG, P_WAV,
+              P_PNM, P_PLZW, P_GIF, P_DBS, P_AIFF, P_A85, P_B641, P_B642,
+              P_MOD, P_SGI, P_TGA, P_ICD, P_MDF, P_UUE, P_TIFF, P_TAR, P_PNG,
+              P_ZIP, P_GZIP, P_BZIP2, P_SZDD, P_MSCF, P_ZLIB, P_ZLIBP,
+              // virtual parsers, see analyzer
+              P_PBIT,
+              P_WEXE, P_WJPG,
+              P_LAST} ParserType;              
 
 typedef enum {DEFAULT=0,BINTEXT,ISOTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,BZIP2,

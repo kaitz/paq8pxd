@@ -27,6 +27,7 @@ struct TARheader{
 struct TARfile{
         uint64_t start;
         uint64_t size;
+        ParserType p;
     };
 class TARParser: public Parser {
     uint64_t tar,tarn,tarl,utar;

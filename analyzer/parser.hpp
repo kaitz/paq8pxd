@@ -1,5 +1,6 @@
 #pragma once
 #include "../prt/enums.hpp"
+#include "../prt/helper.hpp"
 #include <cstdint>
 #include <vector>
 #include <assert.h>

@@ -5,11 +5,9 @@ cdParser::cdParser():cdata(2353) {
     Reset();
     inpos=0;
     name="cd";
-    //cdata=(uint8_t*)calloc(2353,1);
 }
 
 cdParser::~cdParser() {
-    //free(cdata);
 }
 
 // loop over input block byte by byte and report state

@@ -55,9 +55,11 @@ class Analyzer {
     std::string *pinfo;
     void Status(uint64_t n, uint64_t size);
 public:    
-    Analyzer(int it,Filetype p=DEFAULT);
+    Analyzer(int it, Filetype p=DEFAULT, ParserType eparser=P_DEF); // Iter level, parent type, expected parser
     ~Analyzer();
     bool Detect(File* in, U64 n, int it=0);
     dType GetNext();
     std::string &GetInfo();
+protected:
+    void SelectParser(ParserType p);
 };

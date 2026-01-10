@@ -4,6 +4,7 @@
 #include "../prt/enums.hpp"
 #include "../prt/segment.hpp"
 #include "../prt/textinfo.hpp"
+#include "../prt/helper.hpp"
 
 #include "../stream/streams.hpp"
 #include <cstdint>
@@ -50,23 +51,6 @@ class Codec {
         virtual Filter* GetFilter(Filetype f);
     protected:
         virtual uint64_t DecodeFromStream(File *out, uint64_t size, FMode mode, int it=0);
-        virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0,Filetype p=DEFAULT);
+        virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0, Filetype p=DEFAULT, ParserType etype=P_DEF);
 };
 
-/*struct TARheader{
-    char name[100];
-    char mode[8];
-    char uid[8];
-    char gid[8];
-    char size[12];
-    char mtime[12];
-    char chksum[8];
-    char linkflag;
-    char linkname[100];
-    char magic[8];
-    char uname[32];
-    char gname[32];
-    char major[8];
-    char minor[8];
-    char pad[167];
-};*/

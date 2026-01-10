@@ -79,9 +79,19 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             TARfile tf;
                             tf.start=i-(tarFiles==0?0:tar);
                             tf.size=a;//+(512-(a%512)); // to include pad
-                            tarF.push_back(tf);    
+                            std::string fname=tarh.name;
+                            std::string ext="";
+                            ParserType etype=P_DEF; // expected file content parser
+                            size_t lastdot=fname.find_last_of(".");
+                            if (lastdot!=std::string::npos && fname.size()!=lastdot) {
+                                ext=fname.substr(lastdot+1);
+                                etype=GetTypeFromExt(ext);
+                                /*printf("File extension: %s\n",ext.c_str());
+                                if (etype!=P_DEF) printf("Parser selected.\n");*/
+                            }
+                            tf.p=etype;
+                            tarF.push_back(tf);
                         }
-                        
                     }
                 }else if (tarn && tarl==2 && (tarn+tar)==i) {
                     TARheader &tarh=(TARheader&)tars[0];
@@ -89,19 +99,18 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         state=NONE,tarl=jend=0;  
                     } 
                     if (tarend((char*)&tarh)==true) {
-                        jstart=tar;
+                        /*jstart=tar;
                         jend=i+512;
                         type=TAR;
                         state=END;
                         //printf("Tar files: %d\n",tarFiles);
-                        return state;
+                        return state;*/
                         // recursive mode
-                        /*jstart=0;
+                        jstart=0;
                         jend=0;
                         relAdd=tar;
                         state=END;
                         rec=true;           // fall to recursive mode
-                        */
                     } else if (state!=NONE) {
                         int a=getoct(tarh.size,12);
                         int b=a&511;
@@ -119,10 +128,21 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             TARfile tf;
                             tf.start=i-(tarFiles==0?0:tar);
                             tf.size=a;//+(512-(a%512)); // to include pad
+                            std::string fname=tarh.name;
+                            std::string ext="";
+                            ParserType etype=P_DEF; // expected file content parser
+                            size_t lastdot=fname.find_last_of(".");
+                            if (lastdot!=std::string::npos && fname.size()!=lastdot) {
+                                ext=fname.substr(lastdot+1);
+                                etype=GetTypeFromExt(ext);
+                                /*printf("File extension: %s\n",ext.c_str());
+                                if (etype!=P_DEF) printf("Parser selected.\n");*/
+                            }
+                            tf.p=etype;
                             tarF.push_back(tf);
                             tarFiles++;
                         }
-                        if (flCount++>1) priority=0;// after 2 files set priority to 0
+                        if (flCount++>1) priority=0; // after 2 files set priority to 0
                     }
                 }
                 tars[tarsi++]=c;
@@ -130,7 +150,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             }
         } else if (rec && state==END && tarFiles) { 
             // recursive mode, report all tar file ranges
-            // file extension based type needs to be added, for now use RECE
+            // file extension based type parser set in info
             TARfile tarfile=tarF[tarF.size()-tarFiles];
             jstart=tarfile.start-(relAdd-tar);
             jend=jstart+tarfile.size;
@@ -138,7 +158,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             relAdd+=jend-tar;
             relAdd-=tar;
             type=RECE;
-            info=0;
+            info=tarfile.p;
             tar=0;
             tarFiles--;
             if (tarFiles==0) tarF.clear(),rec=false;

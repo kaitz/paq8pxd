@@ -1,7 +1,50 @@
 //#pragma once
 #include "analyzer.hpp"
 
-Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p) {
+// Example:
+// P_EXE is headerless parser,
+// to add parser for .exe, .dll, .drv new value is needed (P_WEXE)
+// This parser (ParserType) may contain EXE, IMAGE(n), AUDIO, etc types (Filetype)
+// If SelectParser does not have this parser then it is ignored in case of Filetype=DEFAULT & ParserType=P_DEF
+// So we can add our special case for it in GetTypeFromExt.
+
+Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p) {
+    assert(eparser<P_LAST);
+    assert(p<TYPELAST);
+    // By default add all parsers 
+    if (p==DEFAULT && eparser==P_DEF) {
+        for (int selp=P_DEF; selp!=P_LAST; selp++) {
+            SelectParser(static_cast<ParserType>(selp));
+        }
+    // Custom definations for parent types
+    } else if (p==MDF) {         // Parent based parser selection mdf->cd
+        SelectParser(P_DEF);     // Audio?
+        SelectParser(P_ICD);
+    /*} else if (p==ZLIB) {        // Parent based parser selection (pdf ->) zlib -> bitmap image
+        SelectParser(P_DEF);
+        SelectParser(P_PBIT);    // eparser needs to be P_PDF, for now it is P_DEF
+    */
+    // Custom definations for virtual files
+    } else if (eparser==P_WEXE) { // Virtual file parser for exe drv dll ocx
+        SelectParser(P_DEF);
+        SelectParser(P_EXE);
+        SelectParser(P_BMP);
+        SelectParser(P_DECA);
+        SelectParser(P_WAV);     // is something missing?
+    } else if (eparser==P_WJPG) { // Virtual file parser for jpg jpeg
+        SelectParser(P_DEF);
+        SelectParser(P_JPG);
+    // This needs to be last
+    } else if (eparser!=P_DEF) { // We have extension based parser, use only that
+        SelectParser(P_DEF);
+        SelectParser(eparser);
+    } else {                     // same as DEFAULT && P_DEF
+        for (int selp=P_DEF; selp!=P_LAST; selp++) {
+            SelectParser(static_cast<ParserType>(selp));
+        }
+    }
+    
+   /*
     AddParser( new DefaultParser());
     AddParser( new BMPParser());
     AddParser( new TextParser());
@@ -49,13 +92,127 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
         AddParser( new zlibParser());      // brute=true, low priority
         AddParser( new zlibParser(false)); // brute=false, high priority
     }
-    
+    */
     emptyType.start=0;
     emptyType.end=0;
     emptyType.info=0;
     emptyType.rpos=0;
     emptyType.type=DEFAULT;
     emptyType.recursive=false;
+}
+
+void Analyzer::SelectParser(ParserType p) {
+    assert(p<P_LAST);
+    switch (p) {
+    case P_DEF:
+        AddParser( new DefaultParser());
+        return;
+    case P_BMP:
+        AddParser( new BMPParser());
+        return;
+    case P_TXT:
+        AddParser( new TextParser());
+        return;
+    case P_DECA:
+        AddParser( new DECaParser());
+        return;
+    case P_MRB:
+        AddParser( new mrbParser());
+        return;
+    case P_EXE:
+        AddParser( new EXEParser());
+        return;
+    case P_NES:
+        AddParser( new NesParser());
+        return;
+    case P_MZIP:
+        AddParser( new MSZIPParser());
+        return;
+    case P_JPG:
+        AddParser( new JPEGParser());
+        return;
+    case P_WAV:
+        AddParser( new WAVParser());
+        return;
+    case P_PNM:
+        AddParser( new PNMParser());
+        return;
+    case P_PLZW:
+        AddParser( new PDFLzwParser());
+        return;
+    case P_GIF:
+        AddParser( new GIFParser());
+        return;
+    case P_DBS:
+        AddParser( new dBaseParser());
+        return;
+    case P_PBIT:
+        AddParser( new pdfBiParser());
+        return;
+    case P_AIFF:
+        AddParser( new AIFFParser());
+        return;
+    case P_A85:
+        AddParser( new ascii85Parser());
+        return;
+    case P_B641:
+        AddParser( new base64_1Parser());  // stream
+        return;
+    case P_B642:
+        AddParser( new base64_2Parser());  // multiline
+        return;
+    case P_MOD:
+        AddParser( new MODParser());
+        return;
+    case P_SGI:
+        AddParser( new sgiParser());
+        return;
+    case P_TGA:
+        AddParser( new TGAParser());
+        return;
+    case P_ICD:
+        AddParser( new cdParser());
+        return;
+    case P_MDF:
+        AddParser( new mdfParser());
+        return;
+    case P_UUE:
+        AddParser( new uueParser());
+        return;
+    case P_TIFF:
+        AddParser( new TIFFParser());
+        return;
+    case P_TAR:
+        AddParser( new TARParser());
+        return;
+    case P_PNG:
+        AddParser( new PNGParser());
+        return;
+    case P_ZIP:
+        AddParser( new ZIPParser());
+        return;
+    case P_GZIP:
+        AddParser( new GZIPParser());
+        return;
+    case P_BZIP2:
+        AddParser( new bzip2Parser());
+        return;
+    case P_SZDD:
+        AddParser( new SZDDParser());
+        return;
+    case P_MSCF:
+        AddParser( new MSCFParser());
+        return;
+    case P_ZLIB:
+        AddParser( new zlibParser());      // brute=true, low priority
+        return;
+    case P_ZLIBP:
+        AddParser( new zlibParser(false)); // brute=false, high priority
+        return;
+    default:
+        //printf("Must be virtual file.\n");
+        return;
+    }
 }
 
 void Analyzer::AddParser(Parser *p) {
@@ -241,7 +398,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
 
 dType Analyzer::GetNext() {
     if (types.size()>lastType) {
-        currentType=types[lastType];
+        dType currentType=types[lastType];
         lastType++;
         return currentType;
     } else {

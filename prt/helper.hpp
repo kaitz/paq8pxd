@@ -2,6 +2,7 @@
 #include "types.hpp"
 #include "array.hpp"
 #include "log.hpp"
+#include "enums.hpp"
 #include <stdio.h>
 #include <assert.h>
 #ifdef WINDOWS
@@ -62,3 +63,5 @@ U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4);
   U8 Paeth(U8 W, U8 N, U8 NW);
   #define MAX_WORD_SIZE 64
    bool CharInArray(const char c, const char a[], const int len) ;
+   
+ParserType GetTypeFromExt(std::string ext);
