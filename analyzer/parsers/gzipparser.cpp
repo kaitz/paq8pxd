@@ -94,7 +94,7 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
 
                         // Seek to deflate stream start
                         uint64_t seek_pos=jstart;
-                        if (jstart < 0x10000 && saved_pos > jstart ) seek_pos=saved_pos-(0x10000-jstart); // ?
+                        if (jstart < 0x10000 && saved_pos > jstart && saved_pos >= 0x10000 ) seek_pos=saved_pos-(0x10000-jstart); // ?
                         file_handle->setpos((seek_pos));
                         
                         // Use preflate_decode to find exact length

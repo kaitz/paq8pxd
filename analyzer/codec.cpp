@@ -167,14 +167,14 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
         direct_encode_blockstream(DEFAULT, in, n);
         return;
     }
-    Analyzer an(it,ptype);
+    Analyzer *an=new Analyzer(it,ptype);
     bool found=false;
     // Transform and test in blocks
     while (n>0) {
         if (found==false){
-            found=an.Detect(in,n,it);
+            found=an->Detect(in,n,it);
         }
-        dType block=an.GetNext();
+        dType block=an->GetNext();
         if (block.end==0) {
             found=false;
         }
@@ -209,6 +209,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
             Status(begin,end0);
         }
     }
+    delete an;
 }
 
 void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info) {
@@ -476,13 +477,20 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 }    
             }
         }
-        tmp->close();  // deletes
+        tmp->close();
     } else {
         
 #define tarpad  //remove for filesize padding \0 and add to default stream as hdr        
         //do tar recursion, no transform
-        if (type==TAR) {
-            EncodeFileRecursive( in, len,  blstr,it+1,type);//it+1
+        if (type==TAR || type==RECE) {
+            // we need to be careful, heavy recursion creates a large number of memory allocations
+            FileTmp* tmp;
+            tmp=new FileTmp;
+            Filter* dataf=GetFilter(DEFAULT);
+            dataf->encode(in, tmp, len, uint64_t(info));
+            tmp->setpos(0);
+            EncodeFileRecursive( tmp, len,  blstr,it+1,type);
+            tmp->close();
             /*int tarl=int(len),tarn=0,blnum=0,pad=0;;
             TARheader tarh;
             char b2[32];

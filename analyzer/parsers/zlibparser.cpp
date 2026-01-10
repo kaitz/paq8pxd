@@ -11,7 +11,7 @@ zlibParser::zlibParser(bool b) {
 }
 
 zlibParser::~zlibParser() {
-    free(strm);
+    if (strm) free(strm),strm=nullptr;
 }
 
 int zlibParser::parse_zlib_header(int header) {

@@ -1,8 +1,11 @@
 #pragma once
+#include "../../prt/array.hpp"
 #include "../parser.hpp"
 #include <cstdint>
 #include <vector>
 #include <cstring>
+//#include <deque>
+
 
 struct TARheader{
     char name[100];
@@ -21,7 +24,10 @@ struct TARheader{
     char minor[8];
     char pad[167];
 };
-
+struct TARfile{
+        uint64_t start;
+        uint64_t size;
+    };
 class TARParser: public Parser {
     uint64_t tar,tarn,tarl,utar;
     TARheader tarh;
@@ -29,10 +35,12 @@ class TARParser: public Parser {
     uint32_t tarsi;
     uint64_t info;
     uint32_t buf0, buf1;
-    uint64_t i;
+    uint64_t i,relAdd;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
-    uint32_t flCount;
+    uint32_t flCount,tarFiles;
+    Array<TARfile> tarF;
+    bool rec;
     int getoct(const char *p, int n);
     int tarchecksum(char *p);
     bool tarend(const char *p);

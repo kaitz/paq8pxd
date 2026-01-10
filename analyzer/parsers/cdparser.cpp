@@ -1,15 +1,15 @@
 #include "cdparser.hpp"
 
-cdParser::cdParser() {
+cdParser::cdParser():cdata(2353) {
     priority=1;
     Reset();
     inpos=0;
     name="cd";
-    cdata=(uint8_t*)calloc(2353,1);
+    //cdata=(uint8_t*)calloc(2353,1);
 }
 
 cdParser::~cdParser() {
-    free(cdata);
+    //free(cdata);
 }
 
 // loop over input block byte by byte and report state
@@ -42,7 +42,7 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
                 else if (cdatai==2352) {
                     // We have whole sector, test it
                     CDHeder *ch=(struct CDHeder*)&cdata[0];
-                    int t=expand_cd_sector(cdata, cda, 1); 
+                    int t=expand_cd_sector(&cdata[0], cda, 1); 
                     if (t!=cdm) cdm=t*(i-cdi<2352);
                     if (cdm && cda!=10 && (cdm==1 || ch->sub1==ch->sub2)) {
                         if (t && state==START) state=INFO, jstart=i-2352+1; 

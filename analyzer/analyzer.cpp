@@ -8,10 +8,7 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     AddParser( new DECaParser());
     AddParser( new mrbParser());
     AddParser( new EXEParser());
-    if (ptype!=ZLIB) {
-        AddParser( new zlibParser());      // brute=true, low priority
-        AddParser( new zlibParser(false)); // brute=false, high priority
-    }
+    
     AddParser( new NesParser());
     AddParser( new MSZIPParser());
     AddParser( new JPEGParser());
@@ -47,7 +44,12 @@ Analyzer::Analyzer(int it,Filetype p):info(0),remaining(0),typefound(false),last
     if (ptype!=BZIP2) AddParser( new bzip2Parser());
     AddParser( new SZDDParser());
     AddParser( new MSCFParser());
-
+    // Set as last parser
+    if (ptype!=ZLIB) {
+        AddParser( new zlibParser());      // brute=true, low priority
+        AddParser( new zlibParser(false)); // brute=false, high priority
+    }
+    
     emptyType.start=0;
     emptyType.end=0;
     emptyType.info=0;
@@ -61,6 +63,10 @@ void Analyzer::AddParser(Parser *p) {
 }
 
 Analyzer::~Analyzer() {
+  while(parsers.size()) {
+      delete parsers[parsers.size()-1];
+      parsers.pop_back();
+  }
 }
 void Analyzer::Status(uint64_t n, uint64_t size) {
     fprintf(stderr,"P%6.2f%%\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
@@ -102,7 +108,9 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     //if (parsers[j]->priority==0 && zeroParser==false) printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
                     assert(parsers[j]->priority>=0 && parsers[j]->priority<MAX_PRI);
                     pri[parsers[j]->priority]|=true;   // we have valid header, set priority true
-                    //if (parsers[j]->priority==0 && zpID!=-1 && zpID!=j) printf("T=%d ERROR, parser %s enabled. Parser %s ignored.\n",j,parsers[zpID]->name.c_str(),parsers[j]->name.c_str());
+                    /*if (parsers[j]->priority==0 && zpID!=-1 && zpID!=j) {
+                        printf("T=%d ERROR, parser %s enabled. Parser %s ignored.\n",j,parsers[zpID]->name.c_str(),parsers[j]->name.c_str());
+                    }*/
                     if (parsers[j]->priority==0 && zeroParser==false) zeroParser=true,zpID=j;
                     // INFO means "might be something" - don't break, let other parsers check too
                 } else if (dstate==END){
@@ -114,7 +122,9 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                 } else if (dstate==DISABLE) {
                     //printf("T=%d DISABLE\n",j);
                     parsers[j]->state=DISABLE;
-                } else if (j==zpID && parsers[j]->state==NONE) { // Priority 0 parser fail, re-enable all
+                } else if (j==zpID && parsers[j]->state==NONE) {
+                    // Priority 0 parser fail, re-enable all
+                    // What if fail is in the next block and some parser has valid data?
                     //printf("T=%zu PARSER FAIL %s. Enable all.\n",zpID,parsers[j]->name.c_str());
                     for (size_t i=0; i<parsers.size(); i++) {
                         parsers[i]->Reset();
@@ -173,6 +183,12 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     }
                 }
             }
+            /*for (size_t j=0; j<parsers.size(); j++) {
+                if (parsers[j]->state==END) {
+                    dType t=parsers[j]->getType(0);
+                    printf("P=%d %d-%d %s\n",j,t.start,t.end,parsers[j]->name.c_str());
+                }
+            }*/
             for (size_t j=0; j<parsers.size(); j++) {
                 if (parsers[j]->state==END && j==largeP) { // partial/damaged files?
                     dType d=parsers[0]->getType(0);
@@ -183,6 +199,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     // Do we have default type? If so add.
                     if (d.end>0 && t.start!=0) {
                         d.end=t.start;
+                        if (d.start>d.end) d.start=0;
                         types.push_back(d);
                         //printf("T=%d parser default\n Start %d,%d\n",0,d.start,d.end);
                     } else {

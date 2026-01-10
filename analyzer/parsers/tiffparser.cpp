@@ -10,8 +10,8 @@ TIFFParser::TIFFParser():dtf(0),ifd(0) {
 }
 
 TIFFParser::~TIFFParser() {
-    free(tagT);
-    free(tagCd);
+    if (tagT) free(tagT),tagT=nullptr;
+    if (tagCd) free(tagCd),tagCd=nullptr;
 }
 const std::string  TIFFParser::TIFFCompStr(int i) {
     if (i==1) return "Uncompressed";
@@ -132,7 +132,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         buf0=(buf0<<8)+c;
 
         if (state==NONE && (
-                    (buf1==0x49492a00 || (buf1==0x4949524f && buf0==0x8000000) ) || (buf1==0x4d4d002a) )) {
+                    (buf1==0x49492a00 /*|| (buf1==0x49495500 && buf0==0x8000000)*/ || (buf1==0x4949524f && buf0==0x8000000) ) || (buf1==0x4d4d002a) )) {
             state=START;
             if (buf1==0x4d4d002a) tiffMM=true;
             tiffImageStart=0,tiffImages=-1;
@@ -193,6 +193,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     tagCdi=0;
                     // Was last tag?
                     if (tagCx==0) {
+                        //if (dirE.size()!=0)  dirEntry=dirE[dirE.size()-1],dirE.pop_back(),inSize=i-inSize,i=tiffi;
                         if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                         if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
                         if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg),rec=true;
@@ -204,7 +205,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 TiffIFD d;
                 d.NumDirEntries=tagsIn;
                 d.CurrentIFD=dirEntry;
-                dirEntry=(d.NextIFD=(tiffMM==true?buf0:bswap(buf0))); // ?
+                dirEntry=(d.NextIFD=(tiffMM==true?buf0:bswap(buf0)));
                 //printf("Next: %d\n",d.NextIFD);
                 ifd.push_back(d);
                 //printf("Tag     Type          Count  Val/Offset\n");
@@ -233,6 +234,9 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     if (tg.Count!=1 && (tg.TagId==258 || tg.TagId==273 || tg.TagId==324|| tg.TagId==325 || tg.TagId==279) && ((tg.Type==3?2:tg.Type)*tg.Count)<0x10000) {
                         tagC.push_back(tg); // list of tag addresses to read
                     }
+                    if (dirEntry==0 && tg.Count==1 && tg.TagId==330) { // read direct address, and set new entry to parser
+                        dirEntry=tg.Offset;
+                    } 
                     if (tg.TagId==256) idfImg.width=tg.Offset;
                     else if (tg.TagId==257) idfImg.height=tg.Offset;
                     else if (tg.TagId==259) idfImg.compression=tg.Offset==1?0:tg.Offset;
@@ -257,6 +261,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 tagCx=NextTagContent(tagCx);
                 // Was last tag?
                 if (tagCx==0){
+                    //if (dirE.size()!=0)  dirEntry=dirE[dirE.size()-1],dirE.pop_back(),inSize=i-inSize,i=tiffi;
                     if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                     if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
                     if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg),rec=true;
@@ -292,12 +297,12 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             } else if (image.bits==8) {
                 type=IMAGE8;
             } else type=DEFAULT;
-            if (image.compression==6 || image.compression==7) type=JPEG,info=0;
+            if (image.compression==6) type=JPEG,info=0;
+            else if (image.compression==7)  type=CMP,info=0;
             else if (image.compression==8 && type==IMAGE24) type=ZLIB,info=(IMAGE24<<24)|image.width*3;
             else if (image.compression!=0) type=CMP,info=0;
             if (info) pinfo=" (width: "+ itos(info&0xffffff) +")";
             else pinfo=" "+TIFFCompStr(image.compression);
-            //else pinfo="";
             parseCount--;
             if (parseCount==0) rec=false;
             return state;

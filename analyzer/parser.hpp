@@ -26,7 +26,7 @@ struct dType {
     uint64_t info;      // info of the block if present
     uint64_t rpos;      // pos where start was set in block
     Filetype type;
-    std::string pinfo;        // parser info string: width, etc
+    std::string pinfo;  // parser info string: width, etc
     bool     recursive; // is data recursive
 };
 
@@ -39,16 +39,18 @@ public:
                              // multiple (non)recursive data types inside. We collect data for all
                              // until main file ends. At the same time report back last found type.
     int priority;            // From 0-4, where 0 top level (recursive) and 4 is bottom (least important)
-                             // 0 - container format (tar, mdf, ...)
-                             // 1 - recursive (zlib, bzip2, base64, ...)
-                             // 2 - single or multi data (bmp, tif, ...)
-                             // 3 - everything else (text, ...)
-                             // 4 - default
+                             // 0 - high priority parser, only one can be active (+default)
+                             // 1 - container format (tar, mdf, ...)
+                             // 2 - recursive (zlib, bzip2, base64, ...)
+                             // 3 - single or multi data (bmp, tif, ...)
+                             // 4 - everything else
+                             // 5 - low priority types
+                             // 6 - default
     std::string name;        // parser name
-    std::string pinfo;        // parser info string: width, etc
+    std::string pinfo;       // parser info string: width, etc
     const std::string audiotypes[6]={"8b mono","8b stereo","16b mono","16b stereo","32b mono","32b stereo"};
     Parser();
-    ~Parser();
+    virtual ~Parser();
     virtual DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last=false)=0;
     virtual dType getType(int i)=0;
     virtual int TypeCount()=0;

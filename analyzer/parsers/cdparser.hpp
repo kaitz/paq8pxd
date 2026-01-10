@@ -1,4 +1,5 @@
 #pragma once
+#include "../../prt/array.hpp"
 #include "../parser.hpp"
 #include <cstdint>
 #include <vector>
@@ -10,7 +11,7 @@ class cdParser: public Parser {
     uint64_t cdi;
     int cda,cdm,cdif;   // For CD sectors detection
     uint32_t cdf;
-    uint8_t *cdata;
+    Array<uint8_t> cdata;
     uint32_t cdatai,cdscont;
     uint64_t info;
     uint32_t buf0, buf1;

@@ -38,6 +38,8 @@ Streams::Streams():streams(0){
     streams[0]->dataType.push_back({EOLTEXT,TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({TAR,TR_NONE|TR_DIRECT});
     streams[0]->dataType.push_back({WIT,TR_INFO|TR_RECURSIVE|TR_TRANSFORM});
+    streams[0]->dataType.push_back({RECE,TR_RECURSIVE});
+    
     //STR_DEFAULT
     streams[1]->dataType.push_back({DEFAULT,TR_NONE});
     streams[1]->dataType.push_back({BINTEXT,TR_INFO});

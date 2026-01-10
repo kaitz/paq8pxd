@@ -51,7 +51,7 @@ struct TextInfo {
 };
 
 class TextParser: public Parser {
-    TextParserStateInfo textparser;
+    TextParserStateInfo tp;
     TextInfo text; 
     uint64_t info;
     uint64_t i;

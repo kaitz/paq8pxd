@@ -6,9 +6,9 @@
 #include <cinttypes>
 #include <cstring>
 #include <cstdlib>
-//#ifndef NDEBUG
+#ifndef NDEBUG
  void chkindex(U64 index, U64 upper_bound);
-//#endif
+#endif
 //////////////////////////// Array ////////////////////////////
 
 // Array<T,Align> a(n); allocates memory for n elements of T.
@@ -20,6 +20,7 @@
 //
 // a.size(): returns the number of T elements currently in the array.
 // a.resize(newsize): grows or shrinks the array.
+// a.clear(): release all the memory but preserve the memory pointer.
 // a.append(x): appends x to the end of the array and reserving space for more elements if needed.
 // a.pop_back(): removes the last element by reducing the size by one (but does not free memory).
 
@@ -49,6 +50,7 @@ public:
   }
   U64 size() const {return used_size;}
   void resize(U64 new_size);
+  void clear();                                        // dealloc memory, preserve pointer
   void pop_back() {assert(used_size>0); --used_size; }  // decrement size
   void push_back(const T& x);  // increment size, append x
   Array(const Array&) { assert(false); } //prevent copying - this method must be public (gcc must see it but actually won't use it)
@@ -73,7 +75,6 @@ template<class T, const int Align> void Array<T,Align>::create(U64 requested_siz
   data=(T*)(((uintptr_t)ptr+pad) & ~(uintptr_t)pad);
   assert(ptr<=(char*)data && (char*)data<=ptr+Align);
   assert(((uintptr_t)data & (Align-1))==0); //aligned as expected?
-  //programChecker.alloc(bytes_to_allocate);
 }
 
 template<class T, const int Align> void Array<T,Align>::resize(U64 new_size) {
@@ -84,12 +85,20 @@ template<class T, const int Align> void Array<T,Align>::resize(U64 new_size) {
   char *old_ptr=ptr;
   T *old_data=data;
   U64 old_size=used_size;
-  //programChecker.free(allocated_bytes());
   create(new_size);
   if(old_size>0) {
     assert(old_ptr && old_data);
     memcpy(data, old_data, sizeof(T)*old_size);
   }
+  if(old_ptr){free(old_ptr);old_ptr=0;}
+}
+
+template<class T, const int Align> void Array<T,Align>::clear() {
+  if (used_size==0) return;
+  char *old_ptr=ptr;
+  T *old_data=data;
+  U64 old_size=used_size;
+  create(0);
   if(old_ptr){free(old_ptr);old_ptr=0;}
 }
 

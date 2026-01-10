@@ -93,6 +93,7 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     jend=jstart+incount;
                     info=icount+(lz2?(1<<25):0);
                     type=SZDD;
+                    if (LZringbuffer!=nullptr) free(LZringbuffer),LZringbuffer=nullptr;
                     state=END;
                     return state;
                 }
