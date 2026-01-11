@@ -55,6 +55,38 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             tarFiles=0;
             flCount=0;
             tarF.clear();
+        } else if (state==NONE && inSize>0 && (inSize%512)==0) { // no ustar, try brute force
+            TARheader &tarh=(TARheader&)data[inSize-512];
+            uint64_t m=(uint64_t&)tarh.magic[0];
+            if (m==0 && tarchecksum((char*)&tarh)) {
+                tar=i-512,tarn=0;
+                tarFiles=0;
+                flCount=0;
+                tarF.clear();
+                tarl=2;
+                int a=getoct(tarh.size,12);
+                int b=a&511;
+                if (b) tarn=tarn+512*2+(a/512)*512;
+                else if (a==0) tarn=tarn+512;
+                else tarn=tarn+512+a;
+                tarn=tarn+512;//p;
+                state=INFO;
+                //printf("Tar file: %s %d\n",tarh.name,a);
+                tarsi=0;
+                // Set file size info only if there is any
+                if (a) {
+                   tarFiles++;
+                   TARfile tf;
+                   tf.start=i-(tarFiles==0?0:tar);
+                   tf.size=a;//+(512-(a%512)); // to include pad
+                   std::string fname=tarh.name;
+                   ParserType etype=GetTypeFromExt(fname);
+                   tf.p=etype;
+                   tarF.push_back(tf);
+                }
+                tars[tarsi++]=c; // add first byte of the next sector
+                tarsi&=511;
+            }
         } else if (state==START|| state==INFO) {
             if (tarl) {
                 const int p=int(i-tar);        
