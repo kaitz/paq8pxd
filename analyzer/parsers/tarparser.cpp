@@ -51,7 +51,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
 
         if (state==NONE && (((buf0)==0x61722020 || (buf0&0xffffff00)==0x61720000) && (buf1&0xffffff)==0x757374) ){
             state=START;
-            tar=i-263,tarn=0,tarl=1,utar=263;
+            tar=i-263,tarn=0,tarl=1;
             tarFiles=0;
             flCount=0;
             tarF.clear();
@@ -207,7 +207,7 @@ int TARParser::TypeCount() {
 
 void TARParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
-    tar=0,tarn=0,tarl=0,utar=0;tarsi=0;
+    tar=0,tarn=0,tarl=0,tarsi=0;
     info=i=inSize=relAdd=0;
     memset(&tars[0], 0, 256);
     priority=2;

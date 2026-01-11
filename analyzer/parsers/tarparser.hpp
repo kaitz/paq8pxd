@@ -30,7 +30,7 @@ struct TARfile {
 };
 
 class TARParser: public Parser {
-    uint64_t tar,tarn,tarl,utar;
+    uint64_t tar,tarn,tarl;
     TARheader tarh;
     uint8_t tars[512];
     uint32_t tarsi;

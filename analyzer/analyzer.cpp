@@ -1,17 +1,18 @@
 //#pragma once
 #include "analyzer.hpp"
 
-// Example:
+// Example: virtual file parser
 // P_EXE is headerless parser,
 // to add parser for .exe, .dll, .drv new value is needed (P_WEXE)
 // This parser (ParserType) may contain EXE, IMAGE(n), AUDIO, etc types (Filetype)
 // If SelectParser does not have this parser then it is ignored in case of Filetype=DEFAULT & ParserType=P_DEF
 // So we can add our special case for it in GetTypeFromExt.
+// If file needs more then one parser (excluding P_DEF) then it needs to be virtual.
 
 Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p) {
     assert(eparser<P_LAST);
     assert(p<TYPELAST);
-    // By default add all parsers 
+    // By default add all parsers, also slowest detection
     if (p==DEFAULT && eparser==P_DEF) {
         for (int selp=P_DEF; selp!=P_LAST; selp++) {
             SelectParser(static_cast<ParserType>(selp));
