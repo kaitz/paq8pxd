@@ -27,11 +27,11 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
 
-        if (state==NONE && (buf3==0x89504E47 && buf2==0x0D0A1A0A && buf1==0x0000000D && buf0==0x49484452) ){
+        if (state==NONE && (buf3==0x89504E47 && buf2==0x0D0A1A0A && buf1==0x0000000D && buf0==0x49484452) ) {
             // PNG signature + IHDR chunk detected
             state=START;
             png=i, pngtype=-1, lastchunk=buf3;
-        } else if (state==NONE && buf0==0x49444154 && (uint64_t)inSize+2<len) {
+        } else if (state==NONE && buf0==0x49444154 && (uint64_t)inSize+2<len) { // Not safe, will conflict with MNG file
             // Detached IDAT sequence detection (smart scanning)
             // Validate ZLIB header immediately following IDAT type
             uint8_t cmf = data[inSize+1];
@@ -42,7 +42,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 
                 // i points to last byte of "IDAT" type
                 jstart = i - 7; // Start of Length field
-                type=PNG24; info=(PNG24<<24); //??
+                type=PNG24; info=(PNG24<<24);
                 pinfo=" (IDAT stream)";
                 
                 idat_end = i + buf1 + 5; // End of this IDAT chunk (after CRC)
@@ -56,7 +56,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         } else if (state==START || state==INFO) {
             if (png){
                 const int p=i-png;
-                if (p==13) {
+                if (p==13) { // This is not safe, IHDR not tested
                     // Parse IHDR data (offsets relative to IHDR type end)
                     auto getByte = [&](int offset) {
                          return data[inSize - (13 - offset)];
@@ -94,7 +94,8 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     }
                 } else if (p>13 && pngtype<0){
                     png = 0; state=NONE;    
-                } else if (p>13 && i==nextchunk){state=INFO;
+                } else if (p>13 && i==nextchunk) {
+                    state=INFO;
                     nextchunk+=buf1+4+8; // Advance past: data + CRC(4) + next Length(4) + next Type(4)
                     lastchunk = buf0;
                     if (lastchunk==0x49444154){ // IDAT
@@ -122,6 +123,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         if (idats > 0) {
                             jend = idat_end;
                             state=END;
+                            if (pngw==0) state=NONE;
                             return state;
                         }
                     }
@@ -129,6 +131,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                        if (idats > 0) {
                            jend = idat_end;
                            state=END;
+                           if (pngw==0) state=NONE;
                            return state;
                        }
                        state=NONE;
