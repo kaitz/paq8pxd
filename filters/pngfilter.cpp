@@ -114,6 +114,7 @@ void PNGFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     
     out->put32(static_cast<uint32_t>(recon_info.size()));
     out->blockwrite(recon_info.data(), recon_info.size());
+    hdrsize=static_cast<uint32_t>(out->curpos());
     out->blockwrite(unpacked.data(), unpacked.size());
     
     diffFound = 0;
@@ -147,6 +148,7 @@ uint64_t PNGFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
         // Calculate remaining size for unpacked data
         // Total encoded size = 1 (version) + 2 (zlib_header) + 4 (chunk_count) + 4*N (idat_sizes) + 4 (recon_size) + recon_info_size + unpacked_size
         uint64_t header_overhead = 1 + 2 + 4 + (static_cast<uint64_t>(chunk_count) * 4) + 4 + recon_size;
+        hdrsize=header_overhead;
         if (header_overhead > size) {
             fsize = 0;
             return 0;

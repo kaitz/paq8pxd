@@ -121,7 +121,7 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
         #endif
         Filter* dataf=GetFilter(type); 
         if (srid>STR_NONE && srid!=STR_TEXT0 && srid!=STR_TEXT && (ti&TR_TRANSFORM)==TR_TRANSFORM) {
-            //printf("Filter: %s\n",dataf.name.c_str());
+            //printf("Filter: %s\n",dataf->name.c_str());
             diffFound=dataf->CompareFiles(in,out,len,uint64_t(info),mode);
             len=dataf->fsize;
         }  
@@ -385,7 +385,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 direct_encode_blockstream(type, tmp, tmpsize);
             } else if (type==DECA || type==ARM) {
                 direct_encode_blockstream(type, tmp, tmpsize);
-            } else if (type==IMAGE24 || type==IMAGE32 || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
+            } else if (type==IMAGE24 || type==IMAGE32) {
                 direct_encode_blockstream(type, tmp, tmpsize, info);
             } else if (type==MRBR || type==MRBR4) {
                 segment->putdata(type,tmpsize,0);
@@ -398,6 +398,18 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 if (it==itcount)    itcount=it+1;
                 typenamess[type2][it+1]+=tmpsize,  typenamesc[type2][it+1]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
+            } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
+                segment->putdata(type,tmpsize,0);
+                Filetype type2 =(Filetype)(info>>24);
+                type2=type2==IMAGE24?IMPNG24:type2==IMAGE32?IMPNG32:type2;
+                if (it==itcount)    itcount=it+1;
+                int hdrsize=dataf->hdrsize;
+                tmp->setpos(0);
+                typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
+                direct_encode_blockstream(HDR,  tmp, hdrsize);
+                if (it==itcount)    itcount=it+1;
+                typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==RLE) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=( 4);

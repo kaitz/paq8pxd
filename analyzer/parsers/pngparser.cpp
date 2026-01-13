@@ -42,7 +42,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 
                 // i points to last byte of "IDAT" type
                 jstart = i - 7; // Start of Length field
-                type=PNG24; info=(PNG24<<24);
+                type=PNG24; info=(PNG24<<24); //??
                 pinfo=" (IDAT stream)";
                 
                 idat_end = i + buf1 + 5; // End of this IDAT chunk (after CRC)
@@ -81,10 +81,10 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     } else {
                         // Determine PNG subtype from color type
                         if (pngw<0x1000000 && pngh) {
-                            if ((pngbps==8||pngbps==16) && pngtype==2) info=(PNG24<<24)|(pngw*3), type=PNG24;
-                            else if ((pngbps==8||pngbps==16) && pngtype==6 ) info=(PNG32<<24)|(pngw*4), type=PNG32;
-                            else if ((pngbps==8||pngbps==16) && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw), type=(!pngtype || pnggray)?PNG8GRAY:PNG8;
-                            else type=PNG24, info=(PNG24<<24)|(pngw*3);
+                            if ((pngbps==8||pngbps==16) && pngtype==2) info=(IMAGE24<<24)|(pngw*3), type=PNG24;
+                            else if ((pngbps==8||pngbps==16) && pngtype==6 ) info=(IMAGE32<<24)|(pngw*4), type=PNG32;
+                            else if ((pngbps==8||pngbps==16) && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?IMAGE8GRAY:IMAGE8)<<24)|(pngw), type=(!pngtype || pnggray)?IMAGE8GRAY:IMAGE8;
+                            else type=PNG24, info=(IMAGE24<<24)|(pngw*3);
                         } else {
                             type=PNG24;
                         }
@@ -104,10 +104,10 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             
                             // Refine type based on IHDR parsing
                             if (pngw<0x1000000 && pngh) {
-                                if (pngbps==8 && pngtype==2) info=(PNG24<<24)|(pngw*3), type=PNG24;
-                                else if (pngbps==8 && pngtype==6 ) info=(PNG32<<24)|(pngw*4), type=PNG32;
-                                else if (pngbps==8 && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?PNG8GRAY:PNG8)<<24)|(pngw), type=(!pngtype || pnggray)?PNG8GRAY:PNG8;
-                                else type=PNG24, info=(PNG24<<24)|(pngw*3);
+                                if (pngbps==8 && pngtype==2) info=(IMAGE24<<24)|(pngw*3), type=PNG24;
+                                else if (pngbps==8 && pngtype==6 ) info=(IMAGE32<<24)|(pngw*4), type=PNG32;
+                                else if (pngbps==8 && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?IMAGE8GRAY:IMAGE8)<<24)|(pngw), type=(!pngtype || pnggray)?IMAGE8GRAY:IMAGE8;
+                                else type=PNG24, info=(IMAGE24<<24)|(pngw*3);
                             } else {
                                 type=PNG24;
                             }

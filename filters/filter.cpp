@@ -1,6 +1,6 @@
 #include "filter.hpp"
 
-Filter::Filter():Type(DEFAULT),Info(0),name(""),diffFound(0),fsize(0) {
+Filter::Filter():Type(DEFAULT),Info(0),name(""),diffFound(0),fsize(0),hdrsize(0) {
 }
 
 Filter::~Filter(){}

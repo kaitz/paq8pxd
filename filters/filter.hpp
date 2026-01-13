@@ -12,6 +12,7 @@ public:
     std::string name;
     uint64_t diffFound;
     uint64_t fsize;
+    uint32_t hdrsize;
     Filter();
     virtual void encode(File *in, File *out, uint64_t size, uint64_t info)=0 ;
     virtual uint64_t decode(File *in, File *out, uint64_t size, uint64_t info)=0;

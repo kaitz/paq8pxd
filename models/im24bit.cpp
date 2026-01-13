@@ -26,14 +26,14 @@
   int im24bitModel1::p(Mixer& m,int info,int val2){
   if (!bpos) {
     if (xx.blpos==1  ){
-      const int alpha=xx.filetype==IMAGE32?1:xx.filetype==PNG32?1:0;
+      const int alpha=xx.filetype==IMAGE32?1:xx.filetype==IMPNG32?1:0;
       stride = 3+alpha;
       lastpos=curpos;
       curpos=buf.pos;
       lastw=w;
       w = info&0xFFFFFF;
       
-      isPNG =(xx.filetype==PNG24?1:xx.filetype==PNG32?1:0);
+      isPNG =(xx.filetype==IMPNG24?1:xx.filetype==IMPNG32?1:0);
       padding = w%stride;
       
       x =1; color = line =px =0;
