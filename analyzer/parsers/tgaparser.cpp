@@ -41,7 +41,6 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 tgaz=32;
                 if ((tgaz<<8)==(int)(buf0&0xFFD7) && tgax && tgay && uint32_t(tgax*tgay)<0xFFFFFFF) {
                     if (tgat==1){
-                        //IMG_DET( (IsGrayscalePalette(in))?IMAGE8GRAY:IMAGE8,tga-7,18+tgaid+256*tgamap,tgax,tgay);
                         jstart=tga-7+18+tgaid+256*tgamap;
                         jend=jstart+tgax*tgay;
                         info=tgay;
@@ -118,7 +117,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType TGAParser::getType(int i) {
+dType TGAParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -129,10 +128,6 @@ dType TGAParser::getType(int i) {
     return t;
 }
 
-int TGAParser::TypeCount() {
-    return 1;
-}
-
 void TGAParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     tga=0;
@@ -140,7 +135,4 @@ void TGAParser::Reset() {
     tgay=tgaz=tgat=tgaid=tgamap=0;
     info=i=inSize=0;
     priority=3;
-}
-void TGAParser::SetEnd(uint64_t e) {
-    jend=e;
 }

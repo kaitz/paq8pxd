@@ -243,7 +243,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
     // Reset all parsers exept recursive
     int recP=0;
     for (size_t j=0; j<parsers.size(); j++) {
-        dType t=parsers[j]->getType(0);
+        dType t=parsers[j]->getType();
         if (t.recursive==false) parsers[j]->Reset(),parsers[j]->state=NONE;
         else recP=j;
         
@@ -265,7 +265,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                 DetectState dstate=parsers[j]->Parse(&blk[0],ReadIn,n-remaining,(remaining-ReadIn)==0?true:false);
                 if (dstate==INFO) {
                     parsers[j]->state=INFO;
-                    dType t=parsers[j]->getType(0);
+                    dType t=parsers[j]->getType();
                     type=t.type;
                     //if (parsers[j]->priority==0 && zeroParser==false) printf("T=%d INFO %d, %d-%d %s\n",j,t.info,t.start,t.end,parsers[j]->name.c_str());
                     assert(parsers[j]->priority>=0 && parsers[j]->priority<MAX_PRI);
@@ -307,7 +307,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     for (size_t j=0; j<parsers.size(); j++) {
                         if (j!=zpID && parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
                             //if (parsers[j]->priority!=(MAX_PRI-1)) printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
-                            dType t=parsers[j]->getType(0);
+                            dType t=parsers[j]->getType();
                             if (/*t.type!=DEFAULT &&*/ parsers[j]->priority!=(MAX_PRI-1))parsers[j]->state=DISABLE; // ignore default type or lowest priority
                             //printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                         }
@@ -331,7 +331,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
             uint64_t minP=-1,maxP=0;
             for (size_t j=0; j<parsers.size(); j++) {
                 if (parsers[j]->state==INFO || parsers[j]->state==END) { // partial/damaged files?
-                    dType t=parsers[j]->getType(0);
+                    dType t=parsers[j]->getType();
                     // Clip jend to file size if parser set it larger
                     if (t.end > n) t.end = n;
                     //printf("T=%zu parser %s start=%lu end=%lu pri=%d\n",j,parsers[j]->name.c_str(),t.start,t.end,parsers[j]->priority);
@@ -353,8 +353,8 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
             }*/
             for (size_t j=0; j<parsers.size(); j++) {
                 if (parsers[j]->state==END && j==largeP) { // partial/damaged files?
-                    dType d=parsers[0]->getType(0);
-                    dType t=parsers[j]->getType(0);
+                    dType d=parsers[0]->getType();
+                    dType t=parsers[j]->getType();
                     t.pinfo=parsers[j]->pinfo;
                     d.pinfo=parsers[0]->pinfo;
                     int p=parsers[j]->priority;
@@ -393,7 +393,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
         Status(n-remaining,n);
     }
     // Nothing found so add default type
-    dType def=parsers[0]->getType(0);
+    dType def=parsers[0]->getType();
     def.pinfo=parsers[0]->pinfo;
     def.end=n;
     types.push_back(def);

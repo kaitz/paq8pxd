@@ -155,7 +155,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     //Number of bits per component
                     if (tagCi==258) {
                         int bits=0;
-                        for (int k=0; k<tagCc; k++) {
+                        for (size_t k=0; k<tagCc; k++) {
                             uint16_t &tg=(uint16_t&)tagCd[sizeof(uint16_t)*(k)];
                             bits=bits+(tiffMM==true?bswap16(tg):tg); //=8?
                         }
@@ -175,7 +175,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     //325 For each tile, the number of (compressed) bytes in that tile.
                     } else if (tagCi==279 || tagCi==325) {
                         uint32_t size=0;
-                        for (int k=0; k<tagCc; k++) {
+                        for (size_t k=0; k<tagCc; k++) {
                             if (tagCs==2){
                             uint16_t &tg=(uint16_t&)tagCd[sizeof(uint16_t)*(k)];
                             size=size+(tiffMM==true?bswap16(tg):tg);
@@ -318,7 +318,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType TIFFParser::getType(int i) {
+dType TIFFParser::getType() {
     dType t;
     t.start=jstart;   // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -327,10 +327,6 @@ dType TIFFParser::getType(int i) {
     t.type=type;
     t.recursive=rec;
     return t;
-}
-
-int TIFFParser::TypeCount() {
-    return 1;
 }
 
 void TIFFParser::Reset() {
@@ -351,7 +347,4 @@ void TIFFParser::Reset() {
     tagCx=0;
     rec=false;
     priority=2;
-}
-void TIFFParser::SetEnd(uint64_t e) {
-    jend=e;
 }

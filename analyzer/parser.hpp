@@ -53,9 +53,7 @@ public:
     Parser();
     virtual ~Parser();
     virtual DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last=false)=0;
-    virtual dType getType(int i)=0;
-    virtual int TypeCount()=0;
+    virtual dType getType()=0;
     virtual void Reset()=0;
-    virtual void SetEnd(uint64_t e)=0;
     std::string itos(int64_t x, int n=1);
 };

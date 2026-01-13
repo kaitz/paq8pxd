@@ -90,7 +90,7 @@ DetectState uueParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType uueParser::getType(int i) {
+dType uueParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -101,17 +101,10 @@ dType uueParser::getType(int i) {
     return t;
 }
 
-int uueParser::TypeCount() {
-    return 1;
-}
-
 void uueParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=0;
     uuds=uuds1=uudp=uudslen=uudh=0;
     uudstart=uudend=uudline=uudnl=uudlcount=uuc=0;
     info=i=inSize=0;
     priority=3;
-}
-void uueParser::SetEnd(uint64_t e) {
-    jend=e;
 }

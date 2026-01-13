@@ -6,7 +6,7 @@
 class TGAParser: public Parser {
     uint64_t tga;
     uint64_t tgax;
-    int tgay,tgaz,tgat,tgaid,tgamap;//,total,line,detd,b;
+    int tgay,tgaz,tgat,tgaid,tgamap;
     uint64_t info;
     uint32_t buf0, buf1;
     uint64_t i;
@@ -15,9 +15,7 @@ class TGAParser: public Parser {
 public:    
     TGAParser();
     ~TGAParser();
-    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last);
-    dType getType(int i);
-    int TypeCount();
-    void Reset();
-    void SetEnd(uint64_t e);
+    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;
+    dType getType() final;
+    void Reset() final;
 };

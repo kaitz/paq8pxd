@@ -121,7 +121,7 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType mrbParser::getType(int i) {
+dType mrbParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -132,16 +132,9 @@ dType mrbParser::getType(int i) {
     return t;
 }
 
-int mrbParser::TypeCount() {
-    return 1;
-}
-
 void mrbParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     mrb=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0;
     info=i=inSize=0;
     priority=3;
-}
-void mrbParser::SetEnd(uint64_t e) {
-    jend=e;
 }

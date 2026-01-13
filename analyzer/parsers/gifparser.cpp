@@ -79,7 +79,7 @@ DetectState GIFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType GIFParser::getType(int i) {
+dType GIFParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -90,17 +90,10 @@ dType GIFParser::getType(int i) {
     return t;
 }
 
-int GIFParser::TypeCount() {
-    return 1;
-}
-
 void GIFParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     gif=gifa=gifi=gifw=gifc=gifb=plt=gray=0;
     info=i=inSize=0;
     rec=false;
     priority=3;
-}
-void GIFParser::SetEnd(uint64_t e) {
-    jend=e;
 }

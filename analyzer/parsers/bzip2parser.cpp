@@ -112,7 +112,7 @@ DetectState bzip2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
     else return NONE;
 }
 
-dType bzip2Parser::getType(int i) {
+dType bzip2Parser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -123,10 +123,6 @@ dType bzip2Parser::getType(int i) {
     return t;
 }
 
-int bzip2Parser::TypeCount() {
-    return 1;
-}
-
 void bzip2Parser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=buf3=0;
     BZip2=blockz=0;
@@ -135,7 +131,4 @@ void bzip2Parser::Reset() {
     info=i=inSize=0;
     bzout.clear();
     priority=2;
-}
-void bzip2Parser::SetEnd(uint64_t e) {
-    jend=e;
 }

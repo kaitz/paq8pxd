@@ -58,7 +58,7 @@ DetectState AIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType AIFFParser::getType(int i) {
+dType AIFFParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -69,17 +69,10 @@ dType AIFFParser::getType(int i) {
     return t;
 }
 
-int AIFFParser::TypeCount() {
-    return 1;
-}
-
 void AIFFParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     aiff=0;
     priority=3;
     aiffm=aiffs=0; 
     info=i=inSize=0;
-}
-void AIFFParser::SetEnd(uint64_t e) {
-    jend=e;
 }

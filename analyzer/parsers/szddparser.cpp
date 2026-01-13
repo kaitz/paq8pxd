@@ -112,7 +112,7 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType SZDDParser::getType(int i) {
+dType SZDDParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -121,10 +121,6 @@ dType SZDDParser::getType(int i) {
     t.type=type;
     t.recursive=false;
     return t;
-}
-
-int SZDDParser::TypeCount() {
-    return 1;
 }
 
 void SZDDParser::Reset() {
@@ -141,7 +137,4 @@ void SZDDParser::Reset() {
     if (LZringbuffer!=nullptr) free(LZringbuffer),LZringbuffer=nullptr;
     info=i=inSize=0;
     priority=3;
-}
-void SZDDParser::SetEnd(uint64_t e) {
-    jend=e;
 }

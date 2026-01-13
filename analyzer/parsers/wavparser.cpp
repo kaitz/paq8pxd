@@ -97,7 +97,7 @@ DetectState WAVParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType WAVParser::getType(int i) {
+dType WAVParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -108,17 +108,10 @@ dType WAVParser::getType(int i) {
     return t;
 }
 
-int WAVParser::TypeCount() {
-    return 1;
-}
-
 void WAVParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     wavi=wavlist=0;
     wavsize=wavch=wavbps=wavm=wavsr=wavt=wavtype=wavlen=0;
     info=info2=i=inSize=0;
     priority=3;
-}
-void WAVParser::SetEnd(uint64_t e) {
-    jend=e;
 }

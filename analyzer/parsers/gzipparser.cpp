@@ -132,7 +132,7 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     return NONE;
 }
 
-dType GZIPParser::getType(int idx) {
+dType GZIPParser::getType() {
     dType t;
     t.start = jstart;
     t.end = jend;
@@ -143,10 +143,6 @@ dType GZIPParser::getType(int idx) {
     return t;
 }
 
-int GZIPParser::TypeCount() {
-    return 1;
-}
-
 void GZIPParser::Reset() {
     state = NONE;
     type = DEFAULT;
@@ -154,8 +150,4 @@ void GZIPParser::Reset() {
     info = i = inSize = inpos = expected_next_pos = 0;
     memset(zout, 0, sizeof(zout));
     priority = 2;
-}
-
-void GZIPParser::SetEnd(uint64_t e) {
-    jend = e;
 }

@@ -65,7 +65,7 @@ DetectState JPEGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType JPEGParser::getType(int i) {
+dType JPEGParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -76,16 +76,9 @@ dType JPEGParser::getType(int i) {
     return t;
 }
 
-int JPEGParser::TypeCount() {
-    return 1;
-}
-
 void JPEGParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     soi=sof=sos=app=eoi=0;
     info=i=inSize=0;
     priority=2;
-}
-void JPEGParser::SetEnd(uint64_t e) {
-    jend=e;
 }

@@ -96,7 +96,7 @@ DetectState pdfBiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
     else return NONE;
 }
 
-dType pdfBiParser::getType(int i) {
+dType pdfBiParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -107,10 +107,6 @@ dType pdfBiParser::getType(int i) {
     return t;
 }
 
-int pdfBiParser::TypeCount() {
-    return 1;
-}
-
 void pdfBiParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     pdfi1=pdfiw=pdfih=pdfic=0;
@@ -118,7 +114,4 @@ void pdfBiParser::Reset() {
     pdfi_ptr=pdfin=0;
     info=i=inSize=0;
     priority=3;
-}
-void pdfBiParser::SetEnd(uint64_t e) {
-    jend=e;
 }

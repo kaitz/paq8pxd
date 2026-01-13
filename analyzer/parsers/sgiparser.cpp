@@ -63,7 +63,7 @@ DetectState sgiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType sgiParser::getType(int i) {
+dType sgiParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -74,17 +74,10 @@ dType sgiParser::getType(int i) {
     return t;
 }
 
-int sgiParser::TypeCount() {
-    return 1;
-}
-
 void sgiParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     rgbi=0;
     rgbx=rgby=0;
     info=i=inSize=0;
     priority=3;
-}
-void sgiParser::SetEnd(uint64_t e) {
-    jend=e;
 }

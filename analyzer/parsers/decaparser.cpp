@@ -83,7 +83,7 @@ DetectState DECaParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType DECaParser::getType(int i) {
+dType DECaParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -94,17 +94,10 @@ dType DECaParser::getType(int i) {
     return t;
 }
 
-int DECaParser::TypeCount() {
-    return 1;
-}
-
 void DECaParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     bmp=bpp=x=y=of=size=hdrless=info=inSize=i=0;
     dec.last = 0u, dec.offset = 0u;
     memset(&dec.branches[0], 0u, sizeof(dec.branches));
     priority=3;
-}
-void DECaParser::SetEnd(uint64_t e) {
-    jend=e;
 }

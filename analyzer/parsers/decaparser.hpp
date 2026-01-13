@@ -24,9 +24,7 @@ class DECaParser: public Parser {
 public:    
     DECaParser();
     ~DECaParser();
-    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last);
-    dType getType(int i);
-    int TypeCount();
-    void Reset();
-    void SetEnd(uint64_t e);
+    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;
+    dType getType() final;
+    void Reset() final;
 };

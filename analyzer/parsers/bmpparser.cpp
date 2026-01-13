@@ -104,7 +104,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType BMPParser::getType(int i) {
+dType BMPParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -115,15 +115,8 @@ dType BMPParser::getType(int i) {
     return t;
 }
 
-int BMPParser::TypeCount() {
-    return 1;
-}
-
 void BMPParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     bmp=bpp=x=y=of=size=hdrless=info=i=inSize=0;
     priority=3;
-}
-void BMPParser::SetEnd(uint64_t e) {
-    jend=e;
 }

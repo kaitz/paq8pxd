@@ -24,7 +24,7 @@ DetectState DefaultParser::Parse(unsigned char *data, uint64_t len, uint64_t pos
     return DATA;
 }
 
-dType DefaultParser::getType(int i) {
+dType DefaultParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -35,16 +35,8 @@ dType DefaultParser::getType(int i) {
     return t;
 }
 
-int DefaultParser::TypeCount() {
-    return 1;
-}
-
 void DefaultParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=0;
     info=i=0;
     priority=MAX_PRI-1;
-}
-
-void DefaultParser::SetEnd(uint64_t e) {
-     jend=e;
 }

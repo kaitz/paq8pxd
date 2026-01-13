@@ -204,7 +204,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType zlibParser::getType(int i) {
+dType zlibParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -215,22 +215,15 @@ dType zlibParser::getType(int i) {
     return t;
 }
 
-int zlibParser::TypeCount() {
-    return 1;
-}
-
 void zlibParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=buf3=0;
-    //pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
-    //memset( &strm,0,sizeof(z_stream));
     memset( &zbuf[0],0,256+32);
     memset( &zin[0],0,1<<16);
     memset( &zout[0],0,1<<16);
-    zbufpos=0, histogram[256]={};
+    zbufpos=0;
+    memset( &histogram[0],0,256);
     pdfimp=0;
     info=i=inSize=0;
     priority=brute==true?5:2;
 }
-void zlibParser::SetEnd(uint64_t e) {
-    jend=e;
-}
+

@@ -63,7 +63,7 @@ DetectState MODParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType MODParser::getType(int i) {
+dType MODParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -74,15 +74,8 @@ dType MODParser::getType(int i) {
     return t;
 }
 
-int MODParser::TypeCount() {
-    return 1;
-}
-
 void MODParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     priority=3;
     info=i=inSize=0;
-}
-void MODParser::SetEnd(uint64_t e) {
-    jend=e;
 }

@@ -73,7 +73,7 @@ DetectState dBaseParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
     else return NONE;
 }
 
-dType dBaseParser::getType(int i) {
+dType dBaseParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -84,17 +84,10 @@ dType dBaseParser::getType(int i) {
     return t;
 }
 
-int dBaseParser::TypeCount() {
-    return 1;
-}
-
 void dBaseParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     memset(&dbase, 0, sizeof(dBASE));
     dbasei=term=0;
     info=i=inSize=0;
     priority=3;
-}
-void dBaseParser::SetEnd(uint64_t e) {
-    jend=e;
 }

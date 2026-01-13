@@ -73,7 +73,7 @@ DetectState ascii85Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
     else return NONE;
 }
 
-dType ascii85Parser::getType(int i) {
+dType ascii85Parser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -84,17 +84,10 @@ dType ascii85Parser::getType(int i) {
     return t;
 }
 
-int ascii85Parser::TypeCount() {
-    return 1;
-}
-
 void ascii85Parser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     b85s=b85s1=b85p=b85slen=b85h=0;
     base85start=base85end=b85line=0;
     info=i=inSize=0;
     priority=3;
-}
-void ascii85Parser::SetEnd(uint64_t e) {
-    jend=e;
 }

@@ -151,7 +151,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         return NONE;
 }
 
-dType PNGParser::getType(int i) {
+dType PNGParser::getType() {
     dType t;
     t.start=jstart;
     t.end=jend;
@@ -163,10 +163,6 @@ dType PNGParser::getType(int i) {
     return t;
 }
 
-int PNGParser::TypeCount() {
-    return 1;
-}
-
 void PNGParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=buf3=0;
     png=lastchunk=nextchunk=0;               
@@ -175,8 +171,4 @@ void PNGParser::Reset() {
     idats=0;
     idat_end=0;
     priority=2;
-}
-
-void PNGParser::SetEnd(uint64_t e) {
-    jend=e;
 }

@@ -73,7 +73,7 @@ DetectState EXEParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType EXEParser::getType(int i) {
+dType EXEParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -84,10 +84,6 @@ dType EXEParser::getType(int i) {
     return t;
 }
 
-int EXEParser::TypeCount() {
-    return 1;
-}
-
 void EXEParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     memset(&abspos[0], 0u, sizeof(abspos));
@@ -96,7 +92,4 @@ void EXEParser::Reset() {
     e8e9pos=e8e9last=0;  
     info=i=inSize=0;
     priority=3;
-}
-void EXEParser::SetEnd(uint64_t e) {
-    jend=e;
 }

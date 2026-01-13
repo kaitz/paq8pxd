@@ -63,7 +63,7 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
     else return NONE;
 }
 
-dType PDFLzwParser::getType(int i) {
+dType PDFLzwParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -74,16 +74,9 @@ dType PDFLzwParser::getType(int i) {
     return t;
 }
 
-int PDFLzwParser::TypeCount() {
-    return 1;
-}
-
 void PDFLzwParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=buf3=buf4=0;
     pLzwp=0;
     info=i=inSize=0;
     priority=3;
-}
-void PDFLzwParser::SetEnd(uint64_t e) {
-    jend=e;
 }

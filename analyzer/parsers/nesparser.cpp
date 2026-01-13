@@ -54,7 +54,7 @@ DetectState NesParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType NesParser::getType(int i) {
+dType NesParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -65,16 +65,10 @@ dType NesParser::getType(int i) {
     return t;
 }
 
-int NesParser::TypeCount() {
-    return 1;
-}
-
 void NesParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=0;
     nesh=nesp=nesc=0;
     info=i=inSize=0;
     priority=3;
 }
-void NesParser::SetEnd(uint64_t e) {
-    jend=e;
-}
+

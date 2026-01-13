@@ -190,7 +190,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType TARParser::getType(int i) {
+dType TARParser::getType() {
     dType t;
     t.start=jstart;   // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -199,10 +199,6 @@ dType TARParser::getType(int i) {
     t.type=type;
     t.recursive=rec;
     return t;
-}
-
-int TARParser::TypeCount() {
-    return 1;
 }
 
 void TARParser::Reset() {
@@ -214,7 +210,4 @@ void TARParser::Reset() {
     flCount=tarFiles=0;
     rec=false;
     tarF.clear();
-}
-void TARParser::SetEnd(uint64_t e) {
-    jend=e;
 }

@@ -68,7 +68,7 @@ DetectState MSZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
     else return NONE;
 }
 
-dType MSZIPParser::getType(int i) {
+dType MSZIPParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -79,16 +79,9 @@ dType MSZIPParser::getType(int i) {
     return t;
 }
 
-int MSZIPParser::TypeCount() {
-    return 1;
-}
-
 void MSZIPParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     MSZ=MSZip=MSZipz=zlen=count=0;
     info=i=inSize=0;
     priority=3;
-}
-void MSZIPParser::SetEnd(uint64_t e) {
-    jend=e;
 }

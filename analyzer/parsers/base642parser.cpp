@@ -91,7 +91,7 @@ DetectState base64_2Parser::Parse(unsigned char *data, uint64_t len, uint64_t po
     else return NONE;
 }
 
-dType base64_2Parser::getType(int i) {
+dType base64_2Parser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -102,17 +102,10 @@ dType base64_2Parser::getType(int i) {
     return t;
 }
 
-int base64_2Parser::TypeCount() {
-    return 1;
-}
-
 void base64_2Parser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     b64s=b64p=b64slen=b64h=0;
     base64start=base64end=b64line=b64nl=b64lcount=0;
     info=i=inSize=0;
     priority=3;
-}
-void base64_2Parser::SetEnd(uint64_t e) {
-    jend=e;
 }

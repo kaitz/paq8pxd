@@ -85,7 +85,7 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     return NONE;
 }
 
-dType ZIPParser::getType(int idx) {
+dType ZIPParser::getType() {
     dType t;
     t.start = jstart;
     t.end = jend;
@@ -96,18 +96,10 @@ dType ZIPParser::getType(int idx) {
     return t;
 }
 
-int ZIPParser::TypeCount() {
-    return 1;
-}
-
 void ZIPParser::Reset() {
     state = NONE;
     type = DEFAULT;
     jstart = jend = buf0 = buf1 = buf2 = buf3 = 0;
     info = i = inSize = inpos = 0;
     priority = 2;
-}
-
-void ZIPParser::SetEnd(uint64_t e) {
-    jend = e;
 }

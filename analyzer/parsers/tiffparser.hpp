@@ -13,7 +13,7 @@
 // Out of order tag locations not supported because parser cant read past info.
 
 
-typedef struct TiffTag;
+//typedef struct TiffTag;
 struct TiffTag {
 	uint16_t  TagId;   // Identifier
 	uint16_t  Type;    // The scalar type of the data items
@@ -74,9 +74,7 @@ class TIFFParser: public Parser {
 public:    
     TIFFParser();
     ~TIFFParser();
-    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last);
-    dType getType(int i);
-    int TypeCount();
-    void Reset();
-    void SetEnd(uint64_t e);
+    DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;
+    dType getType() final;
+    void Reset() final;
 };

@@ -81,7 +81,7 @@ DetectState MSCFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType MSCFParser::getType(int i) {
+dType MSCFParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -92,10 +92,6 @@ dType MSCFParser::getType(int i) {
     return t;
 }
 
-int MSCFParser::TypeCount() {
-    return 1;
-}
-
 void MSCFParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=0;
     mscf=mscfs=mscfoff=0;
@@ -103,7 +99,4 @@ void MSCFParser::Reset() {
     info=i=inSize=0;
     pinfo="";
     priority=3;
-}
-void MSCFParser::SetEnd(uint64_t e) {
-    jend=e;
 }

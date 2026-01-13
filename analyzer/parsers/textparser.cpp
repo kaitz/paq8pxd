@@ -202,7 +202,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
     else return NONE;
 }
 
-dType TextParser::getType(int i) {
+dType TextParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -211,10 +211,6 @@ dType TextParser::getType(int i) {
     t.type=type;
     t.recursive=false;
     return t;
-}
-
-int TextParser::TypeCount() {
-    return 1;
 }
 
 void TextParser::Reset() {
@@ -227,8 +223,4 @@ void TextParser::Reset() {
     buf0=0;
     tp.reset(0);
     priority=4;
-}
-
-void TextParser::SetEnd(uint64_t e) {
-    jend=e;
 }

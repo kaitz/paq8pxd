@@ -86,7 +86,7 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
     else return NONE;
 }
 
-dType cdParser::getType(int i) {
+dType cdParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -97,10 +97,6 @@ dType cdParser::getType(int i) {
     return t;
 }
 
-int cdParser::TypeCount() {
-    return 1;
-}
-
 void cdParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     cdi=0;
@@ -109,7 +105,4 @@ void cdParser::Reset() {
     cdatai=cdscont=0;
     info=i=inSize=0;
     priority=1;
-}
-void cdParser::SetEnd(uint64_t e) {
-    jend=e;
 }

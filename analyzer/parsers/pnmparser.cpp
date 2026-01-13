@@ -107,7 +107,7 @@ DetectState PNMParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-dType PNMParser::getType(int i) {
+dType PNMParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
     t.end=jend;       // end pos of type data in block
@@ -118,17 +118,10 @@ dType PNMParser::getType(int i) {
     return t;
 }
 
-int PNMParser::TypeCount() {
-    return 1;
-}
-
 void PNMParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=0;
     pgm=0;
     pgmcomment=pgmw=pgmh=pgm_ptr=pgmc=pgmn=pamatr=pamd=0;
     info=i=inSize=0;
     priority=3;
-}
-void PNMParser::SetEnd(uint64_t e) {
-    jend=e;
 }
