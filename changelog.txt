@@ -1,3 +1,8 @@
+v132
+    -Fix png compression
+    -Detect tar without ustar
+    -Cleanup
+    -More file extension based parser selections
 v131
     -Add file extension based parser selection and virtual files
     -Enable tar recursion mode, select parser for each file from file extension
