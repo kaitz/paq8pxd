@@ -1,4 +1,7 @@
 v132
+    -Disable zip extension. If files are stored, the contents will not be recognized.
+    -Limit gzip min size to 6.
+    -Fixes in codec.
     -Use a maximum of one temporary memory/disk file per recursion level.
      In some exceptional cases, more. To reduce memory relocation.
     -Fix tar parser

@@ -410,8 +410,8 @@ else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)
 //////////////////// Compress, Decompress ////////////////////////////
 
 //for block statistics, levels 0-5
-U64 typenamess[datatypecount][5]={0}; //total type size for levels 0-5
-U32 typenamesc[datatypecount][5]={0}; //total type count for levels 0-5
+U64 typenamess[datatypecount][6]={0}; //total type size for levels 0-5
+U32 typenamesc[datatypecount][6]={0}; //total type count for levels 0-5
 int itcount=0;               //level count
 
 #if defined(WINDOWS)      

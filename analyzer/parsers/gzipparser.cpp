@@ -112,7 +112,7 @@ DetectState GZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                         // Restore file position
                         file_handle->setpos(saved_pos);
                         
-                        if (ok && deflate_size > 0) {
+                        if (ok && deflate_size > 5) {
                             jend = jstart + deflate_size;
                             type = GZIP;
                             info = 0;

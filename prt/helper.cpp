@@ -208,16 +208,14 @@ ParserType GetTypeFromExt(std::string fname) {
        return P_TXT;
     else if (ext=="mdf")
        return P_MDF;
-    else if (ext=="zip")
-       return P_ZIP;
+    /*else if (ext=="zip") // stored!
+       return P_ZIP;*/
     else if (ext=="wav")
        return P_WAV;
     else if (ext=="tar")
        return P_TAR;
     else if (ext=="png")
        return P_PNG;
-    else if (ext=="zip")
-       return P_ZIP;
     else if (ext=="gif")
        return P_GIF;
     else if (ext=="bz2")

@@ -5,8 +5,8 @@ extern int verbose;
 extern bool witmode; //-w
 extern TextParserStateInfo textparser;
 extern int itcount;
-extern U64 typenamess[datatypecount][5];
-extern U32 typenamesc[datatypecount][5];
+extern U64 typenamess[datatypecount][6];
+extern U32 typenamesc[datatypecount][6];
 extern Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0);
 extern void SetConColor(int color);
 
@@ -217,6 +217,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
 }
 
 void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info) {
+    assert(itcount<6);
     segment->putdata(type,len,info);
     int srid=streams->GetStreamID(type);
     Stream *sout=streams->streams[srid];
@@ -303,7 +304,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         int tfail=0;
         tmp->setpos(0);
         
-        if (type==BZIP2|| type==CD || type==MDF|| type==SZDD || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
+        if (type==BZIP2 || type==CD || type==MDF|| type==SZDD || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
                 type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ){
             
             in->setpos(begin);
@@ -353,17 +354,17 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 in->setpos(begin);
                 tmp->setpos(0);
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
-            }  else if (type==ZLIB && (diffFound) ) {
+            }  /*else if (type==ZLIB && (diffFound) ) {
                 type=PREFLATE;
                 dataf=GetFilter(type);
                 in->setpos(begin);
                 tmp->setpos(0);
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-            }         
+            }    */  
             tfail=(diffFound || tmp->getc()!=EOF); 
         }
         // Preflate types (ZLIB, PREFLATE, ZIP, GZIP, PNG) skip verification but check if encoding failed
-        if ((type==ZLIB || type==PREFLATE || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
+        if ((type==ZLIB /*|| type==PREFLATE*/ || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
             tfail = 1;
         }
         // Test fails, compress without transform
@@ -371,7 +372,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             if (verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
             in->setpos(begin);
             Filetype type2;
-            if (type==ZLIB || (type==BZIP2))  type2=CMP; else type2=DEFAULT;
+            if (type==ZLIB || type==BZIP2)  type2=CMP; else type2=DEFAULT;
             
             direct_encode_blockstream(type2, in, len);
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
@@ -496,13 +497,13 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         // Fo recursion, copy content to tmp so parsers have the start offset 0, no transform.
         // We need to be careful, heavy recursion creates a large number of memory allocations.
         if (type==RECE) {
-            /*FileTmp *treb=new FileTmp(len);
+            FileTmp *treb=new FileTmp(len);
             Filter *dataf=GetFilter(DEFAULT);
             treb->setpos(0);
             dataf->encode(in, treb, len, uint64_t(0));
-            treb->setpos(0);*/
-            EncodeFileRecursive(in, len, blstr, it+1, type, static_cast<ParserType>(info));
-            //treb->close();
+            treb->setpos(0);
+            EncodeFileRecursive(treb, len, blstr, it+1, type, static_cast<ParserType>(info));
+            treb->close();
         } else {
             const int i1=(streams->GetTypeInfo(type)&TR_INFO)?info:-1;
             direct_encode_blockstream(type, in, len, i1);

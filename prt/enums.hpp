@@ -22,7 +22,7 @@ static const int datatypecount=52;
 
 static const char* typenames[datatypecount]={"default","bintext","ISO text","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
                                 "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","bzip2","zlib","preflate","zip","gzip","mdf","mszip","eoltxt",
-                                "","","","tar","PNG8","PNG8G","IMPNG24","PNG24","IMPNG32","PNG32","Recursive","WIT"};
+                                "DICTTXT","BIGTEXT","NOWRT","tar","PNG8","PNG8G","IMPNG24","PNG24","IMPNG32","PNG32","Recursive","WIT"};
 
 typedef enum {STREAM=0,HASINFO=1} Filetypes;
 
