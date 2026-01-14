@@ -169,6 +169,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
         direct_encode_blockstream(DEFAULT, in, n);
         return;
     }
+    FileTmp* tmp=new FileTmp(64 * 1024 * 1024/2);
     Analyzer *an=new Analyzer(it, ptype, etype);
     bool found=false;
     // Transform and test in blocks
@@ -204,7 +205,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
             if (verbose>2) {
                 printf("|%12.0f [%0.0f - %0.0f]%s \n",len+0.0,begin+0.0,(begin+len-1)+0.0,block.pinfo.c_str());
             }
-            transform_encode_block(type, in, len, info,info2, blstr, it, begin);
+            transform_encode_block(type, in, len, info,info2, blstr, it, begin,tmp);
             n-=len;
 
             begin+=len;
@@ -212,6 +213,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
         }
     }
     delete an;
+    tmp->close();
 }
 
 void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info) {
@@ -221,12 +223,11 @@ void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info)
     for (U64 j=0; j<len; ++j) sout->file.putc(in->getc());
 }
 
-void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin) {
+void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin,File*tmp) {
+    tmp->truncate();
     if (streams->GetTypeInfo(type)&TR_TRANSFORM) {
         U64 diffFound=0;
         U32 winfo=0;
-        FileTmp* tmp;
-        tmp=new FileTmp;
         Filter* dataf=GetFilter(type);
         if (type==IMAGE24) dataf->encode(in, tmp, len, uint64_t(info));
         else if (type==IMAGE32) dataf->encode(in, tmp, len, uint64_t(info));
@@ -243,13 +244,11 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 U64 txt0Size= tmp->curpos();
                 //reset to text mode
                 in->setpos(begin);
-                tmp->close();
-                tmp=new FileTmp;
+                tmp->truncate();
                 dataf->encode(in, tmp, (len),0);
                 U64 txtSize= tmp->curpos();
-                tmp->close();
                 in->setpos( begin);
-                tmp=new FileTmp;
+                tmp->truncate();
                 if (txt0Size<txtSize && (((txt0Size*100)/txtSize)<95)) {
                     in->setpos( begin);
                     dataf->encode(in, tmp, (len),1);
@@ -267,8 +266,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 in->setpos(begin);
                 type=TEXT;
                 dataf=GetFilter(type);
-                tmp->close();
-                tmp=new FileTmp();
+                tmp->truncate();
                 dataf->encode(in, tmp, len,info&1); 
             }
         } else if (type==BASE64) dataf->encode(in, tmp, len,0);
@@ -348,8 +346,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 // if fail fall back to text
                 diffFound=0,info=-1, in->setpos(begin),type=TEXT;
                 dataf=GetFilter(type),
-                tmp->close();
-                tmp=new FileTmp();
+                tmp->truncate();
                 dataf->encode(in, tmp, len,0); 
             }  else if (type==BZIP2 && (diffFound) ) {
                 // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
@@ -465,7 +462,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 typenamess[CMP][it+1]+=hdrsize,  typenamesc[CMP][it+1]++; 
                 direct_encode_blockstream(CMP, tmp, hdrsize);
                 typenamess[TEXT][it+1]+=tmpsize-hdrsize,  typenamesc[TEXT][it+1]++;
-                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize,  -1,-1, blstr, it, hdrsize); 
+                FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
+                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize,  -1,-1, blstr, it, hdrsize,treb);
+                treb->close();
             } else if (streams->GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
                 if (type==SZDD ||  type==ZLIB/*||  type==PREFLATE */ || type==BZIP2) isinfo=info;
@@ -480,7 +479,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     direct_encode_blockstream(HDR,  tmp, hdrsize);
                     if (info) {
                         typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
-                        transform_encode_block(type2,  tmp, tmpsize-hdrsize,  info&0xffffff,-1, blstr, it, hdrsize);
+                        FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
+                        transform_encode_block(type2,  tmp, tmpsize-hdrsize,  info&0xffffff,-1, blstr, it, hdrsize,treb);
+                        treb->close();
                     } else {
                         EncodeFileRecursive( tmp, tmpsize-hdrsize,  blstr,it+1,ZLIB);
                     }
@@ -491,17 +492,17 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 }    
             }
         }
-        tmp->close();
     } else {
         // Fo recursion, copy content to tmp so parsers have the start offset 0, no transform.
         // We need to be careful, heavy recursion creates a large number of memory allocations.
         if (type==RECE) {
-            FileTmp *tmp=new FileTmp;
+            /*FileTmp *treb=new FileTmp(len);
             Filter *dataf=GetFilter(DEFAULT);
-            dataf->encode(in, tmp, len, uint64_t(0));
-            tmp->setpos(0);
-            EncodeFileRecursive(tmp, len, blstr, it+1, type, static_cast<ParserType>(info));
-            tmp->close();
+            treb->setpos(0);
+            dataf->encode(in, treb, len, uint64_t(0));
+            treb->setpos(0);*/
+            EncodeFileRecursive(in, len, blstr, it+1, type, static_cast<ParserType>(info));
+            //treb->close();
         } else {
             const int i1=(streams->GetTypeInfo(type)&TR_INFO)?info:-1;
             direct_encode_blockstream(type, in, len, i1);

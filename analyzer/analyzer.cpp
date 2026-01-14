@@ -231,7 +231,7 @@ Analyzer::~Analyzer() {
   }
 }
 void Analyzer::Status(uint64_t n, uint64_t size) {
-    fprintf(stderr,"P%6.2f%%\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+    if (n%0x1000000==0) fprintf(stderr,"P%6.2f%%\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 bool Analyzer::Detect(File* in, U64 n, int it) {
     const uint64_t BLOCK=0x10000;  // block size 64k

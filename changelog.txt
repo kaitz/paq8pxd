@@ -1,4 +1,8 @@
 v132
+    -Use a maximum of one temporary memory/disk file per recursion level.
+     In some exceptional cases, more. To reduce memory relocation.
+    -Fix tar parser
+    -Show less parsing progress
     -Fix png compression
     -Detect tar without ustar
     -Cleanup

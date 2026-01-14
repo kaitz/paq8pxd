@@ -12,7 +12,9 @@ TARParser::~TARParser() {
 
 int TARParser::getoct(const char *p, int n){
     int i = 0;
-    while (*p<'0' || *p>'7') ++p, --n;
+    while (*p<'0' || *p>'7') {
+        ++p, --n; if(n<0) return 0;
+    } 
     while (*p>='0' && *p<='7' && n>0) {
         i*=8;
         i+=*p-'0';
@@ -36,7 +38,7 @@ bool TARParser::tarend(const char *p){
 // loop over input block byte by byte and report state
 DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
-    if (pos==0 && len<1024) return DISABLE;
+    if (pos==0 && len<4*512) return DISABLE;
     // Are we in new data block, if so reset inSize and restart
     if (inpos!=pos) {
         inSize=0,inpos=pos;
@@ -49,13 +51,13 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
 
-        if (state==NONE && (((buf0)==0x61722020 || (buf0&0xffffff00)==0x61720000) && (buf1&0xffffff)==0x757374) ){
+        if (state==NONE && (((buf0)==0x61722020 || (buf0&0xffffff00)==0x61720000) && (buf1&0xffffff)==0x757374) && inSize>262 ){
             state=START;
             tar=i-263,tarn=0,tarl=1;
             tarFiles=0;
-            flCount=0;
+            flCount=0,tarsi=0;
             tarF.clear();
-        } else if (state==NONE && inSize>0 && (inSize%512)==0) { // no ustar, try brute force
+        } else if (state==NONE && inSize>511 && (inSize%512)==0) { // no ustar, try brute force
             TARheader &tarh=(TARheader&)data[inSize-512];
             uint64_t m=(uint64_t&)tarh.magic[0];
             if (m==0 && tarchecksum((char*)&tarh)) {
@@ -119,15 +121,15 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     }
                 }else if (tarn && tarl==2 && (tarn+tar)==i) {
                     TARheader &tarh=(TARheader&)tars[0];
-                    if (!tarchecksum((char*)&tarh)) {
+                    if (!tarchecksum((char*)&tars[0])) {
                         state=NONE,tarl=jend=0;  
                     } 
-                    if (tarend((char*)&tarh)==true) {
+                    if (tarend((char*)&tars[0])==true) {
                         /*jstart=tar;
                         jend=i+512;
                         type=TAR;
                         state=END;
-                        //printf("Tar files: %d\n",tarFiles);
+                        printf("Tar files: %d\n",tarFiles);
                         return state;*/
                         // recursive mode
                         jstart=0;
@@ -205,7 +207,7 @@ void TARParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     tar=0,tarn=0,tarl=0,tarsi=0;
     info=i=inSize=relAdd=0;
-    memset(&tars[0], 0, 256);
+    memset(&tars[0], 0, 512);
     priority=2;
     flCount=tarFiles=0;
     rec=false;

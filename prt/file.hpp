@@ -60,6 +60,7 @@ public:
   virtual _off64_t curpos() = 0;
   virtual bool eof() = 0;
   virtual void dumpToDisk() = 0;
+  virtual void truncate() = 0;
 };
 // This class is responsible for files on disk
 // It simply passes function calls to the operating system
@@ -89,6 +90,7 @@ public:
     file = tmpfile2(); 
     if (!file) quit("FileDisk: unable to create temporary file"); 
   }
+  void truncate() {}
   void close() { if(file) fclose(file); file=0;}
   int getc() { return fgetc(file); }
   void putc(U8 c) { fputc(c, file); }
@@ -142,10 +144,32 @@ private:
     forget_content_in_ram();
   }
 public:
-  FileTmp(): MAX_RAM_FOR_TMP_CONTENT( 64 * 1024 * 1024){content_in_ram=new Array<U8>(0); filepos=0; filesize=0; file_on_disk = 0;}
+  FileTmp(U64 initsize=0): MAX_RAM_FOR_TMP_CONTENT( 64 * 1024 * 1024) {
+    if (initsize) {
+        content_in_ram=new Array<U8>(initsize<MAX_RAM_FOR_TMP_CONTENT?initsize:MAX_RAM_FOR_TMP_CONTENT);
+        (*content_in_ram).resize(0);
+    } else {
+        content_in_ram=new Array<U8>(0);
+    }
+    filepos=0; filesize=0; file_on_disk = 0;
+  }
   ~FileTmp() {close();}
   bool open(const char *filename, bool must_succeed) { assert(false); return false; } //this method is forbidden for temporary files
   void create(const char *filename) { assert(false); } //this method is forbidden for temporary files
+  // Truncate the file to zero. If it is in memory, preserve the buffer.
+  // While on disk, delete the disk file and allocate half of the maximum temporary memory.
+  void truncate() {
+      if (content_in_ram) {
+        (*content_in_ram).resize(0);
+      } else if (file_on_disk) {
+          forget_file_on_disk();
+          content_in_ram=new Array<U8>(MAX_RAM_FOR_TMP_CONTENT/2);
+      } else {
+          content_in_ram=new Array<U8>(MAX_RAM_FOR_TMP_CONTENT/2);
+      }
+      filepos=0; filesize=0; file_on_disk = 0;
+  }
+  
   void close() {
     forget_content_in_ram();
     forget_file_on_disk();

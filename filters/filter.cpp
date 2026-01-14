@@ -26,7 +26,7 @@ FMode Filter::compare(File *in, File *out, uint64_t size) {
 }
 
 uint64_t Filter::CompareFiles(File *in, File *out, uint64_t size,uint64_t info,FMode m) {
-    FileTmp tmpcmp;
+    FileTmp tmpcmp(size);
     if (m==FCOMPARE) {
         diffFound=0;
         uint64_t len=decode(in,&tmpcmp,size,info);
