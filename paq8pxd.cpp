@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd132"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd133"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -428,10 +428,13 @@ void compressStream(int sid, U64 size, File* in, File* out) {
     Predictors* pred;
     U64 segmentsize;
     U64 segmentlen;
+    U64 startpos=out->curpos();
     int segmentpos;
     int segmentinfo;
     Filetype segmenttype;
+#ifndef NDEBUG 
     U64 scompsize=0;
+#endif    
     segmentsize=size;
     U64 total=size;
     segmentpos=0;
@@ -514,6 +517,9 @@ void compressStream(int sid, U64 size, File* in, File* out) {
             streams.streams[sid]->streamsize=segmentlen+1;
             enc->compress(0); //flag
         }
+        #ifndef NDEBUG 
+        scompsize=out->curpos();
+        #endif
         for (U64 k=0; k<segmentlen; ++k) {
             if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
             #ifndef NDEBUG 
@@ -540,7 +546,7 @@ void compressStream(int sid, U64 size, File* in, File* out) {
 
     printf(") compressed from %0" PRIi64 " to ",size);
     SetConColor(9);
-    printf("%0" PRIi64 "",out->curpos());
+    printf("%0" PRIi64 "", out->curpos()-startpos); // Without MT start pos is not zero
     SetConColor(7);
     printf(" bytes\n");
 }

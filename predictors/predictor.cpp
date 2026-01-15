@@ -43,8 +43,8 @@ void Predictor::update()  {
             isCompressed=(x.filetype==CMP || x.filetype==MSZIP)?true:false;
            
          }
-        if(x.filetype==BINTEXT) m->setl(3,2);
-        else m->setl(7,1);
+        /*if(x.filetype==BINTEXT) m->setl(3,2);
+        else*/ m->setl(7,1);
     }
     m->update();
     m->add(256);
@@ -70,13 +70,13 @@ void Predictor::update()  {
             models[M_TEXT]->p(*m);
             Valid=models[M_EXE]->p(*m);
             
-            if (!(x.filetype==DBASE||x.filetype==BINTEXT||x.filetype==HDR ||x.inpdf==false )) models[M_LINEAR]->p(*m);
+            if (!(x.filetype==DBASE/*||x.filetype==BINTEXT*/||x.filetype==HDR ||x.inpdf==false )) models[M_LINEAR]->p(*m);
     } 
     m->set((order<<3)|x.bpos, 64);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);
-    uint32_t bt = x.filetype==DEFAULT ? 0 : (x.filetype==BINTEXT || x.filetype==DBASE) ? 2 : Valid ? 1 : 3;
+    uint32_t bt = x.filetype==DEFAULT ? 0 : (/*x.filetype==BINTEXT ||*/ x.filetype==DBASE) ? 2 : Valid ? 1 : 3;
     m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+128*bt, 512);
     U8 d=x.c0<<(8-x.bpos);
     m->set(((xmlstate&3)>0)*1024+(x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4),2048);

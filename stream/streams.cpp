@@ -46,7 +46,7 @@ Streams::Streams():streams(0){
     
     //STR_DEFAULT
     streams[1]->dataType.push_back({DEFAULT,TR_NONE});
-    streams[1]->dataType.push_back({BINTEXT,TR_INFO});
+    //streams[1]->dataType.push_back({BINTEXT,TR_INFO});
     streams[1]->dataType.push_back({DBASE,TR_INFO});
     streams[1]->dataType.push_back({HDR,TR_NONE});
     streams[1]->dataType.push_back({IMGUNK,TR_INFO});
@@ -73,7 +73,7 @@ Streams::Streams():streams(0){
     //STR_TEXT0
     streams[9]->dataType.push_back({TEXT0,TR_NONE|TR_TRANSFORM});
     //STR_TEXT
-    streams[10]->dataType.push_back({ISOTEXT,TR_NONE|TR_TRANSFORM});
+    //streams[10]->dataType.push_back({ISOTEXT,TR_NONE|TR_TRANSFORM});
     streams[10]->dataType.push_back({TEXT,TR_NONE|TR_TRANSFORM});
     streams[10]->dataType.push_back({TXTUTF8,TR_NONE|TR_TRANSFORM});
     streams[10]->dataType.push_back({DICTTXT,TR_NONE});

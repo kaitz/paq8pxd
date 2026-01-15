@@ -73,7 +73,10 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     type=MDF;
                     info=0;
                     state=END;
-                    return state;
+                    if (mdfdatai>4)
+                        return state;
+                    state=NONE;
+                    jend=jstart=0;type=DEFAULT;
                 } else mdfdatai++;
                 if (mdfdatai>32) priority=0;// after 32 sectors set priority to 0
             }
@@ -84,7 +87,10 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 type=MDF;
                 info=0;
                 state=END;
-                return state;
+                if (mdfdatai>4)
+                        return state;
+                state=NONE;
+                jend=jstart=0;type=DEFAULT;
             }
         }
 

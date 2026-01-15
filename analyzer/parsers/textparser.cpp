@@ -1,7 +1,7 @@
 #include "textparser.hpp"
 
 TextParser::TextParser() {
-    priority=3;
+    priority=4;
     Reset();
     inpos=0;
     name="text";
@@ -28,6 +28,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         text.isLetter=tolower(c)!=toupper(c);
         text.countLetters+=(text.isLetter)?1:0;
         text.countNumbers+=(c>='0' && c<='9')?1:0;
+        text.zeroRun+=(c==0?1:-text.zeroRun);
         //text.isNumbertext=text.countLetters< text.countNumbers;
         text.isUTF8 = ((c!=0xC0 && c!=0xC1 && c<0xF5) && (
         (c<0x80) ||
@@ -55,47 +56,35 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         uint32_t t=utf8_state_table[c];
         tp.UTF8State=utf8_state_table[256 + tp.UTF8State + t];
 
-        if(tp.UTF8State==UTF8_ACCEPT) { // proper end of a valid utf8 sequence
+        if(tp.UTF8State==UTF8_ACCEPT|| text.isUTF8 ||(tp.invalidCount<TEXT_ADAPT_RATE*2 && c==0)  ) { // proper end of a valid utf8 sequence
             if (c==NEW_LINE || c==5) {
                 //  if (((buf0>>8)&0xff) != CARRIAGE_RETURN)
                 //    tp.setEOLType(2); // mixed or LF-only
                 //  else 
                 //    if (tp.EOLType()==0)tp.setEOLType(1); // CRLF-only
-                //if (tp.validlength()>TEXT_MIN_SIZE*64) brute=false; //4mb
-                if (tp.invalidCount) tp.invalidCount=0;
+                //if (tp.invalidCount) tp.invalidCount=0;
             }
-            if (tp.invalidCount) tp.invalidCount=(tp.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE);
             
+            if (tp.invalidCount) tp.invalidCount=(tp.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE);
             if (tp.invalidCount==0) {
                 tp.setEOLType(text.countNL>text.totalNL);
                 tp.setend(i); // a possible end of block position
+                if (tp.validlength()>TEXT_ADAPT_RATE) {
+                    jstart=tp.start();
+                    state=INFO;
+                }
             }
+            if (text.zeroRun>0 && tp.validlength()==text.zeroRun) state=NONE,tp.reset(i+1);
         } else if (tp.UTF8State==UTF8_REJECT) { // illegal state
-            if(text.totalNL/(text.countNL+1)==0) tp.invalidCount=0;
-            tp.invalidCount=tp.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE + TEXT_ADAPT_RATE;
-            tp.UTF8State=UTF8_ACCEPT; // reset state
-            if (tp.validlength()<TEXT_MIN_SIZE) {
-                // printf("%d",tp.validlength());
-                tp.reset(i+1); // it's not text (or not long enough) - start over
-                text.countNumbers=0;
-                state=NONE;
-            }
-            else if (tp.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE) {
-                if (tp.validlength()<TEXT_MIN_SIZE)
-                {  tp.reset(i+1); // it's not text (or not long enough) - start over
-                    text.countNumbers=0;state=NONE;
-                    }
-                else // Commit text block validation
-                {
-                    tp.next(i+1);
-                    uint64_t textstart=tp._start[0];
-                    uint64_t textend=tp._end[0];
-                    type=(tp._EOLType[0]==1)?EOLTEXT:TEXT;
-                    //type=TEXT;
+            //if (tp.validlength())printf("Lenght %d invalid %d Start %d end %d\n",tp.validlength(),tp.invalidCount,tp.start(),tp.end()); 
+            if (tp.invalidCount >= TEXT_ADAPT_RATE) {
+                if (tp.validlength()>TEXT_MIN_SIZE) {
+                    //printf("Start %d end %d\n",tp.start(),tp.end());
                     jstart=tp._start[0];
-                    jend=tp._end[0];
+                    jend=tp._end[0]+1-text.zeroRun;
                     uint64_t end=tp._end[0]+1; 
                     uint64_t nsize=tp.number();
+                    type=(tp._EOLType[0]==1)?EOLTEXT:TEXT;
                     if (nsize>((tp._end[0]-nsize)>>1)) type=TEXT0;
                     if (tp.countUTF8>0xffff) type=TXTUTF8,info=0;
                     state=END;
@@ -103,98 +92,44 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     memset(&text,0,sizeof(TextInfo));
                     return state;
                 }
+                tp.reset(i+1);
+                memset(&text,0,sizeof(TextInfo));
+            } else if (tp.validlength()>TEXT_ADAPT_RATE) {
+                jstart=tp.start();
+                state=INFO;
             }
+            tp.invalidCount=tp.invalidCount*(TEXT_ADAPT_RATE-1)/TEXT_ADAPT_RATE + TEXT_ADAPT_RATE;
+            tp.UTF8State=UTF8_ACCEPT; // reset state
+            tp.countUTF8/=2;
         }
-        
-        
-        //if(textend>end-1)textend=end-1;
-        if(type==DEFAULT) {
-            uint64_t textstart=tp._start[0];
-            uint64_t textend=tp._end[0];
-            if( textstart<textend) { // only DEFAULT blocks may be overridden
-                uint64_t nsize=0;
-                
-                /* if(textstart==begin && textend == end-1) { // whole first block is text
-        type=(tp._EOLType[0]==1)?EOLTEXT:TEXT; // DEFAULT -> TEXT
-        uint64_t nsize=tp.number();
-        if (nsize>(((end-begin)-nsize)>>1))type=TEXT0;
-        //if (type==TEXT && tp.countUTF8>0xffff) type=TXTUTF8;
-    }
-    else*/ if (textend - textstart + 1 >= TEXT_MIN_SIZE && text.totalNL!=0 && text.totalNL!=0 ) { // we have one (or more) large enough text portion that splits DEFAULT
-                    if ((text.countLetters+text.countNumbers+text.countUTF8)*2< TEXT_MIN_SIZE){
-                    memset(&text,0,sizeof(TextInfo));
-                    tp.reset(i+1);
-                }else
-                    /* if (textstart != begin) { // text is not the first block 
-        end=textstart; // first block is still DEFAULT
-        nextblock_type_bak=nextType;
-        nextType=(tp._EOLType[0]==1)?EOLTEXT:TEXT; //next block is text
-        //if (tp.number()>((end-begin)>>1))nextblock_type=TEXT0;
-        nsize=tp.number();
-        if (nsize>(((end-begin)-nsize)>>1))nextType=TEXT0; 
-        tp.removefirst();
-        } else*/ {
-                        type=(tp._EOLType[0]==1)?EOLTEXT:TEXT; // first block is text
-                        //type=TEXT;
-                        uint64_t end=textend+1; 
-                        nsize=tp.number();
-                        if (nsize>(((end)-nsize)>>1))type=TEXT0;
-                        state=INFO;
-                    }
-                }
-                if (type==TEXT && tp.countUTF8>0xffff) type=TXTUTF8,info=0;
-            }
-        } 
         if (state==INFO) {
-            if (((inSize+1)==len && last==true) || ((tp._end[0] - tp._start[0] + 1) >= TEXT_MIN_SIZE && tp.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE)) {
+            if (((inSize+1)==len && last==true) || ((tp._end[0]-tp._start[0]+1) >= TEXT_MIN_SIZE && tp.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE)) {
                 jstart=tp._start[0];
-                jend=jstart+tp._end[0]+1;
+                jend=tp._end[0]+1-text.zeroRun;
                 uint64_t end=tp._end[0]+1; 
                 uint64_t nsize=tp.number();
+                type=(tp._EOLType[0]==1)?EOLTEXT:TEXT;
                 if (nsize>((tp._end[0]-nsize)>>1)) type=TEXT0;
                 if (tp.countUTF8>0xffff) type=TXTUTF8,info=0;
                 state=END;
-                tp.reset(0);
-                memset(&text,0,sizeof(TextInfo));
-                return state;
+                
+                if (text.zeroRun>=TEXT_ADAPT_RATE  || (jend-jstart)<TEXT_MIN_SIZE && last==false) {
+                    tp.reset(0);
+                    state=NONE;
+                    memset(&text,0,sizeof(TextInfo));
+                } else {
+                    memset(&text,0,sizeof(TextInfo));
+                    return state;
+                }
             }
         }
-        if (text.missCount>MAX_TEXT_MISSES) {
-            jstart=tp._start[0];
-            jend=jstart+tp._end[0];
-            state=END;
-            return state;
-       /* } else if (state==INFO && i>( 0x40000000 )) { // Split at 1GB
-            type=TEXT;
-            jstart=tp._start[0];
-            jend=jstart+tp._end[0]+1;
-            uint64_t end=tp._end[0]+1; 
-            uint64_t nsize=tp.number();
-            if (nsize>((tp._end[0]-nsize)>>1)) type=TEXT0;
-            if (tp.countUTF8>0xffff) type=TXTUTF8,info=0;
-            state=END;
-            tp.reset(0);
-            memset(&text,0,sizeof(TextInfo));
-            return state;*/
-        } /*else if (text.totalNL!=0 && text.totalNL!=0 && state==INFO && i>0x2000000) { // At 32mb switch to 0 priority
+        if (state==INFO && i>0x2000000) { // At 32mb switch to 0 priority
             priority=0;
-            printf("%d",tp.validlength());
-        }*/
+        }
         inSize++;
         i++;
     }
-    // Test if whole file was text
-    /*if (len==inSize && last && tp._start[0]==0 && (tp._start[0]+tp._end[0]+1)==i && tp.invalidCount < TEXT_MAX_MISSES*TEXT_ADAPT_RATE){
-        jstart=tp._start[0];
-        jend=jstart+tp._end[0]+1;
-        uint64_t nsize=tp.number();
-        type=TEXT;
-        if (nsize>((tp._end[0]-nsize)>>1)) type=TEXT0;
-        if (tp.countUTF8>0xffff) type=TXTUTF8,info=0;
-        state=END;
-        //printf("Whole file text\n");
-        return state;
-    }*/
+
     if (state==INFO) return INFO;
     // Are we still reading data for our type
     if (state!=NONE)
@@ -216,7 +151,7 @@ dType TextParser::getType() {
 void TextParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=0;
     info=i=inSize=0;
-    priority=3;
+    priority=4;
     //txtStart=binLen=spaces=txtLen=0;
     //txtMinLen=65536;
     memset(&text,0,sizeof(TextInfo));

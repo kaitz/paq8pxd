@@ -222,7 +222,7 @@ void zlibParser::Reset() {
     memset( &zout[0],0,1<<16);
     zbufpos=0;
     memset( &histogram[0],0,256);
-    pdfimp=0;
+    pdfimp=0;pinfo="";
     info=i=inSize=0;
     priority=brute==true?5:2;
 }

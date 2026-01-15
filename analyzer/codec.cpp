@@ -189,11 +189,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
         if (len>0) {
             type=block.type;
             in->setpos(begin);
-            if ((type==EOLTEXT) && (len<1024*64 || len>0x1FFFFFFF)) type=TEXT;
             if (it>itcount)    itcount=it;
-            if((len>>1)<(info) && type==DEFAULT && info<len) type=BINTEXT;
-            if(len==info && type==DEFAULT ) type=ISOTEXT;
-            if(len<=TEXT_MIN_SIZE && type==TEXT0 ) type=TEXT;
             typenamess[type][it]+=len,  typenamesc[type][it]++; 
             sprintf(blstr,"%s%d",b2,blnum++);
             if (verbose>2) printf(" %-16s |",blstr);
@@ -239,7 +235,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         else if (type==EXE) dataf->encode(in, tmp, len, begin);
         else if (type==DECA) dataf->encode(in, tmp, len, 0);
         else if (type==ARM) dataf->encode(in, tmp, len, 0);
-        else if (type==TEXT || type==TXTUTF8 || type==TEXT0 || type==ISOTEXT) {
+        else if (type==TEXT || type==TXTUTF8 || type==TEXT0 /*|| type==ISOTEXT*/) {
             if (type!=TXTUTF8) {
                 dataf->encode(in, tmp, len,1);
                 U64 txt0Size= tmp->curpos();
@@ -371,8 +367,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         if (tfail) {
             if (verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
             in->setpos(begin);
-            Filetype type2;
-            if (type==ZLIB || type==BZIP2)  type2=CMP; else type2=DEFAULT;
+            Filetype type2=DEFAULT;
+            if (type==ZLIB || type==BZIP2) type2=CMP;
             
             direct_encode_blockstream(type2, in, len);
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set

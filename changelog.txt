@@ -1,3 +1,10 @@
+v134
+    -In mdf parser set minimum length to 4 sectors
+    -Change text parser
+    -Reset info text in zlib parser
+    -Fix wrong info when MT is not defined
+    -Remove some text related code from codec
+    -No parser outputs BINTEXT, ISOTEXT so disable in most places
 v132
     -Disable zip extension. If files are stored, the contents will not be recognized.
     -Limit gzip min size to 6.
@@ -24,7 +31,7 @@ v129
     -Fix bzip2, tiff parser
     -Add 0 priority parser changes to:
      base64(1/2), bmp, pnm, szdd.
-     Priority changes from n to 0 when valid header is found and lenght of data is >64000
+     Priority changes from n to 0 when valid header is found and length of data is >64000
     -Change zlib priority
     -Re-enable all parser if 0 parser reports fail.
 v128
@@ -158,7 +165,7 @@ v102
     -add one mixer input in nestModel
 v101
     -lstm +1 apm
-    -in ContextMap2 add another input from run lenght
+    -in ContextMap2 add another input from run length
     -in ContextMap2 allow to select individual inputs for mixer
     -change option -e:
         -e0 - on text file do only capital letter conversion and escapes (file will be larger)
@@ -332,7 +339,7 @@ v67
     -in bypass update models
     -change distanceModel, indirectModel, exeModel
     -in default predictor resume bypass after 0x2000 bytes if predict miss found
-     insted default bypass match lenght of 0xfff bytes
+     insted default bypass match length of 0xfff bytes
     -compressed data stream, still compressed but faster (eol data for now)
     -memory usage tweak to the same level as v64
 
