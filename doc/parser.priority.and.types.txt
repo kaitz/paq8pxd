@@ -34,6 +34,7 @@ szddparser      3     SZDD(CMP)
 mscfparser      3     CMP
 zipparser       2     ZIP
 gzipparser      2     GZIP
+isoparser       2     REC
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.

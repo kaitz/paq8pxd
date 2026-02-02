@@ -54,7 +54,7 @@ uint64_t EOLFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     wrtfi.setpos(0);
     EOLDecoderCoder* eold;
     eold=new EOLDecoderCoder(); 
-    eold->EOLdecode(in,&tmpout,wrtz,&wrtfi,in,len);
+    eold->EOLdecode(&tmpout,wrtz,&wrtfi,in,len);
 
     bb= tmpout.curpos();
     tmpout.setpos(0);

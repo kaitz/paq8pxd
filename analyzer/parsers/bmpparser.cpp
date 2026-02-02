@@ -1,7 +1,7 @@
 #include "bmpparser.hpp"
 
 BMPParser::BMPParser() {
-    priority=3;
+    priority=2;
     Reset();
     inpos=0;
     name="bmp";
@@ -118,5 +118,5 @@ dType BMPParser::getType() {
 void BMPParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     bmp=bpp=x=y=of=size=hdrless=info=i=inSize=0;
-    priority=3;
+    priority=2;
 }

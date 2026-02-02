@@ -1,5 +1,6 @@
 #include "pdfbiparser.hpp"
-
+// Page 315-318, Adobe Portable Document Format, Version 1.5
+// :inline image
 pdfBiParser::pdfBiParser() {
     priority=3;
     Reset();
@@ -24,14 +25,14 @@ DetectState pdfBiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
         buf1=(buf1<<8)|(buf0>>24);
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
-//if (state==START) printf("%c",c);
 
         if (state==NONE && buf0==0x42490D0A) { // 'BI\r\n'
             state=START;
             pdfi1=i,pdfi_ptr=pdfiw=pdfih=pdfic=pdfin=0;
         } else if (state==START) {
             if (pdfi1) {
-                if (pdfi_ptr) {
+                // Single line header with /F/CCF (CCITTFaxDecode)?
+                if (pdfi_ptr) { // multiline header detection, /F flag not tested
                     int s=0;
                     if ((buf0&0xffffff)==0x2F5720) pdfi_ptr=0, pdfin=1; // /W 
                     if ((buf0&0xffffff)==0x2F4820 ) pdfi_ptr=0, pdfin=2; // /H
@@ -44,7 +45,6 @@ DetectState pdfBiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                         else if (pdfin>0 && pdfin<4) s=pdfin;
                         if (pdfin==-1) pdfi_ptr=0;
                         if (pdfin!=5) pdfin=0;
-                        
                     }
                     if (s) {
                         if (pdfi_ptr>=16) pdfi_ptr=16;
@@ -55,37 +55,34 @@ DetectState pdfBiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                         if (v==0 || (s==3 && v>255)) pdfi1=0; else pdfi_ptr=0;
                     }
                 }
-                pdfi_buf[pdfi_ptr++]=((c>='0' && c<='9') || ' ')?c:0;
+                pdfi_buf[pdfi_ptr++]=((c>='0' && c<='9') ||c==' ')?c:0;
                 if (pdfi_ptr>=16) pdfi1=pdfi_ptr=0;
                 if (i-pdfi1>63) pdfi1=pdfi_ptr=0;
                 if (pdfiw && pdfih && pdfic==1 && pdfin==5){
-
                     info=(pdfiw+7)/8;
-                    jstart=i-pdfi1+4;
+                    jstart=i+1;
                     jend=jstart+pdfih*info;
                     pdfi1=pdfi_ptr=0;
-                    type=IMAGE1;
-                    state=END;
-                    pinfo=" (width: "+ itos(info) +")";
-                    return state;
-                } //IMG_DETP(IMAGE1,pdfi1-3,i-pdfi1+4,(pdfiw+7)/8,pdfih);
+                    if (pdfiw>1) {
+                        type=IMAGE1;
+                        state=END;
+                        pinfo=" (width: "+ itos(info) +")";
+                        return state;
+                    } else {
+                        state=NONE;
+                    }
+                }
                 if (pdfiw && pdfih && pdfic==8 && pdfin==5) {
                     info=pdfiw;
-                    jstart=i-pdfi1+4;
+                    jstart=i+1;
                     jend=jstart+pdfih*info;
                     pinfo=" (width: "+ itos(info) +")";
                     type=IMAGE8;
                     state=END;
                     return state;
-                } //IMG_DETP(IMAGE8,pdfi1-3,i-pdfi1+4,pdfiw,pdfih);
-                //#define IMG_DETP(type,start_pos,header_len,width,height) return dett=(type),
-                //deth=int(header_len),detd=int((width)*(height)),info=int(width),
-                //in->setpos(start+(start_pos)),TEXT
+                }
             }
-        } /*else if (state==INFO && i==(jend-1)) {
-            state=END;
-            return state;
-        }*/
+        }
 
         inSize++;
         i++;

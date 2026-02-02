@@ -46,7 +46,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         if (rec && state==END && tarFiles==0) state=NONE,priority=2,rec=false; // revusive mode ended
     }
     
-    while (inSize<len) {
+    while (inSize<len && rec==false) {
         buf1=(buf1<<8)|(buf0>>24);
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
@@ -162,28 +162,41 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         }
                         if (flCount++>1) priority=0; // after 2 files set priority to 0
                     }
+                } else if (last && tarFiles && (tarn+tar)>i && (inSize+1)==len) { // damaged/partial tar file
+                    jstart=0;tarl=0;
+                    jend=0;
+                    relAdd=tar;
+                    state=END;
+                    tarF.pop_back(); // remove last file, partial
+                    tarFiles--;
+                    rec=true;
+                    if (tarFiles==0) { // ignore if one partial file
+                        state=NONE;
+                        rec=false;
+                    }
                 }
                 tars[tarsi++]=c;
                 tarsi&=511;
             }
-        } else if (rec && state==END && tarFiles) { 
-            // recursive mode, report all tar file ranges
-            // file extension based type parser set in info
-            TARfile tarfile=tarF[tarF.size()-tarFiles];
-            jstart=tarfile.start-(relAdd-tar);
-            jend=jstart+tarfile.size;
-            //printf("File %d %d %d\n",tarF.size()-tarFiles,jstart,jend);
-            relAdd+=jend-tar;
-            relAdd-=tar;
-            type=RECE;
-            info=tarfile.p;
-            tar=0;
-            tarFiles--;
-            if (tarFiles==0) tarF.clear(),rec=false;
-            return state;        
         }
         inSize++;
         i++;
+    }
+    if (rec && state==END && tarFiles) { 
+        // recursive mode, report all tar file ranges
+        // file extension based type parser set in info
+        TARfile tarfile=tarF[tarF.size()-tarFiles];
+        jstart=tarfile.start-(relAdd-tar);
+        jend=jstart+tarfile.size;
+        //printf("File %d %d %d\n",tarF.size()-tarFiles,jstart,jend);
+        relAdd+=jend-tar;
+        relAdd-=tar;
+        type=RECE;
+        info=tarfile.p;
+        tar=0;
+        tarFiles--;
+        if (tarFiles==0) tarF.clear(),rec=false;
+        return state;        
     }
     if (state==INFO) {jend=i+1; return INFO;}
     // Are we still reading data for our type

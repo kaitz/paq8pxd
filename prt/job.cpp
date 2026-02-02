@@ -24,7 +24,7 @@ DWORD thread(void *arg) {
       compressStream(job->streamid,job->datasegmentsize,job->in,job->out);
       }
     else if (job->command==1)
-      decompress(*job); 
+      decompress(*job);
   }
   catch (const char* msg) {
     result=msg;

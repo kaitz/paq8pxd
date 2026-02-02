@@ -8,7 +8,7 @@ typedef enum {// real parsers
               P_DEF=0,P_BMP,P_TXT,P_DECA, P_MRB, P_EXE, P_NES, P_MZIP,P_JPG, P_WAV,
               P_PNM, P_PLZW, P_GIF, P_DBS, P_AIFF, P_A85, P_B641, P_B642,
               P_MOD, P_SGI, P_TGA, P_ICD, P_MDF, P_UUE, P_TIFF, P_TAR, P_PNG,
-              P_ZIP, P_GZIP, P_BZIP2, P_SZDD, P_MSCF, P_ZLIB, P_ZLIBP,
+              P_ZIP, P_GZIP, P_BZIP2, P_SZDD, P_MSCF, P_ZLIB, P_ZLIBP,P_ISO9960,
               // virtual parsers, see analyzer
               P_PBIT,
               P_WEXE, P_WPDF,
@@ -16,13 +16,13 @@ typedef enum {// real parsers
 
 typedef enum {DEFAULT=0,BINTEXT,ISOTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,BZIP2,
-              ZLIB,PREFLATE,ZIP,GZIP,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,IMPNG24,PNG24,IMPNG32, PNG32,RECE,WIT,TYPELAST} Filetype;
+              ZLIB,PREFLATE,ZIP,GZIP,MDF,MSZIP,EOLTEXT,DICTTXT,BIGTEXT,NOWRT,TAR,PNG8, PNG8GRAY,IMPNG24,PNG24,IMPNG32, PNG32,RECE,WIT,ISO9960,TYPELAST} Filetype;
 
-static const int datatypecount=52;
+static const int datatypecount=53;
 
 static const char* typenames[datatypecount]={"default","bintext","ISO text","dBase", "jpeg", "hdr", "cmp","imgunk","1b-image", "4b-image", "8b-image","8b-gimage", "24b-image","32b-image", "audio",
                                 "exe","DECa","ARM", "cd", "text","text0","utf-8","nes","base64","base85","uuenc","gif","SZDD","mrb","mrb4","rle","lzw","bzip2","zlib","preflate","zip","gzip","mdf","mszip","eoltxt",
-                                "DICTTXT","BIGTEXT","NOWRT","tar","PNG8","PNG8G","IMPNG24","PNG24","IMPNG32","PNG32","Recursive","WIT"};
+                                "DICTTXT","BIGTEXT","NOWRT","tar","PNG8","PNG8G","IMPNG24","PNG24","IMPNG32","PNG32","Recursive","WIT","ISO9960"};
 
 typedef enum {STREAM=0,HASINFO=1} Filetypes;
 

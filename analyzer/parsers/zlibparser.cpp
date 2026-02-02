@@ -1,17 +1,20 @@
 #include "zlibparser.hpp"
     
-zlibParser::zlibParser(bool b) {
-    priority=b==true?5:2;
+zlibParser::zlibParser(bool b):zbuf(256+32), zin(1<<16), zout(1<<16),histogram(256) {
+    brutef=b;
+    priority=(b==true?5:4);
+    memset( &strm,0,sizeof(z_stream));
     Reset();
     inpos=0;
     name="zlib";
-    brute=priority==2?false:true;
-    strm=(z_stream*)calloc( 1,sizeof(z_stream));
+    //brutef=priority==2?false:true;
     pdfim=0,pdfimw=0,pdfimh=0,pdfimb=0,pdfgray=0;
 }
 
 zlibParser::~zlibParser() {
-    if (strm) free(strm),strm=nullptr;
+    if (strm.state){
+        memset( &strm,0,sizeof(z_stream));
+    }
 }
 
 int zlibParser::parse_zlib_header(int header) {
@@ -32,18 +35,17 @@ int zlibParser::parse_zlib_header(int header) {
     return cinfo + 8;
 }
 
-
 int zlibParser::zlib_inflateInit(z_streamp strm, int zh) {
     if (zh==-1) return inflateInit2(strm, -MAX_WBITS); else return inflateInit(strm);
 }
 
 void zlibParser::SetPdfImageInfo() {
     if (pdfimw>0 && pdfimw<0x1000000 && pdfimh>0) {
-        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh) pinfo=" 8b image ",info=((pdfgray?IMAGE8GRAY:IMAGE8)<<24)|pdfimw;
-        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh*3) pinfo=" 24b image ",info=(IMAGE24<<24)|pdfimw*3;
-        if (pdfimb==8 && (int)strm->total_out==pdfimw*pdfimh*4) pinfo=" 32b image ",info=(IMAGE32<<24)|pdfimw*4;
-        if (pdfimb==4 && (int)strm->total_out==((pdfimw+1)/2)*pdfimh) pinfo=" 4b image ",info=(IMAGE4<<24)|((pdfimw+1)/2);
-        if (pdfimb==1 && (int)strm->total_out==((pdfimw+7)/8)*pdfimh) pinfo=" 1b image ",info=(IMAGE1<<24)|((pdfimw+7)/8);
+        if (pdfimb==8 && (int)strm.total_out==pdfimw*pdfimh) pinfo=" 8b image ",info=((pdfgray?IMAGE8GRAY:IMAGE8)<<24)|pdfimw;
+        if (pdfimb==8 && (int)strm.total_out==pdfimw*pdfimh*3) pinfo=" 24b image ",info=(IMAGE24<<24)|pdfimw*3;
+        if (pdfimb==8 && (int)strm.total_out==pdfimw*pdfimh*4) pinfo=" 32b image ",info=(IMAGE32<<24)|pdfimw*4;
+        if (pdfimb==4 && (int)strm.total_out==((pdfimw+1)/2)*pdfimh) pinfo=" 4b image ",info=(IMAGE4<<24)|((pdfimw+1)/2);
+        if (pdfimb==1 && (int)strm.total_out==((pdfimw+7)/8)*pdfimh) pinfo=" 1b image ",info=(IMAGE1<<24)|((pdfimw+7)/8);
         if (info) pinfo+=" (width: "+ itos(info&0xffffff) +")";
         else pinfo="";
         pdfgray=0;
@@ -77,17 +79,17 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             zbufpos=(zbufpos+1)&0xFF;
             int zh=parse_zlib_header(((int)zbuf[(zbufpos-32)&0xFF])*256+(int)zbuf[(zbufpos-32+1)&0xFF]);
             bool valid = (i>=31 && zh!=-1);
-            if (!valid && brute && i>=255){
+            if (!valid && brutef && i>=255){
                 uint8_t BTYPE = (zbuf[zbufpos]&7)>>1;
                 if ((valid=(BTYPE==1 || BTYPE==2))){
                     int maximum=0, used=0, offset=zbufpos;
-                    for (int i=0;i<4;i++,offset+=64){
+                    for (int k=0;k<4;k++,offset+=64){
                         for (int j=0;j<64;j++){
                             int freq = histogram[zbuf[(offset+j)&0xFF]];
                             used+=(freq>0);
                             maximum+=(freq>maximum);
                         }
-                        if (maximum>=((12+i)<<i) || used*(6-i)<(i+1)*64){
+                        if (maximum>=((12+k)<<k) || used*(6-k)<(k+1)*64){
                             valid = false;
                             break;
                         }
@@ -108,7 +110,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
             if (valid || state==START) {
                 // look for MS ZIP header, if found disable zlib
-                int j=i-(brute?255:31);
+                int j=i-(brutef?255:31);
                 if (j<len && data[j-4]==0x00 && data[j-3]==0x80 && data[j-2]==0x43 && data[j-1]==0x4b/* && ((data[j]>>1)&3)!=3 */) {
                     valid=false,state=DISABLE;
                 }
@@ -116,40 +118,40 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     
                     int streamLength=0, ret=0, brute=(zh==-1);
                     // Quick check possible stream by decompressing first 32 bytes
-                    strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
-                    strm->next_in=Z_NULL; strm->avail_in=0;
-                    if (zlib_inflateInit(strm,zh)==Z_OK) {
-                        strm->next_in=&zbuf[(zbufpos-(brute?0:32))&0xFF]; strm->avail_in=32;
-                        strm->next_out=zout; strm->avail_out=1<<16;
-                        ret=inflate(strm, Z_FINISH);
-                        ret=(inflateEnd(strm)==Z_OK && (ret==Z_STREAM_END || ret==Z_BUF_ERROR) && strm->total_in>=16);
+                    strm.zalloc=Z_NULL; strm.zfree=Z_NULL; strm.opaque=Z_NULL;
+                    strm.next_in=Z_NULL; strm.avail_in=0;
+                    if (zlib_inflateInit(&strm,zh)==Z_OK) {
+                        strm.next_in=&zbuf[(zbufpos-(brute?0:32))&0xFF]; strm.avail_in=32;
+                        strm.next_out=&zout[0]; strm.avail_out=1<<16;
+                        ret=inflate(&strm, Z_FINISH);
+                        ret=(inflateEnd(&strm)==Z_OK && (ret==Z_STREAM_END || ret==Z_BUF_ERROR) && strm.total_in>=16);
                     }
                     if (ret) {
                         // Verify valid stream and determine stream length
-                        strm->zalloc=Z_NULL; strm->zfree=Z_NULL; strm->opaque=Z_NULL;
-                        strm->next_in=Z_NULL; strm->avail_in=0; strm->total_in=strm->total_out=0;
-                        if (zlib_inflateInit(strm,zh)==Z_OK) {
+                        strm.zalloc=Z_NULL; strm.zfree=Z_NULL; strm.opaque=Z_NULL;
+                        strm.next_in=Z_NULL; strm.avail_in=0; strm.total_in=strm.total_out=0;
+                        if (zlib_inflateInit(&strm,zh)==Z_OK) {
                             for (uint64_t j=(i%0x10000)-(brute?255:31); j<len; j+=1<<16) {
                                 unsigned int blsize=min(len-j,1<<16);
                                 memcpy(&zin[0], &data[j], blsize);
-                                strm->next_in=zin; strm->avail_in=blsize;
+                                strm.next_in=&zin[0]; strm.avail_in=blsize;
                                 do {
-                                    strm->next_out=zout; strm->avail_out=1<<16;
-                                    ret=inflate(strm, Z_FINISH);
-                                } while (strm->avail_out==0 && ret==Z_BUF_ERROR);
-                                if (ret==Z_STREAM_END) streamLength=strm->total_in;
+                                    strm.next_out=&zout[0]; strm.avail_out=1<<16;
+                                    ret=inflate(&strm, Z_FINISH);
+                                } while (strm.avail_out==0 && ret==Z_BUF_ERROR);
+                                if (ret==Z_STREAM_END) streamLength=strm.total_in;
                                 if (ret==Z_BUF_ERROR) {
                                     // Our input block ended so report info
                                     if (jstart=(i%0x10000)-(brute?255:31)+blsize==len){
                                         jstart=i-(brute?255:31);
+                                        jend=i;
                                         state=INFO;
-                                        priority=0;
                                         return state;
                                     }
                                     state=NONE;
                                 }
                             }
-                            if (inflateEnd(strm)!=Z_OK) streamLength=0;
+                            if (inflateEnd(&strm)!=Z_OK) streamLength=0;
                         }
                         /*if (streamLength>(brute<<7)&&i!=0) {
                         type=DEFAULT;
@@ -157,7 +159,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                         state=INFO;
                     }*/
                     }
-                    if (streamLength>(brute<<7)) {
+                    if (streamLength>(brutef?127:0)) {
                         info=0;
                         SetPdfImageInfo();
                         jstart=i-(brute?255:31);
@@ -173,19 +175,21 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         } else if (state==INFO) {
             // continue larger zlib block
             int streamLength=0, ret=0;
-            strm->next_in=data; strm->avail_in=len;
+            strm.next_in=data; strm.avail_in=len;
             do {
-                strm->next_out=zout; strm->avail_out=1<<16;
-                ret=inflate(strm, Z_FINISH);
-            } while (strm->avail_out==0 && ret==Z_BUF_ERROR);
-            if (ret==Z_STREAM_END) streamLength=strm->total_in;
+                strm.next_out=&zout[0]; strm.avail_out=1<<16;
+                ret=inflate(&strm, Z_FINISH);
+            } while (strm.avail_out==0 && ret==Z_BUF_ERROR);
+            if (ret==Z_STREAM_END) streamLength=strm.total_in;
             if (ret==Z_BUF_ERROR) {
+                //priority=0;
+                jend=i;
                 return DATA;
             }
-            if (inflateEnd(strm)!=Z_OK) streamLength=0;
+            if (inflateEnd(&strm)!=Z_OK) streamLength=0;
             info=0;
             SetPdfImageInfo();
-            if (streamLength>(brute<<7)) {
+            if (streamLength>(brutef?127:0)) {
                 jend=jstart+streamLength;
                 state=END;
                 type=ZLIB;
@@ -222,8 +226,11 @@ void zlibParser::Reset() {
     memset( &zout[0],0,1<<16);
     zbufpos=0;
     memset( &histogram[0],0,256);
+    if (strm.state){
+        inflateEnd(&strm);
+    }
     pdfimp=0;pinfo="";
-    info=i=inSize=0;
-    priority=brute==true?5:2;
+    info=i=inSize=inpos=i=0;
+    priority=(brutef==true?5:4);
 }
 

@@ -220,6 +220,8 @@ ParserType GetTypeFromExt(std::string fname) {
        return P_GIF;
     else if (ext=="bz2")
        return P_BZIP2;
+    else if (ext=="iso")
+       return P_ISO9960;
     else if (ext=="nes")
        return P_NES;
     else if (ext=="dbf")

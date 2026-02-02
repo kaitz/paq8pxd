@@ -1,4 +1,5 @@
 #pragma once
+#include "../../prt/array.hpp"
 #include "../parser.hpp"
 #include "../../zlib/zlib.h"
 #include "../../prt/helper.hpp"
@@ -6,10 +7,11 @@
 #include <vector>
 
 class zlibParser: public Parser {
-    uint8_t zbuf[256+32], zin[1<<16], zout[1<<16]; // For ZLIB stream detection
-    int zbufpos, histogram[256];
+    Array<uint8_t>  zbuf, zin, zout; // For ZLIB stream detection
+    int zbufpos;
+    Array<int>  histogram;
     //bool valid;
-    bool brute;
+    bool brutef;
     int pdfim,pdfimw,pdfimh,pdfimb,pdfgray;
     uint64_t pdfimp;
     uint64_t info;
@@ -19,7 +21,7 @@ class zlibParser: public Parser {
     uint64_t jstart, jend, inSize, inpos;
     int parse_zlib_header(int header);
     int zlib_inflateInit(z_streamp strm, int zh);
-    z_stream *strm;
+    z_stream strm;
     void SetPdfImageInfo();
 public:    
     zlibParser(bool b=true);

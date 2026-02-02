@@ -9,7 +9,7 @@
 // So we can add our special case for it in GetTypeFromExt.
 // If file needs more then one parser (excluding P_DEF) then it needs to be virtual.
 
-Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p) {
+Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p),BLOCK(0x10000),blk(BLOCK) {
     assert(eparser<P_LAST);
     assert(p<TYPELAST);
     // By default add all parsers, also slowest detection
@@ -25,6 +25,9 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
         SelectParser(P_DEF);
         SelectParser(P_PBIT);    // eparser needs to be P_PDF, for now it is P_DEF
     */
+   /* } else if (p==CD) {         //  cd->iso9960 - this will not work, iso file is split into multiple cd parts
+        SelectParser(P_DEF);  
+        SelectParser(P_ISO9960);*/
     // Custom definations for virtual files
     } else if (eparser==P_WEXE) { // Virtual file parser for exe drv dll ocx
         SelectParser(P_DEF);
@@ -33,6 +36,11 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
         SelectParser(P_DECA);
         SelectParser(P_WAV);     // is something missing? P_TXT, P_GZIP,...
         SelectParser(P_MSCF);
+        SelectParser(P_PNG);
+        SelectParser(P_GZIP);
+        //SelectParser(P_ZIP);
+        //SelectParser(P_ZLIB);
+        SelectParser(P_ZLIBP);
     } else if (eparser==P_WPDF) { // Virtual file parser for pdf
         SelectParser(P_DEF);
         SelectParser(P_TXT);
@@ -181,6 +189,9 @@ void Analyzer::SelectParser(ParserType p) {
     case P_MDF:
         AddParser( new mdfParser());
         return;
+    case P_ISO9960:
+        AddParser( new ISO9960Parser());
+        return;
     case P_UUE:
         AddParser( new uueParser());
         return;
@@ -209,10 +220,10 @@ void Analyzer::SelectParser(ParserType p) {
         AddParser( new MSCFParser());
         return;
     case P_ZLIB:
-        AddParser( new zlibParser());      // brute=true, low priority
+        AddParser( new zlibParser(false));    // brute=false, high priority
         return;
     case P_ZLIBP:
-        AddParser( new zlibParser(false)); // brute=false, high priority
+        AddParser( new zlibParser());   // brute=true, low priority
         return;
     default:
         //printf("Must be virtual file.\n");
@@ -234,8 +245,6 @@ void Analyzer::Status(uint64_t n, uint64_t size) {
     if (n%0x1000000==0) fprintf(stderr,"P%6.2f%%\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 bool Analyzer::Detect(File* in, U64 n, int it) {
-    const uint64_t BLOCK=0x10000;  // block size 64k
-    uint8_t blk[BLOCK];
     Filetype type=DEFAULT;
     bool pri[MAX_PRI]={false};
     typefound=zeroParser=false;
@@ -276,9 +285,11 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     if (parsers[j]->priority==0 && zeroParser==false) zeroParser=true,zpID=j;
                     // INFO means "might be something" - don't break, let other parsers check too
                 } else if (dstate==END){
+                    //if (parsers[j]->priority==0 && zeroParser==false) zeroParser=true,zpID=j;
                     //printf("T=%zu END %s\n",j,parsers[j]->name.c_str());
                     // request current state data
                     parsers[j]->state=END;
+                    pri[parsers[j]->priority]|=true;
                     typefound=true; // we should ignore pri=4 in some cases?
                     //break;
                 } else if (dstate==DISABLE) {
@@ -308,7 +319,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                         if (j!=zpID && parsers[j]->priority>=i && parsers[j]->state!=DISABLE && parsers[j]->state!=END&& parsers[j]->state!=INFO) {
                             //if (parsers[j]->priority!=(MAX_PRI-1)) printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                             dType t=parsers[j]->getType();
-                            if (/*t.type!=DEFAULT &&*/ parsers[j]->priority!=(MAX_PRI-1))parsers[j]->state=DISABLE; // ignore default type or lowest priority
+                            if (parsers[j]->priority!=(MAX_PRI-1))parsers[j]->state=DISABLE; // ignore default type or lowest priority
                             //printf("T=%d parser %s DISABLED\n",j,parsers[j]->name.c_str());
                         }
                     }
@@ -335,19 +346,40 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
                     // Clip jend to file size if parser set it larger
                     if (t.end > n) t.end = n;
                     //printf("T=%zu parser %s start=%lu end=%lu pri=%d\n",j,parsers[j]->name.c_str(),t.start,t.end,parsers[j]->priority);
-                    if (t.end && (t.start<=minP || P>parsers[j]->priority)) {
+                    if (t.end && (t.start<minP || P>parsers[j]->priority)) {
                         if (largeP>0) parsers[largeP]->state=DISABLE;
                         P=parsers[j]->priority;
+                       /* if (P!=MAX_PRI-1 && parsers[j]->state==END) {
+                            dType p=t;
+                            if ((p.end-p.start)!=0 ) {
+                                int add=p.end;
+                                p.end+=gpos;
+                                p.start+=gpos;
+                                gpos+=add;
+                            printf("SET=%zu %s END %d-%d pri %d\n",j,parsers[j]->name.c_str(),p.start,p.end,P);
+                            typesg.push_back(p);
+                        }
+                            
+                        }*/
                         largeP=j;
                         maxP=t.end;
                         minP=t.start;
-                        //printf("largeP=%zu set to %s\n",largeP,parsers[j]->name.c_str());
+                        //printf("largeP=%zu set to %s pri %d\n",largeP,parsers[j]->name.c_str(),P);
+                
                     }
                 }
             }
+
+            /*for (size_t j=0; j<blocks.size(); j++) {
+                    dType n=blocks[j];
+                    if (n.start<minP) {
+                        printf(" P=%d %d-%d %s pri %d R\n",n.pID,n.start,n.end,parsers[n.pID]->name.c_str(),parsers[n.pID]->priority);
+                    }
+                    //printf("P=%d %d-%d %s pri %d\n",j,t.start,t.end,parsers[t.pID]->name.c_str(),parsers[t.pID]->priority);
+            }*/
             /*for (size_t j=0; j<parsers.size(); j++) {
                 if (parsers[j]->state==END) {
-                    dType t=parsers[j]->getType(0);
+                    dType t=parsers[j]->getType();
                     printf("P=%d %d-%d %s\n",j,t.start,t.end,parsers[j]->name.c_str());
                 }
             }*/
@@ -390,6 +422,7 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
         }
         //
         remaining-=ReadIn;
+        
         Status(n-remaining,n);
     }
     // Nothing found so add default type

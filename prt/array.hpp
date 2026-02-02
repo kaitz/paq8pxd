@@ -113,7 +113,6 @@ template<class T, const int Align> void Array<T,Align>::push_back(const T& x) {
 }
 
 template<class T, const int Align> Array<T, Align>::~Array() {
-  //programChecker.free(allocated_bytes());
   free(ptr);
   used_size=reserved_size=0;
   data=0;ptr=0;

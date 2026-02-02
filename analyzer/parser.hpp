@@ -29,6 +29,7 @@ struct dType {
     Filetype type;
     std::string pinfo;  // parser info string: width, etc
     bool     recursive; // is data recursive
+    uint32_t pID;       // parser index 
 };
 
 class Parser {

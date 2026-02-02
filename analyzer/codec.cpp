@@ -3,17 +3,11 @@
 
 extern int verbose;
 extern bool witmode; //-w
-extern TextParserStateInfo textparser;
 extern int itcount;
 extern U64 typenamess[datatypecount][6];
 extern U32 typenamesc[datatypecount][6];
-extern Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0);
 extern void SetConColor(int color);
 
-extern int getoct(const char *p, int n);
-extern int tarchecksum(char *p);
-extern bool tarend(const char *p);
-extern U8 level;
 Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
     AddFilter( new Img24Filter( std::string("image 24bit"),IMAGE24));
     AddFilter( new Img32Filter( std::string("image 32bit"),IMAGE32));
@@ -155,7 +149,7 @@ uint64_t Codec::DecodeFromStream(File *out, uint64_t size, FMode mode, int it) {
     return diffFound;
 }
 
-void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filetype ptype, ParserType etype ) {
+void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filetype ptype, ParserType etype) {
     Filetype type=DEFAULT;
     int blnum=0;
     uint32_t info,info2;  // image width or audio type
@@ -205,6 +199,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n,  char *blstr, int it, Filet
             n-=len;
 
             begin+=len;
+            assert(begin==in->curpos());
             Status(begin,end0);
         }
     }
@@ -278,6 +273,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             dataf->encode(in, tmp, len,0);   
             diffFound=dataf->diffFound;
         } else if (type==GZIP) {
+            dataf->encode(in, tmp, len,0);   
+            diffFound=dataf->diffFound;
+        } else if (type==PREFLATE) {
             dataf->encode(in, tmp, len,0);   
             diffFound=dataf->diffFound;
         } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
@@ -360,7 +358,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             tfail=(diffFound || tmp->getc()!=EOF); 
         }
         // Preflate types (ZLIB, PREFLATE, ZIP, GZIP, PNG) skip verification but check if encoding failed
-        if ((type==ZLIB /*|| type==PREFLATE*/ || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
+        if ((type==ZLIB || type==PREFLATE || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
             tfail = 1;
         }
         // Test fails, compress without transform
@@ -464,27 +462,33 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 treb->close();
             } else if (streams->GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
-                if (type==SZDD ||  type==ZLIB/*||  type==PREFLATE */ || type==BZIP2) isinfo=info;
+                if (type==SZDD || type==ZLIB/*||  type==PREFLATE */ || type==BZIP2) isinfo=info;
                 else if (type==WIT) isinfo=winfo;
                 segment->putdata(type,tmpsize,isinfo);
                 if (type==ZLIB/*||  type==PREFLATE*/) {// PDF or PNG image && info
-                    Filetype type2 =(Filetype)(info>>24);
-                    if (it==itcount)    itcount=it+1;
+                    Filetype type2=(Filetype)(info>>24);
+                    if (it==itcount) itcount=it+1;
                     int hdrsize=7+5*tmp->getc();
                     tmp->setpos(0);
-                    typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
-                    direct_encode_blockstream(HDR,  tmp, hdrsize);
+                    typenamess[HDR][it+1]+=hdrsize, typenamesc[HDR][it+1]++; 
+                    direct_encode_blockstream(HDR, tmp, hdrsize);
                     if (info) {
-                        typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
+                        typenamess[type2][it+1]+=tmpsize-hdrsize, typenamesc[type2][it+1]++;
                         FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
-                        transform_encode_block(type2,  tmp, tmpsize-hdrsize,  info&0xffffff,-1, blstr, it, hdrsize,treb);
+                        transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it, hdrsize, treb);
                         treb->close();
                     } else {
-                        EncodeFileRecursive( tmp, tmpsize-hdrsize,  blstr,it+1,ZLIB);
+                        EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, ZLIB);
                     }
+                } else if (type==GZIP || type==ZIP) { 
+                    if (it==itcount) itcount=it+1;
+                    int hdrsize=4+tmp->get32(); // recon_info
+                    tmp->setpos(0);
+                    typenamess[HDR][it+1]+=hdrsize, typenamesc[HDR][it+1]++; 
+                    direct_encode_blockstream(HDR, tmp, hdrsize);
+                    EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, type);
                 } else {
-                    EncodeFileRecursive( tmp, tmpsize,  blstr,it+1,type);
-                    tmp->close();
+                    EncodeFileRecursive(tmp, tmpsize, blstr, it+1, type);
                     return;
                 }    
             }

@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd133"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd134"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -204,18 +204,10 @@ size_t getPeakMemory(){
 // decodes one byte from en and returns it.  decode() and decode_X()
 // maintain state information using static variables.
 
-#define bswap(x) \
-+   ((((x) & 0xff000000) >> 24) | \
-+    (((x) & 0x00ff0000) >>  8) | \
-+    (((x) & 0x0000ff00) <<  8) | \
-+    (((x) & 0x000000ff) << 24))
-
- 
-
-#define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
+/*#define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
 deth=int(header_len),detd=(data_len),info=(wmode),\
  in->setpos(start+(start_pos)),HDR
-
+*/
 bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   U64 offset = in->curpos();
   int stride = 3+isRGBA, res = (n>0)<<8, order=1;
@@ -248,34 +240,7 @@ bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
   return (res>>8)>0;
 }
 
-int getoct(const char *p, int n){
-    int i = 0;
-    while (*p<'0' || *p>'7') ++p, --n;
-    while (*p>='0' && *p<='7' && n>0) {
-        i*=8;
-        i+=*p-'0';
-        ++p,--n;
-    }
-    return i;
-}
-int tarchecksum(char *p){
-    int u=0;
-    for (int n = 0; n < 512; ++n) {
-        if (n<148 || n>155) u+=((U8 *)p)[n];
-        else u += 0x20;
-    }
-    return (u==getoct(p+148,8));
-}
-bool tarend(const char *p){
-    for (int n=511; n>=0; --n) if (p[n] != '\0') return false;
-    return true;
-}
-
 /*
-void printStatus1(U64 n, U64 size) {
-fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
-}
-
 
 Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0) {
   U32 buf4=0,buf3=0, buf2=0, buf1=0, buf0=0;  // last 8 bytes

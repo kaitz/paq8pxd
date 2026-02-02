@@ -30,8 +30,8 @@ static const U8 utf8_state_table[] = {
   12,36,12,12,12,12,12,12,12,12,12,12  // state 96-108
 };
 
-#define MIN_TEXT_SIZE 0x400 //1KB
-#define MAX_TEXT_MISSES 3 //number of misses in last 32 bytes before resetting
+//#define MIN_TEXT_SIZE 0x400 //1KB
+//#define MAX_TEXT_MISSES 3 //number of misses in last 32 bytes before resetting
 struct TextInfo {
   U64 start;
   U32 lastSpace;

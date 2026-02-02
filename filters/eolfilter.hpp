@@ -60,7 +60,7 @@ public:
     inline U32 GetFreq (U32 totFreq) {
         return code / (range/= totFreq);
     }
-    void Decode (U32 cumFreq, U32 freq, U32 totFreq) {
+    void Decode (U32 cumFreq, U32 freq) {
         code-=cumFreq*range;
         range*=freq;
         while (range<(1<<24)) code=(code<<8)|outeol->getc(), range<<=8;
@@ -87,8 +87,8 @@ public:
         if (c<mZero[prev]) c=0;
         else c=1;
 
-        if (c==0) Decode(0,mZero[prev],mZero[prev]+mOne[prev]);
-        else      Decode(mZero[prev],mOne[prev],mZero[prev]+mOne[prev]);
+        if (c==0) Decode(0,mZero[prev]);
+        else      Decode(mZero[prev],mOne[prev]);
         return c;
     }
 
@@ -227,10 +227,10 @@ public:
     EEOLType DecodeEOLformat() {
         int c=coder.GetFreq(2);
         if (c<1) {
-            coder.Decode(0,1,2);
+            coder.Decode(0,1);
             return CRLF;
         } else {
-            coder.Decode(1,1,2);
+            coder.Decode(1,1);
             return LF;
         }
     }
@@ -269,7 +269,7 @@ public:
         out->putc(c),fpos++;
     }
 
-    void EOLdecode(File* in,File* out,int size,File*outeol,File*wd,int len) {
+    void EOLdecode(File* out,int size,File*outeol,File*wd,int len) {
         int c=0;
         bufChar=-1;
         lastEOL=-1;

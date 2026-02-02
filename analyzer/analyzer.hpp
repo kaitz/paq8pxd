@@ -1,4 +1,5 @@
 #pragma once
+#include "../prt/array.hpp"
 #include "parser.hpp"
 #include "../prt/enums.hpp"
 #include "../prt/file.hpp"
@@ -38,6 +39,7 @@
 #include "parsers/mscfparser.hpp"
 #include "parsers/zipparser.hpp"
 #include "parsers/gzipparser.hpp"
+#include "parsers/isoparser.hpp"
 
 class Analyzer {
     uint64_t info;
@@ -53,6 +55,8 @@ class Analyzer {
     int iter;
     Filetype ptype;
     std::string *pinfo;
+    const uint64_t BLOCK;  // block size 64k
+    Array<uint8_t> blk;
     void Status(uint64_t n, uint64_t size);
 public:    
     Analyzer(int it, Filetype p=DEFAULT, ParserType eparser=P_DEF); // Iter level, parent type, expected parser
