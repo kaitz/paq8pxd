@@ -425,7 +425,7 @@ void compressStream(int sid, U64 size, File* in, File* out) {
         }
     }
     enc=new Encoder (COMPRESS, out,*pred); 
-    if ((sid>=0 && sid<=7) || sid==10 || sid==11|| sid==12) {
+    if ((sid>=0 && sid<=7) || sid==10 ||sid==8 || sid==9 ||sid==11|| sid==12) {
         while (segmentsize>0) {
             while (segmentlen==0) {
                 segmenttype=(Filetype)segment(segmentpos++);
@@ -453,7 +453,7 @@ void compressStream(int sid, U64 size, File* in, File* out) {
         }
         enc->flush();
     }
-    if (sid==8 || sid==9) {
+    /*if (sid==8 || sid==9) {
         bool dictFail=false;
         FileTmp tm;
         TextFilter textf("text");
@@ -500,7 +500,7 @@ void compressStream(int sid, U64 size, File* in, File* out) {
         enc->flush();
         //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,segmentlen+0.0,ftello(out)-scompsize+0.0);
         segmentlen=segmentsize=0;   
-    }
+    }*/
     
     if (level>0) delete pred;
     delete enc;
@@ -722,7 +722,7 @@ void DecompressStreams(File *archive) {
                 }
             }
             defaultencoder=new Encoder (DECOMPRESS, archive,*predictord); 
-            if ((i>=0 && i<=7)||i==10||i==11||i==12){
+            if ((i>=0 && i<=7) ||i==8 || i==9 ||i==10||i==11||i==12){
                 while (datasegmentsize>0) {
                     while (datasegmentlen==0){
                         datasegmenttype=(Filetype)segment(datasegmentpos++);
@@ -742,7 +742,7 @@ void DecompressStreams(File *archive) {
                     datasegmentlen=0;
                 }
             }
-            if (i==8 || i==9 ){
+            /*if (i==8 || i==9 ){
                 while (datasegmentsize>0) {
                     FileTmp tm;
                     bool doWRT=true;
@@ -774,7 +774,8 @@ void DecompressStreams(File *archive) {
                     }
                     datasegmentlen=datasegmentsize=0;
                 }
-            }
+            }*/
+            //printf("Stream %d size %0lu bytes.\n",i,streams.streams[i]->file.curpos());
         }
     }
 }
@@ -1060,7 +1061,8 @@ printf("\n");
             for (int i=0;i<streams.Count();i++){
                 if ((streambit>>(streams.Count()-i))&1){
                    streams.streams[i]->streamsize=archive->get64();
-                   uint64_t ofg=streams.streams[i]->streamsize;
+                   //uint64_t ofg=streams.streams[i]->streamsize;
+                   //printf("Stream %d size %0lu bytes.\n",i,ofg);
                 }
             }
             archive->setpos(currentpos); 

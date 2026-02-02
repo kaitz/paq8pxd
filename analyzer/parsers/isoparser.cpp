@@ -123,31 +123,39 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                             isoF.push_back(tf);
                             isoFiles++;
                         }
-                        
-                        //int32_t nlen=dent.name_len;
-                        //std::string fname="";
-                        //char *name=(char*)&dent.name;
-                        //for (int j=0; j<nlen; j++) fname+=name[j];
+                        /*
+                        int32_t nlen=dent.name_len;
+                        std::string fname="";
+                        char *name=(char*)&dent.name;
+                        for (int j=0; j<nlen; j++) fname+=name[j];
                         //if ((dent.flags&2)==2)    
-                        //printf("%s %d %d %d %s\n",(dent.flags&2)!=2?"F":"D",dent.length,(uint32_t&)dent.sector.le[0],(uint32_t&)dent.size.le[0],fname.c_str());
+                        printf("%s %d %d %d %s\n",(dent.flags&2)!=2?"F":"D",dent.length,(uint32_t&)dent.sector.le[0],(uint32_t&)dent.size.le[0],fname.c_str());
+                        */
                         // Collect info about directorys
                         if ((dent.flags&2)==2 && dent.name!=1&& dent.name!=0 && sectcount!=(uint32_t&)dent.sector.le[0] && dent.xattr_length==0) {
                             // add subdir
                             sectorl.insert((uint32_t&)dent.sector.le[0]);
-                        } else if ((dent.flags&2)==2 && rootdirsup==0)  {
+                        } else if ((dent.flags&2)==2 && rootdirsup==0) {
                             // remove subdir
                             std::set<uint32_t>::iterator pos;
                             pos=sectorl.begin();
                             uint32_t elf=(uint32_t&)dent.sector.le[0];
                             // Is current sector subdir is same then remove
                             pos=sectorl.find(elf);
-                            if(pos!=sectorl.end()) {
+                            if (pos!=sectorl.end()) {
                                 sectorl.erase(elf);
                             }
                         }
                         dirlenght=dirlenght+dent.length;
                         if (dent.length==0) dirlenght=0;
                     } while (dirlenght);
+                    // To be sure we remove current sector from dir list.
+                    std::set<uint32_t>::iterator pos;
+                    pos=sectorl.find(sectcount);
+                    if (pos!=sectorl.end()) {
+                        sectorl.erase(sectcount);
+                    }
+                    //printf(" Dirs: %d, files: %d\n",sectorl.size(),isoF.size());
                 }
                 if (state==INFO) jend=i;
                 if (sectorl.size()==0) {

@@ -217,6 +217,7 @@ void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info)
 
 void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin,File*tmp) {
     tmp->truncate();
+    assert(it<5);
     if (streams->GetTypeInfo(type)&TR_TRANSFORM) {
         U64 diffFound=0;
         U32 winfo=0;
@@ -496,7 +497,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
     } else {
         // Fo recursion, copy content to tmp so parsers have the start offset 0, no transform.
         // We need to be careful, heavy recursion creates a large number of memory allocations.
-        if (type==RECE) {
+        /*if (it>=4) {
+            direct_encode_blockstream(DEFAULT, in, len);
+            printf("Rec limit\n");
+        } else*/ if (type==RECE) {
             FileTmp *treb=new FileTmp(len);
             Filter *dataf=GetFilter(DEFAULT);
             treb->setpos(0);

@@ -3,6 +3,9 @@ v134
     -Add iso 9960 parser. Active for extension .iso
     -Cleanup and small fixes
     -Fix pdfbiparser, set min width limit to >1
+    -Disable pre- and post-filter (WRT) for streams 8 and 9.
+     In rare cases, the result will not be identical.
+    -In the ISO parser, make sure there are no previous folder entries.
 v133
     -In mdf parser set minimum length to 4 sectors
     -Change text parser
