@@ -1,3 +1,6 @@
+v135
+    -In zlib parser set priority to 3 if possible image header was detected.
+    -In iso parser show info about how many files are there.
 v134
     -In png parser detect iCCP compressed chunk, test for grayscale
     -Add iso 9960 parser. Active for extension .iso

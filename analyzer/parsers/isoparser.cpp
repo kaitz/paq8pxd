@@ -18,6 +18,7 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
     if (inpos!=pos) {
         inSize=0,inpos=pos;
         i=pos;
+        pinfo="";
         if (rec && state==END && isoFiles==0) state=NONE,priority=2,rec=false; // revusive mode ended
     }
     
@@ -69,17 +70,16 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                 }
                 sectorpos%=2048;
                 sectcount++;
-            } else if (state==INFO && sectorpos==2048 && sectcount>=rootdir && sectcount!=rootdirsup ) {
+            } else if (state==INFO && sectorpos==2048 && sectcount>=rootdir && sectcount!=rootdirsup) {
                 int dirlenght=0;
-                bool wrongs=false;
+                bool wrongs=false; // is wrong sector?
                 // Ignore Supplementary root dir
                 if (sectorl.size()>0 && rootdirsup) {
                     std::set<uint32_t>::iterator pos;
-                    pos=sectorl.begin();
                     pos=sectorl.find(sectcount);
-                    if(pos==sectorl.end()&& sectcount>=rootdirsup) {
+                    if (pos==sectorl.end() && sectcount>=rootdirsup) {
                         wrongs=true;
-                    }else{
+                    } else {
                         sectorl.erase(sectcount);
                     }
                 }
@@ -97,7 +97,7 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                 if (wrongs==false) {
                     do {
                         i9660_dir &dent=(i9660_dir&)sector[dirlenght];
-                        if (dent.length==0 || (uint32_t&)dent.sector.le[0]==0){
+                        if (dent.length==0 || (uint32_t&)dent.sector.le[0]==0) {
                             dirlenght+=12+sizeof(i9660_dir);
                             // Spans multile sectors?
                             if (dirlenght>=2048) sectorl.insert(sectcount+1);
@@ -138,7 +138,6 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                         } else if ((dent.flags&2)==2 && rootdirsup==0) {
                             // remove subdir
                             std::set<uint32_t>::iterator pos;
-                            pos=sectorl.begin();
                             uint32_t elf=(uint32_t&)dent.sector.le[0];
                             // Is current sector subdir is same then remove
                             pos=sectorl.find(elf);
@@ -168,7 +167,8 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                     // sort
                     // file sectors my be out of order
                     int n=isoF.size();
-                    //printf("Total files: %d, small %d\n",n,isoFilesE);
+                    //printf("Total files: %d\n",n);
+                    pinfo=" ISO9960 - files " +itos(n);
                     for (int i=0; i<n-1; i++) {
                         for (int j=0; j<n-i-1; j++) {
                             if (isoF[j].start>isoF[j+1].start){
@@ -227,7 +227,6 @@ dType ISO9960Parser::getType() {
 void ISO9960Parser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     iso=0,sectcount=0,rootdir=0,rootdirsup=0;
-    isoFilesE=0;
     relAdd=0;
     priority=2;
     isoFiles=0; 

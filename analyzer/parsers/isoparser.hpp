@@ -103,7 +103,7 @@ class ISO9960Parser: public Parser {
     int rootdir,rootdirsup;
     std::set<uint32_t> sectorl;
     Array<ISOfile> isoF;
-    uint64_t isoFiles,isoFilesE;
+    uint64_t isoFiles;
     bool rec, volterm;
     uint64_t relAdd;
     uint64_t info;

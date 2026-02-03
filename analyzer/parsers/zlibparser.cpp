@@ -108,6 +108,7 @@ DetectState zlibParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             if (pdfim && buf3==0x42697473 && buf2==0x50657243 && buf1==0x6f6d706f
                     && buf0==0x6e656e74 && zbuf[(zbufpos-32+15)&0xFF]=='/') pdfim=4,pdfimb=0; // /BitsPerComponent
             if (pdfim && (buf2&0xFFFFFF)==0x2F4465 && buf1==0x76696365 && buf0==0x47726179) pdfgray=1; // /DeviceGray
+            if (brutef==false && pdfimb && pdfimw && pdfimh) priority=3; // we have possible pdf image, up priority
             if (valid || state==START) {
                 // look for MS ZIP header, if found disable zlib
                 int j=i-(brutef?255:31);
