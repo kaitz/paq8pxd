@@ -33,7 +33,7 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         } else if (state==START && buf0!=0 && (((i-fSZDD)==6 && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 || (buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733   && (i-fSZDD)==4))) {
             if (buf1!=0x88F02733 && (i-fSZDD)==4) lz2=2,F+=2;  //+2 treshold
             fsizez=bswap(buf0); //uncompressed file size
-            if (fsizez>0x1ffffff) state=NONE;
+            if (fsizez>0x1ffffff || fsizez<128) state=NONE;
             else {
                 if (LZringbuffer!=nullptr) free(LZringbuffer),LZringbuffer=nullptr;
                 LZringbuffer=(uint8_t*)calloc(N+F-1,1);

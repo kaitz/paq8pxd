@@ -1,7 +1,12 @@
 v136
     -Add InstallShield CAB parser (ver 5), contains zlib streams.
      Active for extension .cab
+    -Add virutal file group for .cab extension
     -In PDFLzwParser add JPXDecode and JBIG2Decode as CMP type.
+    -Re-enable .zip based extension parser
+    -Add .tga based extension parser
+    -In zip parser extract file extension and allow uncompressed files
+    -In szddparser set min lenght to 128 bytes.
 v135
     -In zlib parser set priority to 3 if possible image header was detected.
     -In iso parser show info about how many files are there.

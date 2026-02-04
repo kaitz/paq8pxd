@@ -487,11 +487,14 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     tmp->setpos(0);
                     typenamess[HDR][it+1]+=hdrsize, typenamesc[HDR][it+1]++; 
                     direct_encode_blockstream(HDR, tmp, hdrsize);
-                    EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, type);
+                    ParserType pt=P_DEF;
+                    if (type==ZIP) pt=(ParserType)info;
+                    assert(pt<P_LAST);
+                    EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, type, pt);
                 } else {
                     EncodeFileRecursive(tmp, tmpsize, blstr, it+1, type);
                     return;
-                }    
+                }
             }
         }
     } else {

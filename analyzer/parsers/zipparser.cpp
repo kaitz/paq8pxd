@@ -43,9 +43,30 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     int sig_start = inSize - 3;
                     
                     // Compression method at offset 8 (little-endian)
-                    int compression_method = data[sig_start + 8] | (data[sig_start + 9] << 8);
-                    
-                    if (compression_method == 8) {  // Deflate
+                    int comp_method = data[sig_start + 8] | (data[sig_start + 9] << 8);
+                    /*
+                    00 no compression
+                    01 shrunk
+                    02 reduced with compression factor 1
+                    03 reduced with compression factor 2
+                    04 reduced with compression factor 3
+                    05 reduced with compression factor 4
+                    06 imploded
+                    07 reserved
+                    08 deflated
+                    09 enhanced deflated
+                    10 PKWare DCL imploded
+                    11 reserved
+                    12 compressed using BZIP2
+                    13 reserved
+                    14 LZMA
+                    15-17: reserved
+                    // ignore below
+                    18 compressed using IBM TERSE
+                    19 IBM LZ77 z
+                    98 PPMd version I, Rev 1
+                    */
+                    if (comp_method<15) {
                         // Compressed size at offset 18 (little-endian)
                         uint32_t compressed_size = 
                             data[sig_start + 18] |
@@ -54,28 +75,35 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             (data[sig_start + 21] << 24);
                         
                         // Filename and extra field lengths at offset 26-29
-                        uint16_t filename_len = data[sig_start + 26] | (data[sig_start + 27] << 8);
+                        filename_len = data[sig_start + 26] | (data[sig_start + 27] << 8);
                         uint16_t extra_len = data[sig_start + 28] | (data[sig_start + 29] << 8);
                         
                         // Header length: 30 + filename + extra
                         int header_len = 30 + filename_len + extra_len;
-                        
+                        fpos=inSize;
                         // Sanity checks
-                        if (compressed_size > 0 && compressed_size < 0x7FFFFFFF &&
+                        if (comp_method==7 || comp_method==11 || comp_method==13 || comp_method>14) {
+                            state=NONE;
+                        } else if (compressed_size > 0 && compressed_size < 0x7FFFFFFF &&
                             filename_len < 1024 && extra_len < 65535) {
-                            
                             // Stream starts after header (global position)
                             jstart = (i - 3) + header_len;
                             jend = jstart + compressed_size;
-                            type = ZIP;
-                            info = 0;  // recursive
-                            state = END;
-
-                            return END;
+                            type = comp_method==8?ZIP:CMP;
+                            type = comp_method==0?RECE:type;
+                            info = 0;
+                            state = INFO;
+                            fname="";
                         }
                     }
                 }
             }
+        } else if (state==INFO && i>fpos && filename_len) {
+            for (int j=0; j<filename_len; j++) fname+=data[(fpos-5+0x20+j)&0xffff];
+            //printf("%s\n",fname.c_str());
+            info=GetTypeFromExt(fname);
+            state=END;
+            return state;
         }
         
         inSize++;
@@ -101,5 +129,7 @@ void ZIPParser::Reset() {
     type = DEFAULT;
     jstart = jend = buf0 = buf1 = buf2 = buf3 = 0;
     info = i = inSize = inpos = 0;
+    filename_len=0;
     priority = 2;
+    fname="";
 }

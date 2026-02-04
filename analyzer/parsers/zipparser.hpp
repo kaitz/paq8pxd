@@ -3,6 +3,9 @@
 #include <cstdint>
 
 class ZIPParser: public Parser {
+    std::string fname;
+    uint16_t filename_len;
+    uint64_t fpos;
     uint32_t buf0, buf1, buf2, buf3;
     uint64_t i;
     Filetype type;
