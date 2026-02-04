@@ -3,7 +3,8 @@
 #include <cstdint>
 #include <vector>
 
-// In pdf stream detect only /LZWDecode
+// In pdf stream detect only /LZWDecode /JPXDecode /JBIG2Decode
+// report as type CMP
 // no /ASCII85Decode /LZWDecode combo, etc
 class PDFLzwParser: public Parser {
     uint64_t pLzwp;

@@ -44,9 +44,15 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
     } else if (eparser==P_WPDF) { // Virtual file parser for pdf
         SelectParser(P_DEF);
         SelectParser(P_TXT);
+        SelectParser(P_A85);   // needs to be after text
         SelectParser(P_JPG);
         SelectParser(P_PLZW);
         SelectParser(P_ZLIB);
+    } else if (eparser==P_WCAB) { // Virtual file parser for cab
+        SelectParser(P_DEF);
+        SelectParser(P_MSCF);
+        SelectParser(P_MZIP);
+        SelectParser(P_ISCAB);
     // This needs to be last
     } else if (eparser!=P_DEF) { // We have extension based parser, use only that
         SelectParser(P_DEF);
@@ -56,56 +62,7 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
             SelectParser(static_cast<ParserType>(selp));
         }
     }
-    
-   /*
-    AddParser( new DefaultParser());
-    AddParser( new BMPParser());
-    AddParser( new TextParser());
-    AddParser( new DECaParser());
-    AddParser( new mrbParser());
-    AddParser( new EXEParser());
-    
-    AddParser( new NesParser());
-    AddParser( new MSZIPParser());
-    AddParser( new JPEGParser());
-    AddParser( new WAVParser());
-    AddParser( new PNMParser());
-    AddParser( new PDFLzwParser());
-    AddParser( new GIFParser());
-    AddParser( new dBaseParser());
-    if (ptype==ZLIB) {
-       AddParser( new pdfBiParser()); // Enable only inside ZLIB block
-    }
-    AddParser( new AIFFParser());
-    AddParser( new ascii85Parser());
-    AddParser( new base64_1Parser());  // stream
-    AddParser( new base64_2Parser());  // multiline
-    AddParser( new MODParser());
-    AddParser( new sgiParser());
-    AddParser( new TGAParser());
-    if (ptype!=CD) {
-       AddParser( new cdParser());
-    }
-    if (ptype!=MDF && ptype!=CD) {
-       AddParser( new mdfParser());
-    }
-    AddParser( new uueParser());
-    AddParser( new TIFFParser());
-    if (ptype!=TAR) {
-        AddParser( new TARParser());
-    }
-    AddParser( new PNGParser());
-    AddParser( new ZIPParser());
-    AddParser( new GZIPParser());
-    if (ptype!=BZIP2) AddParser( new bzip2Parser());
-    AddParser( new SZDDParser());
-    AddParser( new MSCFParser());
-    // Set as last parser
-    if (ptype!=ZLIB) {
-        AddParser( new zlibParser());      // brute=true, low priority
-        AddParser( new zlibParser(false)); // brute=false, high priority
-    }
-    */
+
     emptyType.start=0;
     emptyType.end=0;
     emptyType.info=0;
@@ -218,6 +175,9 @@ void Analyzer::SelectParser(ParserType p) {
         return;
     case P_MSCF:
         AddParser( new MSCFParser());
+        return;
+    case P_ISCAB:
+        AddParser( new ISCABParser());
         return;
     case P_ZLIB:
         AddParser( new zlibParser(false));    // brute=false, high priority

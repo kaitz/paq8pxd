@@ -1,3 +1,7 @@
+v136
+    -Add InstallShield CAB parser (ver 5), contains zlib streams.
+     Active for extension .cab
+    -In PDFLzwParser add JPXDecode and JBIG2Decode as CMP type.
 v135
     -In zlib parser set priority to 3 if possible image header was detected.
     -In iso parser show info about how many files are there.

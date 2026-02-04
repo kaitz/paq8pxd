@@ -40,6 +40,7 @@
 #include "parsers/zipparser.hpp"
 #include "parsers/gzipparser.hpp"
 #include "parsers/isoparser.hpp"
+#include "parsers/iscabparser.hpp"
 
 class Analyzer {
     uint64_t info;

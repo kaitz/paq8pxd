@@ -13,12 +13,11 @@ ISO9960Parser::~ISO9960Parser() {
 // loop over input block byte by byte and report state
 DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
-    if (pos==0 && len<128) return DISABLE;
+    if (pos==0 && rec==false && len<(25*2048)) return DISABLE; // min 25 sectors
     // Are we in new data block, if so reset inSize and restart
     if (inpos!=pos) {
         inSize=0,inpos=pos;
         i=pos;
-        pinfo="";
         if (rec && state==END && isoFiles==0) state=NONE,priority=2,rec=false; // revusive mode ended
     }
     
@@ -202,6 +201,7 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
         type=RECE;
         info=isofile.p;
         iso=0;
+        if ((isoF.size()-isoFiles)==1) pinfo="";
         isoFiles--;
         if (isoFiles==0) isoF.clear(),rec=false;
         return state;        

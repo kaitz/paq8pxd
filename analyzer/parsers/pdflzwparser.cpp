@@ -29,13 +29,18 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
         buf0=(buf0<<8)+c;
 
         if (state==NONE && (
-                    (buf4==0x2F4C5A57 && buf3==0x4465636F && buf2==0x64650D0A && buf1==0x3E3E0D0A && buf0==0x73747265) || // '/LZWDecode\r\n>>\r\nstre'
-                    (buf4==0x202F4669  && buf3==0x6C746572  && buf2==0x202F4C5A  && buf1==0x57446563  && buf0==0x6F646520 ///' /Filter /LZWDecode '
-                        )) ) {
+                    (buf4==0x2F4C5A57 && buf3==0x4465636F && buf2==0x64650D0A && buf1==0x3E3E0D0A && buf0==0x73747265) ||        // '/LZWDecode\r\n>>\r\nstre'
+                    (buf4==0x202F4669  && buf3==0x6C746572  && buf2==0x202F4C5A  && buf1==0x57446563  && buf0==0x6F646520) ||    // ' /Filter /LZWDecode '
+                    ((buf4&0xff)==0x2F && buf3==0x46696C74 && buf2==0x65722F4A && buf1==0x50584465 && buf0==0x636F6465) ||       // '/Filter/JPXDecode'
+                    ((buf4&0xffffff)==0x2F4669 && buf3==0x6C746572 && buf2==0x2F4A4249 && buf1==0x47324465 && buf0==0x636F6465)  // '/Filter/JBIG2Decode'
+                    )) {
             state=START;
             pLzwp=i;
+            if (buf1==0x57446563 || buf4==0x2F4C5A57) pinfo=" PDF LZW";
+            else if (buf1==0x50584465) pinfo=" PDF JPX";
+            else if (buf1==0x47324465) pinfo=" PDF JBIG2";
         } else if (state==START) {
-            if (buf0==0x616D0D0A) { // 'am\r\n'
+            if (buf0==0x616D0D0A || buf0==0x65616D0A) { // 'am\r\n' 'eam\n'
                 jstart=i;
                 pLzwp=jstart-pLzwp;
                 if (pLzwp>10 && pLzwp<150) { // LZWDecode and stream distance in 10-150 bytes
@@ -45,7 +50,7 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
                 }
             }
         } else if (state==INFO) {
-            if (buf1==0x0D656E64 && buf0==0x73747265) { // '\rendstre'
+            if (buf1==0x0D656E64 && buf0==0x73747265 || buf1==0x0A656E64 && buf0==0x73747265) { // '\rendstre' '\nendstre'
                 jend=i-8;
                 type=CMP;
                 state=END;
@@ -79,4 +84,5 @@ void PDFLzwParser::Reset() {
     pLzwp=0;
     info=i=inSize=0;
     priority=3;
+    pinfo="";
 }
