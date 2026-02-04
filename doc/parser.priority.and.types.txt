@@ -32,9 +32,9 @@ pngparser       2     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
 bzip2parser     2     BZIP2(CMP)
 szddparser      3     SZDD(CMP)
 mscfparser      3     CMP
-zipparser       2     ZIP
+zipparser       2     ZIP,CMP,RECE
 gzipparser      2     GZIP
-isoparser       2     REC
+isoparser       2     RECE
 iscparser       2     ZLIB
 
 Priority  - is set by parser and type is returned by parser.

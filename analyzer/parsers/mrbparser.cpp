@@ -81,7 +81,8 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     HotspotOffset=bswap(HotspotOffset);
                     if (mrbPackingMethod==1) mrbsize=mrbcsize+ i-mrbTell+10+(1<<BitCount)*4; // ignore HotspotSize
                     int pixelBytes = (mrbw * mrbh * BitCount) >> 3;
-                    if (BitCount!=1 && BitCount!=4 && BitCount!=8)state=NONE,mrb=0;
+                    if (BitCount!=1 && BitCount!=4 && BitCount!=8) state=NONE,mrb=0;
+                    if (CompressedOffset>mrbcsize) state=NONE,mrb=0;
                     if ((mrbPackingMethod==0 ||mrbPackingMethod==1) && mrb>2 ) {
                         type=DEFAULT;
                         jend=mrb-2;
