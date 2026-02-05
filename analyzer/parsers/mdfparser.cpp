@@ -60,6 +60,7 @@ DetectState mdfParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     } else if (state==START && mdfa==0) {
                         cdi=0,cdatai=0,state=NONE;
                     }
+                    cdatai=0;
                 } else if (cdatai>2352) {
                     // This should never happen
                     cdi=0,cdatai=0,state=NONE;

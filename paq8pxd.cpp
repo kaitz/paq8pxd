@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd136"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd137"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -1172,7 +1172,7 @@ printf("\n");
             segment.pos=tmp.curpos();
             segment.setsize(segment.pos);
             if (verbose>0) printf(" to %d bytes\n ",segment.pos);
-            tmp.setpos( 0); 
+            tmp.setpos(0); 
             if (tmp.blockread(&segment[0], segment.pos)<segment.pos) quit("Segment data corrupted.");
             tmp.close();
             archive->put32(segment.pos);      // write  compressed segment data size
@@ -1181,8 +1181,10 @@ printf("\n");
             archive->setpos(segmentpos); 
             archive->blockwrite(&segment[0], segment.pos); //write out segment data
             //write stream size if present
-            for (int i=0;i<streams.Count();i++){
-                if (streams.streams[i]->streamsize>0) archive->put64(streams.streams[i]->streamsize);
+            for (int i=0; i<streams.Count(); i++) {
+                if (streams.streams[i]->streamsize>0) {
+                    archive->put64(streams.streams[i]->streamsize);
+                }
             }
             printf("Total %0" PRIi64 " bytes compressed to %0" PRIi64 " bytes.\n", total_size,  archive->curpos()); 
         }
@@ -1208,25 +1210,24 @@ printf("\n");
             }
             dir=dir.c_str();
             if (dir[0] && (dir.size()!=3 || dir[1]!=':')) dir+="/";
-            /////
             
             delete en;
             delete predictord;
             DecompressStreams(archive);
-            // set datastream file pointers to beginning
-            for (int i=0; i<streams.Count(); ++i)         
-            streams.streams[i]->file.setpos( 0);
-            /////
+            // Set datastream file pointers to beginning
+            for (int i=0; i<streams.Count(); ++i)
+                streams.streams[i]->file.setpos(0);
             segment.pos=0;
             Codec codec(FDECOMPRESS, &streams, &segment);
             for (int i=0; i<files; ++i) {
                 std::string out(dir.c_str());
                 out+=fname[i];
-                printf("Reading file %s\n",out.c_str());
-                codec.DecodeFile(out.c_str(), fsize[i]);// DecodeStreams(out.c_str(), fsize[i]);
-            } 
+                //printf("Reading file %s\n",out.c_str());
+                codec.DecodeFile(out.c_str(), fsize[i]);
+            }
+            codec.PrintResult();
             int d=segment(segment.pos++);
-            if (d!=0xff) printf("Segmend end marker not found\n");
+            if (d!=0xff) printf("Segment end marker not found.\n");
             for (int i=0; i<streams.Count(); ++i) {
                 streams.streams[i]->file.close();
             }

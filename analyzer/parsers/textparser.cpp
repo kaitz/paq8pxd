@@ -59,7 +59,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         uint32_t t=utf8_state_table[c];
         tp.UTF8State=utf8_state_table[256 + tp.UTF8State + t];
 
-        if(tp.UTF8State==UTF8_ACCEPT|| text.isUTF8 ||(tp.invalidCount<TEXT_ADAPT_RATE*2 && c==0)  ) { // proper end of a valid utf8 sequence
+        if(tp.UTF8State==UTF8_ACCEPT|| text.isUTF8 ||(tp.invalidCount<TEXT_ADAPT_RATE*2 && c==0 && tp.validlength()>(TEXT_MIN_SIZE/2))  ) { // proper end of a valid utf8 sequence
            // if (c==NEW_LINE || c==5) {
                 //  if (((buf0>>8)&0xff) == CARRIAGE_RETURN)
                 //    tp.setEOLType(2); // mixed or LF-only

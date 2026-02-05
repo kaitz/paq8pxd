@@ -115,7 +115,8 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                             if (fname.size()>3 && fname.substr(fname.size()-2,2)==";1") fname.pop_back(),fname.pop_back();
                             if (fname.size()>2 && fname.substr(fname.size()-1,1)==".") fname.pop_back();
                             ISOfile tf;
-                            tf.start=(uint32_t&)dent.sector.le[0]*2048+(isoFiles==0?iso:0);
+                            tf.start=(uint32_t&)dent.sector.le[0];
+                            tf.start=tf.start*2048+(isoFiles==0?iso:0);
                             tf.size=(uint32_t&)dent.size.le[0];
                             ParserType etype=GetTypeFromExt(fname);
                             tf.p=etype;
@@ -127,7 +128,7 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                         std::string fname="";
                         char *name=(char*)&dent.name;
                         for (int j=0; j<nlen; j++) fname+=name[j];
-                        //if ((dent.flags&2)==2)    
+                        if ((dent.flags&2)==2)    
                         printf("%s %d %d %d %s\n",(dent.flags&2)!=2?"F":"D",dent.length,(uint32_t&)dent.sector.le[0],(uint32_t&)dent.size.le[0],fname.c_str());
                         */
                         // Collect info about directorys

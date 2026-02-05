@@ -8,7 +8,7 @@ extern U64 typenamess[datatypecount][6];
 extern U32 typenamesc[datatypecount][6];
 extern void SetConColor(int color);
 
-Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g) {
+Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g),fsame(0),fdiff(0) {
     AddFilter( new Img24Filter( std::string("image 24bit"),IMAGE24));
     AddFilter( new Img32Filter( std::string("image 32bit"),IMAGE32));
     AddFilter( new ImgMRBFilter(std::string("image mrb"),MRBR));
@@ -61,6 +61,10 @@ void Codec::Status(uint64_t n, uint64_t size) {
     fprintf(stderr,"F%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
+void Codec::PrintResult() {
+    printf("Identical %d, differ %d.\n", fsame, fdiff);
+}
+
 void Codec::DecodeFile(const char* filename, uint64_t filesize) {
     FMode mode=FDECOMPRESS;
     assert(filename && filename[0]);
@@ -74,14 +78,16 @@ void Codec::DecodeFile(const char* filename, uint64_t filesize) {
         f.create(filename);
         mode=FDECOMPRESS, printf("Extracting");
     }
-    printf(" %s %0.0f -> \n", filename, filesize+0.0);
+    printf(" %s %0.0f", filename, filesize+0.0);
 
     // Decompress/Compare
-    U64 r=DecodeFromStream(&f, filesize, mode);
-    if (mode==FCOMPARE && !r && f.getc()!=EOF) printf("file is longer\n");
-    else if (mode==FCOMPARE && r) printf("differ at %0lu\n",r-1);
-    else if (mode==FCOMPARE) printf("identical\n");
-    else printf("done   \n");
+    uint64_t r=DecodeFromStream(&f, filesize, mode);
+    if (mode==FCOMPARE) {
+        if (!r && f.getc()!=EOF) fdiff++,printf(" -> file is longer");
+        else if (r) fdiff++,printf(" -> differ at %0lu",r-1);
+        else fsame++;
+    }
+    printf("\n");
     f.close();
 }
 

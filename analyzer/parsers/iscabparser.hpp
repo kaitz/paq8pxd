@@ -4,10 +4,12 @@
 #include <vector>
 #include <set>
 
-// For IS CAB detection
-// ver 5
-// file contains only zlib streams
-// file name and other info in the .hdr file
+// For IS CAB detection (ver 5)
+// File contains only zlib streams.
+// File name and other info in the .hdr file.
+// We have no info about how many blocks there are,
+// so assume that we parse whole cab file.
+
 struct CABHeader {
     uint32_t Signature;
     uint32_t Version;

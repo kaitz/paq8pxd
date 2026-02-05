@@ -35,6 +35,14 @@ DetectState cdParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, boo
                 cdata[cdatai++]=c;
                 const int p=(i-cdi)%2352;
                 if (p==8 && (buf1!=0xffffff00 || ((buf0&0xff)!=1 && (buf0&0xff)!=2))) {
+                    if (cdscont>32) {
+                        jend=i-15;
+                        type=CD;
+                        info=cdif;
+                        pinfo=" (m"+ itos(info==1?1:2) +"/f"+ itos(info!=3?1:2) +")";
+                        state=END;
+                        return state;
+                    }
                     cdi=0,cdatai=0,state=NONE; // FIX it ?
                 }
                 else if (cdatai==2352) {

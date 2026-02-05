@@ -136,6 +136,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         jend=0;
                         relAdd=tar;
                         state=END;
+                        pinfo=" TAR - files " +itos(tarFiles);
                         rec=true;           // fall to recursive mode
                     } else if (state!=NONE) {
                         int a=getoct(tarh.size,12);
@@ -169,10 +170,12 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     state=END;
                     tarF.pop_back(); // remove last file, partial
                     tarFiles--;
+                    pinfo=" TAR - files " +itos(tarFiles);
                     rec=true;
                     if (tarFiles==0) { // ignore if one partial file
                         state=NONE;
                         rec=false;
+                        pinfo="";
                     }
                 }
                 tars[tarsi++]=c;
@@ -194,6 +197,7 @@ DetectState TARParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         type=RECE;
         info=tarfile.p;
         tar=0;
+        if ((tarF.size()-tarFiles)==1) pinfo="";
         tarFiles--;
         if (tarFiles==0) tarF.clear(),rec=false;
         return state;        
@@ -225,4 +229,5 @@ void TARParser::Reset() {
     flCount=tarFiles=0;
     rec=false;
     tarF.clear();
+    pinfo="";
 }
