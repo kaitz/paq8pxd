@@ -31,6 +31,7 @@
 #include "../filters/lzwfilter.hpp"
 #include "../filters/defaultfilter.hpp"
 #include "../filters/zlibfilter.hpp"
+#include "../filters/shrinkfilter.hpp"
 #include "analyzer.hpp"
 
 class Codec {

@@ -73,6 +73,11 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             (data[sig_start + 19] << 8) |
                             (data[sig_start + 20] << 16) |
                             (data[sig_start + 21] << 24);
+                        uint32_t uncompressed_size = 
+                            data[sig_start + 18+4] |
+                            (data[sig_start + 19+4] << 8) |
+                            (data[sig_start + 20+4] << 16) |
+                            (data[sig_start + 21+4] << 24);
                         
                         // Filename and extra field lengths at offset 26-29
                         filename_len = data[sig_start + 26] | (data[sig_start + 27] << 8);
@@ -91,7 +96,9 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             jend = jstart + compressed_size;
                             type = comp_method==8?ZIP:CMP;
                             type = comp_method==0?RECE:type;
-                            info = 0;
+                            type = comp_method==1?SHRINK:type;
+                            if (type==SHRINK) info=uint64_t(uncompressed_size)<<32;
+                            else info = 0;
                             state = INFO;
                             fname="";
                         }
@@ -101,7 +108,7 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         } else if (state==INFO && i>fpos && filename_len) {
             for (int j=0; j<filename_len; j++) fname+=data[(fpos-5+0x20+j)&0xffff];
             //printf("%s\n",fname.c_str());
-            info=GetTypeFromExt(fname);
+            info|=GetTypeFromExt(fname);
             state=END;
             return state;
         }
