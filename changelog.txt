@@ -5,6 +5,8 @@ v137
     -Fix cd parser.
     -Cleanup compare/extract log. Show final summary.
     -Add shrink/unshrink filter for .zip
+    -Fix tiff parser.
+    -Fix zip parser.
 v136
     -Add InstallShield CAB parser (ver 5), contains zlib streams.
      Active for extension .cab

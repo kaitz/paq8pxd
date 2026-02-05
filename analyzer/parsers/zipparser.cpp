@@ -87,7 +87,7 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         int header_len = 30 + filename_len + extra_len;
                         fpos=inSize;
                         // Sanity checks
-                        if (comp_method==7 || comp_method==11 || comp_method==13 || comp_method>14) {
+                        if (comp_method==7 || comp_method==11 || comp_method==13 || comp_method>14 || filename_len>255) {
                             state=NONE;
                         } else if (compressed_size > 0 && compressed_size < 0x7FFFFFFF &&
                             filename_len < 1024 && extra_len < 65535) {

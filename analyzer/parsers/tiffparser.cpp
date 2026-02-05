@@ -279,6 +279,8 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             detTIFF image=dtf[dtf.size()-parseCount];
             jstart=image.offset-(relAdd-tiffi);
             jend=jstart+image.size;
+            // Wrong size in tag 279?
+            if (last==true && jend>(inpos+len)) jend=inpos+len,image.size=jend-jstart;
             relAdd+=jend-tiffi;
             relAdd-=tiffi;
             tiffi=0;
