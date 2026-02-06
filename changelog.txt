@@ -1,3 +1,6 @@
+v138
+    -Add reduce filter, not active.
+    -Fix shrink filter.
 v137
     -Show count of files in tar parser.
     -Fix iso parser for large files (+4G).

@@ -97,7 +97,8 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             type = comp_method==8?ZIP:CMP;
                             type = comp_method==0?RECE:type;
                             type = comp_method==1?SHRINK:type;
-                            if (type==SHRINK) info=uint64_t(uncompressed_size)<<32;
+                            //type = comp_method==5?REDUCE:type; // needs work or reconstruction info
+                            if (type==SHRINK  || type==REDUCE) info=uint64_t(uncompressed_size)<<32;
                             else info = 0;
                             state = INFO;
                             fname="";

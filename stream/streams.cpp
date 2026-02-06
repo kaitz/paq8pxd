@@ -44,6 +44,7 @@ Streams::Streams():streams(0){
     streams[0]->dataType.push_back({PNG24,TR_NONE|TR_TRANSFORM});
     streams[0]->dataType.push_back({PNG32,TR_NONE|TR_TRANSFORM});
     streams[0]->dataType.push_back({SHRINK,TR_RECURSIVE|TR_TRANSFORM});
+    streams[0]->dataType.push_back({REDUCE,TR_RECURSIVE|TR_TRANSFORM});
     
     //STR_DEFAULT
     streams[1]->dataType.push_back({DEFAULT,TR_NONE});

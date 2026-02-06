@@ -40,6 +40,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g):mode(m),streams(s),segment(g),fsam
     AddFilter( new TextFilter(std::string("TXTUTF8"),TXTUTF8));
     AddFilter( new TextFilter(std::string("BIGTEXT"),BIGTEXT));
     AddFilter( new shrinkFilter(std::string("shrink"),SHRINK));
+    AddFilter( new reduceFilter(std::string("reduce"),REDUCE));
     AddFilter( new DefaultFilter(std::string("default"),DEFAULT)); // must be last
 }
 
@@ -286,6 +287,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         } else if (type==SHRINK) {
             dataf->encode(in, tmp, len,info2);   
             diffFound=dataf->diffFound;
+        } else if (type==REDUCE) {
+            dataf->encode(in, tmp, len,info2);   
+            diffFound=dataf->diffFound;
         } else if (type==PREFLATE) {
             dataf->encode(in, tmp, len,0);   
             diffFound=dataf->diffFound;
@@ -310,7 +314,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         tmp->setpos(0);
         
         if (type==BZIP2 || type==CD || type==MDF|| type==SZDD || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
-                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ||type==SHRINK){
+                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ||
+                type==SHRINK||type==REDUCE){
             
             in->setpos(begin);
             if (type==BASE64 ) {
@@ -334,6 +339,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             } else if (type==LZW) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if (type==SHRINK) {
+                diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info2),FCOMPARE);
+             } else if (type==REDUCE) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info2),FCOMPARE);
             } else if (type==DECA) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
@@ -379,7 +386,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             if (verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
             in->setpos(begin);
             Filetype type2=DEFAULT;
-            if (type==ZLIB || type==BZIP2|| type==SHRINK) type2=CMP;
+            if (type==ZLIB || type==BZIP2|| type==SHRINK|| type==REDUCE) type2=CMP;
             
             direct_encode_blockstream(type2, in, len);
             typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
@@ -503,7 +510,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     if (type==ZIP) pt=(ParserType)info;
                     assert(pt<P_LAST);
                     EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, type, pt);
-                } else if (type==SHRINK) { 
+                } else if (type==SHRINK || type==REDUCE) { 
                     if (it==itcount) itcount=it+1;
                     //int hdrsize=4+tmp->get32(); // recon_info
                     tmp->setpos(0);

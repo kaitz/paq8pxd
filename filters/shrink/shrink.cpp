@@ -226,7 +226,8 @@ bool hwshrink(const uint8_t *src, size_t src_len,
 
                 /* Write out the current code. */
                 if (!write_code(&os, curr_code, &code_size)) {
-                        return false;
+                    *dst_used = ostream_bytes_written(&os);
+                    return false;
                 }
 
                 /* Assign a new code to the current prefix + byte. */
@@ -250,7 +251,8 @@ bool hwshrink(const uint8_t *src, size_t src_len,
 
         /* Write out the last code. */
         if (!write_code(&os, curr_code, &code_size)) {
-                return false;
+            *dst_used = ostream_bytes_written(&os);
+            return false;
         }
 
         *dst_used = ostream_bytes_written(&os);
