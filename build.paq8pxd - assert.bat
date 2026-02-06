@@ -46,6 +46,7 @@ del "%src%\prt\*.o"
 del "%src%\prt\wrt\*.o"
 del "%src%\stream\*.o"
 del "%src%\filters\*.o"
+del "%src%\filters\shrink\*.o"
 del "%src%\analyzer\*.o"
 del "%src%\analyzer\parsers\*.o"
 pause
