@@ -44,7 +44,7 @@ DetectState AIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 info=aiffm;
                 state=END;
                 type=AUDIO;
-                pinfo=" ("+audiotypes[(info&31)%4+(info>>7)*2]+")";
+                pinfo="("+audiotypes[(info&31)%4+(info>>7)*2]+")";
                 return state;
             }
         }

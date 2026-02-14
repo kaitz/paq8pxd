@@ -46,7 +46,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         info=tgay;
                         state=END;
                         type=IMAGE8;
-                        pinfo=" (width: "+ itos(info) +")";
+                        pinfo="(width: "+ itos(info) +")";
                         return state;
                     } else if (tgat==2) {
                         jstart=tga-7+18+tgaid;
@@ -54,7 +54,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         info=tgay;
                         state=END;
                         type=(tgaz==24)?IMAGE24:IMAGE32;
-                        pinfo=" (width: "+ itos(info) +")";
+                        pinfo="(width: "+ itos(info) +")";
                         return state;
                     } else if (tgat==3) {
                         jstart=tga-7+18+tgaid;
@@ -62,7 +62,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         info=tgay;
                         state=END;
                         type=IMAGE8GRAY;
-                        pinfo=" (width: "+ itos(info) +")";
+                        pinfo="(width: "+ itos(info) +")";
                         return state;
                     } else if (tgat==9 || tgat==11) {
                         state=NONE;

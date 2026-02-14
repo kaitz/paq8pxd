@@ -67,7 +67,7 @@ DetectState MSCFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 jend=jstart+mscfs-mscfoff-files*4*4+files*10;
                 type=CMP;
                 state=END;
-                pinfo=" MS Cab 1.03";
+                pinfo="MS Cab 1.03";
                 return state;
             }
         }

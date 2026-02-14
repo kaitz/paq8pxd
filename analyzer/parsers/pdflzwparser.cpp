@@ -36,9 +36,9 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
                     )) {
             state=START;
             pLzwp=i;
-            if (buf1==0x57446563 || buf4==0x2F4C5A57) pinfo=" PDF LZW";
-            else if (buf1==0x50584465) pinfo=" PDF JPX";
-            else if (buf1==0x47324465) pinfo=" PDF JBIG2";
+            if (buf1==0x57446563 || buf4==0x2F4C5A57) pinfo="PDF LZW";
+            else if (buf1==0x50584465) pinfo="PDF JPX";
+            else if (buf1==0x47324465) pinfo="PDF JBIG2";
         } else if (state==START) {
             if (buf0==0x616D0D0A || buf0==0x65616D0A) { // 'am\r\n' 'eam\n'
                 jstart=i;

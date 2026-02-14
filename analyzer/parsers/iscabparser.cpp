@@ -53,7 +53,7 @@ DetectState ISCABParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                     jstart=0;
                     jend=0;
                     state=END;
-                    pinfo=" IS CAB fragments "+itos(iscFiles);
+                    pinfo="IS CAB fragments "+itos(iscFiles);
                     rec=true;
                 } else if (last==true && (i+spos+1) >(pos+len)) { //fail
                     isc=jstart=scount=0,state=NONE;

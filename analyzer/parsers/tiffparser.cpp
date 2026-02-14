@@ -303,7 +303,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             else if (image.compression==7)  type=CMP,info=0;
             else if (image.compression==8 && type==IMAGE24) type=ZLIB,info=(IMAGE24<<24)|image.width*3;
             else if (image.compression!=0) type=CMP,info=0;
-            if (info) pinfo=" (width: "+ itos(info&0xffffff) +")";
+            if (info) pinfo="(width: "+ itos(info&0xffffff) +")";
             else pinfo=" "+TIFFCompStr(image.compression);
             parseCount--;
             if (parseCount==0) rec=false;

@@ -168,7 +168,7 @@ DetectState ISO9960Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos
                     // file sectors my be out of order
                     int n=isoF.size();
                     //printf("Total files: %d\n",n);
-                    pinfo=" ISO9960 - files " +itos(n);
+                    pinfo="ISO9960 - files " +itos(n);
                     for (int i=0; i<n-1; i++) {
                         for (int j=0; j<n-i-1; j++) {
                             if (isoF[j].start>isoF[j+1].start){

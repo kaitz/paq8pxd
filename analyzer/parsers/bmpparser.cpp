@@ -77,7 +77,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             state=INFO;
                             jstart=of+bmp-1;
                             jend=info*y+jstart;
-                            pinfo=" (width: "+ itos(info) +")";
+                            pinfo="(width: "+ itos(info) +")";
                             // report state only if larger then block
                             if ((jend-jstart)>len) return state;
                             else if ((jend-jstart)<len) {

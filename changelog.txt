@@ -2,7 +2,8 @@ v138
     -Add zip reduce filter, not active.
     -Fix shrink filter.
     -Add zip implode filter, not active.
-    -Move data statistic in to Codec.    
+    -Move data statistic in to Codec.
+    -Cosmetic change to type info.    
 v137
     -Show count of files in tar parser.
     -Fix iso parser for large files (+4G).

@@ -35,6 +35,7 @@
 #include "../filters/shrinkfilter.hpp"
 #include "../filters/reducefilter.hpp"
 #include "../filters/implodefilter.hpp"
+#include "../filters/pngfilter.hpp"
 #include "analyzer.hpp"
 
 struct Stat {

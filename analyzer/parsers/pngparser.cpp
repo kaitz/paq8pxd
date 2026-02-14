@@ -47,7 +47,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 // i points to last byte of "IDAT" type
                 jstart = i - 7; // Start of Length field
                 type=PNG24; info=(PNG24<<24);
-                pinfo=" (IDAT stream)";
+                pinfo="(IDAT stream)";
                 
                 idat_end = i + buf1 + 5; // End of this IDAT chunk (after CRC)
                 idats = 1;
@@ -120,7 +120,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         } else {
                             type=PNG24;
                         }
-                        pinfo=" (width: "+ itos(info&0xffffff) +")";
+                        pinfo="(width: "+ itos(info&0xffffff) +")";
                         // Next chunk's Type ends after: CRC(4) + Length(4) + Type(4) = 12 bytes from current
                         nextchunk = i + 12;
                     }
@@ -144,7 +144,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             } else {
                                 type=PNG24;
                             }
-                            pinfo=" (width: "+ itos(info&0xffffff) +")";
+                            pinfo="(width: "+ itos(info&0xffffff) +")";
                         }
                         idats++;
                         // End of this IDAT = i + data_len + CRC(4) + 1 to get past last byte

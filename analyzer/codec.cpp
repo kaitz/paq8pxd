@@ -1,5 +1,4 @@
 #include "codec.hpp"
-#include "../filters/pngfilter.hpp"
 
 extern int verbose;
 extern bool witmode; //-w
@@ -7,6 +6,7 @@ extern void SetConColor(int color);
 
 Codec::Codec(FMode m, Streams *s, Segment *g, int depth):mode(m),streams(s),segment(g),
   fsame(0),fdiff(0),recDepth(depth),stat(recDepth),itcount(0) {
+    assert(recDepth>0 && recDepth<10);
     //
     for (uint64_t j=0; j<recDepth; j++) {
         stat[j].size.resize(datatypecount);
@@ -208,7 +208,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filety
             if (verbose>2) printf(" %-9s ",typenames[type]);
             SetConColor(7);
             if (verbose>2) {
-                printf("|%12.0f [%0.0f - %0.0f]%s \n",len+0.0,begin+0.0,(begin+len-1)+0.0,block.pinfo.c_str());
+                printf("|%12.0f [%0.0f - %0.0f] %s\n",len+0.0,begin+0.0,(begin+len-1)+0.0, block.pinfo.c_str());
             }
             transform_encode_block(type, in, len, info,info2, blstr, it, begin,tmp);
             n-=len;

@@ -78,7 +78,7 @@ DetectState WAVParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                                 jend=jstart+wavd;
                                 info=uint64_t(1+16/4-3)+(info2<<32);
                                 type=AUDIO;
-                                pinfo=" ("+audiotypes[(info&31)%4+(uint32_t(info)>>7)*2]+")";
+                                pinfo="("+audiotypes[(info&31)%4+(uint32_t(info)>>7)*2]+")";
                                 state=END;
                                 return state;
                             }

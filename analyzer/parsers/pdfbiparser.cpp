@@ -66,7 +66,7 @@ DetectState pdfBiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                     if (pdfiw>1) {
                         type=IMAGE1;
                         state=END;
-                        pinfo=" (width: "+ itos(info) +")";
+                        pinfo="(width: "+ itos(info) +")";
                         return state;
                     } else {
                         state=NONE;
@@ -76,7 +76,7 @@ DetectState pdfBiParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                     info=pdfiw;
                     jstart=i+1;
                     jend=jstart+pdfih*info;
-                    pinfo=" (width: "+ itos(info) +")";
+                    pinfo="(width: "+ itos(info) +")";
                     type=IMAGE8;
                     state=END;
                     return state;
