@@ -33,6 +33,7 @@
 #include "../filters/zlibfilter.hpp"
 #include "../filters/shrinkfilter.hpp"
 #include "../filters/reducefilter.hpp"
+#include "../filters/implodefilter.hpp"
 #include "analyzer.hpp"
 
 class Codec {

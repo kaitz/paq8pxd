@@ -41,7 +41,7 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 
                 if (inSize >= 3 && inSize + 26 < len) {
                     int sig_start = inSize - 3;
-                    
+                    int comp_flags = data[sig_start + 8-2] | (data[sig_start + 9-2] << 8);
                     // Compression method at offset 8 (little-endian)
                     int comp_method = data[sig_start + 8] | (data[sig_start + 9] << 8);
                     /*
@@ -98,7 +98,9 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             type = comp_method==0?RECE:type;
                             type = comp_method==1?SHRINK:type;
                             //type = comp_method==5?REDUCE:type; // needs work or reconstruction info
-                            if (type==SHRINK  || type==REDUCE) info=uint64_t(uncompressed_size)<<32;
+                            //type = comp_method==6?IMPLODE:type;// needs work or reconstruction info
+                            //printf("Flags %d\n",comp_flags);
+                            if (type==SHRINK || type==REDUCE || type==IMPLODE) info=uint64_t(uncompressed_size)<<32;
                             else info = 0;
                             state = INFO;
                             fname="";
