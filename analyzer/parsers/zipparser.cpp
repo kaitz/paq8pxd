@@ -41,7 +41,7 @@ DetectState ZIPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 
                 if (inSize >= 3 && inSize + 26 < len) {
                     int sig_start = inSize - 3;
-                    int comp_flags = data[sig_start + 8-2] | (data[sig_start + 9-2] << 8);
+                    //int comp_flags = data[sig_start + 8-2] | (data[sig_start + 9-2] << 8);
                     // Compression method at offset 8 (little-endian)
                     int comp_method = data[sig_start + 8] | (data[sig_start + 9] << 8);
                     /*

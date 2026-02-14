@@ -1,5 +1,6 @@
 //encoder/decoder for streams
 #pragma once
+#include "../prt/array.hpp"
 #include "../prt/file.hpp"
 #include "../prt/enums.hpp"
 #include "../prt/segment.hpp"
@@ -36,6 +37,11 @@
 #include "../filters/implodefilter.hpp"
 #include "analyzer.hpp"
 
+struct Stat {
+    Array<uint64_t> size;
+    Array<uint32_t> count;
+};
+
 class Codec {
     FMode mode;
     Streams *streams;
@@ -43,17 +49,21 @@ class Codec {
     std::vector<Filter*> filters;
     uint64_t fsame;
     uint64_t fdiff;
+    int recDepth;
+    Array<Stat> stat;          // block statistics
+    int itcount;
     void AddFilter(Filter *f);
     void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0);
     void transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin,File*tmp);
     void Status(uint64_t n, uint64_t size);
     public:
-        Codec(FMode m, Streams *s, Segment *g);
+        Codec(FMode m, Streams *s, Segment *g, int depth=6);
         virtual ~Codec();
         virtual void DecodeFile(const char* filename, uint64_t filesize);
         virtual void EncodeFile(const char* filename, uint64_t filesize);
         virtual Filter* GetFilter(Filetype f);
         void PrintResult();
+        void PrintStat(int limit=5);
     protected:
         virtual uint64_t DecodeFromStream(File *out, uint64_t size, FMode mode, int it=0);
         virtual void EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it=0, Filetype p=DEFAULT, ParserType etype=P_DEF);

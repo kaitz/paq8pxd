@@ -374,11 +374,6 @@ else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b", float(100)*n/(size+1)
 
 //////////////////// Compress, Decompress ////////////////////////////
 
-//for block statistics, levels 0-5
-U64 typenamess[datatypecount][6]={0}; //total type size for levels 0-5
-U32 typenamesc[datatypecount][6]={0}; //total type count for levels 0-5
-int itcount=0;               //level count
-
 #if defined(WINDOWS)      
       HANDLE  hConsole;
 #endif
@@ -1133,19 +1128,7 @@ printf("\n");
             //Display Level statistics
             if (verbose>1) {
                 printf("\n Segment data size: %d bytes\n",segment.pos);
-                for (int j=0; j<=itcount; ++j) {
-                    printf("\n %-2s |%-9s |%-10s |%-10s\n","TN","Type name", "Count","Total size");
-                    printf("-----------------------------------------\n");
-                    U32 ttc=0; U64 tts=0;
-                    for (int i=0; i<datatypecount; ++i) {
-                        if (typenamess[i][j]) {
-                            printf(" %2d |%-9s |%10d |%10.0" PRIi64 "\n",i,typenames[i], typenamesc[i][j],typenamess[i][j]);
-                            ttc+=typenamesc[i][j],tts+=typenamess[i][j];
-                        }
-                    }
-                    printf("-----------------------------------------\n");
-                    printf("%-13s%1d |%10d |%10.0" PRIi64 "\n\n","Total level",j, ttc,tts);
-                }
+                codec.PrintStat();
             }
 
             CompressStreams(archive,streambit);
