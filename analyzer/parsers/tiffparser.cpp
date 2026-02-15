@@ -194,7 +194,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     // Was last tag?
                     if (tagCx==0) {
                         //if (dirE.size()!=0)  dirEntry=dirE[dirE.size()-1],dirE.pop_back(),inSize=i-inSize,i=tiffi;
-                        if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
+                        if (idfImg.size==0 && idfImg.compression==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                         if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
                         if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg),rec=true;
                         //printf("Image(%d) offset: %d, size %d, bits %d\n",dtf.size(),idfImg.offset,idfImg.size,idfImg.bits);
@@ -262,7 +262,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 // Was last tag?
                 if (tagCx==0){
                     //if (dirE.size()!=0)  dirEntry=dirE[dirE.size()-1],dirE.pop_back(),inSize=i-inSize,i=tiffi;
-                    if (idfImg.size==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
+                    if (idfImg.size==0 && idfImg.compression==0)idfImg.size=idfImg.width*idfImg.bits1*idfImg.height;
                     if (dtf.size()==0) idfImg.offset+=tiffi; // for the first image add start pos
                     if (idfImg.offset!=0 && idfImg.size!=0) dtf.push_back(idfImg),rec=true;
                     //printf("Image(%d) offset: %d, size %d, bits %d\n",dtf.size(),idfImg.offset,idfImg.size,idfImg.bits);
