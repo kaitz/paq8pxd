@@ -4,6 +4,8 @@ v138
     -Add zip implode filter, not active.
     -Move data statistic in to Codec.
     -Cosmetic change to type info.    
+    -Fix silent transform fails, decompress not identical.
+    -Fixes in SZDD parser.
 v137
     -Show count of files in tar parser.
     -Fix iso parser for large files (+4G).

@@ -27,7 +27,7 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
 
-        if (state==NONE && ((buf0==0x88F02733 && buf1==0x535A4444 ) || (buf1==0x535A2088 && buf0==0xF02733D1)) ){
+        if (state==NONE && ((buf0==0x88F02733 && buf1==0x535A4444 ) || (buf1==0x535A2088 && buf0==0xF02733D1)) ) {
             state=START;
             fSZDD=i;
         } else if (state==START && buf0!=0 && (((i-fSZDD)==6 && (buf1&0xff00)==0x4100 && ((buf1&0xff)==0 || (buf1&0xff)>'a')&&(buf1&0xff)<'z') || (buf1!=0x88F02733   && (i-fSZDD)==4))) {
@@ -40,40 +40,54 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 memset(&LZringbuffer[0],' ',N-F);
                 r=N-F;
                 state=INFO;
-                fSZDD=i+1; d.clear();rpos=0;
+                fSZDD=i+1; 
+                d.clear();
+                rpos=0;
             }
         } else if (state==INFO) {
-            if (rpos==4) {
-
+            if (rpos==19 || rpos && (inSize+1)==len && last) {
                 for(;;) {
                     // Get a byte. For each bit of this byte:
                     // 1=copy one byte literally, from input to output
                     // 0=get two more bytes describing length and position of previously-seen
                     // data, and copy that data from the ring buffer to output
-                    if((flags&0x100)==0){
-                        c1=d.front();d.pop_front();
-                        incount++;
-                        if(icount>=fsizez) break;
-                        flags=c1|0xFF00;
+                    if ((flags&0x100)==0) {
+                        if (d.size()==0) {state=END;break;}
+                        c1=d.front();
+                        d.pop_front();
                         rpos--;
-                    }
-                    if(flags & 1) {
-                        c1=d.front();d.pop_front();
-                        incount++;
                         if(icount>=fsizez) break;
+                        incount++;
+                        flags=c1|0xFF00;
+                    } else if (d.size()<2 && (flags & 1)==0) {
+                        break;
+                    }
+                    if (flags & 1) {
+                        if (d.size()==0) {state=END;break; }
+                        c1=d.front();d.pop_front();
+                        rpos--;
+                        if(icount>=fsizez) break;
+                        incount++;
+                        
                         icount++;
                         LZringbuffer[r]=c1;
                         r=(r+1)&(N-1);
-                        rpos--;
+                        
                     } else {
                         // 0=get two more bytes describing length and position of previously-
                         // seen data, and copy that data from the ring buffer to output
+                        if (d.size()==0) {state=END;break; }
                         i1=d.front();d.pop_front();
-                        incount++;
+                        rpos--;
                         if(icount>=fsizez) break;
+                        incount++;
+                        
+                        if (d.size()==0) {state=END;break; }
                         j=d.front();d.pop_front();
-                        incount++;
+                        rpos--;
                         if(icount>=fsizez) break;
+                        incount++;
+                        
                         i1|=((j&0xF0)<<4);
                         j=(j&0x0F)+THRESHOLD;
                         for(k=0; k<=j; k++){
@@ -82,12 +96,12 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                             LZringbuffer[r]=a;
                             r=(r+1)&(N-1);
                         }
-                        rpos--;
-                        rpos--;
                     }
-                    break;
+                    flags>>=1;
+                    if (rpos && (inSize+1)==len && last) continue;
+                    else if((flags&0xFFFF)==0xFF) break;
                 }
-                if(icount>=fsizez) {
+                if (icount>=fsizez || (inSize+1)==len && last) {
                     //printf("Dec size %d  Comp size %d\n",icount,incount);
                     jstart=fSZDD;
                     jend=jstart+incount;
@@ -96,8 +110,10 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     if (LZringbuffer!=nullptr) free(LZringbuffer),LZringbuffer=nullptr;
                     state=END;
                     return state;
+                } else if (state==END) {
+                    state=INFO;
                 }
-                flags>>=1;
+                
             } 
             d.push_back(c),rpos++;
         }

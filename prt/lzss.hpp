@@ -216,7 +216,7 @@ U32 decompress(){
             i=g_infile->getc(),incount++;
             if(i==EOF||icount>=filesizez) break;
             j=g_infile->getc(),incount++;
-            if(j==EOF ||icount>=filesizez) break;
+            if(j==EOF ||icount>=filesizez){ incount--;break;}
             i|=((j&0xF0)<< 4);
             j=(j&0x0F)+THRESHOLD;
             for(k=0;k<=j;k++){

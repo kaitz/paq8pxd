@@ -234,6 +234,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
     tmp->truncate();
     assert(it<recDepth);
     if (streams->GetTypeInfo(type)&TR_TRANSFORM) {
+        U64 exppos=in->curpos()+len;
         U64 diffFound=0;
         U32 winfo=0;
         Filter* dataf=GetFilter(type);
@@ -282,6 +283,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         else if (type==BASE85) dataf->encode(in, tmp, len,info);
         else if (type==SZDD) {
             dataf->encode(in, tmp,0, info);
+            diffFound=dataf->diffFound;
         } else if (type==ZLIB) {
             dataf->encode(in, tmp, len,0);   
             diffFound=dataf->diffFound;
@@ -387,7 +389,11 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 tmp->setpos(0);
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             }    */  
-            tfail=(diffFound || tmp->getc()!=EOF); 
+            // Fail transform if:
+            //   Files are different.
+            //   Transformed file was not consumed (no EOF).
+            //   Input was not consumed by expected len.
+            tfail=(diffFound || tmp->getc()!=EOF || exppos!=in->curpos()); 
         }
         // Preflate types (ZLIB, PREFLATE, ZIP, GZIP, PNG) skip verification but check if encoding failed
         if ((type==ZLIB || type==PREFLATE || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
@@ -395,18 +401,16 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         }
         // Test fails, compress without transform
         if (tfail) {
+            if (diffFound==0) diffFound=in->curpos();
             if (verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
             in->setpos(begin);
             Filetype type2=DEFAULT;
             if (type==ZLIB || type==BZIP2|| type==SHRINK|| type==REDUCE|| type==IMPLODE) type2=CMP;
-            
             direct_encode_blockstream(type2, in, len);
-            stat[it].size[type]-=len;
+            stat[it].size[type]-=len; // if type fails set
             stat[it].count[type]--;
-            //typenamess[type][it]-=len,  typenamesc[type][it]--;       // if type fails set
-            stat[it].size[type2]+=len;
+            stat[it].size[type2]+=len; // set new type info
             stat[it].count[type2]++;
-            //typenamess[type2][it]+=len,  typenamesc[type2][it]++; // default info
         } else {
             tmp->setpos(0);
             if (type==EXE) {
@@ -421,12 +425,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
                 hdrsize=4+hdrsize*4+4;
                 tmp->setpos(0);
-                //typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
                 stat[it+1].size[HDR]+=hdrsize;
                 stat[it+1].count[HDR]++;
                 direct_encode_blockstream(HDR, tmp, hdrsize);
                 if (it==itcount)    itcount=it+1;
-                //typenamess[type2][it+1]+=tmpsize,  typenamesc[type2][it+1]++;
                 stat[it+1].size[type2]+=hdrsize;
                 stat[it+1].count[type2]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
@@ -437,12 +439,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 if (it==itcount)    itcount=it+1;
                 int hdrsize=dataf->hdrsize;
                 tmp->setpos(0);
-                //typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
                 stat[it+1].size[HDR]+=hdrsize;
                 stat[it+1].count[HDR]++;
                 direct_encode_blockstream(HDR,  tmp, hdrsize);
                 if (it==itcount)    itcount=it+1;
-                //typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                 stat[it+1].size[type2]+=tmpsize-hdrsize;
                 stat[it+1].count[type2]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
@@ -451,12 +451,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 int hdrsize=( 4);
                 Filetype type2 =(Filetype)(info>>24);
                 tmp->setpos(0);
-                //typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
                 stat[it+1].size[HDR]+=hdrsize;
                 stat[it+1].count[HDR]++;
                 direct_encode_blockstream(HDR, tmp, hdrsize);
                 if (it==itcount)    itcount=it+1;
-                //typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                 stat[it+1].size[type2]+=tmpsize-hdrsize;
                 stat[it+1].count[type2]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
@@ -466,7 +464,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 Filetype type2 =(Filetype)(info>>24);
                 tmp->setpos(0);
                 if (it==itcount)    itcount=it+1;
-                //typenamess[type2][it+1]+=tmpsize-hdrsize,  typenamesc[type2][it+1]++;
                 stat[it+1].size[type2]+=tmpsize-hdrsize;
                 stat[it+1].count[type2]++;
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
@@ -474,7 +471,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=(tmp->getc()<<8)+tmp->getc();
                 tmp->setpos(0);
-                //typenamess[HDR][it+1]+=hdrsize,  typenamesc[HDR][it+1]++; 
                 stat[it+1].size[HDR]+=hdrsize;
                 stat[it+1].count[HDR]++;
                 direct_encode_blockstream(HDR, tmp, hdrsize);
@@ -508,11 +504,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 hdrsize=tmp->get32();
                 hdrsize=hdrsize+12;
                 tmp->setpos(0);
-                //typenamess[CMP][it+1]+=hdrsize,  typenamesc[CMP][it+1]++; 
                 stat[it+1].size[CMP]+=hdrsize;
                 stat[it+1].count[CMP]++;
                 direct_encode_blockstream(CMP, tmp, hdrsize);
-                //typenamess[TEXT][it+1]+=tmpsize-hdrsize,  typenamesc[TEXT][it+1]++;
                 stat[it+1].size[TEXT]+=tmpsize-hdrsize;
                 stat[it+1].count[TEXT]++;
                 FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
@@ -528,12 +522,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     if (it==itcount) itcount=it+1;
                     int hdrsize=7+5*tmp->getc();
                     tmp->setpos(0);
-                    //typenamess[HDR][it+1]+=hdrsize, typenamesc[HDR][it+1]++; 
                     stat[it+1].size[HDR]+=hdrsize;
                     stat[it+1].count[HDR]++;
                     direct_encode_blockstream(HDR, tmp, hdrsize);
                     if (info) {
-                        //typenamess[type2][it+1]+=tmpsize-hdrsize, typenamesc[type2][it+1]++;
                         stat[it+1].size[type2]+=tmpsize-hdrsize;
                         stat[it+1].count[type2]++;
                         FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
@@ -546,7 +538,6 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     if (it==itcount) itcount=it+1;
                     int hdrsize=4+tmp->get32(); // recon_info
                     tmp->setpos(0);
-                    //typenamess[HDR][it+1]+=hdrsize, typenamesc[HDR][it+1]++; 
                     stat[it+1].size[HDR]+=hdrsize;
                     stat[it+1].count[HDR]++;
                     direct_encode_blockstream(HDR, tmp, hdrsize);
