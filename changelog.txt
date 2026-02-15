@@ -7,6 +7,8 @@ v138
     -Fix silent transform fails, decompress not identical.
     -Fixes in SZDD parser.
     -In tiff parser ignore image if compressed and tag 279 is missing.
+    -In pdflzw parser add FlateDecode detection only for non-image data
+     and do some fixes.
 v137
     -Show count of files in tar parser.
     -Fix iso parser for large files (+4G).
