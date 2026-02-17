@@ -149,7 +149,7 @@ U32 compress(){
         if(mask==0){                        // Send at most 8 units of code together
             for(i=0;i<code_buf_ptr;i++){
                 g_outfile->putc(code_buf[i]),ocount++;
-                if(ocount>=filesizez) return ocount;
+                //if(ocount>=filesizez) return ocount;
             }
             code_buf[0]=0;
             code_buf_ptr=mask=1;
@@ -180,7 +180,7 @@ U32 compress(){
     if(code_buf_ptr>1){                     // Send remaining code.
         for(i=0;i<code_buf_ptr;i++){
             g_outfile->putc(code_buf[i]),ocount++;
-            if(ocount>=filesizez) return ocount;
+            //if(ocount>=filesizez) return ocount;
         }
     }
     return ocount;    //return compressed size

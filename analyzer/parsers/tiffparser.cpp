@@ -140,14 +140,16 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             tiffi=i-7;
             //printf("First dir: %d\n",dirEntry);
             memset(&idfImg, 0, sizeof(idfImg));
+            tagsIn=tagTx=tagCdi=0;
         } else if (state==START || state==INFO) {
             if (i==(dirEntry+1+tiffi) && tagsIn==0) {
                 tagsIn=tiffMM==true?(data[inSize-1]<<8|data[inSize]):(data[inSize-1]|(data[inSize]<<8));
                 //printf("Tags dir: %d\n",tagsIn);
-                if (tagsIn>255) state=NONE,rec=false; // just fail if more then 255 tags
-            } else if (tagsIn && tagTx<tagsIn*12 && i>=(dirEntry+tiffi)){ // read in tif tags
+                if (tagsIn>255 || tagsIn==0) state=NONE,rec=false; // just fail if more then 255 tags
+            } else if (tagsIn && tagTx<tagsIn*12 && i>=(dirEntry+tiffi)) { // read in tif tags
                 tagT[tagTx++]=c;
-            }else if (tagCx && i>=(tagCx+tiffi)) {
+                if (tagTx>sizeof(TiffTag)*256) state=NONE,rec=false; 
+            } else if (tagCx && i>=(tagCx+tiffi)) {
                 // Read in tag content if any and parse
                 tagCd[tagCdi++]=c;
                 if (tagCdi==(tagCs*tagCc)) {

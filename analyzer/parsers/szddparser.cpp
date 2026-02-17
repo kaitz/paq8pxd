@@ -45,6 +45,7 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 rpos=0;
             }
         } else if (state==INFO) {
+            d.push_back(c),rpos++;
             if (rpos==19 || rpos && (inSize+1)==len && last) {
                 for(;;) {
                     // Get a byte. For each bit of this byte:
@@ -115,7 +116,7 @@ DetectState SZDDParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 }
                 
             } 
-            d.push_back(c),rpos++;
+            
         }
         inSize++;
         i++;

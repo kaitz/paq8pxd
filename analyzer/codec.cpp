@@ -282,7 +282,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         else if (type==UUENC) dataf->encode(in, tmp, len,info);
         else if (type==BASE85) dataf->encode(in, tmp, len,info);
         else if (type==SZDD) {
-            dataf->encode(in, tmp,0, info);
+            dataf->encode(in, tmp,len, info);
             diffFound=dataf->diffFound;
         } else if (type==ZLIB) {
             dataf->encode(in, tmp, len,0);   
