@@ -41,6 +41,8 @@
 struct Stat {
     Array<uint64_t> size;
     Array<uint32_t> count;
+    Stat():size(0),count(0){
+    }
 };
 
 class Codec {
@@ -52,6 +54,7 @@ class Codec {
     uint64_t fdiff;
     int recDepth;
     Array<Stat> stat;          // block statistics
+    Stat statFail;
     int itcount;
     void AddFilter(Filter *f);
     void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0);

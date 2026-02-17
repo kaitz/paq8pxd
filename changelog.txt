@@ -3,6 +3,7 @@ v139
     -In codec test 24/32 bit image pre-post transfom size.
     -Fix tiff parser, bad detection, crash.
     -Fix SZDD parser, incorect lenght when recompressing.
+    -In codec add fail statistics. Show summary.
 v138
     -Add zip reduce filter, not active.
     -Fix shrink filter.

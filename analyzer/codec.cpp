@@ -12,6 +12,8 @@ Codec::Codec(FMode m, Streams *s, Segment *g, int depth):mode(m),streams(s),segm
         stat[j].size.resize(datatypecount);
         stat[j].count.resize(datatypecount);
     }
+    statFail.size.resize(datatypecount);
+    statFail.count.resize(datatypecount);
     
     AddFilter( new Img24Filter( std::string("image 24bit"),IMAGE24));
     AddFilter( new Img32Filter( std::string("image 32bit"),IMAGE32));
@@ -404,6 +406,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         }
         // Test fails, compress without transform
         if (tfail) {
+            statFail.size[type]+=len; // Collect fail statistics
+            statFail.count[type]++;
             if (diffFound==0) diffFound=in->curpos();
             if (verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
             in->setpos(begin);
@@ -589,7 +593,7 @@ void Codec::PrintStat(int limit) {
     assert(limit<recDepth);
     int l=itcount>limit?limit:itcount;
     for (int j=0; j<=l; ++j) {
-        printf("\n %-2s |%-9s |%-10s |%-10s\n","TN","Type name","Count","Total size");
+        printf("\n %-2s |%-9s |%-10s | %-10s\n","TN","Type name","Count","Total size");
         printf("-----------------------------------------\n");
         uint32_t totalCount=0; 
         uint64_t totalSize=0;
@@ -604,5 +608,26 @@ void Codec::PrintStat(int limit) {
         }
         printf("-----------------------------------------\n");
         printf("%-13s%1d |%10d |%10.0" PRIi64 "\n\n","Total level", j, totalCount, totalSize);
+    }
+    // Do we have failed transform statistics?
+    bool showFailStat=false;
+    for (int i=0; i<datatypecount; ++i) {
+        if (statFail.count[i]) {
+            showFailStat=true;
+            break;
+        }
+    }
+    if (showFailStat==true) {
+        printf("\nFail statistics:\n");
+        printf("\n %-2s |%-9s |%-10s | %-10s\n","TN","Type name","Count","Total size");
+        printf("-----------------------------------------\n");
+        for (int i=0; i<datatypecount; ++i) {
+            const uint32_t count=statFail.count[i];
+            if (count) {
+                const uint64_t size=statFail.size[i];
+                printf(" %2d |%-9s |%10d |%10.0" PRIi64 "\n", i, typenames[i], count, size);
+            }
+        }
+        printf("-----------------------------------------\n\n");
     }
 }
