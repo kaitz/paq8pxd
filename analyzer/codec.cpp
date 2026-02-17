@@ -399,6 +399,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         if ((type==ZLIB || type==PREFLATE || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) && diffFound) {
             tfail = 1;
         }
+        if (type==IMAGE24 || type==IMAGE32) {
+            if (tmpsize!=len) tfail=1;
+        }
         // Test fails, compress without transform
         if (tfail) {
             if (diffFound==0) diffFound=in->curpos();

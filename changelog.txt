@@ -1,3 +1,6 @@
+v139
+    -In tga parser wait for data end.
+    -In codec test 24/32 bit image pre-post transfom size.
 v138
     -Add zip reduce filter, not active.
     -Fix shrink filter.

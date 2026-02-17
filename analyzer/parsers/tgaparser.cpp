@@ -44,7 +44,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         jstart=tga-7+18+tgaid+256*tgamap;
                         jend=jstart+tgax*tgay;
                         info=tgay;
-                        state=END;
+                        state=INFO;
                         type=IMAGE8;
                         pinfo="(width: "+ itos(info) +")";
                         return state;
@@ -52,7 +52,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         jstart=tga-7+18+tgaid;
                         jend=jstart+tgax*(tgaz>>3)*tgay;
                         info=tgay;
-                        state=END;
+                        state=INFO;
                         type=(tgaz==24)?IMAGE24:IMAGE32;
                         pinfo="(width: "+ itos(info) +")";
                         return state;
@@ -60,7 +60,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         jstart=tga-7+18+tgaid;
                         jend=jstart+tgax*tgay;
                         info=tgay;
-                        state=END;
+                        state=INFO;
                         type=IMAGE8GRAY;
                         pinfo="(width: "+ itos(info) +")";
                         return state;
@@ -103,16 +103,17 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 }
                 tga=0;
             }
-        }/* else if (state==INFO && i==(jend-1)) {
+        } else if (state==INFO && i==(jend-1)) {
             state=END;
             return state;
-        }*/
+        }
 
         inSize++;
         i++;
     }
     // Are we still reading data for our type
-    if (state!=NONE)
+    if (state==INFO) return INFO;
+    else if (state!=NONE)
     return DATA;
     else return NONE;
 }
