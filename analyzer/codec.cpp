@@ -473,7 +473,12 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 if (it==itcount)    itcount=it+1;
                 stat[it+1].size[type2]+=tmpsize-hdrsize;
                 stat[it+1].count[type2]++;
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
+                if (type2==IMAGE32 || type2==IMAGE24) {
+                    FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
+                    transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it, hdrsize, treb);
+                    treb->close();
+                } else
+                    direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==GIF) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=(tmp->getc()<<8)+tmp->getc();
