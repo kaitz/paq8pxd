@@ -67,7 +67,9 @@ Filter* Codec::GetFilter(Filetype f) {
 }
 
 void Codec::Status(uint64_t n, uint64_t size) {
-    fprintf(stderr,"F%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
+    if (n==size) fprintf(stderr,"        \b\b\b\b\b\b\b\b\b\b\b\b");
+    else fprintf(stderr,"F%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1));
+    fflush(stdout);
 }
 
 void Codec::PrintResult() {
@@ -560,10 +562,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
     } else {
         // Fo recursion, copy content to tmp so parsers have the start offset 0, no transform.
         // We need to be careful, heavy recursion creates a large number of memory allocations.
-        /*if (it>=4) {
-            direct_encode_blockstream(DEFAULT, in, len);
-            printf("Rec limit\n");
-        } else*/ if (type==RECE) {
+        // This seems to be faster then direct disk access (small files, hdd).
+        if (type==RECE) {
             FileTmp *treb=new FileTmp(len);
             Filter *dataf=GetFilter(DEFAULT);
             treb->setpos(0);
@@ -579,11 +579,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
 }
 
 void Codec::AddStat(Filetype type, uint64_t len, int i) {
+    assert(i<recDepth);
+    assert(type<TYPELAST);
     stat[i].size[type]+=len;
     stat[i].count[type]++;
 }
 
 void Codec::RemoveStat(Filetype type, uint64_t len, int i) {
+    assert(i<recDepth);
+    assert(type<TYPELAST);
     stat[i].size[type]-=len;
     stat[i].count[type]--;
 }
@@ -591,21 +595,30 @@ void Codec::PrintStat(int limit) {
     assert(limit<recDepth);
     int l=itcount>limit?limit:itcount;
     for (int j=0; j<=l; ++j) {
-        printf("\n %-2s |%-9s |%-10s | %-10s\n","TN","Type name","Count","Total size");
-        printf("-----------------------------------------\n");
-        uint32_t totalCount=0; 
-        uint64_t totalSize=0;
+        bool isStat=false;
         for (int i=0; i<datatypecount; ++i) {
-            const uint32_t count=stat[j].count[i];
-            if (count) {
-                const uint64_t size=stat[j].size[i];
-                printf(" %2d |%-9s |%10d |%10.0" PRIi64 "\n", i, typenames[i], count, size);
-                totalCount+=count;
-                totalSize+=size;
+            if (stat[j].count[i]) {
+                isStat=true;
+                break;
             }
         }
-        printf("-----------------------------------------\n");
-        printf("%-13s%1d |%10d |%10.0" PRIi64 "\n\n","Total level", j, totalCount, totalSize);
+        if (isStat) {
+            printf("\n %-2s |%-9s |%-10s | %-10s\n","TN","Type name","Count","Total size");
+            printf("-----------------------------------------\n");
+            uint32_t totalCount=0; 
+            uint64_t totalSize=0;
+            for (int i=0; i<datatypecount; ++i) {
+                const uint32_t count=stat[j].count[i];
+                if (count) {
+                    const uint64_t size=stat[j].size[i];
+                    printf(" %2d |%-9s |%10d |%10.0" PRIi64 "\n", i, typenames[i], count, size);
+                    totalCount+=count;
+                    totalSize+=size;
+                }
+            }
+            printf("-----------------------------------------\n");
+            printf("%-13s%1d |%10d |%10.0" PRIi64 "\n\n","Total level", j, totalCount, totalSize);
+        }
     }
     // Do we have failed transform statistics?
     bool showFailStat=false;
