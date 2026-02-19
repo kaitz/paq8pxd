@@ -1,41 +1,41 @@
 Parser      Priority  Types (sub-types)
-bmpparser       3     IMAGE1 IMAGE8 IMAGE4 IMAGE24
-decaparser      3     DECA
+bmp             3     IMAGE1 IMAGE8 IMAGE4 IMAGE24
+deca            3     DECA
 default         6     DEFAULT
-exeparser       3     EXE
-jpegparser      2     JPEG
-mrbparser       3     MRBR(IMAGE8,CMP) MRBR4(IMAGE4,CMP) IMAGE1
-mszipparser     3     MSZIP(CMP)
-nesparser       3     NESROM DEFAULT)
-textparser      4     TEXT
-wavparser       3     AUDIO
-zlibparser      2     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
-zlibparser      5     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
-pnmpparser      3     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
-pdflzwparser    3     CMP
-gifparser       3     GIF (CMP)
-dbaseparser     3     DBASE
-pdfbiparser     3     IMAGE1 IMAGE8
-aiffparser      3     AUDIO
-ascii85parser   3     BASE85
-base641parser   3     BASE64
-base642parser   3     BASE64
-modparser       3     AUDIO
-sgiparser       3     IMAGE8
-tgaparser       3     IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32
-cdparser        1     CD
-mdfparser       1     MDF
-uueparser       3     UUENC
-tiffparser      2     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,CMP,JPEG,ZLIB,DEFAULT
-tarparser       2     TAR
-pngparser       2     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
-bzip2parser     2     BZIP2(CMP)
-szddparser      3     SZDD(CMP)
-mscfparser      3     CMP
-zipparser       2     ZIP,CMP,RECE
-gzipparser      2     GZIP
-isoparser       2     RECE
-iscparser       2     ZLIB
+exe             3     EXE
+jpeg            2     JPEG
+mrb             3     MRBR(IMAGE8,CMP), MRBR4(IMAGE4,CMP), IMAGE1
+mszip           3     MSZIP(CMP)
+nes             3     NESROM DEFAULT)
+text            4     TEXT
+wav             3     AUDIO
+zlib            2     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
+zlib            5     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
+pnmp            3     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
+pdflzw          3     CMP
+gif             3     GIF (CMP)
+dbase           3     DBASE
+pdfbi           3     IMAGE1 IMAGE8
+aiff            3     AUDIO
+ascii85         3     BASE85
+base641         3     BASE64
+base642         3     BASE64
+mod             3     AUDIO
+sgi             3     IMAGE8
+tga             3     IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,LZW
+cd              1     CD
+mdf             1     MDF
+uue             3     UUENC
+tiff            2     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,LZW,CMP,JPEG,ZLIB,DEFAULT
+tar             2     TAR,RECE
+png             2     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
+bzip2           2     BZIP2(CMP)
+szdd            3     SZDD(CMP)
+mscf            3     CMP
+zip             2     ZIP,CMP,RECE
+gzip            2     GZIP
+iso             2     RECE
+isc             2     ZLIB
 
 Priority  - is set by parser and type is returned by parser.
 Type - is what the parser reports to "analyzer" if something was found.
