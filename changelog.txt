@@ -1,7 +1,8 @@
 v140
     -In tif parser enable lzw type.
     -In tga parser detect 8bit RLE compressed images.
-    -In codec add 24/32bit image filter for LZW compressed images 
+    -In codec add 24/32bit image filter for LZW compressed images.
+    -Cleanup codec statistics.
 v139
     -In tga parser wait for data end.
     -In codec test 24/32 bit image pre-post transfom size.
