@@ -486,10 +486,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 stat[it+1].size[HDR]+=hdrsize;
                 stat[it+1].count[HDR]++;
                 direct_encode_blockstream(HDR, tmp, hdrsize);
-                //typenamess[info>>24][it+1]+=tmpsize-hdrsize,  typenamesc[IMAGE8][it+1]++; ??
-                stat[it+1].size[info>>24]+=tmpsize-hdrsize;
-                stat[it+1].count[IMAGE8]++;
-                direct_encode_blockstream((Filetype)(info>>24), tmp, tmpsize-hdrsize, info&0xffffff);
+                Filetype type2 =(Filetype)(info>>24);
+                stat[it+1].size[type2]+=tmpsize-hdrsize;
+                stat[it+1].count[type2]++;
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==AUDIO) {
                 segment->putdata(type,len,info2); //original lenght
                 direct_encode_blockstream(type, tmp, tmpsize, info);
