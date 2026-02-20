@@ -28,8 +28,32 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
         uint8_t c=data[inSize];
         buf0=(buf0<<8)+c;
 
-        if (state==NONE && buf1==0x202F5769 && buf0==0x64746820) { // '/Image /Width '
-            imagePos=i;
+        if (state==NONE && (buf1&0xffffff)==0x2F5769 && buf0==0x64746820) { // '/Width '
+            imagePos=i; width=0;
+        } else if (imagePos) {
+            if (c>='0' && c<='9') {
+                width*=10;
+                width+=c-'0';
+            } else if (width) imagePos=0;
+        } 
+        if (state==NONE && buf1==0x2F486569  && buf0==0x67687420) { // '/Height '
+            heightPos=i; height=0;
+        } else if (heightPos) {
+            if (c>='0' && c<='9') {
+                height*=10;
+                height+=c-'0';
+            } else if (height) heightPos=0;
+        }  
+        if (state==NONE && (buf4&0xffff)==0x2F42 && buf3==0x69747350 && buf2==0x6572436F && buf1==0x6D706F6E && buf0==0x656E7420) { // '/BitsPerComponent '
+            bitsPos=i; bits=0;
+        } else if (bitsPos) {
+            if (c>='0' && c<='9') {
+                bits*=10;
+                bits+=c-'0';
+            } else if (bits) bitsPos=0;
+        }
+        if (state==NONE && (buf2&0xffffff)==0x2F4465  && buf1==0x76696365 && buf0==0x47726179) { // ' /DeviceGray'
+            grayPos=i;
         }
         if ((state==NONE || state==START) && buf1==0x2F4C656E && buf0==0x67746820) { // '/Length '
             // This field can contain wrong values (large diff to real lenght)
@@ -57,19 +81,24 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
             else if (buf1==0x50584465) pinfo="PDF JPX";
             else if (buf1==0x47324465) pinfo="PDF JBIG2";
             if (buf1==0x74654465) {
-                if ((pLzwp-imagePos)>100) {
+                    //printf("IMG %d x %d %d bits.",width,height, bits);
                     type=ZLIB;
                     pinfo="PDF ZLIB";
-                } else {
-                    state=NONE;
-                }
+                    if (width>1 && width<0x1000000 && height>1) {
+                        int pdfgray=0;
+                        if ((pLzwp-grayPos)<100) pdfgray=1;
+                        if (bits==8) pinfo="8/24b image",info=((pdfgray?IMAGE8GRAY:IMAGE8)<<24)|width;
+                        else if (bits==4 ) pinfo="4b image",info=(IMAGE4<<24)|((width+1)/2);
+                        else if (bits==1 ) pinfo="1b image",info=(IMAGE1<<24)|((width+7)/8);
+                        if (info) pinfo+=" (width: "+ itos(info&0xffffff) +")",info|=uint64_t(height)<<32;
+                    }
             }
             imagePos=0;
         } else if (state==START) {
             if (buf0==0x616D0D0A || buf0==0x65616D0A) { // 'am\r\n' 'eam\n'
                 jstart=i+1;
                 pLzwp=jstart-pLzwp;
-                if (pLzwp>10 && pLzwp<150) { // LZWDecode and stream distance in 10-150 bytes
+                if (pLzwp>=5 && pLzwp<150) { // LZWDecode and stream distance in 10-150 bytes
                     state=INFO;    
                 } else {
                     state=NONE;
@@ -80,7 +109,7 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
                 jend=i-8+1;
                 jend=jend-(buf1==0x0A656E64 && ((buf2&255)==0x0D)?1:0); // of by one?
                 uint32_t len=jend-jstart;
-                if ((len-lenght)!=0) {
+                if ((len-lenght)!=0 && type==ZLIB) {
                     //jend=jstart+lenght;   // is lenght correct?
                     state=NONE;
                 } else {
@@ -115,8 +144,8 @@ dType PDFLzwParser::getType() {
 void PDFLzwParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=buf2=buf3=buf4=0;
     pLzwp=0;
-    info=i=inSize=imagePos=lenghtPos=0;
-    lenght=0;
+    info=i=inSize=imagePos=lenghtPos=heightPos=bitsPos=grayPos=0;
+    lenght=width=height=bits=0;
     priority=3;
     pinfo="";
 }

@@ -44,7 +44,7 @@ DetectState DECaParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     dec.branches[dec.idx]++;      
                     if ((dec.offset==0u) || (dec.offset>dec.absPos[absAddrLSB])) {
                         std::uint64_t const addr=curPos-(dec.count[dec.idx]-1u)*4ull;          
-                        dec.offset=((i>0u) /*&& (start == prv_start)*/) ? dec.absPos[absAddrLSB] : std::min<std::uint64_t>(dec.absPos[absAddrLSB], addr);
+                        dec.offset=/*((i>0u) && (start == prv_start)) ? dec.absPos[absAddrLSB] :*/ std::min<std::uint64_t>(dec.absPos[absAddrLSB], addr);
                     }
                 }
                 else
@@ -61,7 +61,7 @@ DetectState DECaParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 return state;
             }
 
-            if ((i>dec.last+(type==DECA?0x8000ull:0x4000ull)) && (dec.count[dec.offset&3]==0u)) {
+            if ((i>dec.last+(type==DECA?0x8000ull:0x4000ull)) && (dec.count[dec.offset&3]==0u) || i==(pos+len-1) && last) {
                 if (type==DECA) {
                     state=END;
                     jend=dec.last-dec.last%4;

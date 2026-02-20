@@ -526,7 +526,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     AddStat(HDR,hdrsize,it+1);
                     direct_encode_blockstream(HDR, tmp, hdrsize);
                     if (info) {
-                        AddStat(type2,tmpsize-hdrsize,it+1);
+                        uint64_t imlen=tmpsize-hdrsize;
+                        if (info2 && (imlen/(info&0xffffff)/info2)==3) type2=IMAGE24,info=(info&0xffffff)*3;
+                        else if (info2 && (imlen/(info&0xffffff)/info2)==4) type2=IMAGE32,info=(info&0xffffff)*4;
+                        AddStat(type2,imlen,it+1);
                         FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
                         transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it, hdrsize, treb);
                         treb->close();

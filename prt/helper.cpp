@@ -234,7 +234,7 @@ ParserType GetTypeFromExt(std::string fname) {
        return P_TIFF;
     else if (ext=="ppm" || ext=="pgm" || ext=="pbm")
        return P_PNM;
-    else if (ext=="exe" || ext=="drv" || ext=="dll" || ext=="ocx")
+    else if (ext=="exe" || ext=="drv" || ext=="dll" || ext=="ocx" || ext=="so")
        return P_WEXE;
     else if (ext=="cab")
        return P_WCAB;

@@ -29,7 +29,7 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
         SelectParser(P_DEF);  
         SelectParser(P_ISO9960);*/
     // Custom definations for virtual files
-    } else if (eparser==P_WEXE) { // Virtual file parser for exe drv dll ocx
+    } else if (eparser==P_WEXE) { // Virtual file parser for exe drv dll ocx so
         SelectParser(P_DEF);
         SelectParser(P_EXE);
         SelectParser(P_BMP);

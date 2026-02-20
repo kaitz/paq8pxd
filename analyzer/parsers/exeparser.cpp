@@ -50,9 +50,9 @@ DetectState EXEParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
            if (i-e8e9last>0x4000) {
              e8e9count=0,e8e9pos=0;
             }
-        } else if (state==START || state==INFO) {
+        } else if (/*state==START || */state==INFO) {
             ReadEXE();
-            if (i-e8e9last>0x4000) {
+            if (i-e8e9last>0x4000 || i==(pos+len-1) && last) {
                 jend=e8e9last;
                 state=END;
                 return state;
@@ -64,7 +64,6 @@ DetectState EXEParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     }
     // type larger then block, repory info
     if (state==INFO) {
-        state=START;
         return INFO;
     }
     // Are we still reading data for our type
