@@ -105,7 +105,7 @@ DetectState PDFLzwParser::Parse(unsigned char *data, uint64_t len, uint64_t pos,
                 }
             }
         } else if (state==INFO /*&& lenght*/) {
-            if (buf1==0x0D656E64 && buf0==0x73747265 || buf1==0x0A656E64 && buf0==0x73747265 ) { // '\rendstre' '\nendstre'
+            if (/*buf1==0x0D0A656E && buf0==0x64737472 ||*/ buf1==0x0D656E64 && buf0==0x73747265 || buf1==0x0A656E64 && buf0==0x73747265 ) { // '\rendstre' '\nendstre'
                 jend=i-8+1;
                 jend=jend-(buf1==0x0A656E64 && ((buf2&255)==0x0D)?1:0); // of by one?
                 uint32_t len=jend-jstart;

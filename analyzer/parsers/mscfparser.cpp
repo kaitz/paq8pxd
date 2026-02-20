@@ -59,7 +59,7 @@ DetectState MSCFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 //printf("Uncompressed files size %d \n",bswap(buf1));
                 //printf("zero %d \n",bswap(buf0));
                 //if (buf0!=0) state=NONE;
-                if (buf1>0x7FFFFFFF) state=NONE; // max 2g
+                if (bswap(buf1)>0x7FFFFFFF) state=NONE; // max 2g
             }
             else if (mscfoff && i>(mscf+mscfoff+7)) {
                 // Ignore header when reporting

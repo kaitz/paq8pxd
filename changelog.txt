@@ -10,6 +10,7 @@ v140
     -Add .so extension to virtual exe group.
     -Allow deca parser only in virtual exe group.
     -Add .js and .css in to text parser group.
+    -Fix MSCF parser.
 v139
     -In tga parser wait for data end.
     -In codec test 24/32 bit image pre-post transfom size.
