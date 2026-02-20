@@ -33,7 +33,7 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
         SelectParser(P_DEF);
         SelectParser(P_EXE);
         SelectParser(P_BMP);
-        SelectParser(P_DECA);
+        AddParser( new DECaParser()); // this parser only in virtual file
         SelectParser(P_WAV);     // is something missing? P_TXT, P_GZIP,...
         SelectParser(P_MSCF);
         SelectParser(P_PNG);
@@ -83,9 +83,9 @@ void Analyzer::SelectParser(ParserType p) {
     case P_TXT:
         AddParser( new TextParser());
         return;
-    case P_DECA:
+    /*case P_DECA:
         AddParser( new DECaParser());
-        return;
+        return;*/
     case P_MRB:
         AddParser( new mrbParser());
         return;

@@ -204,7 +204,7 @@ ParserType GetTypeFromExt(std::string fname) {
     }
     if (ext=="bmp" || ext=="ico")
        return P_BMP;
-    else if (ext=="txt" || ext=="c" || ext=="cpp" || ext=="hpp")
+    else if (ext=="txt" || ext=="c" || ext=="cpp" || ext=="hpp" || ext=="js" || ext=="css")
        return P_TXT;
     else if (ext=="mdf")
        return P_MDF;
@@ -234,12 +234,13 @@ ParserType GetTypeFromExt(std::string fname) {
        return P_TIFF;
     else if (ext=="ppm" || ext=="pgm" || ext=="pbm")
        return P_PNM;
+    else if (ext=="jpg" || ext=="jpeg")
+       return P_JPG;
+    // Virtual
     else if (ext=="exe" || ext=="drv" || ext=="dll" || ext=="ocx" || ext=="so")
        return P_WEXE;
     else if (ext=="cab")
        return P_WCAB;
-    else if (ext=="jpg" || ext=="jpeg")
-       return P_JPG;
     else if (ext=="pdf")
        return P_WPDF;
     else {

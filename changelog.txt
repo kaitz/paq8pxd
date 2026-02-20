@@ -8,6 +8,8 @@ v140
     -Fix deca parser and fix for small input lenghts.
     -In gif parser change min input size to 32 bytes.
     -Add .so extension to virtual exe group.
+    -Allow deca parser only in virtual exe group.
+    -Add .js and .css in to text parser group.
 v139
     -In tga parser wait for data end.
     -In codec test 24/32 bit image pre-post transfom size.
