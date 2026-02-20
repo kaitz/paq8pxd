@@ -48,6 +48,7 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         if (state==NONE && ((buf0&0xffFFFF)==0x00006c70 || (buf0&0xFFFF)==0x6C50) ){
             state=START;
             mrb=i,mrbsize=0,mrbPictureType=mrbmulti=0; // TODO test if not end of the block
+            pinfo="";
         } 
         else if (state==START) {
             const uint64_t p=(i-mrb)-mrbmulti*4; // Select only first image from multiple
@@ -83,26 +84,26 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     int pixelBytes = (mrbw * mrbh * BitCount) >> 3;
                     if (BitCount!=1 && BitCount!=4 && BitCount!=8) state=NONE,mrb=0;
                     if (CompressedOffset>mrbcsize) state=NONE,mrb=0;
-                    if ((mrbPackingMethod==0 ||mrbPackingMethod==1) && mrb>2 ) {
+                    if ((mrbPackingMethod==0 || mrbPackingMethod==1) && mrb>2) {
                         type=DEFAULT;
                         jend=mrb-2;
                         state=END;
                         return state;
-                    }else
-                    if ((mrbPackingMethod==0 ||mrbPackingMethod==1) && mrb==2) {
+                    } else if ((mrbPackingMethod==0 ||mrbPackingMethod==1) && mrb==2) {
                         if (mrbPackingMethod==0)  {
-                            jstart=mrb+7+CompressedOffset,type=IMAGE1;info=(((mrbw-1)>>5)+1)*4; 
+                            jstart=mrb+7+CompressedOffset,type=IMAGE1;
+                            info=(((mrbw-1)>>5)+1)*4; 
                             pinfo="(width: "+ itos((((mrbw-1)>>5)+1)*4) +")";
-                        }
-                        else if (mrbPackingMethod==1)  {
+                        } else if (mrbPackingMethod==1) {
                             jstart=mrb+7+CompressedOffset;
-                            if (   BitCount==8)type=MRBR,pinfo="(width: "+ itos(mrbw) +")";
-                            if (   BitCount==4)type=MRBR4,pinfo="(width: "+ itos(((mrbw+3)/4)*4) +")";
-                            info=(BitCount==8?mrbw:(((mrbw+3)/4)*4))+(mrbh<<32);
+                            if (BitCount==8) type=MRBR;
+                            else if (BitCount==4) type=MRBR4,
+                            pinfo="(width: "+ itos(mrbw) +")";
+                            info=(((mrbw+3)/4)*4)+(mrbh<<32);
                         }
                         jend=jstart+mrbcsize;   
                         state=END;
-                        /*if ((jend-jstart)>len)*/ return state;
+                        return state;
                     }else
                     state=NONE,mrb=0;
                 } else mrbPictureType=mrb=mrbsize=0;

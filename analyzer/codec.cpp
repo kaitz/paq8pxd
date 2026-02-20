@@ -430,12 +430,12 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=( tmp->getc()<<8)+(tmp->getc());
                 Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
-                hdrsize=4+hdrsize*4+4;
+                hdrsize=2+hdrsize*4+4; // diffcount(x=2),diff(x*4),len(4)
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
                 direct_encode_blockstream(HDR, tmp, hdrsize);
                 if (it==itcount)    itcount=it+1;
-                AddStat(type2,hdrsize,it+1);
+                AddStat(type2,tmpsize-hdrsize,it+1);
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
             } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
                 segment->putdata(type,tmpsize,0);
