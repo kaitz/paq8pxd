@@ -1,5 +1,8 @@
-v140
+v141
     -Fix bad compression on mrb.
+    -Re-enable WRT for streams 8 and 9.
+    -Add missing filter for type TEXT0.
+    -Adjust text parser.
 v140
     -In tiff parser enable lzw type.
     -In tga parser detect 8bit RLE compressed images.

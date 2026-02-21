@@ -43,6 +43,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g, int depth):mode(m),streams(s),segm
     AddFilter( new base85Filter(std::string("base85"),BASE85));
     AddFilter( new armFilter(std::string("arm"),ARM));
     AddFilter( new lzwFilter(std::string("lzw"),LZW));
+    AddFilter( new TextFilter(std::string("TEXT0"),TEXT0));
     AddFilter( new TextFilter(std::string("TXTUTF8"),TXTUTF8));
     AddFilter( new TextFilter(std::string("BIGTEXT"),BIGTEXT));
     AddFilter( new shrinkFilter(std::string("shrink"),SHRINK));
