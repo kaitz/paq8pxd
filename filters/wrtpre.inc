@@ -975,29 +975,18 @@ U64 XWRT_Decoder::WRT_start_decoding(File* in){
     collision=0;
 
     defaultSettings(0); 
-    U64 fileLen;
-    GETC(c);GETC(c);GETC(c);GETC(c);//header
+    uint64_t fileLen;
     GETC(c);
-    fileLen=c;
     GETC(c);
-    fileLen=fileLen|(c<<8);
     GETC(c);
-    fileLen=fileLen|(c<<16);
-    GETC(c);
-    fileLen=fileLen|(c<<24);
-    GETC(c);
-    fileLen=fileLen|(U64(c)<<32);
-    GETC(c);
-    fileLen=fileLen|(U64(c)<<40);
-    GETC(c);
-    fileLen=fileLen|(U64(c)<<48);
-    GETC(c);
-    fileLen=fileLen|(U64(c)<<54);
-    fileLenMB=fileLen/(1024*1024);
+    GETC(c);//header
+    fileLen=XWRT_file->get64();
+
+    fileLenMB=uint64_t(fileLen/(uint64_t(1024*1024)));
     if (fileLenMB>255*256)
     fileLenMB=255*256;
 
-    //PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
+    //printf("maxMemSize=%d fileLenMB=%d size %0" PRIi64 "\n",maxMemSize,fileLenMB,fileLen);
     read_dict();
 
     cont.readMemBuffers(maxMemSize);
@@ -1849,7 +1838,7 @@ void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U64 fileLen,bool type_
     cont.memout->memsize=0;
 
     if (fileLenMB<1)         minWordFreq=minWordFreq*6;
-    uint64_t pos=XWRT_file->curpos();
+    _off64_t pos=XWRT_file->curpos();
     if (!type_detected)
     WRT_detectFileType(fileLen);
       
@@ -1859,16 +1848,8 @@ void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U64 fileLen,bool type_
     PUTC('P');
     PUTC('q');
     PUTC('8');
-    //not safe FIXME to i64
-    PUTC(fileLen&0xFF);
-    PUTC((fileLen>>8)&0xFF);
-    PUTC((fileLen>>16)&0xFF);
-    PUTC((fileLen>>24)&0xFF);
-    PUTC((fileLen>>32)&0xFF);
-    PUTC((fileLen>>40)&0xFF);
-    PUTC((fileLen>>48)&0xFF);
-    PUTC((fileLen>>54)&0xFF);
-
+    XWRT_fileout->put64(fileLen);
+    
     PRINT_DICT(("maxMemSize=%d fileLenMB=%d\n",maxMemSize,fileLenMB));
     write_dict(); // przed initialize()
     decoding=false;

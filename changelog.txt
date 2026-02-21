@@ -3,6 +3,8 @@ v141
     -Re-enable WRT for streams 8 and 9.
     -Add missing filter for type TEXT0.
     -Adjust text parser.
+    -Enable EOL type in text parser.
+    -Fix WRT for large files +2G.
 v140
     -In tiff parser enable lzw type.
     -In tga parser detect 8bit RLE compressed images.

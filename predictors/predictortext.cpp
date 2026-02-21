@@ -28,7 +28,7 @@ void PredictorTXTWRT::wrt(){
         }
         if (x.wrtpos>0)  { 
           if (x.wrtpos+4+4==x.blpos){ 
-            x.wrtfile=(U64(bswap(x.c4))<<32)| bswap(x.c8);
+            x.wrtfile=(U64((x.c8))<<32)| U64(x.c4);
           }
           //load size
           if (x.wrtpos+4+4+3==x.blpos) { 
