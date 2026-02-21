@@ -1936,7 +1936,7 @@ int XWRT_Encoder::WRT_detectFileType(U64 filelen){
            char so[8192*8];
            U8 *s=(U8*)&so;
            int c=0;
-           in=fopen(externaDict,"rb");
+           in=fopen(externaDict.c_str(),"rb");
            if (in!=NULL){
                do{
                   wfgets1(so, 8192*8, in);   

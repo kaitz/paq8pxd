@@ -2,7 +2,7 @@
 
 extern bool staticd;
 extern bool doExtract;
-extern char *externaDict;
+std::string externaDict;
 extern int minfq;
 extern int verbose;
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski

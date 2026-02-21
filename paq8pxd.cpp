@@ -126,8 +126,11 @@
 #include "filters/textfilter.hpp"
 #include "analyzer/codec.hpp"
 
+#include "prt/cli.hpp"
 
 Streams streams;
+CLI cli;
+
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
 bool slow=false; //-x
@@ -135,9 +138,10 @@ bool witmode=false; //-w
 bool staticd=false;  // -e
 bool doExtract=false;  // -d option
 bool doList=false;  // -l option
-int verbose=2;
+bool showhelp=false;
+int verbose=0;
 
-char *externaDict;
+extern std::string externaDict;
 int minfq=19;
 Segment segment; //for file segments type size info(if not -1)
 
@@ -774,152 +778,148 @@ void DecompressStreams(File *archive) {
         }
     }
 }
-
-int main(int argc, char** argv) {
-    bool pause=argc<=2;  // Pause when done?
-    try {
-
-        // Get option
-        char* aopt;
-        aopt=&argv[1][0];
-        
-#ifdef MT 
-        if (argc>1 && aopt[0]=='-' && aopt[1]  && strlen(aopt)<=6) {
-#else
-        if (argc>1 && aopt[0]=='-' && aopt[1]  && strlen(aopt)<=4) {    
-#endif
-            if (aopt[1]=='d' && !aopt[2])
-                doExtract=true;
-            else if (aopt[1]=='l' && !aopt[2])
-                doList=true;
-            else if (aopt[2]>='0' && aopt[2]<='9' && strlen(aopt)==3 && (aopt[1]=='s' || aopt[1]=='x')){
-                level=aopt[2]-'0';
-                slow=aopt[1]=='x'?true:false;
-            }
-            else if (aopt[2]=='1' && aopt[3]>='0' && aopt[3]<='5' && strlen(aopt)==4 && (aopt[1]=='s' || aopt[1]=='x')){
-                slow=aopt[1]=='x'?true:false;
-                aopt[1]='-', aopt[0]=' ';
-                level=((~atol(aopt))+1);
-            }
-#ifdef MT 
-            else if (aopt[2]>='0' && aopt[2]<='9'&& (aopt[4]<='9' && aopt[4]>'0') && strlen(aopt)==5 && 
-            ((aopt[1]=='s' || aopt[1]=='x'))){
-                topt=aopt[4]-'0';
-                level=aopt[2]-'0';slow=aopt[1]=='x'?true:false;}
-            else if (aopt[2]=='1' && aopt[3]>='0' && aopt[3]<='5' && 
-            (aopt[5]<='9' && aopt[5]>'0')&& strlen(aopt)==6 && (aopt[1]=='s' || aopt[1]=='x')){
-                topt=aopt[5]-'0';
-                slow=aopt[1]=='x'?true:false;
-                aopt[4]=0;
-                aopt[1]='-';
-                aopt[0]=' ';
-                level=((~atol(aopt))+1);
-            }
-#endif
-            else
-                quit("Valid options are -s0 through -s15, -d, -l\n");
-            
-            --argc;
-            ++argv;
-            if (argv[1][0]=='-' && argv[1][1]=='w')   {
-                witmode=true; printf("WIT\n");
-                --argc;
-                ++argv;
-            }
-            if (argv[1][0]=='-' && argv[1][1]=='e')   {
-                staticd=true;
-                if (argv[1][2]==0) minfq=0;
-                else minfq=atol(&argv[1][2]);
-                char *extd=(strchr(&argv[1][2], ','));
-                if (minfq<0) printf("BAD command line: minimum word frequency must be >=0\n"),quit("");
-                if (minfq<1) printf("WARNING: minimum word frequency=0, using static words only.\n");
-                if (extd==0) staticd=false,printf("WARNING: dictionary file not found.\n");
-                else externaDict=extd+1;
-                //witmode=true; printf("WIT\n");
-                --argc;
-                ++argv;
-            }
-            if (argv[1][0]=='-' && argv[1][1]=='v')   {
-                verbose=atol(&argv[1][2]);
-                if (verbose>3 || verbose<0) printf("BAD verbose level\n"),quit("");
-                printf("Verbose: level %d.\n",verbose);
-                --argc;
-                ++argv;
-            }
-            pause=false;
-        }
-        if (slow==true) printf("Slow mode\n");
-        // Print help message quick 
-        if (argc<2) {
-            printf(PROGNAME " archiver (C) 2026, Matt Mahoney et al.\n"
+void PrintHelp() {
+    // Print help message quick 
+    printf(PROGNAME " archiver (C) 2026, Matt Mahoney et al.\n"
             "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n");
-#ifdef __GNUC__     
-            printf("Compiled %s, compiler gcc version %d.%d.%d\n\n",__DATE__, __GNUC__, __GNUC_MINOR__,__GNUC_PATCHLEVEL__);
+    if (verbose==0 && showhelp==false) {
+        printf("\nUsage: paq8pxd -{COMMAND} [archive] input\n");
+        printf("\nFor help: paq8pxd -h\n");
+    }
+    if (verbose==3 && showhelp) {
+#ifdef __GNUC__
+        printf("\nCompiled %s, compiler gcc version %d.%d.%d\n",__DATE__, __GNUC__, __GNUC_MINOR__,__GNUC_PATCHLEVEL__);
 #endif
 #ifdef __clang_major__
-            printf("Compiled %s, compiler clang version %d.%d\n\n",__DATE__, __clang_major__, __clang_minor__);
+        printf("\nCompiled %s, compiler clang version %d.%d\n",__DATE__, __clang_major__, __clang_minor__);
 #endif
-#ifdef            _MSC_VER 
-            printf("Compiled %s, compiler Visual Studio version %d\n\n",__DATE__, _MSC_VER);
+#ifdef _MSC_VER 
+        printf("\nCompiled %s, compiler Visual Studio version %d\n",__DATE__, _MSC_VER);
 #endif
 #ifdef MT
-printf("Multithreading enabled with %s.\n",
+        printf("Multithreading enabled with %s.\n",
 #ifdef PTHREAD
-"PTHREAD"
+               "PTHREAD"
 #else
-"windows native threads"
+               "windows native threads"
 #endif
-);
+        );
 
 #if defined(__AVX2__)
-printf("Compiled with AVX2\n");
+        printf("Compiled with AVX2\n");
 #elif defined(__SSE4_1__)   
-printf("Compiled with SSE41\n");
+        printf("Compiled with SSE41\n");
 #elif  defined(__SSSE3__)
-printf("Compiled with SSSE3\n");
+        printf("Compiled with SSSE3\n");
 #elif defined(__SSE2__) 
-printf("Compiled with SSE2\n");
+        printf("Compiled with SSE2\n");
 #elif defined(__SSE__)
-printf("Compiled with SSE\n");
+        printf("Compiled with SSE\n");
 #else
-printf("No vector instrucionts\n");
+        printf("No vector instrucionts\n");
 #endif
 #endif
-printf("\n");
-            printf(
+    }
+    printf("\n");
+     if (showhelp) {
 #ifdef WINDOWS
+        if (verbose>1 && showhelp) {
+            printf(
             "To compress or extract, drop a file or folder on the "
             PROGNAME " icon.\n"
             "The output will be put in the same folder as the input.\n"
             "\n"
-            "Or from a command window: "
+            "Or from a command window:\n"
+            ); 
+        }
 #endif
-            "To compress:\n"
-            "  " PROGNAME " -slevel file               (compresses to file." PROGNAME ")\n"
-            "  " PROGNAME " -slevel archive files...   (creates archive." PROGNAME ")\n"
-            "  " PROGNAME " file                       (level -%d pause when done)\n"
-            "level: -s0          store\n"
-            "  -s1...-s3         (uses 393, 398, 409 MB)\n"
-            "  -s4...-s9         (uses 1.2  1.3  1.5  1.9 2.7 4.9 GB)\n"
-            "  -s10...-s15       (uses 7.0  9.0 11.1 27.0   x.x x.x GB)\n"
+        printf("To compress:\n"
+            "  " PROGNAME " -s[level] file             (compresses to file." PROGNAME ")\n"
+            "  " PROGNAME " -s[level] archive files... (creates archive." PROGNAME ")\n"
+            "  " PROGNAME " file                       (level -s8 pause when done)\n");
+        printf("\nCommands:\n"
+            "  -{s|x}[level]     Compression mode: slow, extreme.\n"
+            "                    Level selects memory usage, range 0-15.\n"   
+            "                    Default level is 8.\n"
+            "                    If level is omitted, default is 0 (store).\n"
+            "  -d                Decompress archive. If target exist then compare.\n"
+            "  -l                List files in archive.\n"
+            "  -e{name}          Use external dictionary: name.\n"
+            "  -q{frq}           Set minimum frequency for dictionary transform.\n"
+            "                    Default 19.\n"
+            "  -w                Preprocces wikipedia xml dump with transform\n"
+            "                    before dictionary transform.\n"
+            "  -v{n}             Set verbose level to n. Range 0-3. Defaul 0.\n"
+            "  -h                Show help. Use command -v for more info.\n"
 #ifdef MT 
-            "  to use multithreading -level:threads (1-9, compression only)\n"
-            "  " PROGNAME " -s4:2 file (use level 4 threads 2)\n\n"
-#endif            
-#if defined(WINDOWS) || defined (UNIX)
-            "You may also compress directories.\n"
+            "  -t{n}             Select number of threads when compressing.\n"
+            "                    Valid range 1-4. Default 1.\n"
 #endif
-            "\n"
+        );
+        if (verbose>0) {
+        printf("\nMemory usage (level):\n"
+            "  -s0               store (no compression)\n"
+            "                    (These values are ~ and may change between versions)\n"
+            "  -s1...-s3         uses 393, 398, 409 MB\n"
+            "  -s4...-s9         uses 1.2  1.3  1.5  1.9 2.7 4.9 GB\n"
+            "  -s10...-s15       uses 7.0  9.0 11.1 27.0   x.x x.x GB\n"
+          );
+        }
+        if (verbose>0) {
+        printf(
+#if defined(WINDOWS) || defined (UNIX)
+            "\nYou may also compress directories.\n"
+#endif
             "To extract or compare:\n"
             "  " PROGNAME " -d dir1/archive." PROGNAME "      (extract to dir1)\n"
             "  " PROGNAME " -d dir1/archive." PROGNAME " dir2 (extract to dir2)\n"
             "  " PROGNAME " archive." PROGNAME "              (extract, pause when done)\n"
-            "\n"
-            "To view contents: " PROGNAME " -l archive." PROGNAME "\n"
-            "\n",
-            DEFAULT_OPTION);
-            quit("");
+            "\n");
         }
+    }
+    exit(0);
+}
+
+int main(int argc, char** argv) {
+    bool pause=argc<=2;  // Pause when done?
+    try {
+        bool ok=cli.Parse(argc,argv);
+        if (ok==false) {
+            PrintHelp();
+        } else {
+            CliCommand ccm;
+            while (ccm=cli.GetCommand(),ccm.type!=CL_UNK) {
+                if (ccm.type==CL_LIST) {
+                    doList=true;
+                } else if (ccm.type==CL_DECOMPRESS) {
+                    doExtract=true;
+                } else if (ccm.type==CL_EXTREME) {
+                    slow=true;
+                    level=ccm.val;
+                } else if (ccm.type==CL_SLOW) {
+                    level=ccm.val;
+                } else if (ccm.type==CL_FAST) {
+                    level=ccm.val;
+                } else if (ccm.type==CL_STORE) {
+                    level=0;
+                } else if (ccm.type==CL_THREADS) {
+                    topt=ccm.val;
+                } else if (ccm.type==CL_WIKI) {
+                    witmode=true;
+                } else if (ccm.type==CL_EDICT) {
+                    externaDict=ccm.valstr;
+                    staticd=true;
+                } else if (ccm.type==CL_DICTF) {
+                    minfq=ccm.val;
+                } else if (ccm.type==CL_VERBOSE) {
+                    verbose=ccm.val;
+                } else if (ccm.type==CL_HELP) {
+                    showhelp=true;
+                }
+            }
+        }
+        if (showhelp) PrintHelp();
+
         clock_t start_time=clock();  // in ticks
 #if defined(WINDOWS)      
         hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -946,20 +946,13 @@ printf("\n");
         U16 streambit=0;               //bit is set if stream has size, 11-0
         // Compress or decompress?  Get archive name
         Mode mode=COMPRESS;
-        std::string archiveName(argv[1]);
-        {
-            const int prognamesize=strlen(PROGNAME);
-            const int arg1size=strlen(argv[1]);
-            if (arg1size>prognamesize+1 && argv[1][arg1size-prognamesize-1]=='.'
-                    && equals(PROGNAME, argv[1]+arg1size-prognamesize)) {
-                mode=DECOMPRESS,doExtract=true;
-            }
-            else if (doExtract || doList)
+        std::string archiveName=cli.files[0];
+
+        if (doExtract || doList)
             mode=DECOMPRESS;
-            else {
-                archiveName+=".";
-                archiveName+=PROGNAME;
-            }
+        else {
+            archiveName+=".";
+            archiveName+=PROGNAME;
         }
 
         // Compress: write archive header, get file names and sizes
@@ -971,8 +964,8 @@ printf("\n");
             // Expand filenames to read later.  Write their base names and sizes
             // to archive.
             int i;
-            for (i=1; i<argc; ++i) {
-                std::string name(argv[i]);
+            for (i=0; i<cli.files.size(); ++i) {
+                std::string name=cli.files[i];
                 int len=name.size()-1;
                 for (int j=0; j<=len; ++j)  // change \ to /
                 if (name[j]=='\\') name[j]='/';
@@ -983,7 +976,7 @@ printf("\n");
                 ++base;
                 if (base==0 && len>=2 && name[1]==':') base=2;  // chop "C:"
                 int expanded=expand(header_string, filenames, name.c_str(), base);
-                if (!expanded && (i>1||argc==2))
+                if (!expanded/* && (i>1||argc==2)*/)
                 printf("%s: not found, skipping...\n", name.c_str());
                 files+=expanded;
             }
@@ -1076,7 +1069,9 @@ printf("\n");
             en->compress(0); // block type 0
             en->compress(len>>24); en->compress(len>>16); en->compress(len>>8); en->compress(len); // block length
             for (int i=0; i<len; i++) en->compress(header_string[i]);
-            printf("File list compressed from %d to %0lu bytes.\n",len,en->size()-start);
+            if (verbose){
+                printf("File list compressed from %d to %0lu bytes.\n",len,en->size()-start);
+            }
         }
 
         // Deompress header
@@ -1176,8 +1171,8 @@ printf("\n");
         // If there is no dir1, then extract to .
         else if (!doList) {
             assert(argc>=2);
-            std::string dir(argc>2?argv[2]:argv[1]);
-            if (argc==2) {  // chop "/archive.paq8pxd"
+            std::string dir(cli.files.size()==2?cli.files[1]:cli.files[0]);
+            if (cli.files.size()==1) {  // chop "/archive.paq8pxd"
                 int i;
                 for (i=dir.size()-2; i>=0; --i) {
                     if (dir[i]=='/' || dir[i]=='\\') {

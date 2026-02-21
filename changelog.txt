@@ -5,6 +5,7 @@ v141
     -Adjust text parser.
     -Enable EOL type in text parser.
     -Fix WRT for large files +2G.
+    -Add better command line parsing and cleanup help.
 v140
     -In tiff parser enable lzw type.
     -In tga parser detect 8bit RLE compressed images.
