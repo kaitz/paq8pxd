@@ -33,7 +33,7 @@ struct CABHeader {
 struct ISCfile {
     uint64_t start;
     uint64_t size;
-    ParserType p;
+    //ParserType p;
 };
 
 class ISCABParser: public Parser { 

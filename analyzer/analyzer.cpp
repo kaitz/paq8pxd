@@ -1,21 +1,43 @@
 //#pragma once
 #include "analyzer.hpp"
 
+// Parser types for virtual default group
+// P_DECA not included
+static ParserType vdefPT[P_LAST]={
+    P_DEF,P_BMP,P_TXT, P_MRB, P_EXE, P_NES, P_MZIP,P_JPG, P_WAV,
+    P_PNM, P_PLZW, P_GIF, P_DBS, P_AIFF, P_A85, P_B641, P_B642,
+    P_MOD, P_SGI, P_TGA, P_ICD, P_MDF, P_UUE, P_TIFF, P_TAR, P_PNG,
+    P_ZIP, P_GZIP, P_BZIP2, P_SZDD, P_MSCF, P_ZLIB, P_ZLIBP,P_ISO9960,P_ISCAB,P_PBIT,
+    P_LAST
+};
+
 // Example: virtual file parser
 // P_EXE is headerless parser,
 // to add parser for .exe, .dll, .drv new value is needed (P_WEXE)
 // This parser (ParserType) may contain EXE, IMAGE(n), AUDIO, etc types (Filetype)
-// If SelectParser does not have this parser then it is ignored in case of Filetype=DEFAULT & ParserType=P_DEF
+// If SelectParser does not have this parser then it is ignored in case of Filetype=DEFAULT & ParserType=P_WDEFAULT
 // So we can add our special case for it in GetTypeFromExt.
 // If file needs more then one parser (excluding P_DEF) then it needs to be virtual.
 
-Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p),BLOCK(0x10000),blk(BLOCK) {
-    assert(eparser<P_LAST);
+Analyzer::Analyzer(int it, Filetype p, ParserType eparser, ParserType *vup):
+  info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p),BLOCK(0x10000),blk(BLOCK),vusrPT(vup),isUserPL(false) {
+    assert(eparser<P_WLAST && eparser!=P_LAST && eparser>P_DEF);
     assert(p<TYPELAST);
-    // By default add all parsers, also slowest detection
-    if (p==DEFAULT && eparser==P_DEF) {
-        for (int selp=P_DEF; selp!=P_LAST; selp++) {
-            SelectParser(static_cast<ParserType>(selp));
+    // Test for user defined parser list and use only that.
+    if (vusrPT!=nullptr) {
+        //printf("Analyzer: User defined parser list.\n");
+        isUserPL=true;
+        assert(vusrPT[0]==P_DEF);
+    //}
+    //if (isUserPL) {
+        for (int selp=P_DEF; static_cast<ParserType>(vusrPT[selp])!=P_LAST; selp++) {
+            SelectParser(static_cast<ParserType>(vusrPT[selp]));
+        }
+    }
+    // By default add all virtual defaul group parsers, also slowest detection
+    else if (p==DEFAULT && eparser==P_WDEFAULT) {
+        for (int selp=P_DEF; static_cast<ParserType>(vdefPT[selp])!=P_LAST; selp++) {
+            SelectParser(static_cast<ParserType>(vdefPT[selp]));
         }
     // Custom definations for parent types
     } else if (p==MDF) {         // Parent based parser selection mdf->cd
@@ -33,7 +55,7 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
         SelectParser(P_DEF);
         SelectParser(P_EXE);
         SelectParser(P_BMP);
-        AddParser( new DECaParser()); // this parser only in virtual file
+        SelectParser(P_DECA);    // this parser only in virtual file
         SelectParser(P_WAV);     // is something missing? P_TXT, P_GZIP,...
         SelectParser(P_MSCF);
         SelectParser(P_PNG);
@@ -54,12 +76,13 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
         SelectParser(P_MZIP);
         SelectParser(P_ISCAB);
     // This needs to be last
-    } else if (eparser!=P_DEF) { // We have extension based parser, use only that
+    } else if (eparser!=P_DEF && eparser!=P_WDEFAULT) {
+        // We have extension based parser, use only that
         SelectParser(P_DEF);
         SelectParser(eparser);
-    } else {                     // same as DEFAULT && P_DEF
-        for (int selp=P_DEF; selp!=P_LAST; selp++) {
-            SelectParser(static_cast<ParserType>(selp));
+    } else {                     // same as DEFAULT && P_WDEFAULT
+        for (int selp=P_DEF; static_cast<ParserType>(vdefPT[selp])!=P_LAST; selp++) {
+            SelectParser(static_cast<ParserType>(vdefPT[selp]));
         }
     }
 
@@ -72,7 +95,18 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser):info(0),remaining(0),
 }
 
 void Analyzer::SelectParser(ParserType p) {
-    assert(p<P_LAST);
+    assert(p<P_WLAST);
+    /*if (isUserPL) {
+        bool isParserDefined=false;
+        for (int selp=P_DEF; static_cast<ParserType>(vusrPT[selp])!=P_LAST; selp++) {
+            if (static_cast<ParserType>(vusrPT[selp])==p) {
+                isParserDefined=true;
+                break;
+            }
+        }
+        if (isParserDefined==false) return;
+        //printf("User parser enabled: %d\n",p);
+    }*/
     switch (p) {
     case P_DEF:
         AddParser( new DefaultParser());
@@ -83,9 +117,9 @@ void Analyzer::SelectParser(ParserType p) {
     case P_TXT:
         AddParser( new TextParser());
         return;
-    /*case P_DECA:
+    case P_DECA:
         AddParser( new DECaParser());
-        return;*/
+        return;
     case P_MRB:
         AddParser( new mrbParser());
         return;
@@ -186,7 +220,7 @@ void Analyzer::SelectParser(ParserType p) {
         AddParser( new zlibParser());   // brute=true, low priority
         return;
     default:
-        //printf("Must be virtual file.\n");
+        //printf("Must be virtual file. %d\n",p);
         return;
     }
 }

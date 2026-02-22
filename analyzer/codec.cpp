@@ -4,8 +4,8 @@ extern int verbose;
 extern bool witmode; //-w
 extern void SetConColor(int color);
 
-Codec::Codec(FMode m, Streams *s, Segment *g, int depth):mode(m),streams(s),segment(g),
-  fsame(0),fdiff(0),recDepth(depth+1),stat(recDepth),itcount(0) {
+Codec::Codec(FMode m, Streams *s, Segment *g, int depth, ParserType *vup):mode(m),streams(s),segment(g),
+  fsame(0),fdiff(0),recDepth(depth+1),stat(recDepth),itcount(0),vusrPT(vup)  {
     assert(recDepth>0 && recDepth<11);
     //
     for (uint64_t j=0; j<recDepth; j++) {
@@ -50,6 +50,11 @@ Codec::Codec(FMode m, Streams *s, Segment *g, int depth):mode(m),streams(s),segm
     //AddFilter( new reduceFilter(std::string("reduce"),REDUCE));
     //AddFilter( new implodeFilter(std::string("implode"),IMPLODE));
     AddFilter( new DefaultFilter(std::string("default"),DEFAULT)); // must be last
+    
+    //
+    if (vusrPT!=nullptr) {
+        printf("User defined parser list.\n");
+    }
 }
 
 Codec::~Codec() {
@@ -182,7 +187,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filety
         return;
     }
     FileTmp* tmp=new FileTmp(64 * 1024 * 1024/2);
-    Analyzer *an=new Analyzer(it, ptype, etype);
+    Analyzer *an=new Analyzer(it, ptype, etype, vusrPT);
     bool found=false;
     // Transform and test in blocks
     while (n>0) {
@@ -543,9 +548,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     tmp->setpos(0);
                     AddStat(HDR,hdrsize,it+1);
                     direct_encode_blockstream(HDR, tmp, hdrsize);
-                    ParserType pt=P_DEF;
+                    ParserType pt=P_WDEFAULT;
                     if (type==ZIP) pt=(ParserType)info;
-                    assert(pt<P_LAST);
+                    assert(pt<P_WLAST);
                     EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, type, pt);
                 } else if (type==SHRINK || type==REDUCE|| type==IMPLODE) { 
                     if (it==itcount) itcount=it+1;
@@ -553,9 +558,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     tmp->setpos(0);
                     //typenamess[HDR][it+1]+=hdrsize, typenamesc[HDR][it+1]++; 
                     //direct_encode_blockstream(HDR, tmp, hdrsize);
-                    ParserType pt=P_DEF;
+                    ParserType pt=P_WDEFAULT;
                     if (type==SHRINK) pt=(ParserType)info;
-                    assert(pt<P_LAST);
+                    assert(pt<P_WLAST);
                     EncodeFileRecursive(tmp, tmpsize, blstr, it+1, type, pt);
                 } else {
                     EncodeFileRecursive(tmp, tmpsize, blstr, it+1, type);

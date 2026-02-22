@@ -16,6 +16,7 @@ typedef enum {
     CL_RECUR,
     CL_VERBOSE,
     CL_HELP,
+    CL_PARSER,
     CL_UNK,
     CL_LAST
 } CliType;
@@ -60,7 +61,44 @@ public:
                 return ce;
             }
         }
-        
+        ParserType isValidParser(std::string &p) {
+            if (p=="P_BMP") return P_BMP;
+            else if (p=="P_TXT") return P_TXT;
+            else if (p=="P_DECA") return P_DECA;
+            else if (p=="P_MRB") return P_MRB;
+            else if (p=="P_EXE") return P_EXE;
+            else if (p=="P_NES") return P_NES;
+            else if (p=="P_MZIP") return P_MZIP;
+            else if (p=="P_JPG") return P_JPG;
+            else if (p=="P_PNM") return P_PNM;
+            else if (p=="P_PLZW") return P_PLZW;
+            else if (p=="P_GIF") return P_GIF;
+            else if (p=="P_DBS") return P_DBS;
+            else if (p=="P_AIFF") return P_AIFF;
+            else if (p=="P_A85") return P_A85;
+            else if (p=="P_B641") return P_B641;
+            else if (p=="P_B642") return P_B642;
+            else if (p=="P_MOD") return P_MOD;
+            else if (p=="P_SGI") return P_SGI;
+            else if (p=="P_TGA") return P_TGA;
+            else if (p=="P_ICD") return P_ICD;
+            else if (p=="P_MDF") return P_MDF;
+            else if (p=="P_UUE") return P_UUE;
+            else if (p=="P_TIFF") return P_TIFF;
+            else if (p=="P_TAR") return P_TAR;
+            else if (p=="P_PNG") return P_PNG;
+            else if (p=="P_ZIP") return P_ZIP;
+            else if (p=="P_GZIP") return P_GZIP;
+            else if (p=="P_BZIP2") return P_BZIP2;
+            else if (p=="P_SZDD") return P_SZDD;
+            else if (p=="P_MSCF") return P_MSCF;
+            else if (p=="P_ZLIB") return P_ZLIB;
+            else if (p=="P_ZLIBP") return P_ZLIBP;
+            else if (p=="P_ISO9960") return P_ISO9960;
+            else if (p=="P_ISCAB") return P_ISCAB;
+            else if (p=="P_PBIT") return P_PBIT;
+            else return P_LAST;
+        }
         bool Parse(int argc, char** argv) {
             // load commands
             argv++, argc--;
@@ -92,6 +130,13 @@ public:
                         FILE *f=fopen(c.valstr.c_str(),"rb");
                         if (f==NULL) return CError(command+"\n File not found.");
                         else fclose(f);
+                    } else if (opt=="-p") { // user defined parser
+                        c.type=CL_PARSER;
+                        c.valstr=&argv[j][2];
+                        if (command.size()==2 || c.valstr.size()==0 ) return CError(command);
+                        ParserType pt=isValidParser(c.valstr);
+                        if (pt==P_LAST) return CError(command);
+                        c.val=pt;
                     } else if (opt=="-q") { // word freq
                         c.val=atol(&argv[j][2]);
                         if (c.val<0) return CError(command);

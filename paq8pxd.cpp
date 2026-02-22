@@ -149,6 +149,8 @@ int dt[1024];  // i -> 16K/(i+i+3)
 
 int n0n1[256]; // for contectmap
 
+ParserType userPT[P_LAST]={P_DEF}; // User defined parser list
+int userPTsize=1;
 /*
 #include <psapi.h>
 size_t getPeakMemory(){
@@ -858,6 +860,14 @@ void PrintHelp() {
             "                    Default 19.\n"
             "  -w                Preprocces wikipedia xml dump with transform\n"
             "                    before dictionary transform.\n"
+            "  -p{name}          Enable only parser: name\n"
+            "                    List of allowed parsers:\n"
+            "                       P_BMP, P_TXT, P_DECA, P_MRB, P_EXE, P_NES\n"
+            "                       P_MZIP,P_JPG, P_WAV, P_PNM, P_PLZW, P_GIF\n"
+            "                       P_DBS, P_AIFF, P_A85, P_B641, P_B642, P_MOD\n"
+            "                       P_SGI, P_TGA, P_ICD, P_MDF, P_UUE, P_TIFF\n"
+            "                       P_TAR, P_PNG, P_ZIP, P_GZIP, P_BZIP2, P_SZDD\n"
+            "                       P_MSCF, P_ZLIB, P_ZLIBP, P_ISO9960, P_ISCAB, P_PBIT\n"
             );
         }
         if (verbose>0) {
@@ -921,7 +931,20 @@ int main(int argc, char** argv) {
                     verbose=ccm.val;
                 } else if (ccm.type==CL_HELP) {
                     showhelp=true;
+                } else if (ccm.type==CL_PARSER) {
+                    if (static_cast<ParserType>(userPTsize)>P_LAST) showhelp=true,PrintHelp();
+                    for (size_t j=0; j<userPTsize; j++) {
+                        if (userPT[j]==static_cast<ParserType>(ccm.val)) {
+                            showhelp=true;
+                            PrintHelp();
+                        }
+                    }
+                    userPT[userPTsize++]=static_cast<ParserType>(ccm.val);
                 }
+            }
+            if (userPTsize!=1) {
+                userPT[userPTsize++]=P_LAST;
+                assert(static_cast<ParserType>(userPTsize)<P_LAST);
             }
         }
         if (showhelp) PrintHelp();
@@ -1120,7 +1143,7 @@ int main(int argc, char** argv) {
             en->flush();
             delete en;
             delete predictord;
-            Codec codec(FCOMPRESS, &streams, &segment,rdepth);
+            Codec codec(FCOMPRESS, &streams, &segment, rdepth, userPTsize!=1?userPT:nullptr);
             for (int i=0; i<files; ++i) {
                 printf("\n%d/%d  Filename: %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
                 codec.EncodeFile(fname[i], fsize[i]);

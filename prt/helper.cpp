@@ -200,7 +200,7 @@ ParserType GetTypeFromExt(std::string fname) {
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return std::tolower(c); });
         //printf("File extension: %s\n",ext.c_str());
     } else {
-        return P_DEF;
+        return P_WDEFAULT;
     }
     if (ext=="bmp" || ext=="ico")
        return P_BMP;
@@ -244,6 +244,6 @@ ParserType GetTypeFromExt(std::string fname) {
     else if (ext=="pdf")
        return P_WPDF;
     else {
-        return P_DEF;
+        return P_WDEFAULT;
     }
 }

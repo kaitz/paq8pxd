@@ -8,11 +8,13 @@ typedef enum {// real parsers
               P_DEF=0,P_BMP,P_TXT,P_DECA, P_MRB, P_EXE, P_NES, P_MZIP,P_JPG, P_WAV,
               P_PNM, P_PLZW, P_GIF, P_DBS, P_AIFF, P_A85, P_B641, P_B642,
               P_MOD, P_SGI, P_TGA, P_ICD, P_MDF, P_UUE, P_TIFF, P_TAR, P_PNG,
-              P_ZIP, P_GZIP, P_BZIP2, P_SZDD, P_MSCF, P_ZLIB, P_ZLIBP,P_ISO9960,P_ISCAB,
+              P_ZIP, P_GZIP, P_BZIP2, P_SZDD, P_MSCF, P_ZLIB, P_ZLIBP,P_ISO9960,P_ISCAB,P_PBIT,
+              P_LAST,
               // virtual parsers, see analyzer
-              P_PBIT,
               P_WEXE, P_WPDF, P_WCAB,
-              P_LAST} ParserType;              
+              P_WDEFAULT,
+              P_WLAST
+              } ParserType;              
 
 typedef enum {DEFAULT=0,BINTEXT,ISOTEXT,DBASE, JPEG, HDR,CMP,IMGUNK, IMAGE1,IMAGE4, IMAGE8,IMAGE8GRAY, IMAGE24,IMAGE32, AUDIO, EXE,DECA,ARM,
               CD, TEXT,TEXT0, TXTUTF8,NESROM, BASE64, BASE85,UUENC, GIF ,SZDD,MRBR,MRBR4,RLE,LZW,BZIP2,

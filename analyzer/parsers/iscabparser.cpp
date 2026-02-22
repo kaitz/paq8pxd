@@ -44,7 +44,7 @@ DetectState ISCABParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, 
                 ISCfile tf;
                 tf.start=(iscFiles==0?isc+512+2:i+1);
                 tf.size=spos;
-                tf.p=P_DEF;
+                //tf.p=P_DEF;
                 iscF.push_back(tf);
                 iscFiles++;
                 scount=0;
