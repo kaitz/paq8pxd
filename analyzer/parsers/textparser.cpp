@@ -28,8 +28,8 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         text.isLetter=tolower(c)!=toupper(c);
         text.countLetters+=(text.isLetter)?1:0;
         text.countNumbers+=(c>='0' && c<='9')?1:0;
-        text.zeroRun+=(c==0?1:-text.zeroRun);
-        if (text.zeroRun>16 && tp.validlength()>TEXT_MIN_SIZE)  tp.invalidCount+=TEXT_MAX_MISSES*TEXT_ADAPT_RATE;
+        //text.zeroRun+=(c==0?1:-text.zeroRun);
+        //if (text.zeroRun>16 && tp.validlength()>TEXT_MIN_SIZE)  tp.invalidCount+=TEXT_MAX_MISSES*TEXT_ADAPT_RATE;
         //text.isNumbertext=text.countLetters< text.countNumbers;
         text.isUTF8 = ((c!=0xC0 && c!=0xC1 && c<0xF5) && (
         (c<0x80) ||
@@ -58,7 +58,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     tp.setEOLType(2); // mixed or LF-only
         uint32_t t=utf8_state_table[c];
         tp.UTF8State=utf8_state_table[256 + tp.UTF8State + t];
-        if(tp.UTF8State==UTF8_ACCEPT|| text.isUTF8 ||(tp.invalidCount<TEXT_ADAPT_RATE*2 && c==0 && tp.validlength()>(TEXT_MIN_SIZE/2))  ) { // proper end of a valid utf8 sequence
+        if(tp.UTF8State==UTF8_ACCEPT|| text.isUTF8 /*||(tp.invalidCount<TEXT_ADAPT_RATE*2 && c==0 && tp.validlength()>(TEXT_MIN_SIZE/2))*/  ) { // proper end of a valid utf8 sequence
            // if (c==NEW_LINE || c==5) {
                 //  if (((buf0>>8)&0xff) == CARRIAGE_RETURN)
                 //    tp.setEOLType(2); // mixed or LF-only
@@ -76,21 +76,21 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     state=INFO;
                 }
             }
-            if (text.zeroRun>0 && tp.validlength()==text.zeroRun) state=NONE,tp.reset(i+1);
+            //if (text.zeroRun>0 && tp.validlength()==text.zeroRun) state=NONE,tp.reset(i+1);
         } else if (tp.UTF8State==UTF8_REJECT) { // illegal state
             //if (tp.validlength())printf("Lenght %d invalid %d Start %d end %d\n",tp.validlength(),tp.invalidCount,tp.start(),tp.end()); 
             if (tp.invalidCount >= TEXT_ADAPT_RATE*2) {
                 if (tp.validlength()>TEXT_MIN_SIZE && text.countLetters>(TEXT_MIN_SIZE/2)) {
                     //printf("Start %d end %d\n",tp.start(),tp.end());
                     jstart=tp._start[0];
-                    if (text.zeroRun>=(tp._end[0]-tp._start[0])) {
+                    /*if (text.zeroRun>=(tp._end[0]-tp._start[0])) {
                         state=NONE;
                         jstart=jend=0;
                         tp.reset(i+1);
                         memset(&text,0,sizeof(TextInfo));
                         continue;
-                    }
-                    jend=tp._end[0]+1-text.zeroRun;
+                    }*/
+                    jend=tp._end[0]+1;//-text.zeroRun;
                     uint64_t end=tp._end[0]+1; 
                     uint64_t nsize=tp.number();
                     type=(tp._EOLType[0]==1)?EOLTEXT:TEXT;
@@ -114,14 +114,14 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
         if (state==INFO) {
             if (((inSize+1)==len && last==true && tp.invalidCount<TEXT_ADAPT_RATE) || ((tp._end[0]-tp._start[0]+1) >= TEXT_MIN_SIZE && tp.invalidCount >= TEXT_MAX_MISSES*TEXT_ADAPT_RATE)) {
                 jstart=tp._start[0];
-                if (text.zeroRun>=(tp._end[0]-tp._start[0])) {
+                /*if (text.zeroRun>=(tp._end[0]-tp._start[0])) {
                         state=NONE;
                         jstart=jend=0;
                         tp.reset(i+1);
                         memset(&text,0,sizeof(TextInfo));
                         continue;
-                }
-                jend=tp._end[0]+1-text.zeroRun;
+                }*/
+                jend=tp._end[0]+1;//-text.zeroRun;
                 uint64_t end=tp._end[0]+1; 
                 uint64_t nsize=tp.number();
                 type=(tp._EOLType[0]==1)?EOLTEXT:TEXT;
@@ -129,7 +129,7 @@ DetectState TextParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 if (tp.countUTF8>0xffff) type=TXTUTF8,info=0;
                 state=END;
                 
-                if (text.zeroRun>=TEXT_ADAPT_RATE  || (jend-jstart)<TEXT_MIN_SIZE && last==false) {
+                if (/*text.zeroRun>=TEXT_ADAPT_RATE  ||*/ (jend-jstart)<TEXT_MIN_SIZE && last==false) {
                     tp.reset(i+1);
                     state=NONE;
                     memset(&text,0,sizeof(TextInfo));

@@ -1,7 +1,8 @@
-v141
+v142s
     -Add command line option recursion depth -r.
     -Add virtual default parser group.
     -Add command line option for user defined parsers -p.
+    -Update text parser.
 v141
     -Fix bad compression on mrb.
     -Re-enable WRT for streams 8 and 9.
