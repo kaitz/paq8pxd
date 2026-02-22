@@ -1,4 +1,6 @@
 v141
+    -Add command line option recursion depth -r.
+v141
     -Fix bad compression on mrb.
     -Re-enable WRT for streams 8 and 9.
     -Add missing filter for type TEXT0.
@@ -11,25 +13,25 @@ v140
     -In tga parser detect 8bit RLE compressed images.
     -In codec add 24/32bit image filter for LZW compressed images.
     -Cleanup codec statistics.
-    -In some cases us pdflzw parser as image detector.
+    -In some cases use pdflzw parser as an image detector.
     -Fix exe parser for small input lengths.
     -Fix deca parser and fix for small input lengths.
     -In gif parser change min input size to 32 bytes.
     -Add .so extension to virtual exe group.
     -Allow deca parser only in virtual exe group.
-    -Add .js and .css in to text parser group.
+    -Add .js and .css into the text parser group.
     -Fix MSCF parser.
 v139
     -In tga parser wait for data end.
-    -In codec test 24/32 bit image pre-post transfom size.
+    -In codec test 24/32 bit image pre-post transform size.
     -Fix tiff parser, bad detection, crash.
-    -Fix SZDD parser, incorect lenght when recompressing.
+    -Fix SZDD parser, incorrect length when recompressing.
     -In codec add fail statistics. Show summary.
 v138
     -Add zip reduce filter, not active.
     -Fix shrink filter.
     -Add zip implode filter, not active.
-    -Move data statistic in to Codec.
+    -Move data statistics into Codec.
     -Cosmetic change to type info.    
     -Fix silent transform fails, decompress not identical.
     -Fixes in SZDD parser.
@@ -48,13 +50,13 @@ v137
 v136
     -Add InstallShield CAB parser (ver 5), contains zlib streams.
      Active for extension .cab
-    -Add virutal file group for .cab extension
+    -Add virtual file group for .cab extension
     -In PDFLzwParser add JPXDecode and JBIG2Decode as CMP type.
     -Re-enable .zip based extension parser
     -Add .tga based extension parser
     -In zip parser extract file extension and allow uncompressed files
-    -In szddparser set min lenght to 128 bytes.
-    -Fix bad parsing in mrbparser.
+    -In szdd parser set min length to 128 bytes.
+    -Fix bad parsing in mrb parser.
 v135
     -In zlib parser set priority to 3 if possible image header was detected.
     -In iso parser show info about how many files are there.
@@ -62,7 +64,7 @@ v134
     -In png parser detect iCCP compressed chunk, test for grayscale
     -Add iso 9960 parser. Active for extension .iso
     -Cleanup and small fixes
-    -Fix pdfbiparser, set min width limit to >1
+    -Fix pdfbi parser, set min width limit to >1
     -Disable pre- and post-filter (WRT) for streams 8 and 9.
      In rare cases, the result will not be identical.
     -In the ISO parser, make sure there are no previous folder entries.
@@ -101,7 +103,7 @@ v129
      base64(1/2), bmp, pnm, szdd.
      Priority changes from n to 0 when valid header is found and length of data is >64000
     -Change zlib priority
-    -Re-enable all parser if 0 parser reports fail.
+    -Re-enable all parsers if 0 parser reports fail.
 v128
     -Change priority to 0 in parsers:
      bzip2 - after 4 blocks
@@ -111,7 +113,7 @@ v128
 v127
     -Expand priority range to 0-6, 6=default
     -Fix tar, bzip2, text parser
-    -Add support for files larger then 2GB
+    -Add support for files larger than 2GB
     -In text parser switch to 0 priority when at least 32MB is processed (parsing from ~6mb/s to ~40mb/s)
 v126
     -Fix cd, szdd parser
@@ -128,7 +130,7 @@ v123
 v122
     -Re-enable zlibFilter.
     -Add PREFLATE type.
-    -Test ZLIB transform fail and use PREFLATE if needed.
+    -Test ZLIB transform fails and use PREFLATE if needed.
     -Fix for bzip2, tar parser.
 v121
     -Fix GZIP parser false positive detection that suppressed bzip2/tar detection.
@@ -149,9 +151,9 @@ v117
     -Add build support for the preflate library.
     -Fix non-portable GCC-only compiler flags.
     -Correct C++ standard header includes.
-    -Fix case-sensitivity in predictor includes.
+    -Fix case-sensitivity in the predictor includes.
     -Fix jpeg detection. 
-     Tiff can be as Exif image inside jpeg, so set same priority.
+     Tiff can be as Exif image inside jpeg, so set the same priority.
 v116
     -Fix zlib, mdf, exe parser.
     -Update wav parser.
@@ -161,14 +163,14 @@ v115
     -Add tar, png, bzip2, szdd parser.
     -Tiff parser:
      Detect more jpg data.
-     Sort image data offsets in to ascending order.
+     Sort image data offsets into ascending order.
      Enable some types and tags.
      Fix MM mode detection.
      If tag data pos is past current pos then ignore image.
-     Uncompressed data with more then 32bits are reported as DEFAULT.
+     Uncompressed data with more than 32bits are reported as DEFAULT.
     -Fixes for szdd, bmp, gif, tiff, jpeg, uue, cd, mdf, bzip2 parser.
     -Update text parser.
-    -In parser add last block flag.
+    -In parser add the last block flag.
     -Add parser info string (width, etc).
     -Add parser/codec progress status.
     -Change Analyzer
@@ -183,7 +185,7 @@ v114
     -Enable pdf bitmap parser only if parent type is ZLIB
 v113
     -Update build script
-    -Add default, bmp, text (very agressive), DEC Alpha, mrb (.hlp),
+    -Add default, bmp, text (very aggressive), DEC Alpha, mrb (.hlp),
      exe, zlib, nes rom, jpeg, wav, pnm and MS-Zip (.cab) parsers.
     -Add analyzer (detect replacement)
     -Heavy cleanup of code
@@ -211,7 +213,7 @@ v108
 v107
     -Fix detection and compression on some jpeg files.
 v106
-    -Change mixer, so that there is minimum limit for update.
+    -Change the mixer, so that there is a minimum limit for update.
     -Add more StationaryMap contexts to jpegModel
     -Use larger update limit for some mixer context in jpegModel
     -Update lstm to v3
@@ -237,8 +239,8 @@ v101
     -in ContextMap2 allow to select individual inputs for mixer
     -change option -e:
         -e0 - on text file do only capital letter conversion and escapes (file will be larger)
-        -eX - where X > 0 use as minimum dynamic word frequency.
-              -e19 recomended for files >1MB, -e124 for <1MB
+        -eX - where X > 0 is used as minimum dynamic word frequency.
+              -e19 recommended for files >1MB, -e124 for <1MB
               if wrt file is larger from source then transform is ignored
         -eX,dictionary - X selects frequency for words in dictionary file,
                          dynamic word frequency is fixed (-e19 files >1MB, -e124  <1MB)
@@ -249,7 +251,7 @@ v101
     -some cleanup
 v100
     -add lstm model back (active on -x option)
-        -used on all predictors exept audio
+        -used on all predictors except audio
     -add matchModel from paq8px_v201 as second model
     -adjust old matchModel parameters
     -tar header as bintext
@@ -292,7 +294,7 @@ v90
     - Add DEC Alpha model/detect from paq8px193fix2
     - Small changes in mixer, statemap, apm, indirectmap, contextmap2
     - Change matchmodel, recordmodel, jpegmodel
-    - Fix jpegmodel on thumnail images (or full image fails to compress)
+    - Fix jpeg model on thumbnail images (or full image fails to compress)
     - Adjust predictors
 v89
     - fix subsamp reset on every new jpeg 
@@ -314,7 +316,7 @@ v85
     - fix rounding error
 v84
     - adjust jpeg,im1 predictor
-    - add mod_SSE to all predictors exept jpeg
+    - add mod_SSE to all predictors except jpeg
     - add external dictionary command line option
     - add RC to encoder (paq8pxd82sa)
     - change ppmd mem
@@ -383,17 +385,17 @@ v70
     - detect tiff change
 v69
     -Online wrt is present and fixed, now actually decodes word if code
-      is larger then 1 byte.
+      is larger than 1 byte.
     -WordModel form paq8px_v182
       this one is not active in any models, you have to manually add it
       in source. Replaced in model array with blankmodel for now.
       Online wrt is needed so one can detect presence of BT and ET 
-      for pdf mode in new WordModel.
+      for pdf mode in the new WordModel.
     -Combined models into arrays to ease mixer inputs/sets/context clutter,
       let models to return usage.
     -Colored console (Windows only!), based on type stream.
-    -JPEG compress improvment (APM), small gain.
-    -Detect LZW in PDF and ad to CMP stream.
+    -JPEG compress improvement (APM), small gain.
+    -Detect LZW in PDF and add it to CMP stream.
 
 v68
     -update im8Mode,im24model,exemodel from paq8px_179
@@ -407,7 +409,7 @@ v67
     -in bypass update models
     -change distanceModel, indirectModel, exeModel
     -in default predictor resume bypass after 0x2000 bytes if predict miss found
-     insted default bypass match length of 0xfff bytes
+     instead default bypass match length of 0xfff bytes
     -compressed data stream, still compressed but faster (eol data for now)
     -memory usage tweak to the same level as v64
 
@@ -450,7 +452,7 @@ v59
     -8 and 24 bit image model,matchModel, SparseMatchModel,recordModel
      changes from paq8px_v166
     -AVX2 mixer fix
-    -chartModel memorys error fix
+    -chartModel memory error fix
     -fix decModel
 
 v58
@@ -469,7 +471,7 @@ v55
     -add SparseMatchModel from paq8px_162, use on default/text/exe stream
     -add array class from paq8px_162
     -matchModel changes form paq8px_162
-    -use text detection form paq8px_162, change to detext EOLTEXT,TEXT0,TEXTUTF8
+    -use text detection form paq8px_162, change to detect EOLTEXT,TEXT0,TEXTUTF8
     -contextMap2 form paq8px_162, use in normalModel, textModel,exeModel
     -use textModel, xmlModel in PredictorEXE
     -fix jpeg detection
@@ -499,7 +501,7 @@ v51
 
 v50
     -small fixes
-    -add back SIMD implemetation of ContextMap byterun
+    -add back SIMD implementation of ContextMap byterun
 
 v49
     -im24 model changes from paq8px_v146

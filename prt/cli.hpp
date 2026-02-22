@@ -13,6 +13,7 @@ typedef enum {
     CL_WIKI,
     CL_EDICT,
     CL_DICTF,
+    CL_RECUR,
     CL_VERBOSE,
     CL_HELP,
     CL_UNK,
@@ -107,6 +108,10 @@ public:
                         c.val=atol(&argv[j][2]);
                         if (c.val>3 || c.val<0) return CError(command);
                         c.type=CL_VERBOSE;
+                    } else if (opt=="-r") { // recursion
+                        c.val=atol(&argv[j][2]);
+                        if (c.val>9 || c.val<0) return CError(command);
+                        c.type=CL_RECUR;
                     } else if (opt=="-h") { // help
                         if (command.size()!=2) return CError(command);
                         c.type=CL_HELP;

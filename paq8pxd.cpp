@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd141"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd142"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -133,14 +133,14 @@ CLI cli;
 
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
-bool slow=false; //-x
-bool witmode=false; //-w
-bool staticd=false;  // -e
+bool slow=false;       //-x
+bool witmode=false;    //-w
+bool staticd=false;    // -e
 bool doExtract=false;  // -d option
-bool doList=false;  // -l option
+bool doList=false;     // -l option
 bool showhelp=false;
-int verbose=0;
-
+int verbose=0;         // -v
+int rdepth=6;          // -r
 extern std::string externaDict;
 int minfq=19;
 Segment segment; //for file segments type size info(if not -1)
@@ -844,11 +844,7 @@ void PrintHelp() {
             "                    If level is omitted, default is 0 (store).\n"
             "  -d                Decompress archive. If target exist then compare.\n"
             "  -l                List files in archive.\n"
-            "  -e{name}          Use external dictionary: name.\n"
-            "  -q{frq}           Set minimum frequency for dictionary transform.\n"
-            "                    Default 19.\n"
-            "  -w                Preprocces wikipedia xml dump with transform\n"
-            "                    before dictionary transform.\n"
+            "  -r{n}             Recursion depth. Range 0-9. Default 6.\n"
             "  -v{n}             Set verbose level to n. Range 0-3. Defaul 0.\n"
             "  -h                Show help. Use command -v for more info.\n"
 #ifdef MT 
@@ -856,6 +852,14 @@ void PrintHelp() {
             "                    Valid range 1-4. Default 1.\n"
 #endif
         );
+        if (verbose>0) {
+            printf("  -e{name}          Use external dictionary: name.\n"
+            "  -q{frq}           Set minimum frequency for dictionary transform.\n"
+            "                    Default 19.\n"
+            "  -w                Preprocces wikipedia xml dump with transform\n"
+            "                    before dictionary transform.\n"
+            );
+        }
         if (verbose>0) {
         printf("\nMemory usage (level):\n"
             "  -s0               store (no compression)\n"
@@ -911,6 +915,8 @@ int main(int argc, char** argv) {
                     staticd=true;
                 } else if (ccm.type==CL_DICTF) {
                     minfq=ccm.val;
+                } else if (ccm.type==CL_RECUR) {
+                    rdepth=ccm.val;
                 } else if (ccm.type==CL_VERBOSE) {
                     verbose=ccm.val;
                 } else if (ccm.type==CL_HELP) {
@@ -1114,16 +1120,16 @@ int main(int argc, char** argv) {
             en->flush();
             delete en;
             delete predictord;
-            Codec codec(FCOMPRESS, &streams, &segment);
+            Codec codec(FCOMPRESS, &streams, &segment,rdepth);
             for (int i=0; i<files; ++i) {
                 printf("\n%d/%d  Filename: %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
-                codec.EncodeFile(fname[i], fsize[i]);// DetectStreams(fname[i], fsize[i]);
+                codec.EncodeFile(fname[i], fsize[i]);
             }
             segment.put1(0xff); //end marker
             //Display Level statistics
             if (verbose>1) {
                 printf("\n Segment data size: %d bytes\n",segment.pos);
-                codec.PrintStat();
+                codec.PrintStat(rdepth);
             }
 
             CompressStreams(archive,streambit);

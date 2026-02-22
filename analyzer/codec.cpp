@@ -5,8 +5,8 @@ extern bool witmode; //-w
 extern void SetConColor(int color);
 
 Codec::Codec(FMode m, Streams *s, Segment *g, int depth):mode(m),streams(s),segment(g),
-  fsame(0),fdiff(0),recDepth(depth),stat(recDepth),itcount(0) {
-    assert(recDepth>0 && recDepth<10);
+  fsame(0),fdiff(0),recDepth(depth+1),stat(recDepth),itcount(0) {
+    assert(recDepth>0 && recDepth<11);
     //
     for (uint64_t j=0; j<recDepth; j++) {
         stat[j].size.resize(datatypecount);
@@ -596,7 +596,7 @@ void Codec::RemoveStat(Filetype type, uint64_t len, int i) {
     stat[i].count[type]--;
 }
 void Codec::PrintStat(int limit) {
-    assert(limit<recDepth);
+    assert(limit<recDepth && limit>=0);
     int l=itcount>limit?limit:itcount;
     for (int j=0; j<=l; ++j) {
         bool isStat=false;
