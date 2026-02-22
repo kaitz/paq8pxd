@@ -28,8 +28,8 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser, ParserType *vup):
         //printf("Analyzer: User defined parser list.\n");
         isUserPL=true;
         assert(vusrPT[0]==P_DEF);
-    //}
-    //if (isUserPL) {
+    }
+    if (isUserPL && p==DEFAULT && eparser==P_WDEFAULT) {
         for (int selp=P_DEF; static_cast<ParserType>(vusrPT[selp])!=P_LAST; selp++) {
             SelectParser(static_cast<ParserType>(vusrPT[selp]));
         }
@@ -96,7 +96,7 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser, ParserType *vup):
 
 void Analyzer::SelectParser(ParserType p) {
     assert(p<P_WLAST);
-    /*if (isUserPL) {
+    if (isUserPL) {
         bool isParserDefined=false;
         for (int selp=P_DEF; static_cast<ParserType>(vusrPT[selp])!=P_LAST; selp++) {
             if (static_cast<ParserType>(vusrPT[selp])==p) {
@@ -106,7 +106,7 @@ void Analyzer::SelectParser(ParserType p) {
         }
         if (isParserDefined==false) return;
         //printf("User parser enabled: %d\n",p);
-    }*/
+    }
     switch (p) {
     case P_DEF:
         AddParser( new DefaultParser());
