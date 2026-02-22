@@ -72,10 +72,12 @@ Filter* Codec::GetFilter(Filetype f) {
     return filters[filters.size()-1];
 }
 
-void Codec::Status(uint64_t n, uint64_t size) {
-    if (n==size) fprintf(stderr,"        \b\b\b\b\b\b\b\b\b\b\b\b");
-    else fprintf(stderr,"F%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1));
-    fflush(stdout);
+void Codec::Status(uint64_t n, uint64_t size, uint64_t len) {
+    if (len>500000) {
+        if (n==size) fprintf(stderr,"        \b\b\b\b\b\b\b\b\b\b\b\b");
+        else fprintf(stderr,"F%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1));
+        fflush(stdout);
+    }
 }
 
 void Codec::PrintResult() {
@@ -223,7 +225,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filety
 
             begin+=len;
             assert(begin==in->curpos());
-            Status(begin,end0);
+            Status(begin,end0,len);
         }
     }
     delete an;
