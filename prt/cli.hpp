@@ -70,6 +70,7 @@ public:
             else if (p=="P_NES") return P_NES;
             else if (p=="P_MZIP") return P_MZIP;
             else if (p=="P_JPG") return P_JPG;
+            else if (p=="P_WAV") return P_WAV;
             else if (p=="P_PNM") return P_PNM;
             else if (p=="P_PLZW") return P_PLZW;
             else if (p=="P_GIF") return P_GIF;

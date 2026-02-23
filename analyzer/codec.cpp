@@ -72,10 +72,10 @@ Filter* Codec::GetFilter(Filetype f) {
     return filters[filters.size()-1];
 }
 
-void Codec::Status(uint64_t n, uint64_t size, uint64_t len) {
+void Codec::Status(uint64_t n, uint64_t size, uint64_t len, uint64_t r) {
     if (len>500000) {
-        if (n==size) fprintf(stderr,"        \b\b\b\b\b\b\b\b\b\b\b\b");
-        else fprintf(stderr,"F%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1));
+        if (n==size) fprintf(stderr,"           \b\b\b\b\b\b\b\b\b\b\b\b");
+        else fprintf(stderr,"F%d|%6.2f%%\b\b\b\b\b\b\b\b\b\b\b\b",r, float(100)*n/(size+1));
         fflush(stdout);
     }
 }
@@ -225,7 +225,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filety
 
             begin+=len;
             assert(begin==in->curpos());
-            Status(begin,end0,len);
+            Status(begin,end0,len,it);
         }
     }
     delete an;
@@ -335,9 +335,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         int tfail=0;
         tmp->setpos(0);
         
-        if (type==BZIP2 || type==CD || type==MDF|| type==SZDD || type==GIF || type==MRBR|| type==MRBR4|| type==RLE|| type==LZW||type==BASE85 ||
-                type==BASE64 || type==UUENC|| type==DECA|| type==ARM || (type==WIT||type==TEXT || type==TXTUTF8 ||type==TEXT0)||type==EOLTEXT ||
-                type==SHRINK||type==REDUCE||type==IMPLODE){
+        if (type==BZIP2 || type==CD || type==MDF || type==SZDD || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||
+            type==LZW||type==BASE85 || type==BASE64 || type==UUENC|| type==DECA || type==ARM || type==WIT || type==TEXT ||
+            type==TXTUTF8 || type==TEXT0 || type==EOLTEXT || type==SHRINK || type==REDUCE || type==IMPLODE || type==ZLIB) {
             
             in->setpos(begin);
             if (type==BASE64 ) {
@@ -371,6 +371,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             } else if (type==ARM) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if (type==SZDD) {
+                diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
+            } else if (type==ZLIB) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);

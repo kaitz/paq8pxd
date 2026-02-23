@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd142"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd143"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -1144,8 +1144,9 @@ int main(int argc, char** argv) {
             delete en;
             delete predictord;
             Codec codec(FCOMPRESS, &streams, &segment, rdepth, userPTsize!=1?userPT:nullptr);
+            printf("\nFiles:\n");
             for (int i=0; i<files; ++i) {
-                printf("\n%d/%d  Filename: %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
+                printf("%d/%d %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
                 codec.EncodeFile(fname[i], fsize[i]);
             }
             segment.put1(0xff); //end marker

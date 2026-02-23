@@ -1,3 +1,9 @@
+v143
+    -Fix ZLIB type silent transform fail. Add test to compare.
+    -Change visual layout on files when compressing. More compact.
+    -Show recursion level on progres filter: 
+       Fn|m% (n-level, m-% of that level)
+    -Add missing parser P_WAV for command line option -p
 v142
     -Add command line option recursion depth -r.
     -Add virtual default parser group.
