@@ -4,6 +4,8 @@ v143
     -Show recursion level on progres filter: 
        Fn|m% (n-level, m-% of that level)
     -Add missing parser P_WAV for command line option -p
+    -Skip detect if only one parser defined (DEFAULT)
+    -Show file list only if verbose level is defined
 v142
     -Add command line option recursion depth -r.
     -Add virtual default parser group.

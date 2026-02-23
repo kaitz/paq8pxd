@@ -92,6 +92,7 @@ Analyzer::Analyzer(int it, Filetype p, ParserType eparser, ParserType *vup):
     emptyType.rpos=0;
     emptyType.type=DEFAULT;
     emptyType.recursive=false;
+    //if (parsers.size()==1) printf("Only default parser. Skipping.\n");
 }
 
 void Analyzer::SelectParser(ParserType p) {
@@ -243,6 +244,15 @@ bool Analyzer::Detect(File* in, U64 n, int it) {
     bool pri[MAX_PRI]={false};
     typefound=zeroParser=false;
     zpID=-1;                        // Set zero parser ID to none
+    if (parsers.size()==1) {
+        dType def;
+        def.type=DEFAULT;
+        def.info=0;
+        def.start=0;
+        def.end=n;
+        types.push_back(def);
+        return true;
+    }
     // Reset all parsers exept recursive
     int recP=0;
     for (size_t j=0; j<parsers.size(); j++) {

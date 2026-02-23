@@ -1144,9 +1144,9 @@ int main(int argc, char** argv) {
             delete en;
             delete predictord;
             Codec codec(FCOMPRESS, &streams, &segment, rdepth, userPTsize!=1?userPT:nullptr);
-            printf("\nFiles:\n");
+            if (verbose) printf("\nFiles:\n");
             for (int i=0; i<files; ++i) {
-                printf("%d/%d %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
+                if (verbose) printf("%d/%d %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
                 codec.EncodeFile(fname[i], fsize[i]);
             }
             segment.put1(0xff); //end marker
