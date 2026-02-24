@@ -27,18 +27,10 @@
 //#define SM              // For faster statemap
 #endif
 //#define VERBOSE         // Show extra info
-
-#ifdef WINDOWS                       
-#ifdef MT
-//#define PTHREAD       //uncomment to force pthread to igore windows native threads !This seems broken!
-#endif
-#endif
-
-#ifdef UNIX
-#ifdef MT   
-#define PTHREAD 1
-#endif
-#endif
+/*
+This needs to be define globaly by compiler
+//#define PTHREAD       //uncomment to force pthread to igore windows native threads
+*/
 
 #include <stdio.h>
 #include <time.h>
@@ -392,8 +384,6 @@ void SetConColor(int color) {
 }
 
 void compressStream(int sid, U64 size, File* in, File* out) {
-    Encoder* enc;
-    Predictors* pred;
     U64 segmentsize;
     U64 segmentlen;
     U64 startpos=out->curpos();
@@ -404,11 +394,59 @@ void compressStream(int sid, U64 size, File* in, File* out) {
     U64 scompsize=0;
 #endif    
     segmentsize=size;
-    U64 total=size;
     segmentpos=0;
     segmentinfo=0;
     segmentlen=0;
-    if (level>0) {
+    if (level==0) { // Uncompressed
+        if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
+            while (segmentsize>0) {
+                //#ifndef MT
+                if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size, sid);
+                //#endif
+                out->putc(in->getc());
+                segmentsize--;
+            }
+        }
+        if (sid==8 || sid==9) {
+            bool dictFail=false;
+            FileTmp tm;
+            TextFilter textf("text");
+            textf.encode(in,&tm,segmentsize,sid==8);
+            segmentlen=tm.curpos();
+            streams.streams[sid]->streamsize=segmentlen;
+            // -e0 option ignores larger wrt size
+            if (segmentlen>=segmentsize && minfq!=0) {
+                dictFail=true; //wrt size larger
+                if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
+            } else {
+                if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
+            }
+            tm.setpos(0);
+            in->setpos(0);
+
+            if (dictFail==true) {
+                streams.streams[sid]->streamsize=segmentsize+1;
+                segmentlen=segmentsize;
+                out->putc(0xAA); //flag
+            } else {
+                streams.streams[sid]->streamsize=segmentlen+1;
+                out->putc(0); //flag
+            }
+            #ifndef NDEBUG 
+            scompsize=out->curpos();
+            #endif
+            for (U64 k=0; k<segmentlen; ++k) {
+                if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
+                if (dictFail==false) out->putc(tm.getc());
+                else                 out->putc(in->getc());
+            }
+            tm.close();
+            //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,segmentlen+0.0,ftello(out)-scompsize+0.0);
+            segmentlen=segmentsize=0;   
+        }
+    } else { // Compress
+        Encoder* enc;
+        Predictors* pred;
         // Select predictor for a stream (sid)
         switch(sid) {
         default:
@@ -426,87 +464,84 @@ void compressStream(int sid, U64 size, File* in, File* out) {
         case 11: { pred=new PredictorDEC(); break;}
         case 12: { pred=new Predictor(); break;}
         }
-    }
-    enc=new Encoder (COMPRESS, out,*pred); 
-    if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
-        while (segmentsize>0) {
-            while (segmentlen==0) {
-                segmenttype=(Filetype)segment(segmentpos++);
-                for (int ii=0; ii<8; ii++) segmentlen<<=8,segmentlen+=segment(segmentpos++);
-                for (int ii=0; ii<4; ii++) segmentinfo=(segmentinfo<<8)+segment(segmentpos++);
-                if (!(streams.isStreamType(segmenttype,sid) )) segmentlen=0;
-                if (level>0) {
+        enc=new Encoder (COMPRESS, out,*pred); 
+        if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
+            while (segmentsize>0) {
+                while (segmentlen==0) {
+                    segmenttype=(Filetype)segment(segmentpos++);
+                    for (int ii=0; ii<8; ii++) segmentlen<<=8,segmentlen+=segment(segmentpos++);
+                    for (int ii=0; ii<4; ii++) segmentinfo=(segmentinfo<<8)+segment(segmentpos++);
+                    if (!(streams.isStreamType(segmenttype,sid) )) segmentlen=0;
                     enc->predictor.x.filetype=segmenttype;
                     enc->predictor.x.blpos=0;
                     enc->predictor.x.finfo=segmentinfo;
                 }
-            }
-            for (U64 k=0; k<segmentlen; ++k) {
-                //#ifndef MT
-                if (!(segmentsize&0x1fff)) printStatus(total-segmentsize, total,sid);
-                //#endif
-                enc->compress(in->getc());
-                segmentsize--;
-            }
-            /* #ifndef NDEBUG 
+                for (U64 k=0; k<segmentlen; ++k) {
+                    //#ifndef MT
+                    if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size, sid);
+                    //#endif
+                    enc->compress(in->getc());
+                    segmentsize--;
+                }
+                /* #ifndef NDEBUG 
                             printf("Stream(%d) block from %0lu to %0lu bytes\n",i,segmentlen, out->curpos()-scompsize);
                             scompsize= out->curpos();
                             #endif */
-            segmentlen=0;
+                segmentlen=0;
+            }
+            enc->flush();
         }
-        enc->flush();
-    }
-    if (sid==8 || sid==9) {
-        bool dictFail=false;
-        FileTmp tm;
-        TextFilter textf("text");
-        textf.encode(in,&tm,segmentsize,sid==8);
-        segmentlen=tm.curpos();
-        streams.streams[sid]->streamsize=segmentlen;
-        // -e0 option ignores larger wrt size
-        if (segmentlen>=segmentsize && minfq!=0) {
-            dictFail=true; //wrt size larger
-            if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
-        } else {
-            if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
-        }
-        tm.setpos(0);
-        in->setpos(0);
-        if (level>0) {
+        if (sid==8 || sid==9) {
+            bool dictFail=false;
+            FileTmp tm;
+            TextFilter textf("text");
+            textf.encode(in,&tm,segmentsize,sid==8);
+            segmentlen=tm.curpos();
+            streams.streams[sid]->streamsize=segmentlen;
+            // -e0 option ignores larger wrt size
+            if (segmentlen>=segmentsize && minfq!=0) {
+                dictFail=true; //wrt size larger
+                if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
+            } else {
+                if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
+            }
+            tm.setpos(0);
+            in->setpos(0);
             enc->predictor.x.filetype=DICTTXT;
             enc->predictor.x.blpos=0;
             enc->predictor.x.finfo=-1;
-        }
-        if (dictFail==true) {
-            streams.streams[sid]->streamsize=segmentsize+1;
-            segmentlen=segmentsize;
-            enc->compress(0xAA); //flag
-        }else {
-            streams.streams[sid]->streamsize=segmentlen+1;
-            enc->compress(0); //flag
-        }
-        #ifndef NDEBUG 
-        scompsize=out->curpos();
-        #endif
-        for (U64 k=0; k<segmentlen; ++k) {
-            if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
-            #ifndef NDEBUG 
-            if (!(k&0x3ffff) && k) {
-                if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
-                scompsize= out->curpos();
+
+            if (dictFail==true) {
+                streams.streams[sid]->streamsize=segmentsize+1;
+                segmentlen=segmentsize;
+                enc->compress(0xAA); //flag
+            }else {
+                streams.streams[sid]->streamsize=segmentlen+1;
+                enc->compress(0); //flag
             }
+            #ifndef NDEBUG 
+            scompsize=out->curpos();
             #endif
-            if (dictFail==false) enc->compress(tm.getc());
-            else                 enc->compress(in->getc());
+            for (U64 k=0; k<segmentlen; ++k) {
+                if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
+                #ifndef NDEBUG 
+                if (!(k&0x3ffff) && k) {
+                    if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
+                    scompsize= out->curpos();
+                }
+                #endif
+                if (dictFail==false) enc->compress(tm.getc());
+                else                 enc->compress(in->getc());
+            }
+            tm.close();
+            enc->flush();
+            //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,segmentlen+0.0,ftello(out)-scompsize+0.0);
+            segmentlen=segmentsize=0;   
         }
-        tm.close();
-        enc->flush();
-        //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,segmentlen+0.0,ftello(out)-scompsize+0.0);
-        segmentlen=segmentsize=0;   
+        delete pred;
+        delete enc;
     }
     
-    if (level>0) delete pred;
-    delete enc;
     printf("Stream(");
     SetConColor(sid+2);
     printf("%d",sid);
