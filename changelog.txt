@@ -1,6 +1,7 @@
 v144
     -Fixes for multithreading issues. pthread now works.
     -Separate level 0 in compressStream.
+    -Add multithreaded decompression.
 v143
     -Fix ZLIB type silent transform fail. Add test to compare.
     -Change visual layout on files when compressing. More compact.

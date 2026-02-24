@@ -208,7 +208,8 @@ public:
                 }
                 // Test if input is archive and if so add decompress command
                 // Otherwise compress with default level
-                if (isArchive) {
+                CliCommand ct=GetCommand(CL_DECOMPRESS);
+                if (isArchive && ct.type==CL_UNK) {
                     // This overrides all command line options
                     // and defaults to decompressin/compare
                     while (cmd.size()) cmd.pop_back();

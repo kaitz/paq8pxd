@@ -14,7 +14,8 @@ public:
     std::vector<datainfo> dataType;
     FileTmp file;
     FileTmp out;
-    U64 streamsize;
+    uint64_t streamsize;
+    uint64_t cstreamsize;
     const std::string name;
     virtual ~Stream();
     Stream(Streamtype s,const std::string name);
