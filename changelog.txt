@@ -1,3 +1,5 @@
+v144
+    -Fixes for multithreading issues. pthread now works.
 v143
     -Fix ZLIB type silent transform fail. Add test to compare.
     -Change visual layout on files when compressing. More compact.

@@ -12,13 +12,9 @@
 #include "pthread.h"
 #endif
 
-//multithreading code from pzpaq.cpp v0.05
 #ifdef PTHREAD
-static pthread_cond_t cv=PTHREAD_COND_INITIALIZER;  // to signal FINISHED
-static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER; // protects cv
 typedef pthread_t pthread_tx;
 #else
-static HANDLE mutex;  // protects Job::state
 typedef HANDLE pthread_tx;
 #endif
 
@@ -38,23 +34,13 @@ struct Job {
 };
 
 extern void decompress(const Job& job);
-extern void compressStream(int streamid,U64 size, File* in, File* out);
+extern void compress(const Job& job);
 
 #define check(f) { \
   int rc=f; \
   if (rc) fprintf(stderr, "Line %d: %s: error %d\n", __LINE__, #f, rc); \
 }
-// Worker thread
-#ifndef PTHREAD
-DWORD thread(void *arg);
+
 #endif
 
-// Worker thread
-#ifdef PTHREAD
-void *thread(void *arg);
-#endif
-
-static std::vector<Job> jobs;
-static int topt=1;
-#endif
-
+void run_jobs(std::vector<Job>& jobs, int threads);

@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd143"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd144"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -131,6 +131,7 @@
 Streams streams;
 CLI cli;
 
+std::vector<Job> jobs;
 /////////////////////// Global context /////////////////////////
 U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
 bool slow=false;       //-x
@@ -143,6 +144,7 @@ int verbose=0;         // -v
 int rdepth=6;          // -r
 extern std::string externaDict;
 int minfq=19;
+int topt=1;            // num of threads
 Segment segment; //for file segments type size info(if not -1)
 
 int dt[1024];  // i -> 16K/(i+i+3)
@@ -518,6 +520,10 @@ void compressStream(int sid, U64 size, File* in, File* out) {
 }
 
 #ifdef MT
+void compress(const Job& job) {
+    compressStream(job.streamid,job.datasegmentsize,job.in,job.out);
+}
+
 void decompress(const Job& job) {
 }
 #endif
@@ -550,100 +556,8 @@ void CompressStreams(File *archive,U16 &streambit) {
 #endif
         }
     }
-
 #ifdef MT
-    // Loop until all jobs return OK or ERR: start a job whenever one
-    // is eligible. If none is eligible then wait for one to finish and
-    // try again. If none are eligible and none are running then it is
-    // an error.
-    int thread_count=0;  // number RUNNING, not to exceed topt
-    U32 job_count=0;     // number of jobs with state OK or ERR
-
-    // Aquire lock on jobs[i].state.
-    // Threads can access only while waiting on a FINISHED signal.
-#ifdef PTHREAD
-    pthread_attr_t attr; // thread joinable attribute
-    check(pthread_attr_init(&attr));
-    check(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE));
-    check(pthread_mutex_lock(&mutex));  // locked
-#else
-    mutex=CreateMutex(NULL, FALSE, NULL);  // not locked
-#endif
-
-    while(job_count<jobs.size()) {
-
-        // If there is more than 1 thread then run the biggest jobs first
-        // that satisfies the memory bound. If 1 then take the next ready job
-        // that satisfies the bound. If no threads are running, then ignore
-        // the memory bound.
-        int bi=-1;  // find a job to start
-        if (thread_count<topt) {
-            for (U32 i=0; i<jobs.size(); ++i) {
-                if (jobs[i].state==READY  && bi<0 ) {
-                    bi=i;
-                    if (topt==1) break;
-                }
-            }
-        }
-
-        // If found then run it
-        if (bi>=0) {
-            jobs[bi].state=RUNNING;
-            ++thread_count;
-#ifdef PTHREAD
-            check(pthread_create(&jobs[bi].tid, &attr, thread, &jobs[bi]));
-#else
-            jobs[bi].tid=CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)thread,
-            &jobs[bi], 0, NULL);
-#endif
-        }
-
-        // If no jobs can start then wait for one to finish
-        else {
-#ifdef PTHREAD
-            check(pthread_cond_wait(&cv, &mutex));  // wait on cv
-
-            // Join any finished threads. Usually that is the one
-            // that signaled it, but there may be others.
-            for (U32 i=0; i<jobs.size(); ++i) {
-                if (jobs[i].state==FINISHED || jobs[i].state==FINISHED_ERR) {
-                    void* status=0;
-                    check(pthread_join(jobs[i].tid, &status));
-                    if (jobs[i].state==FINISHED) jobs[i].state=OK;
-                    if (jobs[i].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
-                    ++job_count;
-                    --thread_count;
-                }
-            }
-#else
-            // Make a list of running jobs and wait on one to finish
-            HANDLE joblist[MAXIMUM_WAIT_OBJECTS];
-            int jobptr[MAXIMUM_WAIT_OBJECTS];
-            DWORD njobs=0;
-            WaitForSingleObject(mutex, INFINITE);
-            for (U32 i=0; i<jobs.size() && njobs<MAXIMUM_WAIT_OBJECTS; ++i) {
-                if (jobs[i].state==RUNNING || jobs[i].state==FINISHED
-                        || jobs[i].state==FINISHED_ERR) {
-                    jobptr[njobs]=i;
-                    joblist[njobs++]=jobs[i].tid;
-                }
-            }
-            ReleaseMutex(mutex);
-            DWORD id=WaitForMultipleObjects(njobs, joblist, FALSE, INFINITE);
-            if (id>=WAIT_OBJECT_0 && id<WAIT_OBJECT_0+njobs) {
-                id-=WAIT_OBJECT_0;
-                id=jobptr[id];
-                if (jobs[id].state==FINISHED) jobs[id].state=OK;
-                if (jobs[id].state==FINISHED_ERR) quit("thread"); //exit program on thread error 
-                ++job_count;
-                --thread_count;
-            }
-#endif
-        }
-    }
-#ifdef PTHREAD
-    check(pthread_mutex_unlock(&mutex));
-#endif
+   run_jobs(jobs, topt);
 
     // Append temporary files to archive if OK.
     for (U32 i=0; i<jobs.size(); ++i) {
