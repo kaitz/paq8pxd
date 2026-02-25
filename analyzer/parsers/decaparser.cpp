@@ -33,7 +33,7 @@ DetectState DECaParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
             state=START;
         } else if (state==START || state==INFO || (dec.opcode==(0x34u<<5u) + 26u) && (dec.count[dec.idx]>4u)) {
             //test if bsr opcode and if last 4 opcodes are valid
-            if ( (dec.opcode==(0x34u<<5u)+ 26u) && (dec.count[dec.idx]>4u) ) {
+            if ( (dec.opcode==(0x34u<<5u)+ 26u) && (dec.count[dec.idx]>8u) ) {
                 uint32_t const absAddrLSB=dec.opcode & 0xFFu; // absolute address low 8 bits
                 uint32_t const relAddrLSB=((dec.opcode & 0x1FFFFFu) + static_cast<std::uint32_t>(i)/4u) & 0xFFu; // relative address low 8 bits
                 uint64_t const absPos=dec.absPos[absAddrLSB];

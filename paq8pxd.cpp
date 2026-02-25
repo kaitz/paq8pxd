@@ -37,7 +37,6 @@ This needs to be define globaly by compiler
 #include <math.h>
 #include <string>
 
-//#include <inttypes.h> // PRIi64 or 
 #include <cinttypes> // PRIi64
 //#define NDEBUG  // remove for debugging (turns on Array bound checks)
 #include <assert.h>
@@ -58,40 +57,6 @@ This needs to be define globaly by compiler
 #ifdef WINDOWS
 #include <windows.h>
 #endif
-
-
-
-#if defined(WINDOWS) || defined(_MSC_VER)
-    #define atoll(S) _atoi64(S)
-#endif
-#define _FILE_OFFSET_BITS 64
-#ifdef _MSC_VER  
-#define fseeko(a,b,c) _fseeki64(a,b,c)
-#define ftello(a) _ftelli64(a)
-#else
-#ifndef UNIX
-#ifndef fseeko
-#define fseeko(a,b,c) fseeko64(a,b,c)
-#endif
-#ifndef ftello
-#define ftello(a) ftello64(a)
-#endif
-#endif
-#endif
-
-#include "prt/types.hpp"
-
-#include "prt/array.hpp"
-#include "prt/helper.hpp"
-#include "prt/file.hpp"
-#include "prt/hash.hpp"
-#include "prt/rnd.hpp"
-#include "prt/buffers.hpp"
-#include "prt/log.hpp"
-#include "prt/enums.hpp"
-#include "prt/blockdata.hpp"
-#include "prt/logistic.hpp"
-#include "prt/tables.hpp"
 
 #include "prt/cli.hpp"
 #include "prt/program.hpp"
@@ -118,86 +83,6 @@ size_t getPeakMemory(){
 #endif
 }*/
 
-/////////////////////////// Filters /////////////////////////////////
-//
-// Before compression, data is encoded in blocks with the following format:
-//
-//   <type> <size> <encoded-data>
-//
-// Type is 1 byte (type Filetype): DEFAULT=0, JPEG, EXE, ...
-// Size is 4 bytes in big-endian format.
-// Encoded-data decodes to <size> bytes.  The encoded size might be
-// different.  Encoded data is designed to be more compressible.
-//
-//   void encode(File* in, File* out, int n);
-//
-// Reads n bytes of in (open in "rb" mode) and encodes one or
-// more blocks to temporary file out (open in "wb+" mode).
-// The file pointer of in is advanced n bytes.  The file pointer of
-// out is positioned after the last byte written.
-//
-//   en.setFile(File* out);
-//   int decode(Encoder& en);
-//
-// Decodes and returns one byte.  Input is from en.decompress(), which
-// reads from out if in COMPRESS mode.  During compression, n calls
-// to decode() must exactly match n bytes of in, or else it is compressed
-// as type 0 without encoding.
-//
-//   Filetype detect(File* in, int n, Filetype type);
-//
-// Reads n bytes of in, and detects when the type changes to
-// something else.  If it does, then the file pointer is repositioned
-// to the start of the change and the new type is returned.  If the type
-// does not change, then it repositions the file pointer n bytes ahead
-// and returns the old type.
-//
-// For each type X there are the following 2 functions:
-//
-//   void encode_X(File* in, File* out, int n, ...);
-//
-// encodes n bytes from in to out.
-//
-//   int decode_X(Encoder& en);
-//
-// decodes one byte from en and returns it.  decode() and decode_X()
-// maintain state information using static variables.
-
-/*#define AUD_DET(type,start_pos,header_len,data_len,wmode) return dett=(type),\
-deth=int(header_len),detd=(data_len),info=(wmode),\
- in->setpos(start+(start_pos)),HDR
-*/
-/*bool IsGrayscalePalette(File* in, int n = 256, int isRGBA = 0){
-  U64 offset = in->curpos();
-  int stride = 3+isRGBA, res = (n>0)<<8, order=1;
-  for (int i = 0; (i < n*stride) && (res>>8); i++) {
-    int b = in->getc();
-    if (b==EOF){
-      res = 0;
-      break;
-    }
-    if (!i) {
-      res = 0x100|b;
-      order = 1-2*(b>int(ilog2(n)/4));
-      continue;
-    }
-
-    //"j" is the index of the current byte in this color entry
-    int j = i%stride;
-    if (!j){
-      // load first component of this entry
-      int k = (b-(res&0xFF))*order;
-      res = res&((k>=0 && k<=8)<<8);
-      res|=(res)?b:0;
-    }
-    else if (j==3)
-      res&=((!b || (b==0xFF))*0x1FF); // alpha/attribute component must be zero or 0xFF
-    else
-      res&=((b==(res&0xFF))*0x1FF);
-  }
-   in->setpos( offset);
-  return (res>>8)>0;
-}*/
 
 /*
 
@@ -208,22 +93,11 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
   prv_start = start;    // for DEC Alpha detection
   start= in->curpos();
   
-  // For ARM detection
-  Array<U64> absposARM(256),  // CALL/JMP abs. addr. low byte -> last offset
-    relposARM(256);    // CALL/JMP relative addr. low byte -> last offset
-  int ARMcount=0;  // number of consecutive CALL/JMPs
-  U64 ARMpos=0;    // offset of first CALL or JMP instruction
-  U64 ARMlast=0;   // offset of most recent CALL or JMP
-
  
   U64 s3mi=0;
   int s3mno=0,s3mni=0;  // For S3M detection
   
-
-  U32 op=0;//DEC A
-
-  int textbin=0,txtpdf=0; //if 1/3 is text
-
+ 
   static int deth=0,detd=0;  // detected header/data size in bytes
   static Filetype dett;      // detected block type
   if (deth >1) return  in->setpos(start+deth),deth=0,dett;
@@ -280,49 +154,10 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
          in->setpos(savedpos);
       }
     }
-   
-
-        
-    // ARM
-    op=(buf0)>>26; 
-    //test if bl opcode and if last 3 opcodes are valid 
-    // BL(4) and (ADD(1) or MOV(4)) as previous, 64 bit
-    // ARMv8-A_Architecture_Reference_Manual_(Issue_A.a).pdf
-    if (op==0x25 && //DECcount==0 &&//||(buf3)>>26==0x25 
-    (((buf1)>>26==0x25 ||(buf2)>>26==0x25) ||
-    (( ((buf1)>>24)&0x7F==0x11 || ((buf1)>>23)&0x7F==0x25  || ((buf1)>>23)&0x7F==0xa5 || ((buf1)>>23)&0x7F==0x64 || ((buf1)>>24)&0x7F==0x2A) )
-    )&&     (buf1)>>31==1&& (buf2)>>31==1&& (buf3)>>31==1&& (buf4)>>31==1){ 
-      int a=(buf0)&0xff;// absolute address low 8 bits
-      int r=(buf0)&0x3FFFFFF;
-      r+=(i)/4;  // relative address low 8 bits
-      r=r&0xff;
-      int rdist=int(i-relposARM[r]);
-      int adist=int(i-absposARM[a]);
-      if (adist<rdist && adist<0x3FFFFF && absposARM[a]>16 &&  adist>16 && adist%4==0) {
-        ARMlast=i;
-        ++ARMcount;
-        if (ARMpos==0 || ARMpos>absposARM[a]) ARMpos=absposARM[a];
-      }
-      else ARMcount=0;
-      if (type==DEFAULT && ARMcount>=18 && ARMpos>16 ) 
-          return in->setpos(start+ARMpos-ARMpos%4), ARM;
-      absposARM[a]=i;
-      relposARM[r]=i;
-    }
-    if (i-ARMlast>0x4000) {
-      if (type==ARM)
-      return  in->setpos( start+ARMlast-ARMlast%4), DEFAULT;
-      ARMcount=0,ARMpos=0,ARMlast=0;
-      memset(&relposARM[0], 0, sizeof(relposARM));
-      memset(&absposARM[0], 0, sizeof(absposARM));
-    }
-    
-    
     
   }
   return type;
-
-
+ 
 }
 */
 void CalcTables() {
@@ -413,8 +248,8 @@ void PrintHelp() {
             "  -v{n}             Set verbose level to n. Range 0-3. Defaul 0.\n"
             "  -h                Show help. Use command -v for more info.\n"
 #ifdef MT 
-            "  -t{n}             Select number of threads when compressing.\n"
-            "                    Valid range 1-4. Default 1.\n"
+            "  -t{n}             Select number of threads. Valid range 1-4. Default 1.\n"
+            "                    Used on level>0.\n"
 #endif
         );
         if (settings.verbose>0) {
@@ -425,7 +260,7 @@ void PrintHelp() {
             "                    before dictionary transform.\n"
             "  -p{name}          Enable only parser: name\n"
             "                    List of allowed parsers:\n"
-            "                       P_BMP, P_TXT, P_DECA, P_MRB, P_EXE, P_NES\n"
+            "                       P_BMP, P_TXT, P_DECA, P_MRB, P_EXE, P_ARM, P_NES\n"
             "                       P_MZIP,P_JPG, P_WAV, P_PNM, P_PLZW, P_GIF\n"
             "                       P_DBS, P_AIFF, P_A85, P_B641, P_B642, P_MOD\n"
             "                       P_SGI, P_TGA, P_ICD, P_MDF, P_UUE, P_TIFF\n"

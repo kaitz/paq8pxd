@@ -40,7 +40,7 @@ Codec::Codec(FMode m, Streams *s, Segment *g, Settings &set):settings(set),mode(
     AddFilter( new DecAFilter(std::string("dec alpha"),set,DECA));
     AddFilter( new rleFilter(std::string("rle tga"),set,RLE));
     AddFilter( new base85Filter(std::string("base85"),set,BASE85));
-    AddFilter( new armFilter(std::string("arm"),set,ARM));
+    //AddFilter( new armFilter(std::string("arm"),set,ARM));
     AddFilter( new lzwFilter(std::string("lzw"),set,LZW));
     AddFilter( new TextFilter(std::string("TEXT0"),set,TEXT0));
     AddFilter( new TextFilter(std::string("TXTUTF8"),set,TXTUTF8));

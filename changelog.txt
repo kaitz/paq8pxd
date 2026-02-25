@@ -5,6 +5,8 @@ v144
     -Moving archive management from the main file to the program class.
     -Implemented global settings.
      Now Predictors, Codec, Analyzer, Filters have all proper access to settings.
+    -Add ARM64 parser. Active only in P_WEXE group.
+    -Some fixes and cleanup.
 v143
     -Fix ZLIB type silent transform fail. Add test to compare.
     -Change visual layout on files when compressing. More compact.

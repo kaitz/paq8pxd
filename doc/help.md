@@ -64,7 +64,8 @@ List of allowed parsers:
             P_DBS,  P_AIFF, P_A85,   P_B641,    P_B642,  P_MOD,
             P_SGI,  P_TGA,  P_ICD,   P_MDF,     P_UUE,   P_TIFF,
             P_TAR,  P_PNG,  P_ZIP,   P_GZIP,    P_BZIP2, P_SZDD,
-            P_MSCF, P_ZLIB, P_ZLIBP, P_ISO9960, P_ISCAB, P_PBIT
+            P_MSCF, P_ZLIB, P_ZLIBP, P_ISO9960, P_ISCAB, P_PBIT,
+            P_ARM
 
 
           

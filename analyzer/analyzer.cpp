@@ -2,7 +2,7 @@
 #include "analyzer.hpp"
 
 // Parser types for virtual default group
-// P_DECA not included
+// P_DECA, P_ARM not included
 static ParserType vdefPT[P_LAST]={
     P_DEF,P_BMP,P_TXT, P_MRB, P_EXE, P_NES, P_MZIP,P_JPG, P_WAV,
     P_PNM, P_PLZW, P_GIF, P_DBS, P_AIFF, P_A85, P_B641, P_B642,
@@ -60,6 +60,7 @@ Analyzer::Analyzer(Settings &s, int it, Filetype p, ParserType eparser):set(s),
         SelectParser(P_MSCF);
         SelectParser(P_PNG);
         SelectParser(P_GZIP);
+        SelectParser(P_ARM);
         //SelectParser(P_ZIP);
         //SelectParser(P_ZLIB);
         SelectParser(P_ZLIBP);
@@ -126,6 +127,9 @@ void Analyzer::SelectParser(ParserType p) {
         return;
     case P_EXE:
         AddParser( new EXEParser());
+        return;
+    case P_ARM:
+        AddParser( new ARMParser());
         return;
     case P_NES:
         AddParser( new NesParser());

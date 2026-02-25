@@ -53,7 +53,7 @@ Streams::Streams():streams(0){
     streams[1]->dataType.push_back({DBASE,TR_INFO});
     streams[1]->dataType.push_back({HDR,TR_NONE});
     streams[1]->dataType.push_back({IMGUNK,TR_INFO});
-    streams[1]->dataType.push_back({ARM,TR_NONE|TR_TRANSFORM});
+    streams[1]->dataType.push_back({ARM,TR_NONE});
     streams[1]->dataType.push_back({NESROM,TR_NONE});
     //STR_JPEG
     streams[2]->dataType.push_back({JPEG,TR_NONE});

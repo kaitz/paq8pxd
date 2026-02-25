@@ -8,13 +8,37 @@ void SetConColor(int color) {
     SetConsoleTextAttribute(hConsole, color);
 #endif     
 }
+// To disable multiple WRTs running, console
+#ifdef PTHREAD
+pthread_mutex_t wrtcmutex=PTHREAD_MUTEX_INITIALIZER; // protects cv
+#else
+HANDLE wrtcmutex;
+#endif
 
 // Print progress: n is the number of bytes compressed or decompressed
 void printStatus(U64 n, U64 size,int level, int tid=-1) {
-    if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
+    if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
     else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
+void LockWCon() {
+#ifdef MT    
+    #ifdef PTHREAD
+        check(pthread_mutex_lock(&wrtcmutex));
+#else
+        WaitForSingleObject(wrtcmutex, INFINITE);
+    #endif
+#endif
+}
+void UnLockWCon() {
+#ifdef MT   
+    #ifdef PTHREAD
+        check(pthread_mutex_unlock(&wrtcmutex));
+    #else
+        ReleaseMutex(wrtcmutex);
+    #endif
+#endif
+}
 void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Segment *segment, Settings *settings) {
     U64 segmentsize;
     U64 segmentlen;
@@ -33,7 +57,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
             while (segmentsize>0) {
                 //#ifndef MT
-                if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size, sid);
+                if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size,settings->level, sid);
                 //#endif
                 out->putc(in->getc());
                 segmentsize--;
@@ -68,7 +92,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             scompsize=out->curpos();
             #endif
             for (U64 k=0; k<segmentlen; ++k) {
-                if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
+                if (!(k&0x1fff)) printStatus(k, segmentlen, settings->level, sid);
                 if (dictFail==false) out->putc(tm.getc());
                 else                 out->putc(in->getc());
             }
@@ -110,7 +134,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
                 }
                 for (U64 k=0; k<segmentlen; ++k) {
                     //#ifndef MT
-                    if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size, sid);
+                    if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size, settings->level, sid);
                     //#endif
                     enc->compress(in->getc());
                     segmentsize--;
@@ -125,9 +149,11 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         }
         if (sid==8 || sid==9) {
             bool dictFail=false;
+            LockWCon(); // WRT is not multithreading safe, so lock
             FileTmp tm;
             TextFilter textf("text",*settings);
             textf.encode(in,&tm,segmentsize,sid==8);
+            
             segmentlen=tm.curpos();
             streams->streams[sid]->streamsize=segmentlen;
             // -e0 option ignores larger wrt size
@@ -138,6 +164,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
                 if (settings->verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
             }
             tm.setpos(0);
+            UnLockWCon();
             in->setpos(0);
             enc->predictor.x.filetype=DICTTXT;
             enc->predictor.x.blpos=0;
@@ -155,7 +182,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             scompsize=out->curpos();
             #endif
             for (U64 k=0; k<segmentlen; ++k) {
-                if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
+                if (!(k&0x1fff)) printStatus(k, segmentlen,settings->level,sid);
                 #ifndef NDEBUG 
                 if (!(k&0x3ffff) && k) {
                     if (settings->verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
@@ -173,7 +200,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         delete pred;
         delete enc;
     }
-    
+    LockWCon();
     printf("Stream(");
     SetConColor(sid+2);
     printf("%d",sid);
@@ -184,6 +211,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
     printf("%0" PRIi64 "", out->curpos()-startpos); // Without MT start pos is not zero
     SetConColor(7);
     printf(" bytes\n");
+    UnLockWCon();
 }
 
 #ifdef MT
@@ -206,7 +234,9 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
     datasegmentpos=0;
     datasegmentinfo=0;
     datasegmentlen=0;
+    LockWCon();
     printf("Decompressing %-12s stream(%d).\n", streams->streams[sid+1]->name.c_str(),sid);
+    UnLockWCon();
     Predictors* predictord;
     Encoder *defaultencoder;
 
@@ -250,7 +280,7 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
                 defaultencoder->predictor.x.finfo=datasegmentinfo;
             }
             for (U64 k=0; k<datasegmentlen; ++k) {
-                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, sid);
+                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, settings->level, sid);
                 out->putc(defaultencoder->decompress());
                 datasegmentsize--;
             }
@@ -265,7 +295,7 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
             defaultencoder->predictor.x.blpos=0;
             defaultencoder->predictor.x.finfo=-1;
             for (U64 k=0; k<datasegmentlen; ++k) {
-                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, sid);
+                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, settings->level, sid);
                 U8 b=defaultencoder->decompress();
                 if (k==0) {
                     if (b==0xAA) doWRT=false; // flag set?
@@ -275,8 +305,10 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
             }
             if (doWRT==true) {
                 tm.setpos(0);
+                LockWCon();  // WRT is not multithreading safe, so lock
                 TextFilter textf("text",*settings);
                 textf.decode(&tm,out,datasegmentlen,0);
+                UnLockWCon();
             } else {
                 tm.setpos(0);
                 for ( U64 ii=1; ii<datasegmentlen; ii++) {

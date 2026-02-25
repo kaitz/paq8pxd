@@ -72,6 +72,7 @@ public:
             else if (p=="P_DECA") return P_DECA;
             else if (p=="P_MRB") return P_MRB;
             else if (p=="P_EXE") return P_EXE;
+            else if (p=="P_ARM") return P_ARM;
             else if (p=="P_NES") return P_NES;
             else if (p=="P_MZIP") return P_MZIP;
             else if (p=="P_JPG") return P_JPG;

@@ -42,8 +42,7 @@
 #include "parsers/gzipparser.hpp"
 #include "parsers/isoparser.hpp"
 #include "parsers/iscabparser.hpp"
-
-
+#include "parsers/armparser.hpp"
 
 class Analyzer {
     Settings &set;

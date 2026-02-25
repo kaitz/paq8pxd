@@ -9,27 +9,27 @@ EXEParser::EXEParser() {
 
 EXEParser::~EXEParser() {
 }
- void EXEParser::ReadEXE() {
- if (((buf1&0xfe)==0xe8 || (buf1&0xfff0)==0x0f80) && ((buf0+1)&0xfe)==0) {
-      uint8_t r=buf0>>24;             // relative address low 8 bits
-      uint8_t a=((buf0>>24)+i)&0xff;  // absolute address low 8 bits
-      uint64_t rdist=(i-relpos[r]);
-      uint64_t adist=(i-abspos[a]);
-      if (adist<rdist && adist<0x800 && abspos[a]>5) {
-        e8e9last=i;
-        ++e8e9count;
-        if (e8e9pos==0 || e8e9pos>abspos[a]) e8e9pos=abspos[a];
-      }
-      else e8e9count=e8e9pos=0;
-      if (state==NONE && e8e9count>=4 && e8e9pos>5){
-               jstart=e8e9pos-5;
-               type=EXE;
-               state=INFO;
-           }
-      abspos[a]=i;
-      relpos[r]=i;
+void EXEParser::ReadEXE() {
+    if (((buf1&0xfe)==0xe8 || (buf1&0xfff0)==0x0f80) && ((buf0+1)&0xfe)==0) {
+        uint8_t r=buf0>>24;             // relative address low 8 bits
+        uint8_t a=((buf0>>24)+i)&0xff;  // absolute address low 8 bits
+        uint64_t rdist=(i-relpos[r]);
+        uint64_t adist=(i-abspos[a]);
+        if (adist<rdist && adist<0x800 && abspos[a]>5) {
+            e8e9last=i;
+            ++e8e9count;
+            if (e8e9pos==0 || e8e9pos>abspos[a]) e8e9pos=abspos[a];
+        }
+        else e8e9count=e8e9pos=0;
+        if (state==NONE && e8e9count>=4 && e8e9pos>5){
+            jstart=e8e9pos-5;
+            type=EXE;
+            state=INFO;
+        }
+        abspos[a]=i;
+        relpos[r]=i;
     }
-  }  
+}  
 // loop over input block byte by byte and report state
 DetectState EXEParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) {
     // To small? 
@@ -46,11 +46,11 @@ DetectState EXEParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         buf0=(buf0<<8)+c;
 
         if (state==NONE) {
-           ReadEXE();
-           if (i-e8e9last>0x4000) {
-             e8e9count=0,e8e9pos=0;
+            ReadEXE();
+            if (i-e8e9last>0x4000) {
+                e8e9count=0,e8e9pos=0;
             }
-        } else if (/*state==START || */state==INFO) {
+        } else if (state==INFO) {
             ReadEXE();
             if (i-e8e9last>0x4000 || i==(pos+len-1) && last) {
                 jend=e8e9last;

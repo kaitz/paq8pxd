@@ -37,7 +37,7 @@ void PredictorTXTWRT::wrt(){
           if (x.wrtpos+4+4+3+3==x.blpos) { 
             x.wrtcount=(x.c4&0xffffff);
             x.wrtcount=(x.wrtcount>>16)+((x.wrtcount&0xff)<<16)+(x.wrtcount&0xff00);
-            printf("WRT dict count %d words.\n",x.wrtcount);
+            //printf("WRT dict count %d words.\n",x.wrtcount);
             x.wwords=x.wrtcount;
             if (x.wrtcount==0) x.wrtpos=x.wrtsize=0;
           }
@@ -50,7 +50,7 @@ void PredictorTXTWRT::wrt(){
           if (x.wrtdata>0 && x.blpos>=x.wrtdata &&x.wrtLoaded==false) { 
             wr.WRT_start_decoding(x.wrtcount,x.wrtsize,&x.buf[x.buf.pos-5-3-x.wrtsize]);
             x.wrtLoaded=x.dictonline=true;
-            printf("WRT dict online.\n");
+            //printf("WRT dict online.\n");
           }
         }
         if (x.wrtLoaded==true) {
