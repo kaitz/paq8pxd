@@ -1,6 +1,8 @@
 #pragma once
 #include "types.hpp"
 #include "file.hpp"
+#include "../stream/streams.hpp"
+#include "segment.hpp"
 #include <vector>
 
 #ifdef MT
@@ -29,6 +31,8 @@ struct Job {
   File*in;
   File*out;
   pthread_tx tid;      // thread ID (for scheduler)
+  Streams *st;
+  Segment *sg;
   Job();
   void print(int i) const;
 };

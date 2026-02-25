@@ -1,6 +1,9 @@
 #pragma once
+#include "enums.hpp"
 #include <vector>
 #include <string>
+#include <algorithm>
+#include <cstdint>
 
 typedef enum {
     CL_LIST=0,
@@ -35,9 +38,11 @@ class CLI {
     std::vector<CliCommand> cmd;
     bool isCommand;
     size_t cmdIndex;
+    const std::string progname;
 public:
+    int argcount;
     std::vector<std::string> files;
-        CLI():isCommand(false),cmdIndex(0) { }
+        CLI(const std::string p):isCommand(false),cmdIndex(0),progname(p) { }
         bool CError(std::string err) {
             printf("Bad command line parameter: %s\n\n",err.c_str());
             return false;
@@ -102,6 +107,7 @@ public:
         }
         bool Parse(int argc, char** argv) {
             // load commands
+            argcount=argc;
             argv++, argc--;
             if (argc==0) return false;
             bool opDone=false;
@@ -202,14 +208,17 @@ public:
                     if (lastdot!=std::string::npos && files[0].size()!=lastdot) {
                         std::string ext=files[0].substr(lastdot + 1);
                         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c){ return std::tolower(c); });
-                        if (ext==std::string(PROGNAME)) {
+                        if (ext==progname) {
                             isArchive=true;
                         }
                 }
                 // Test if input is archive and if so add decompress command
                 // Otherwise compress with default level
                 CliCommand ct=GetCommand(CL_DECOMPRESS);
-                if (isArchive && ct.type==CL_UNK) {
+                CliCommand cl=GetCommand(CL_LIST);
+                if (ct.type!=CL_UNK && cl.type!=CL_UNK) {
+                    return CError("Multiple modes.");
+                } else if (isArchive && ct.type==CL_UNK && cl.type==CL_UNK) {
                     // This overrides all command line options
                     // and defaults to decompressin/compare
                     while (cmd.size()) cmd.pop_back();
@@ -226,7 +235,7 @@ public:
                     c.val=8;
                     cmd.push_back(c);
                 } else if (isArchive==false && isDecompress) {
-                    return CError("Input not a "+std::string(PROGNAME)+" archive.");
+                    return CError("Input not a "+progname+" archive.");
                 }
             }
             //printf("Commands %d, files %d\n",cmd.size(),files.size());
