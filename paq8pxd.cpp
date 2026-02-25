@@ -558,10 +558,6 @@ void compressStream(int sid, U64 size, File* in, File* out) {
 void compress(const Job& job) {
     compressStream(job.streamid,job.datasegmentsize,job.in,job.out);
 }
-/*
-void decompress(const Job& job) {
-    decompressStream(job.streamid,job.datasegmentsize,job.in,job.out);
-}*/
 #endif
 
 
@@ -594,35 +590,31 @@ void CompressStreams(File *archive,U16 &streambit) {
         }
     }
 #ifdef MT
-   run_jobs(jobs, topt);
-
+    run_jobs(jobs, topt);
+    const uint64_t BLOCK=4096*4096*2; // 32mb
+    Array<uint8_t> blk(BLOCK);
     // Append temporary files to archive if OK.
     for (U32 i=0; i<jobs.size(); ++i) {
         if (jobs[i].state==OK) {
-            streams.streams[jobs[i].streamid]->out.setpos( 0);
-            //append streams to archive
-            const int BLOCK=4096*16;
-            U8 blk[BLOCK];
-            bool readdone=false; 
-            for (;;) { 
-                if (readdone) break;
-                int bytesread=streams.streams[jobs[i].streamid]->out.blockread(&blk[0], BLOCK);
-                if (bytesread!=BLOCK) {
-                    readdone=true;                   
-                    archive->blockwrite(&blk[0], bytesread);
-                } else      
-                archive->blockwrite(&blk[0], BLOCK);
-            }
+            streams.streams[jobs[i].streamid]->out.setend();
             streams.streams[jobs[i].streamid]->cstreamsize=streams.streams[jobs[i].streamid]->out.curpos();
+            streams.streams[jobs[i].streamid]->out.setpos(0);
+            
+            //append streams to archive
+            uint64_t remaining=streams.streams[jobs[i].streamid]->cstreamsize;
+            while (remaining) {
+                size_t reads=min64(BLOCK, remaining);
+                size_t ReadIn=streams.streams[jobs[i].streamid]->out.blockread(&blk[0], reads);
+                archive->blockwrite(&blk[0], ReadIn);
+                remaining-=ReadIn;
+            }
             streams.streams[jobs[i].streamid]->out.close();
-            //printf("%d \n",streams.streams[jobs[i].streamid]->cstreamsize);
         }
     }
 
 #endif
 
     for (int i=0; i<streams.Count(); ++i) {
-       
         streams.streams[i]->file.close();
     }
 }
@@ -640,20 +632,66 @@ void decompressStream(int sid, U64 size, File* in, File* out) {
     datasegmentinfo=0;
     datasegmentlen=0;
     printf("Decompressing %-12s stream(%d).\n", streams.streams[sid+1]->name.c_str(),sid);
-    if (level==0) { // This is 2x copy. Replace this.
-        if ((sid>=0 && sid<=7) /*||i==8 || i==9*/ || sid==10 || sid==11 || sid==12) {
-            while (datasegmentsize>0) {
+    Predictors* predictord;
+    Encoder *defaultencoder;
+
+    switch(sid) {
+    case 0: {
+            predictord=new Predictor();     break;}
+    case 1: {
+            predictord=new PredictorJPEG(); break;}
+    case 2: {
+            predictord=new PredictorIMG1(); break;}
+    case 3: {
+            predictord=new PredictorIMG4(); break;}
+    case 4: {
+            predictord=new PredictorIMG8(); break;}
+    case 5: {
+            predictord=new PredictorIMG24(); break;}
+    case 6: {
+            predictord=new PredictorAUDIO2(); break;}
+    case 7: {
+            predictord=new PredictorEXE();    break;}
+    case 8: {
+            predictord=new PredictorTXTWRT(); break;}
+    case 9:
+    case 10: {
+            predictord=new PredictorTXTWRT(); break;}
+    case 11: {
+            predictord=new PredictorDEC(); break;}
+    case 12: {
+            predictord=new Predictor(); break;}
+    }
+    defaultencoder=new Encoder (DECOMPRESS, in, *predictord); 
+    if ((sid>=0 && sid<=7) /*||i==8 || i==9*/ || sid==10 || sid==11 || sid==12) {
+        while (datasegmentsize>0) {
+            while (datasegmentlen==0){
+                datasegmenttype=(Filetype)segment(datasegmentpos++);
+                for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
+                for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
+                if (!(streams.isStreamType(datasegmenttype,sid) )) datasegmentlen=0;
+                defaultencoder->predictor.x.filetype=datasegmenttype;
+                defaultencoder->predictor.x.blpos=0;
+                defaultencoder->predictor.x.finfo=datasegmentinfo;
+            }
+            for (U64 k=0; k<datasegmentlen; ++k) {
                 if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, sid);
-                out->putc(in->getc());
+                out->putc(defaultencoder->decompress());
                 datasegmentsize--;
             }
-        } else if (sid==8 || sid==9) {
+            datasegmentlen=0;
+        }
+    } else if (sid==8 || sid==9) {
+        while (datasegmentsize>0) {
             FileTmp tm;
             bool doWRT=true;
             datasegmentlen=datasegmentsize;
+            defaultencoder->predictor.x.filetype=DICTTXT;
+            defaultencoder->predictor.x.blpos=0;
+            defaultencoder->predictor.x.finfo=-1;
             for (U64 k=0; k<datasegmentlen; ++k) {
                 if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, sid);
-                U8 b=in->getc();
+                U8 b=defaultencoder->decompress();
                 if (k==0) {
                     if (b==0xAA) doWRT=false; // flag set?
                 }
@@ -672,92 +710,11 @@ void decompressStream(int sid, U64 size, File* in, File* out) {
                 }
                 tm.close();
             }
+            datasegmentlen=datasegmentsize=0;
         }
-    } else {
-        Predictors* predictord;
-        Encoder *defaultencoder;
-
-        switch(sid) {
-        case 0: {
-                predictord=new Predictor();     break;}
-        case 1: {
-                predictord=new PredictorJPEG(); break;}
-        case 2: {
-                predictord=new PredictorIMG1(); break;}
-        case 3: {
-                predictord=new PredictorIMG4(); break;}
-        case 4: {
-                predictord=new PredictorIMG8(); break;}
-        case 5: {
-                predictord=new PredictorIMG24(); break;}
-        case 6: {
-                predictord=new PredictorAUDIO2(); break;}
-        case 7: {
-                predictord=new PredictorEXE();    break;}
-        case 8: {
-                predictord=new PredictorTXTWRT(); break;}
-        case 9:
-        case 10: {
-                predictord=new PredictorTXTWRT(); break;}
-        case 11: {
-                predictord=new PredictorDEC(); break;}
-        case 12: {
-                predictord=new Predictor(); break;}
-        }
-        defaultencoder=new Encoder (DECOMPRESS, in, *predictord); 
-        if ((sid>=0 && sid<=7) /*||i==8 || i==9*/ || sid==10 || sid==11 || sid==12) {
-            while (datasegmentsize>0) {
-                while (datasegmentlen==0){
-                    datasegmenttype=(Filetype)segment(datasegmentpos++);
-                    for (int ii=0; ii<8; ii++) datasegmentlen=datasegmentlen<<8,datasegmentlen+=segment(datasegmentpos++);
-                    for (int ii=0; ii<4; ii++) datasegmentinfo=(datasegmentinfo<<8)+segment(datasegmentpos++);
-                    if (!(streams.isStreamType(datasegmenttype,sid) )) datasegmentlen=0;
-                    defaultencoder->predictor.x.filetype=datasegmenttype;
-                    defaultencoder->predictor.x.blpos=0;
-                    defaultencoder->predictor.x.finfo=datasegmentinfo;
-                }
-                for (U64 k=0; k<datasegmentlen; ++k) {
-                    if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, sid);
-                    out->putc(defaultencoder->decompress());
-                    datasegmentsize--;
-                }
-                datasegmentlen=0;
-            }
-        } else if (sid==8 || sid==9) {
-            while (datasegmentsize>0) {
-                FileTmp tm;
-                bool doWRT=true;
-                datasegmentlen=datasegmentsize;
-                defaultencoder->predictor.x.filetype=DICTTXT;
-                defaultencoder->predictor.x.blpos=0;
-                defaultencoder->predictor.x.finfo=-1;
-                for (U64 k=0; k<datasegmentlen; ++k) {
-                    if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, sid);
-                    U8 b=defaultencoder->decompress();
-                    if (k==0) {
-                        if (b==0xAA) doWRT=false; // flag set?
-                    }
-                    else tm.putc(b);
-                    datasegmentsize--;
-                }
-                if (doWRT==true) {
-                    tm.setpos(0);
-                    TextFilter textf("text");
-                    textf.decode(&tm,out,datasegmentlen,0);
-                } else {
-                    tm.setpos(0);
-                    for ( U64 ii=1; ii<datasegmentlen; ii++) {
-                        U8 b=tm.getc(); 
-                        out->putc(b);
-                    }
-                    tm.close();
-                }
-                datasegmentlen=datasegmentsize=0;
-            }
-        }
-        delete predictord;
-        delete defaultencoder;
     }
+    delete predictord;
+    delete defaultencoder;
 }
 
 #ifdef MT
@@ -767,38 +724,85 @@ void decompress(const Job& job) {
 #endif
 void DecompressStreams(File *archive) {
     printf("Reading streams...\n");
-    for (int i=0; i<streams.Count(); ++i) {
-        uint64_t datasegmentsize=(streams.streams[i]->streamsize); // get segment data offset
-        if (datasegmentsize>0) {              // if segment contains data
-            const int BLOCK=4096*16*2;
-            U8 blk[BLOCK];
-            uint64_t remaining=streams.streams[i]->cstreamsize;
-
-            while (remaining) {
-                size_t reads=min64(BLOCK, remaining);
-                int ReadIn=archive->blockread(&blk[0], reads);
-                streams.streams[i]->out.blockwrite(&blk[0], ReadIn);
-                remaining-=ReadIn;
+    const uint64_t BLOCK=4096*4096*2; // 32mb
+    Array<uint8_t> blk(BLOCK);
+    if (level==0) {
+        for (int i=0; i<streams.Count(); ++i) {
+            uint64_t datasegmentsize=(streams.streams[i]->streamsize); // get segment data offset
+            if (datasegmentsize>0) {      
+                printf("%-12s stream(%d).\n", streams.streams[i+1]->name.c_str(),i);
+                uint64_t remaining=datasegmentsize;
+                if ((i>=0 && i<=7) /*||i==8 || i==9*/ || i==10 || i==11 || i==12) {
+                    while (remaining) {
+                        size_t reads=min64(BLOCK, remaining);
+                        uint64_t ReadIn=archive->blockread(&blk[0], reads);
+                        streams.streams[i]->file.blockwrite(&blk[0], ReadIn);
+                        remaining-=ReadIn;
+                    }
+                    streams.streams[i]->file.setpos(0);
+                } else if (i==8 || i==9) {
+                    FileTmp tm;
+                    bool doWRT=true;
+                    remaining--;
+                    U8 b=archive->getc();
+                    if (b==0xAA) doWRT=false; // flag set?
+                    
+                    if (doWRT==true) {
+                        while (remaining) {
+                            size_t reads=min64(BLOCK, remaining);
+                            uint64_t ReadIn=archive->blockread(&blk[0], reads);
+                            tm.blockwrite(&blk[0], ReadIn);
+                            remaining-=ReadIn;
+                        }
+                        tm.setpos(0);
+                        TextFilter textf("text");
+                        textf.decode(&tm,&streams.streams[i]->file,0,0);
+                        streams.streams[i]->file.setpos(0);
+                    } else {
+                        while (remaining) {
+                            size_t reads=min64(BLOCK, remaining);
+                            uint64_t ReadIn=archive->blockread(&blk[0], reads);
+                            streams.streams[i]->file.blockwrite(&blk[0], ReadIn);
+                            remaining-=ReadIn;
+                        }
+                        
+                    }
+                }
             }
-            streams.streams[i]->out.setpos(0);
-    
-        #ifdef MT
-            // add streams to job list
-            Job job;
-            job.out=&streams.streams[i]->file;
-            job.in=&streams.streams[i]->out;
-            job.streamid=i;
-            job.command=1; //1 decompress
-            job.datasegmentsize=datasegmentsize;
-            jobs.push_back(job);
-            
+        }
+        return;
+    } else {
+        for (int i=0; i<streams.Count(); ++i) {
+            uint64_t datasegmentsize=(streams.streams[i]->streamsize); // get segment data offset
+            if (datasegmentsize>0) {              // if segment contains data
+                uint64_t remaining=streams.streams[i]->cstreamsize;
+                while (remaining) {
+                    size_t reads=min64(BLOCK, remaining);
+                    uint64_t ReadIn=archive->blockread(&blk[0], reads);
+                    streams.streams[i]->out.blockwrite(&blk[0], ReadIn);
+                    remaining-=ReadIn;
+                }
+                streams.streams[i]->out.setpos(0);
+                
+                #ifdef MT
+                // add streams to job list
+                Job job;
+                job.out=&streams.streams[i]->file;
+                job.in=&streams.streams[i]->out;
+                job.streamid=i;
+                job.command=1; //1 decompress
+                job.datasegmentsize=datasegmentsize;
+                jobs.push_back(job);
+                
 #else
-            decompressStream(i,datasegmentsize,&streams.streams[i]->out, &streams.streams[i]->file);
+                decompressStream(i,datasegmentsize,&streams.streams[i]->out, &streams.streams[i]->file);
 #endif
+            }
         }
     }
     run_jobs(jobs, topt);
 }
+
 void PrintHelp() {
     // Print help message quick 
     printf(PROGNAME " archiver (C) 2026, Matt Mahoney et al.\n"
