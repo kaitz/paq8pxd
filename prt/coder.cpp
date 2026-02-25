@@ -1,5 +1,4 @@
 #include "coder.hpp"
-extern U8 level;
 
   // Compress bit y or return decompressed bit
   void Encoder::code(int i) {
@@ -20,7 +19,7 @@ extern U8 level;
   // Compress one byte
   void Encoder::compress(int c) {
     assert(mode==COMPRESS);
-    if (level==0)
+    if (predictor.x.settings.level==0)
       archive->putc(c);
     else {
       for (int i=7; i>=0; --i)
@@ -34,7 +33,7 @@ extern U8 level;
       assert(alt);
       return alt->getc();
     }
-    else if (level==0){
+    else if (predictor.x.settings.level==0){
      int a;
      a=archive->getc();
       return a ;}
@@ -51,10 +50,10 @@ extern U8 level;
 
 Encoder::Encoder(Mode m, File* f,Predictors& predict):
     mode(m), archive(f), alt(0),predictor(predict) {
-    if(level>0) if(mode==DECOMPRESS) rc.StartDecode(f); else rc.StartEncode(f);
+    if(predictor.x.settings.level>0) if(mode==DECOMPRESS) rc.StartDecode(f); else rc.StartEncode(f);
 
 }
 
 void Encoder::flush() {
-  if (mode==COMPRESS && level>0)rc.FinishEncode();
+  if (mode==COMPRESS && predictor.x.settings.level>0)rc.FinishEncode();
 }

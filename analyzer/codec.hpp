@@ -37,6 +37,7 @@
 #include "../filters/implodefilter.hpp"
 #include "../filters/pngfilter.hpp"
 #include "analyzer.hpp"
+#include "../prt/settings.hpp"
 
 struct Stat {
     Array<uint64_t> size;
@@ -46,6 +47,7 @@ struct Stat {
 };
 
 class Codec {
+    Settings &settings;
     FMode mode;
     Streams *streams;
     Segment *segment;
@@ -56,7 +58,7 @@ class Codec {
     Array<Stat> stat;          // block statistics
     Stat statFail;
     int itcount;
-    ParserType *vusrPT;        // User defined parser list
+    
     void AddFilter(Filter *f);
     void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0);
     void transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin,File*tmp);
@@ -64,7 +66,7 @@ class Codec {
     void AddStat(Filetype type, uint64_t len, int i);
     void RemoveStat(Filetype type, uint64_t len, int i);
     public:
-        Codec(FMode m, Streams *s, Segment *g, int depth=6, ParserType *vup=nullptr);
+        Codec(FMode m, Streams *s, Segment *g, Settings &set);
         virtual ~Codec();
         virtual void DecodeFile(const char* filename, uint64_t filesize);
         virtual void EncodeFile(const char* filename, uint64_t filesize);

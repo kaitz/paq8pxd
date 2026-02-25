@@ -2,7 +2,7 @@
 //////////////////////////// im8bitModel /////////////////////////////////
 // Model for 8-bit image data
 
-  im8bitModel1::im8bitModel1( BlockData& bd):  inpts(49+nPltMaps),cm(CMlimit(MEM()*4), inpts,M_IM8,
+  im8bitModel1::im8bitModel1( BlockData& bd):  inpts(49+nPltMaps),cm(CMlimit(bd.MEM()*4), inpts,M_IM8,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+

@@ -1,9 +1,8 @@
 #include "predictorexe.hpp"
 
 // x86/64 predicor
-extern bool slow;
 
-PredictorEXE::PredictorEXE(): pr(16384),order(0),
+PredictorEXE::PredictorEXE(Settings &set):Predictors(set), pr(16384),order(0),
   x86_64{
     { /*APM:*/ {0x800,20}, {0x10000,16}, {0x10000,16} }
   },
@@ -57,11 +56,11 @@ void PredictorEXE::update()  {
     models[M_INDIRECT]->p(*m);
     models[M_DMC]->p(*m);
     models[M_EXE] ->p(*m,1);
-    if (slow==false) models[M_XML]->p(*m);
+    if (x.settings.slow==false) models[M_XML]->p(*m);
     models[M_TEXT]->p(*m);
-    if (slow==true) models[M_PPM]->p(*m); 
-    if (slow==true) models[M_CHART]->p(*m);
-    if (slow==true) models[M_LSTM]->p(*m);
+    if (x.settings.slow==true) models[M_PPM]->p(*m); 
+    if (x.settings.slow==true) models[M_CHART]->p(*m);
+    if (x.settings.slow==true) models[M_LSTM]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);

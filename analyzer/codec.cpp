@@ -1,11 +1,10 @@
 #include "codec.hpp"
 
-extern int verbose;
-extern bool witmode; //-w
 extern void SetConColor(int color);
 
-Codec::Codec(FMode m, Streams *s, Segment *g, int depth, ParserType *vup):mode(m),streams(s),segment(g),
-  fsame(0),fdiff(0),recDepth(depth+1),stat(recDepth),itcount(0),vusrPT(vup)  {
+Codec::Codec(FMode m, Streams *s, Segment *g, Settings &set):settings(set),mode(m),streams(s),segment(g),
+  fsame(0),fdiff(0),recDepth(set.rdepth+1),stat(recDepth),itcount(0) {
+    //  vusrPT(vup)
     assert(recDepth>0 && recDepth<11);
     //
     for (uint64_t j=0; j<recDepth; j++) {
@@ -15,44 +14,44 @@ Codec::Codec(FMode m, Streams *s, Segment *g, int depth, ParserType *vup):mode(m
     statFail.size.resize(datatypecount);
     statFail.count.resize(datatypecount);
     
-    AddFilter( new Img24Filter( std::string("image 24bit"),IMAGE24));
-    AddFilter( new Img32Filter( std::string("image 32bit"),IMAGE32));
-    AddFilter( new ImgMRBFilter(std::string("image mrb"),MRBR));
-    AddFilter( new ImgMRBFilter(std::string("image mrb4"),MRBR4));
-    AddFilter( new ExeFilter(std::string("exe"),EXE));
-    AddFilter( new TextFilter(std::string("text"),TEXT));
-    AddFilter( new EOLFilter(std::string("eol"),EOLTEXT));
-    AddFilter( new MDFFilter(std::string("mdf"),MDF));
-    AddFilter( new CDFilter(std::string("cd"),CD));
-    AddFilter( new gifFilter(std::string("gif"),GIF));
-    AddFilter( new szddFilter(std::string("szdd"),SZDD));
-    AddFilter( new base64Filter(std::string("base64"),BASE64));
-    AddFilter( new witFilter(std::string("wit"),WIT));
-    AddFilter( new uudFilter(std::string("uuencode"),UUENC));
-    AddFilter( new preflateFilter(std::string("preflate"),PREFLATE));
-    AddFilter( new zlibFilter(std::string("zlib"),ZLIB));
-    AddFilter( new preflateFilter(std::string("zip"),ZIP));
-    AddFilter( new preflateFilter(std::string("gzip"),GZIP));
-    AddFilter( new bzip2Filter(std::string("bzip2"),BZIP2));
-    AddFilter( new PNGFilter(std::string("png"),PNG24));
-    AddFilter( new PNGFilter(std::string("png"),PNG32));
-    AddFilter( new PNGFilter(std::string("png"),PNG8));
-    AddFilter( new PNGFilter(std::string("png"),PNG8GRAY));
-    AddFilter( new DecAFilter(std::string("dec alpha"),DECA));
-    AddFilter( new rleFilter(std::string("rle tga"),RLE));
-    AddFilter( new base85Filter(std::string("base85"),BASE85));
-    AddFilter( new armFilter(std::string("arm"),ARM));
-    AddFilter( new lzwFilter(std::string("lzw"),LZW));
-    AddFilter( new TextFilter(std::string("TEXT0"),TEXT0));
-    AddFilter( new TextFilter(std::string("TXTUTF8"),TXTUTF8));
-    AddFilter( new TextFilter(std::string("BIGTEXT"),BIGTEXT));
-    AddFilter( new shrinkFilter(std::string("shrink"),SHRINK));
+    AddFilter( new Img24Filter(std::string("image 24bit"),set,IMAGE24));
+    AddFilter( new Img32Filter(std::string("image 32bit"),set,IMAGE32));
+    AddFilter( new ImgMRBFilter(std::string("image mrb"),set,MRBR));
+    AddFilter( new ImgMRBFilter(std::string("image mrb4"),set,MRBR4));
+    AddFilter( new ExeFilter(std::string("exe"),set,EXE));
+    AddFilter( new TextFilter(std::string("text"),set,TEXT));
+    AddFilter( new EOLFilter(std::string("eol"),set,EOLTEXT));
+    AddFilter( new MDFFilter(std::string("mdf"),set,MDF));
+    AddFilter( new CDFilter(std::string("cd"),set,CD));
+    AddFilter( new gifFilter(std::string("gif"),set,GIF));
+    AddFilter( new szddFilter(std::string("szdd"),set,SZDD));
+    AddFilter( new base64Filter(std::string("base64"),set,BASE64));
+    AddFilter( new witFilter(std::string("wit"),set,WIT));
+    AddFilter( new uudFilter(std::string("uuencode"),set,UUENC));
+    AddFilter( new preflateFilter(std::string("preflate"),set,PREFLATE));
+    AddFilter( new zlibFilter(std::string("zlib"),set,ZLIB));
+    AddFilter( new preflateFilter(std::string("zip"),set,ZIP));
+    AddFilter( new preflateFilter(std::string("gzip"),set,GZIP));
+    AddFilter( new bzip2Filter(std::string("bzip2"),set,BZIP2));
+    AddFilter( new PNGFilter(std::string("png"),set,PNG24));
+    AddFilter( new PNGFilter(std::string("png"),set,PNG32));
+    AddFilter( new PNGFilter(std::string("png"),set,PNG8));
+    AddFilter( new PNGFilter(std::string("png"),set,PNG8GRAY));
+    AddFilter( new DecAFilter(std::string("dec alpha"),set,DECA));
+    AddFilter( new rleFilter(std::string("rle tga"),set,RLE));
+    AddFilter( new base85Filter(std::string("base85"),set,BASE85));
+    AddFilter( new armFilter(std::string("arm"),set,ARM));
+    AddFilter( new lzwFilter(std::string("lzw"),set,LZW));
+    AddFilter( new TextFilter(std::string("TEXT0"),set,TEXT0));
+    AddFilter( new TextFilter(std::string("TXTUTF8"),set,TXTUTF8));
+    AddFilter( new TextFilter(std::string("BIGTEXT"),set,BIGTEXT));
+    AddFilter( new shrinkFilter(std::string("shrink"),set,SHRINK));
     //AddFilter( new reduceFilter(std::string("reduce"),REDUCE));
     //AddFilter( new implodeFilter(std::string("implode"),IMPLODE));
-    AddFilter( new DefaultFilter(std::string("default"),DEFAULT)); // must be last
+    AddFilter( new DefaultFilter(std::string("default"),set,DEFAULT)); // must be last
     
     //
-    if (vusrPT!=nullptr) {
+    if (settings.userPTsize!=1) {
         printf("User defined parser list.\n");
     }
 }
@@ -114,7 +113,7 @@ void Codec::EncodeFile(const char* filename, uint64_t filesize) {
     assert(filename && filename[0]);
     FileDisk in;
     in.open(filename,true);
-    if (verbose>2) printf("Block segmentation:\n");
+    if (settings.verbose>2) printf("File segments:\n");
     char blstr[32]="";
     std::string fname=filename;
     ParserType  etype=GetTypeFromExt(fname);
@@ -189,7 +188,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filety
         return;
     }
     FileTmp* tmp=new FileTmp(64 * 1024 * 1024/2);
-    Analyzer *an=new Analyzer(it, ptype, etype, vusrPT);
+    Analyzer *an=new Analyzer(settings,it, ptype, etype);
     bool found=false;
     // Transform and test in blocks
     while (n>0) {
@@ -211,13 +210,13 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filety
             if (it>itcount)    itcount=it;
             AddStat(type,len,it);
             sprintf(blstr,"%s%d",b2,blnum++);
-            if (verbose>2) printf(" %-16s |",blstr);
+            if (settings.verbose>2) printf(" %-16s |",blstr);
             int streamcolor=streams->GetStreamID(type)+1+1;
             if (streamcolor<1) streamcolor=7;
             SetConColor(streamcolor);
-            if (verbose>2) printf(" %-9s ",typenames[type]);
+            if (settings.verbose>2) printf(" %-9s ",typenames[type]);
             SetConColor(7);
-            if (verbose>2) {
+            if (settings.verbose>2) {
                 printf("|%12.0f [%0.0f - %0.0f] %s\n",len+0.0,begin+0.0,(begin+len-1)+0.0, block.pinfo.c_str());
             }
             transform_encode_block(type, in, len, info,info2, blstr, it, begin,tmp);
@@ -374,12 +373,12 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if (type==ZLIB) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
-            } else if ((type==TEXT || (type==TXTUTF8 &&witmode==false) ||type==TEXT0) ) {
+            } else if ((type==TEXT || (type==TXTUTF8 && settings.witmode==false) || type==TEXT0) ) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if ((type==WIT) ) {
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(winfo), FCOMPARE);
             }
-            else if ((type==TXTUTF8 &&witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
+            else if ((type==TXTUTF8 && settings.witmode==true) ) tmp->setend(); //skips 2* input size reading from a file
             else if (type==EOLTEXT ){
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             }
@@ -419,7 +418,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             statFail.size[type]+=len; // Collect fail statistics
             statFail.count[type]++;
             if (diffFound==0) diffFound=in->curpos();
-            if (verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
+            if (settings.verbose>2) printf("(Transform fails at %0lu)\n", diffFound-1);
             in->setpos(begin);
             Filetype type2=DEFAULT;
             if (type==ZLIB || type==PREFLATE || type==ZIP || type==GZIP || type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY ||

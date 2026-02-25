@@ -5,7 +5,7 @@
 class lzwFilter: public Filter {
 
 public:
-    lzwFilter(std::string n, Filetype f=DEFAULT);
+    lzwFilter(std::string n, Settings &s, Filetype f=DEFAULT);
     ~lzwFilter();
     void encode(File *in, File *out, uint64_t size, uint64_t info);
     uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);

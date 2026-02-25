@@ -1,7 +1,7 @@
 #include "img24filter.hpp"
 // simple color transform (b, g, r) -> (g, g-r, g-b)
 
-Img24Filter::Img24Filter(std::string n, Filetype f) {  
+Img24Filter::Img24Filter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

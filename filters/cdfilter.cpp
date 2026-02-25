@@ -1,6 +1,6 @@
 #include "cdfilter.hpp"
 
-CDFilter::CDFilter(std::string n, Filetype f) {  
+CDFilter::CDFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

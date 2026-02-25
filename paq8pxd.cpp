@@ -59,9 +59,7 @@ This needs to be define globaly by compiler
 #include <windows.h>
 #endif
 
-#ifndef DEFAULT_OPTION
-#define DEFAULT_OPTION 8
-#endif
+
 
 #if defined(WINDOWS) || defined(_MSC_VER)
     #define atoll(S) _atoi64(S)
@@ -97,30 +95,15 @@ This needs to be define globaly by compiler
 
 #include "prt/cli.hpp"
 #include "prt/program.hpp"
+#include "prt/settings.hpp"
 
+Settings settings;
 CLI cli(PROGNAME);
-Program prog(cli,PROGNAME);
-
-/////////////////////// Global context /////////////////////////
-U8 level=DEFAULT_OPTION;  // Compression level 0 to 15
-bool slow=false;       //-x
-bool witmode=false;    //-w
-bool staticd=false;    // -e
-bool doExtract=false;  // -d option
-bool doList=false;     // -l option
-bool showhelp=false;
-int verbose=0;         // -v
-int rdepth=6;          // -r
-extern std::string externaDict;
-int minfq=19;
-int topt=1;            // num of threads
-
+Program prog(cli,settings,PROGNAME);
 
 int dt[1024];  // i -> 16K/(i+i+3)
 int n0n1[256]; // for contectmap
 
-ParserType userPT[P_LAST]={P_DEF}; // User defined parser list
-int userPTsize=1;
 /*
 #include <psapi.h>
 size_t getPeakMemory(){
@@ -364,11 +347,11 @@ void PrintHelp() {
     // Print help message quick 
     printf(PROGNAME " archiver (C) 2026, Matt Mahoney et al.\n"
             "Free under GPL, http://www.gnu.org/licenses/gpl.txt\n");
-    if (verbose==0 && showhelp==false) {
+    if (settings.verbose==0 && settings.showhelp==false) {
         printf("\nUsage: paq8pxd -{COMMAND} [archive] input\n");
         printf("\nFor help: paq8pxd -h\n");
     }
-    if (verbose==3 && showhelp) {
+    if (settings.verbose==3 && settings.showhelp) {
 #ifdef __GNUC__
         printf("\nCompiled %s, compiler gcc version %d.%d.%d\n",__DATE__, __GNUC__, __GNUC_MINOR__,__GNUC_PATCHLEVEL__);
 #endif
@@ -403,9 +386,9 @@ void PrintHelp() {
 #endif
     }
     printf("\n");
-     if (showhelp) {
+     if (settings.showhelp) {
 #ifdef WINDOWS
-        if (verbose>1 && showhelp) {
+        if (settings.verbose>1 && settings.showhelp) {
             printf(
             "To compress or extract, drop a file or folder on the "
             PROGNAME " icon.\n"
@@ -434,7 +417,7 @@ void PrintHelp() {
             "                    Valid range 1-4. Default 1.\n"
 #endif
         );
-        if (verbose>0) {
+        if (settings.verbose>0) {
             printf("  -e{name}          Use external dictionary: name.\n"
             "  -q{frq}           Set minimum frequency for dictionary transform.\n"
             "                    Default 19.\n"
@@ -450,7 +433,7 @@ void PrintHelp() {
             "                       P_MSCF, P_ZLIB, P_ZLIBP, P_ISO9960, P_ISCAB, P_PBIT\n"
             );
         }
-        if (verbose>0) {
+        if (settings.verbose>0) {
         printf("\nMemory usage (level):\n"
             "  -s0               store (no compression)\n"
             "                    (These values are ~ and may change between versions)\n"
@@ -459,7 +442,7 @@ void PrintHelp() {
             "  -s10...-s15       uses 7.0  9.0 11.1 27.0   x.x x.x GB\n"
           );
         }
-        if (verbose>0) {
+        if (settings.verbose>0) {
         printf(
 #if defined(WINDOWS) || defined (UNIX)
             "\nYou may also compress directories.\n"
@@ -485,58 +468,58 @@ int main(int argc, char** argv) {
             CliCommand ccm;
             while (ccm=cli.GetCommand(),ccm.type!=CL_UNK) {
                 if (ccm.type==CL_LIST) {
-                    doList=true;
+                    settings.doList=true;
                 } else if (ccm.type==CL_DECOMPRESS) {
-                    doExtract=true;
+                    settings.doExtract=true;
                 } else if (ccm.type==CL_EXTREME) {
-                    slow=true;
-                    level=ccm.val;
+                    settings.slow=true;
+                    settings.level=ccm.val;
                 } else if (ccm.type==CL_SLOW) {
-                    level=ccm.val;
+                    settings.level=ccm.val;
                 } else if (ccm.type==CL_FAST) {
-                    level=ccm.val;
+                    settings.level=ccm.val;
                 } else if (ccm.type==CL_STORE) {
-                    level=0;
+                    settings.level=0;
                 } else if (ccm.type==CL_THREADS) {
-                    topt=ccm.val;
+                    settings.topt=ccm.val;
                 } else if (ccm.type==CL_WIKI) {
-                    witmode=true;
+                    settings.witmode=true;
                 } else if (ccm.type==CL_EDICT) {
-                    externaDict=ccm.valstr;
-                    staticd=true;
+                    settings.externaDict=ccm.valstr;
+                    settings.staticd=true;
                 } else if (ccm.type==CL_DICTF) {
-                    minfq=ccm.val;
+                    settings.minfq=ccm.val;
                 } else if (ccm.type==CL_RECUR) {
-                    rdepth=ccm.val;
+                    settings.rdepth=ccm.val;
                 } else if (ccm.type==CL_VERBOSE) {
-                    verbose=ccm.val;
+                    settings.verbose=ccm.val;
                 } else if (ccm.type==CL_HELP) {
-                    showhelp=true;
+                    settings.showhelp=true;
                 } else if (ccm.type==CL_PARSER) {
-                    if (static_cast<ParserType>(userPTsize)>P_LAST) showhelp=true,PrintHelp();
-                    for (size_t j=0; j<userPTsize; j++) {
-                        if (userPT[j]==static_cast<ParserType>(ccm.val)) {
-                            showhelp=true;
+                    if (static_cast<ParserType>(settings.userPTsize)>P_LAST) settings.showhelp=true,PrintHelp();
+                    for (size_t j=0; j<settings.userPTsize; j++) {
+                        if (settings.userPT[j]==static_cast<ParserType>(ccm.val)) {
+                            settings.showhelp=true;
                             PrintHelp();
                         }
                     }
-                    userPT[userPTsize++]=static_cast<ParserType>(ccm.val);
+                    settings.userPT[settings.userPTsize++]=static_cast<ParserType>(ccm.val);
                 }
             }
-            if (userPTsize!=1) {
-                userPT[userPTsize++]=P_LAST;
-                assert(static_cast<ParserType>(userPTsize)<P_LAST);
+            if (settings.userPTsize!=1) {
+                settings.userPT[settings.userPTsize++]=P_LAST;
+                assert(static_cast<ParserType>(settings.userPTsize)<P_LAST);
             }
         }
-        if (showhelp) PrintHelp();
+        if (settings.showhelp) PrintHelp();
 
         clock_t start_time=clock();  // in ticks
 
         CalcTables();
         // Execute user command
-        if (doList) {
+        if (settings.doList) {
             prog.List();
-        } else if (doExtract) {
+        } else if (settings.doExtract) {
             prog.Decompress();
         } else {
             prog.Compress();

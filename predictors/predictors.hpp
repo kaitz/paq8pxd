@@ -28,6 +28,7 @@
 #include "../models/word.hpp"
 #include "../models/text.hpp"
 #include "../models/ppmd.hpp"
+#include "../prt/settings.hpp"
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
@@ -48,7 +49,7 @@ virtual ~Predictors(){
     }
     delete[] models;    
    };
-Predictors();
+Predictors(Settings &);
   virtual int p() const =0;
   virtual void update()=0;
   void loadModels(const U8* amodel,int count);

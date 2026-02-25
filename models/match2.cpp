@@ -1,9 +1,6 @@
 #include "match2.hpp"
 
-//extern U8 level;
-
-
- bool matchModel2::isMatch(BlockData& x,const uint32_t pos, const uint32_t MINLEN) {
+bool matchModel2::isMatch(BlockData& x,const uint32_t pos, const uint32_t MINLEN) {
       for (uint32_t length = 1; length <= MINLEN; length++) {
         if (x.buf(length) != x.buf[pos - length])
           return false;
@@ -36,11 +33,11 @@
 
 matchModel2::matchModel2(BlockData& bd) : 
   x(bd),
-  hashtable(CMlimit(MEM()/8)),
+  hashtable(CMlimit(x.MEM()/8)),
   stateMaps {{  28 * 512},
              {  8 * 256 * 256 + 1},
              {  256 * 256}},
-  cm( CMlimit(MEM()/2), nCM, 0,
+  cm( CMlimit(x.MEM()/2), nCM, 0,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+
@@ -60,7 +57,7 @@ matchModel2::matchModel2(BlockData& bd) :
   hashBits(ilog2(uint32_t(hashtable.size())))
 {
   assert(isPowerOf2(hashtable.size()));
-  assert(isPowerOf2(CMlimit(MEM())));
+  assert(isPowerOf2(CMlimit(x.MEM())));
   iCtx.reset();
   x.Match.bypass=false;
   x.Match.bypassprediction=2048;

@@ -1,6 +1,5 @@
 #include "dmc.hpp"
 
-extern U8 level;
 //////////////////////////// dmcModel //////////////////////////
 
 // Model using DMC (Dynamic Markov Compression).
@@ -21,7 +20,7 @@ extern U8 level;
 
 
   dmcModel1::dmcModel1(BlockData& bd, U32 val):
-  mem(CMlimit(( (level<11?(0x10000UL<<level):((0x10000UL<<11))))/9)),
+  mem(CMlimit(( (bd.settings.level<11?(0x10000UL<<bd.settings.level):((0x10000UL<<11))))/9)),
   dmcmodel1a(mem,240,bd),
   dmcmodel1b(mem,240,bd),
   dmcmodel2a(mem,480,bd),

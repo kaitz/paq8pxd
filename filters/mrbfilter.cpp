@@ -1,6 +1,6 @@
 #include "mrbfilter.hpp"
 
-ImgMRBFilter::ImgMRBFilter(std::string n, Filetype f) {  
+ImgMRBFilter::ImgMRBFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

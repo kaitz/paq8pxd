@@ -1,8 +1,7 @@
 #include "predictorimg24.hpp"
 // 24/32-bit image predicor
-extern bool slow;
 
-PredictorIMG24::PredictorIMG24(): pr(16384),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
+PredictorIMG24::PredictorIMG24(Settings &set):Predictors(set), pr(16384),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
                   StateMaps{ 256, 256*256}, sse(x){
   loadModels(activeModels,4);   
    // add extra 
@@ -26,7 +25,7 @@ void PredictorIMG24::update()  {
   models[M_MATCH]->p(*m);
   models[M_MATCH1]->p(*m);
   //if (slow==true) models[M_NORMAL]->p(*m);
-  if (slow==true) models[M_LSTM]->p(*m);
+  if (x.settings.slow==true) models[M_LSTM]->p(*m);
   models[M_IM24]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);

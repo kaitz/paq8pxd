@@ -6,11 +6,7 @@
 // supported.  The model partially decodes the JPEG image to provide
 // context for the Huffman coded symbols.
 
-extern U8 level;
-
-extern bool slow;
-
-  jpegModelx::jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
+jpegModelx::jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
    lastPos(0), jpeg(0),app(0),sof(0),sos(0),data(0),ht(8),htsize(0),huffcode(0),
   huffbits(0),huffsize(0),rs(-1), mcupos(0), huf(128), mcusize(0),linesize(0),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
@@ -21,7 +17,7 @@ extern bool slow;
    {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27},{0x20000,20-4}},
    x(bd),buf(bd.buf),MJPEGMap( {21, 3, 128, 127}),
   hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),
-  hmap(level>10?0x8000000:(CMlimit(MEM()*2)),9,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(1),lma(0),ama(0) {
+  hmap(x.settings.level>10?0x8000000:(CMlimit(bd.MEM()*2)),9,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(1),lma(0),ama(0) {
   }
 
   int jpegModelx::p(Mixer& m,int val1,int val2){
@@ -583,7 +579,7 @@ extern bool slow;
   assert(hbcount<=2);
   int p;
 
-if (slow==true) x.count=0;
+if (x.settings.slow==true) x.count=0;
     switch(hbcount) {
     case 0: {int p1=0;
             

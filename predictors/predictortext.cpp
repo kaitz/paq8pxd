@@ -1,9 +1,7 @@
 #include "predictortext.hpp"
 // Text predicor
-extern bool slow;
 
-
-PredictorTXTWRT::PredictorTXTWRT(): pr(16384),pr0(pr),order(0),rlen(0),ismatch(0),
+PredictorTXTWRT::PredictorTXTWRT(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),rlen(0),ismatch(0),
 Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },
 count(0),blenght(1024*4),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x),
 decodedTextLen(0),lasttag(0),counttags(0),lState(0){
@@ -163,9 +161,9 @@ void PredictorTXTWRT::update() {
         models[M_DMC]->p(*m);
         rlen=models[M_RECORD]->p(*m);
         models[M_TEXT]->p(*m,(state&7));
-        if (slow==true) models[M_PPM]->p(*m);
-        if (slow==true) models[M_CHART]->p(*m);
-        if (slow==true) models[M_LSTM]->p(*m);
+        if (x.settings.slow==true) models[M_PPM]->p(*m);
+        if (x.settings.slow==true) models[M_CHART]->p(*m);
+        if (x.settings.slow==true) models[M_LSTM]->p(*m);
         int dd=((pr>>9)>0?1:0)+((pr>>9)>14?1:0);
         dd=(dd<<7)|(x.bc4&127);
         dd=(dd<<8)|(x.buf(1));

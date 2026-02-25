@@ -1,8 +1,5 @@
 #include "sparsematch.hpp"
 
-extern U8 level;
-
-
 void SparseMatchModel::Update() {
     // update sparse hashes
     for (U32 i=0; i<NumHashes; i++) {
@@ -57,7 +54,7 @@ void SparseMatchModel::Update() {
 
 SparseMatchModel::SparseMatchModel(BlockData& bd, U32 val1) :
     x(bd),buffer(bd.buf),
-    Table(level>9?0x10000000:CMlimit(MEM()/2)),//?
+    Table(x.settings.level>9?0x10000000:CMlimit(x.MEM()/2)),//?
     Maps{ {22, 1}, {17, 4}, {8, 1}, {19,1} },
     iCtx8{19,1},
     iCtx16{16,8},
@@ -65,7 +62,7 @@ SparseMatchModel::SparseMatchModel(BlockData& bd, U32 val1) :
     hashes{ 0 },
     hashIndex(0),
     length(0),
-    mask(level>9?(0x10000000-1):CMlimit(MEM()/2)-1),
+    mask(x.settings.level>9?(0x10000000-1):CMlimit(x.MEM()/2)-1),
     expectedByte(0),
     valid(false)
   {

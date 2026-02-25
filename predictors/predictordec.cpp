@@ -1,8 +1,7 @@
 #include "predictordec.hpp"
 // DECAlpha predicor
-extern bool slow;
 
-PredictorDEC::PredictorDEC(): pr(16384),pr0(pr),order(0),ismatch(0),
+PredictorDEC::PredictorDEC(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),ismatch(0),
   DEC{
     { /*APM:*/ { 25*26,20} }
   },
@@ -53,8 +52,8 @@ void PredictorDEC::update()  {
     models[M_DMC]->p(*m);
     models[M_DEC]->p(*m);
     m->set(order << 3U | x.bpos, 64);
-    if (slow==true) models[M_CHART]->p(*m);
-    if (slow==true) models[M_LSTM]->p(*m);
+    if (x.settings.slow==true) models[M_CHART]->p(*m);
+    if (x.settings.slow==true) models[M_LSTM]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
     m->set(x.c0, 256);

@@ -4,7 +4,7 @@
 
 
   TextModel::TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),  
-  Map(CMlimit(MEM()*Size), N,M_TEXT,
+  Map(CMlimit(bd.MEM()*Size), N,M_TEXT,
   CM_RUN2+
   CM_RUN1+
   CM_MAIN1+

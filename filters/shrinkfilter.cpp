@@ -1,7 +1,7 @@
 #include "shrinkfilter.hpp"
 #include <vector>
 
-shrinkFilter::shrinkFilter(std::string n, Filetype f) {
+shrinkFilter::shrinkFilter(std::string n, Settings &s, Filetype f):Filter(s) {
     name = n;
     Type = f;
 }

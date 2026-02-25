@@ -3,6 +3,7 @@
 #include "file.hpp"
 #include "../stream/streams.hpp"
 #include "segment.hpp"
+#include "settings.hpp"
 #include <vector>
 
 #ifdef MT
@@ -33,6 +34,7 @@ struct Job {
   pthread_tx tid;      // thread ID (for scheduler)
   Streams *st;
   Segment *sg;
+  Settings *set;
   Job();
   void print(int i) const;
 };

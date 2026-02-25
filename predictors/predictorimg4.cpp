@@ -1,8 +1,7 @@
 #include "predictorimg4.hpp"
 // 4-bit image predicor
-extern bool slow;
 
-PredictorIMG4::PredictorIMG4(): pr(16384), StateMaps{ 256, 256*256}, Image
+PredictorIMG4::PredictorIMG4(Settings &set):Predictors(set), pr(16384), StateMaps{ 256, 256*256}, Image
      {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}}, sse(x) {
    loadModels(activeModels,4);  
    // add extra 
@@ -24,7 +23,7 @@ void PredictorIMG4::update()  {
   models[M_MATCH]->p(*m);
   models[M_MATCH1]->p(*m);
   models[M_IM4]->p(*m,x.finfo);
-  if (slow==true) models[M_LSTM]->p(*m);
+  if (x.settings.slow==true) models[M_LSTM]->p(*m);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
   int pr0=m->p();

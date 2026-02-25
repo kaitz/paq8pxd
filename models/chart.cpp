@@ -2,7 +2,7 @@
 
 ///////////////////////////// chartModel ////////////////////////////
 
-  chartModel::chartModel(BlockData& bd,U32 val):x(bd),buf(bd.buf),cm(CMlimit(MEM()*4),30,M_CHART),cn(CMlimit(MEM()),20,M_CHART), 
+  chartModel::chartModel(BlockData& bd,U32 val):x(bd),buf(bd.buf),cm(CMlimit(x.MEM()*4),30,M_CHART),cn(CMlimit(x.MEM()),20,M_CHART), 
   chart(32), indirect(2048), indirect2(256), indirect3(0x10000) 
  {   
  }

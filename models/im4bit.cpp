@@ -1,10 +1,10 @@
 #include "im4bit.hpp"
-extern U8 level;
+
 //////////////////////////// im4bitModel /////////////////////////////////
 
 // Model for 4-bit image data
 
- im4bitModel1::im4bitModel1( BlockData& bd,U32 val ): x(bd),buf(bd.buf),t( CMlimit((level>14?MEM()/2:MEM())/8) ),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
+ im4bitModel1::im4bitModel1( BlockData& bd,U32 val ): x(bd),buf(bd.buf),t( CMlimit((x.settings.level>14?x.MEM()/2:x.MEM())/8) ),S(14),cp(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
   NEE(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0),col(0), line(0), run(0), prevColor(0), px(0) {
    sm=new StateMap[S];
    for (int i=0;i<S;i++)

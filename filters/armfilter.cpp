@@ -1,6 +1,6 @@
 #include "armfilter.hpp"
 
-armFilter::armFilter(std::string n, Filetype f) {  
+armFilter::armFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

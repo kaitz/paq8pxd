@@ -1,8 +1,7 @@
 #include "predictorimg8.hpp"
 // 8-bit image predicor
-extern bool slow;
 
-PredictorIMG8::PredictorIMG8(): pr(16384),  Image{
+PredictorIMG8::PredictorIMG8(Settings &set):Predictors(set), pr(16384),  Image{
      {{0x1000, 0x10000, 0x10000, 0x10000},  {{0x10000,x}, {0x10000,x}}},
      {0x1000, 0x10000, 0x10000} } ,StateMaps{ 256, 256*256}, sse(x){
   loadModels(activeModels,4);  
@@ -25,7 +24,7 @@ void PredictorIMG8::update()  {
   models[M_MATCH1]->p(*m);
   //if (slow==true) models[M_NORMAL]->p(*m);
   models[M_IM8]->p(*m,x.finfo);
-  if (slow==true) models[M_LSTM]->p(*m);
+  if (x.settings.slow==true) models[M_LSTM]->p(*m);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
   

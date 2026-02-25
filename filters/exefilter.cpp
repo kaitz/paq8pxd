@@ -1,6 +1,6 @@
 #include "exefilter.hpp"
 
-ExeFilter::ExeFilter(std::string n, Filetype f) {
+ExeFilter::ExeFilter(std::string n, Settings &s, Filetype f):Filter(s) {
     name=n;
     Type=f;
 }

@@ -2,7 +2,7 @@
 //////////////////////////// wordModel /////////////////////////
 
 // Model English text (words and columns/end of line)
-  wordModel1::wordModel1( BlockData& bd,U32 val): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(MEM()*val), N,M_WORD),cm1(CMlimit(MEM()), 1,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
+  wordModel1::wordModel1( BlockData& bd,U32 val): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(x.MEM()*val), N,M_WORD),cm1(CMlimit(x.MEM()), 1,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
   info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),pre(bd,0,cm),xhtml(bd,0,cm),hq(0){
   
    }

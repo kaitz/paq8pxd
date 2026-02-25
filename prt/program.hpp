@@ -16,12 +16,14 @@
 #include "../predictors/predictoraudio.hpp"
 
 #include "coder.hpp"
+#include "settings.hpp"
 #include "../stream/streams.hpp"
 #include "../analyzer/codec.hpp"
 
 class Program {
 public:
     CLI &cli;
+    Settings &settings;
     std::vector<Job> jobs;
     Segment segment; //for file segments type size info(if not -1)
     Mode mode;
@@ -34,7 +36,7 @@ public:
     Array<uint64_t> fsize{1};           // file lengths (resized to files)
     uint16_t streambit;     
     ~Program();
-    Program(CLI &c, const std::string);
+    Program(CLI &c, Settings &s, const std::string);
     void List();
     void Compress();
     void CompressStreams(File *archive, uint16_t &streambit);

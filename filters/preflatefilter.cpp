@@ -3,7 +3,7 @@
 #include "../preflate/preflate.h"
 #include <vector>
 
-preflateFilter::preflateFilter(std::string n, Filetype f) {
+preflateFilter::preflateFilter(std::string n, Settings &s, Filetype f):Filter(s) {
     name = n;
     Type = f;
 }

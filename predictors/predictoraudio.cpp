@@ -1,7 +1,7 @@
 #include "predictoraudio.hpp"
 // Audio predicor
 
-PredictorAUDIO2::PredictorAUDIO2(): pr(16384),a(x), sse(x) {
+PredictorAUDIO2::PredictorAUDIO2(Settings &set):Predictors(set), pr(16384),a(x), sse(x) {
    loadModels(activeModels,3);  
    // add extra 
    mixerInputs+=1;

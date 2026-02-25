@@ -4,11 +4,8 @@
 ====== XML model ======
 */
 
-extern U8 level;
-
- 
-  XMLModel1::XMLModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
-   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(level>9?0x1000000:CMlimit(MEM()/4), 4,M_XML) {
+XMLModel1::XMLModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
+   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(x.settings.level>9?0x1000000:CMlimit(x.MEM()/4), 4,M_XML) {
        memset(&Cache, 0, sizeof(XMLTagCache));
        memset(&StateBH, 0, sizeof(StateBH));  
         

@@ -28,7 +28,7 @@ public:
   int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
    ~PredictorIMG8(){ }
 
-PredictorIMG8();
+PredictorIMG8(Settings &set);
 
 void update() ;
 };

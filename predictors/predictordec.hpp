@@ -30,7 +30,7 @@ class PredictorDEC: public Predictors {
    M_SPARSE_Y,
    M_CHART,M_LSTM    };
 public:
-  PredictorDEC();
+  PredictorDEC(Settings &set);
   int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;
    ~PredictorDEC(){

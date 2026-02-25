@@ -1,6 +1,6 @@
 #include "mdffilter.hpp"
 
-MDFFilter::MDFFilter(std::string n, Filetype f) {  
+MDFFilter::MDFFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

@@ -3,7 +3,7 @@
 //////////////////////////// im24bitModel /////////////////////////////////
 // Model for 24-bit image data
 
-  im24bitModel1::im24bitModel1(BlockData& bd): nOLS(6),inpts(47),cm(CMlimit(MEM()*4), inpts,M_IM24,
+  im24bitModel1::im24bitModel1(BlockData& bd): nOLS(6),inpts(47),cm(CMlimit(bd.MEM()*4), inpts,M_IM24,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+

@@ -135,7 +135,7 @@ U32 exeModel1::execxt(int i, int x) {
   return prefix|opcode<<4|modrm<<12|x<<20|sib<<(28-6);
 }
 
-  exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10),cm(CMlimit(MEM()*4), N1+N2,M_EXE,
+  exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10),cm(CMlimit(x.MEM()*4), N1+N2,M_EXE,
   CM_MR+
   CM_RUN0+
   CM_MAIN1+

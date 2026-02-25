@@ -1,9 +1,7 @@
 #include "match1.hpp"
 //////////////////////////// matchModel ///////////////////////////
-extern U8 level;
 
-
-  void matchModel1::Update() {
+void matchModel1::Update() {
         delta = false;
     if (length==0 && x.Match.bypass)
       x.Match.bypass = false; // can quit bypass mode on byte boundary only
@@ -65,7 +63,7 @@ extern U8 level;
   }
 
   matchModel1::matchModel1(BlockData& bd, U32 val1) :
-    x(bd),buffer(bd.buf),Size(level>9?0x80000000: CMlimit(MEM()*4)),
+    x(bd),buffer(bd.buf),Size(x.settings.level>9?0x80000000: CMlimit(x.MEM()*4)),
     Table(Size/sizeof(U32)),
     StateMaps{56*256, 8*256*256+1, 256*256 },
     SCM{ {8,8},{11,1},{8,8} },

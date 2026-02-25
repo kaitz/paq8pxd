@@ -1,6 +1,6 @@
 #include "szddfilter.hpp"
 
-szddFilter::szddFilter(std::string n, Filetype f) {  
+szddFilter::szddFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

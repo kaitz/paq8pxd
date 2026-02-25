@@ -318,14 +318,15 @@ void CContainers::freeMemBuffers(bool freeMem){
 class XWRT_Common
 {
 public:
-    XWRT_Common(int fileBufferSize=17); // 128 kb
+    Settings &settings;
+    XWRT_Common(Settings &s, int fileBufferSize=17); // 128 kb
     ~XWRT_Common();
 
     void defaultSettings(int n);
     
     CContainers cont;
     int preprocFlag;
-
+    int minfq;
 protected:
     
     inline void stringHash(const U8 *ptr, int len,int& hash);
@@ -370,9 +371,10 @@ protected:
 public:
 };
 
-XWRT_Common::XWRT_Common(int fileBufferSize) :  dictmem(NULL),
+XWRT_Common::XWRT_Common(Settings &s, int fileBufferSize) :settings(s), dictmem(NULL),
 detect(false), dictmem_end(NULL),fileCorrupted(false)
 { 
+    minfq=settings.minfq;
     if (fileBufferSize<10)
     fileBufferSize=10; // 1 KB
     if (fileBufferSize>23)
@@ -401,7 +403,7 @@ inline void XWRT_Common::stringHash(const U8 *ptr, int len,int& hash){
 }
 int XWRT_Common::addWord(U8* &mem,int &i){
     int c,j;
-    if ((staticd==false && doExtract==false) || detect==true){
+    if ((settings.staticd==false && settings.doExtract==false) || detect==true){
     
     if (i<=1 || sizeDict>=dictionary)
     return -1;
@@ -632,7 +634,7 @@ class XWRT_Decoder : public XWRT_Common
 {
 public:
 
-    XWRT_Decoder();
+    XWRT_Decoder(Settings &s);
     ~XWRT_Decoder();
 
     U64 WRT_start_decoding(File* in);
@@ -656,7 +658,7 @@ private:
 public:
 }; // end class 
 
-XWRT_Decoder::XWRT_Decoder() : WRTd_UTF(0),WRTd_s(&WRTd_data[0]) 
+XWRT_Decoder::XWRT_Decoder(Settings &s) :XWRT_Common(s), WRTd_UTF(0),WRTd_s(&WRTd_data[0]) 
 {   
 
 }
@@ -946,7 +948,7 @@ void XWRT_Decoder::read_dict(){
             s.append(1,bufferData[0]);
             bufferData++;
 
-            if ((s.size()>WORD_MAX_SIZE || bufferData>bound) &&  staticd==false)
+            if ((s.size()>WORD_MAX_SIZE || bufferData>bound) &&  settings.staticd==false)
             {
                 //printf("File corrupted (s.size()>WORD_MAX_SIZE)!\n");
                 OUT_OF_MEMORY();
@@ -1015,7 +1017,7 @@ class XWRT_Encoder : public XWRT_Common
 {
 public:
 
-    XWRT_Encoder();
+    XWRT_Encoder(Settings &s);
     ~XWRT_Encoder();
 
     void WRT_start_encoding(File* in, File* out,U64 fileLen,bool type_detected,bool final=false);
@@ -1056,7 +1058,7 @@ public:
 int compare_freq( const void *arg1, const void *arg2 );
 
 
-XWRT_Encoder::XWRT_Encoder() :  last_c_bak(0),filelento(0),lowerfq(0),isDetected(false){
+XWRT_Encoder::XWRT_Encoder(Settings &s) :XWRT_Common(s),  last_c_bak(0),filelento(0),lowerfq(0),isDetected(false){
 }
 XWRT_Encoder::~XWRT_Encoder(){
 
@@ -1366,7 +1368,7 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     /*if (s_size>0 && !(wordType==3 || wordType==5)){
             toLower(s,s_size);
         }*/
-    if (s_size>=WORD_MIN_SIZE || staticd==true){
+    if (s_size>=WORD_MIN_SIZE || settings.staticd==true){
         checkHashExactly(s,s_size,i);
         PRINT_CODEWORDS(("i=%d/%d %s(%d)\n",i,sizeDynDict,s,s_size));
         
@@ -1474,14 +1476,14 @@ void XWRT_Encoder::encodeWord(U8* s,int s_size,EWordType wordType,int& c){
     }
     else
     {
-        if (wordType==UPPERWORD&& (staticd==true)) { encodeSpaces();ENCODE_PUTC(CHAR_UPPERWORD);
+        if (wordType==UPPERWORD&& (settings.staticd==true)) { encodeSpaces();ENCODE_PUTC(CHAR_UPPERWORD);
             encodeAsText(s,s_size); return;
         }
-        if (wordType==FIRSTUPPER&& (staticd==true)) { encodeSpaces();ENCODE_PUTC(CHAR_FIRSTUPPER);
+        if (wordType==FIRSTUPPER&& (settings.staticd==true)) { encodeSpaces();ENCODE_PUTC(CHAR_FIRSTUPPER);
             encodeAsText(s,s_size); return;
         }
         int alen=ascii_len(s,s_size);
-        if (alen==s_size && wordType==VARWORD  && (staticd==true)){//LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR
+        if (alen==s_size && wordType==VARWORD  && (settings.staticd==true)){//LOWERCHAR, UPPERCHAR, UNKNOWNCHAR, RESERVEDCHAR, NUMBERCHAR
         
          int lettlen=0,lettllen=0;
             if (letterSet[s[0]]==UPPERCHAR) {
@@ -1862,7 +1864,7 @@ void XWRT_Encoder::WRT_start_encoding(File* in, File* out,U64 fileLen,bool type_
 }
 
 inline void XWRT_Encoder::checkWord(U8* &s,int &s_size,int& c){
-    if (staticd==false){
+    if (settings.staticd==false){
    
     if (s_size<1){
         spaces=0;
@@ -1930,13 +1932,13 @@ int XWRT_Encoder::WRT_detectFileType(U64 filelen){
         initializeLetterSet();
         //add static dict
         staticDict=0;
-        if (staticd==true){        
+        if (settings.staticd==true){        
            detect=false;
            FILE *in;
            char so[8192*8];
            U8 *s=(U8*)&so;
            int c=0;
-           in=fopen(externaDict.c_str(),"rb");
+           in=fopen(settings.externaDict.c_str(),"rb");
            if (in!=NULL){
                do{
                   wfgets1(so, 8192*8, in);   
@@ -1997,7 +1999,7 @@ void XWRT_Encoder::sortDict(int size,int staticSize){
     int* inttable=new int[size];
     if (!inttable)
     OUT_OF_MEMORY();
-    if (staticd==false || staticSize==0){
+    if (settings.staticd==false || staticSize==0){
     for (i=0; i<size; i++)
     inttable[i]=i+1;
     qsort(&inttable[0],size,sizeof(inttable[0]),compare_freq);
@@ -2044,10 +2046,10 @@ void XWRT_Encoder::WRT_detectFinish(){
         minWordFreq2=minWordFreq;
     else
         minWordFreq2=minWordFreq-2;
-    if (staticd==true && staticDict==0 || staticd==false && minfq ) minWordFreq2=minWordFreq=minfq;
+    if (settings.staticd==true && staticDict==0 || settings.staticd==false && minfq ) minWordFreq2=minWordFreq=minfq;
     reducedStaticDict=newstaticsize=0;
     if (minfq!=0) {
-        if (staticd==true) {
+        if (settings.staticd==true) {
             //reduce static dict and compact it
             for (i=0; i<staticDict; i++) {
                 num=dictfreq[i];
@@ -2073,8 +2075,8 @@ void XWRT_Encoder::WRT_detectFinish(){
         }
         for (i=staticDict; i<sizeDict-1; i++) {
             num=dictfreq[i];
-            if (staticd==true && staticDict>0) {
-                if ( utf8len((char*)dict[i])>1|| (num>=minWordFreq*(staticd==true?2:1) && (staticd==true?((dictlen[i]>3)?1:0):1)) || (num>=minWordFreq2*(staticd==true?2:1) && (dictlen[i]>=7)) 
+            if (settings.staticd==true && staticDict>0) {
+                if ( utf8len((char*)dict[i])>1|| (num>=minWordFreq*(settings.staticd==true?2:1) && (settings.staticd==true?((dictlen[i]>3)?1:0):1)) || (num>=minWordFreq2*(settings.staticd==true?2:1) && (dictlen[i]>=7)) 
                         )  
                 //printf("index %d count %d %s\n",i,dictfreq[i],dict[i]);
                 ;
@@ -2121,9 +2123,9 @@ void XWRT_Encoder::WRT_detectFinish(){
     reducedStaticDict=newstaticsize;
     if (sizeDict>maxDictSize)
     sizeDict=maxDictSize;
-    if (minWordFreq2==0 && staticd==true)sizeDict=0;
-    if(isDetected==true && (verbose>0) && minfq!=0) printf("  static reduced %d (freq>=%d)\n  dynamic words %d (dynamic freq>=%d)\n  total words %d  \n",reducedStaticDict,minfq,sizeDict-reducedStaticDict,minWordFreq2,sizeDict);
-    else if(isDetected==true && (verbose>0) && minfq==0) printf("  static words %d\n",reducedStaticDict);
+    if (minWordFreq2==0 && settings.staticd==true)sizeDict=0;
+    if(isDetected==true && (settings.verbose>0) && minfq!=0) printf("  static reduced %d (freq>=%d)\n  dynamic words %d (dynamic freq>=%d)\n  total words %d  \n",reducedStaticDict,minfq,sizeDict-reducedStaticDict,minWordFreq2,sizeDict);
+    else if(isDetected==true && (settings.verbose>0) && minfq==0) printf("  static words %d\n",reducedStaticDict);
     PRINT_DICT(("reduced to %d words (freq>=%d)\n",sizeDict,minWordFreq));
     if (minfq!=0) sortDict(sizeDict,reducedStaticDict);
 }

@@ -2,9 +2,7 @@
 
 // General predicor class
 
-extern bool slow;
-
-Predictor::Predictor(): pr(16384),pr0(pr),order(0),ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
+Predictor::Predictor(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
  sse(x){
    loadModels(activeModels,18);
    // add extra 
@@ -63,9 +61,9 @@ void Predictor::update()  {
             models[M_INDIRECT]->p(*m);
             models[M_NEST]->p(*m);
             models[M_DMC]->p(*m);
-            if (slow==true) models[M_PPM]->p(*m); 
-            if (slow==true) models[M_CHART]->p(*m);
-            if (slow==true) models[M_LSTM]->p(*m);
+            if (x.settings.slow==true) models[M_PPM]->p(*m); 
+            if (x.settings.slow==true) models[M_CHART]->p(*m);
+            if (x.settings.slow==true) models[M_LSTM]->p(*m);
             xmlstate=models[M_XML]->p(*m);
             models[M_TEXT]->p(*m);
             Valid=models[M_EXE]->p(*m);

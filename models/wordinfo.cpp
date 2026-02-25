@@ -1,7 +1,6 @@
 #include "wordinfo.hpp"
-extern bool witmode;
 
-    Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm(contextmap),
+Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm(contextmap),
     word0(0),word1(0),word2(0), word3(0),word4(0),word5(0),word6(0),word7(0),
     wrdhsh(0),
     xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),
@@ -88,7 +87,7 @@ extern bool witmode;
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
         //if (doXML==true) printf("%c",c);
-        is_letter=((c>='a' && c<='z') ||(c>='0' && c<='9' && witmode==true) || x.wstat==true|| (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
+        is_letter=((c>='a' && c<='z') ||(c>='0' && c<='9' && x.settings.witmode==true) || x.wstat==true|| (c>=128 &&(x.b3!=3)|| (c>0 && c<4 )));
         if (is_letter) {// if ((c>='a' && c<='z')||/*(c>='0' && c<='9') ||*/ (c>=128 /*&&(x.b3!=3)*/|| (c>0 && c<4))) {
             if (!x.wordlen){
                 // model syllabification with:
@@ -414,7 +413,7 @@ extern bool witmode;
         
         cm.set(hash(++i,word0, cword0,isfword));
         if (lastSpace<1024*4){
-            if (witmode==true) cm.set(hash(++i,h, word2));else cm.set(hash(++i,h, word2,isfword));//,isfword fp.log
+            if (x.settings.witmode==true) cm.set(hash(++i,h, word2));else cm.set(hash(++i,h, word2,isfword));//,isfword fp.log
             cm.set(hash(++i,h, word3));
             cm.set(hash(++i,h, word4));
             cm.set((istext==true)?wpword1:hash(++i,h, word5));
@@ -424,7 +423,7 @@ extern bool witmode;
             for(int j=0;j<6;j++)  {cm.set();++i;}
         }
         if  (x.filetype!=DECA ){
-            if (witmode==true  )  {
+            if (x.settings.witmode==true  )  {
                 cm.set( (fword));++i;
             cm.set(hash(++i,isfword,c));
             }else{

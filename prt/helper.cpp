@@ -1,6 +1,5 @@
 #include "helper.hpp"
 
-extern U8 level;
 // Error handler: print message if any, and exit
 void quit(const char* message) {
   throw message; 
@@ -146,9 +145,7 @@ U64 CMlimit(U64 size) {
     return (size);
 }
 
-U64 MEM() {
-    return 0x10000UL<<level;
-}
+
 
 U8 Clip(int const Px) {
   if(Px>255)return 255;

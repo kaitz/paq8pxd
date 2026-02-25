@@ -22,7 +22,7 @@ public:
   ~PredictorJPEG(){   //printf("\n JPEG Count of skipped bytes %d\n",x.count);
       
  }
-PredictorJPEG();
+PredictorJPEG(Settings &set);
 
 void update() ;
 };

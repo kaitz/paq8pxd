@@ -14,7 +14,7 @@ bool is_base64(unsigned char c) {
     return (isalnum(c) || (c=='+') || (c=='/')|| (c==10) || (c==13));
 }
 
-base64Filter::base64Filter(std::string n, Filetype f) {  
+base64Filter::base64Filter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

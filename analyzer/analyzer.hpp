@@ -3,6 +3,7 @@
 #include "parser.hpp"
 #include "../prt/enums.hpp"
 #include "../prt/file.hpp"
+#include "../prt/settings.hpp"
 #include <cstdint>
 #include <vector>
 #include "parsers/bmpparser.hpp"
@@ -45,6 +46,7 @@
 
 
 class Analyzer {
+    Settings &set;
     uint64_t info;
     std::vector<Parser*> parsers;
     void AddParser(Parser *p);
@@ -60,11 +62,10 @@ class Analyzer {
     std::string *pinfo;
     const uint64_t BLOCK;  // block size 64k
     Array<uint8_t> blk;
-    ParserType *vusrPT;    // User defined parser list
     bool isUserPL;
     void Status(uint64_t n, uint64_t size);
 public:    
-    Analyzer(int it, Filetype p=DEFAULT, ParserType eparser=P_WDEFAULT, ParserType *vup=nullptr); // Iter level, parent type, expected parser
+    Analyzer(Settings &s, int it, Filetype p=DEFAULT, ParserType eparser=P_WDEFAULT); // Iter level, parent type, expected parser
     ~Analyzer();
     bool Detect(File* in, U64 n, int it=0);
     dType GetNext();

@@ -1,6 +1,5 @@
 #include "program.hpp"
 
-
 #if defined(WINDOWS)      
 HANDLE  hConsole;
 #endif
@@ -9,25 +8,14 @@ void SetConColor(int color) {
     SetConsoleTextAttribute(hConsole, color);
 #endif     
 }
-extern int level;
-extern int minfq;
-extern int verbose;
-extern bool slow;
-extern bool witmode;
-extern bool doList;
-extern bool doExtract;
-extern int rdepth;
-extern ParserType *userPT;
-extern int userPTsize;
-extern int topt;
+
 // Print progress: n is the number of bytes compressed or decompressed
-void printStatus(U64 n, U64 size,int tid=-1) {
+void printStatus(U64 n, U64 size,int level, int tid=-1) {
     if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
     else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
 }
 
-
-void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Segment *segment) {
+void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Segment *segment, Settings *settings) {
     U64 segmentsize;
     U64 segmentlen;
     U64 startpos=out->curpos();
@@ -41,7 +29,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
     segmentpos=0;
     segmentinfo=0;
     segmentlen=0;
-    if (level==0) { // Uncompressed
+    if (settings->level==0) { // Uncompressed
         if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
             while (segmentsize>0) {
                 //#ifndef MT
@@ -54,16 +42,16 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         if (sid==8 || sid==9) {
             bool dictFail=false;
             FileTmp tm;
-            TextFilter textf("text");
+            TextFilter textf("text",*settings);
             textf.encode(in,&tm,segmentsize,sid==8);
             segmentlen=tm.curpos();
             streams->streams[sid]->streamsize=segmentlen;
             // -e0 option ignores larger wrt size
-            if (segmentlen>=segmentsize && minfq!=0) {
+            if (segmentlen>=segmentsize && settings->minfq!=0) {
                 dictFail=true; //wrt size larger
-                if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
+                if (settings->verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
             } else {
-                if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
+                if (settings->verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
             }
             tm.setpos(0);
             in->setpos(0);
@@ -94,21 +82,21 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         // Select predictor for a stream (sid)
         switch(sid) {
         default:
-        case 0: { pred=new Predictor(); break;}
-        case 1: { pred=new PredictorJPEG(); break;}
-        case 2: { pred=new PredictorIMG1(); break;}
-        case 3: { pred=new PredictorIMG4(); break;}
-        case 4: { pred=new PredictorIMG8(); break;}
-        case 5: { pred=new PredictorIMG24(); break;}
-        case 6: { pred=new PredictorAUDIO2(); break;}
-        case 7: { pred=new PredictorEXE(); break;}
+        case 0: { pred=new Predictor(*settings); break;}
+        case 1: { pred=new PredictorJPEG(*settings); break;}
+        case 2: { pred=new PredictorIMG1(*settings); break;}
+        case 3: { pred=new PredictorIMG4(*settings); break;}
+        case 4: { pred=new PredictorIMG8(*settings); break;}
+        case 5: { pred=new PredictorIMG24(*settings); break;}
+        case 6: { pred=new PredictorAUDIO2(*settings); break;}
+        case 7: { pred=new PredictorEXE(*settings); break;}
         case 8: 
         case 9: 
-        case 10: { pred=new PredictorTXTWRT(); break;}
-        case 11: { pred=new PredictorDEC(); break;}
-        case 12: { pred=new Predictor(); break;}
+        case 10: { pred=new PredictorTXTWRT(*settings); break;}
+        case 11: { pred=new PredictorDEC(*settings); break;}
+        case 12: { pred=new Predictor(*settings); break;}
         }
-        enc=new Encoder (COMPRESS, out,*pred); 
+        enc=new Encoder(COMPRESS, out, *pred); 
         if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
             while (segmentsize>0) {
                 while (segmentlen==0) {
@@ -138,16 +126,16 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         if (sid==8 || sid==9) {
             bool dictFail=false;
             FileTmp tm;
-            TextFilter textf("text");
+            TextFilter textf("text",*settings);
             textf.encode(in,&tm,segmentsize,sid==8);
             segmentlen=tm.curpos();
             streams->streams[sid]->streamsize=segmentlen;
             // -e0 option ignores larger wrt size
-            if (segmentlen>=segmentsize && minfq!=0) {
+            if (segmentlen>=segmentsize && settings->minfq!=0) {
                 dictFail=true; //wrt size larger
-                if (verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
+                if (settings->verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
             } else {
-                if (verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
+                if (settings->verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
             }
             tm.setpos(0);
             in->setpos(0);
@@ -170,7 +158,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
                 if (!(k&0x1fff)) printStatus(k, segmentlen,sid);
                 #ifndef NDEBUG 
                 if (!(k&0x3ffff) && k) {
-                    if (verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
+                    if (settings->verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
                     scompsize= out->curpos();
                 }
                 #endif
@@ -200,13 +188,13 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
 
 #ifdef MT
 void compress(const Job& job) {
-    compressStream(job.streamid,job.datasegmentsize,job.in,job.out,job.st,job.sg);
+    compressStream(job.streamid,job.datasegmentsize,job.in,job.out,job.st,job.sg,job.set);
 }
 #endif
 
 
 
-void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, Segment *segment) {
+void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, Segment *segment, Settings *settings) {
     U64 datasegmentsize;
     U64 datasegmentlen;
     int datasegmentpos;
@@ -224,32 +212,32 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
 
     switch(sid) {
     case 0: {
-            predictord=new Predictor();     break;}
+            predictord=new Predictor(*settings);     break;}
     case 1: {
-            predictord=new PredictorJPEG(); break;}
+            predictord=new PredictorJPEG(*settings); break;}
     case 2: {
-            predictord=new PredictorIMG1(); break;}
+            predictord=new PredictorIMG1(*settings); break;}
     case 3: {
-            predictord=new PredictorIMG4(); break;}
+            predictord=new PredictorIMG4(*settings); break;}
     case 4: {
-            predictord=new PredictorIMG8(); break;}
+            predictord=new PredictorIMG8(*settings); break;}
     case 5: {
-            predictord=new PredictorIMG24(); break;}
+            predictord=new PredictorIMG24(*settings); break;}
     case 6: {
-            predictord=new PredictorAUDIO2(); break;}
+            predictord=new PredictorAUDIO2(*settings); break;}
     case 7: {
-            predictord=new PredictorEXE();    break;}
+            predictord=new PredictorEXE(*settings);    break;}
     case 8: {
-            predictord=new PredictorTXTWRT(); break;}
+            predictord=new PredictorTXTWRT(*settings); break;}
     case 9:
     case 10: {
-            predictord=new PredictorTXTWRT(); break;}
+            predictord=new PredictorTXTWRT(*settings); break;}
     case 11: {
-            predictord=new PredictorDEC(); break;}
+            predictord=new PredictorDEC(*settings); break;}
     case 12: {
-            predictord=new Predictor(); break;}
+            predictord=new Predictor(*settings); break;}
     }
-    defaultencoder=new Encoder (DECOMPRESS, in, *predictord); 
+    defaultencoder=new Encoder(DECOMPRESS, in, *predictord); 
     if ((sid>=0 && sid<=7) /*||i==8 || i==9*/ || sid==10 || sid==11 || sid==12) {
         while (datasegmentsize>0) {
             while (datasegmentlen==0){
@@ -287,7 +275,7 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
             }
             if (doWRT==true) {
                 tm.setpos(0);
-                TextFilter textf("text");
+                TextFilter textf("text",*settings);
                 textf.decode(&tm,out,datasegmentlen,0);
             } else {
                 tm.setpos(0);
@@ -306,12 +294,12 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
 
 #ifdef MT
 void decompress(const Job& job) {
-    decompressStream(job.streamid,job.datasegmentsize,job.in,job.out,job.st,job.sg);
+    decompressStream(job.streamid,job.datasegmentsize,job.in,job.out,job.st,job.sg,job.set);
 }
 #endif
 
 
-Program::Program(CLI &c, const std::string p):cli(c),mode(COMPRESS),progname(p),
+Program::Program(CLI &c, Settings &s, const std::string p):cli(c),settings(s),mode(COMPRESS),progname(p),
 archive(nullptr),
 files(0),
 streambit(0) {
@@ -345,10 +333,10 @@ void Program::List() {
     header[i]=0;
     if (strncmp(header.c_str(), progname.c_str(), strlen(progname.c_str())+1))
     printf("%s: not a %s file\n", archiveName.c_str(), progname.c_str()), quit("");
-    level=archive->getc();
-    if (level&64) slow=true;
-    if (level&128) witmode=true;
-    level=level&0xf;
+    settings.level=archive->getc();
+    if (settings.level&64) settings.slow=true;
+    if (settings.level&128) settings.witmode=true;
+    settings.level=settings.level&0xf;
     
     // Read segment data from archive end
     U64 currentpos,datapos=0L;
@@ -369,7 +357,7 @@ void Program::List() {
     FileTmp  tmp;
     tmp.blockwrite(&segment[0],   segment.pos  ); 
     tmp.setpos(0); 
-    segpredict=new Predictor();
+    segpredict=new Predictor(settings);
     segencode=new Encoder (DECOMPRESS, &tmp ,*segpredict);
     segment.pos=0;
     for (U32 k=0; k<segpos; ++k) {
@@ -390,7 +378,7 @@ void Program::List() {
 
     Encoder* en;
     Predictors* predictord;
-    predictord=new Predictor();
+    predictord=new Predictor(settings);
     en=new Encoder(mode, archive,*predictord);
     
     // Deompress header
@@ -448,7 +436,7 @@ void Program::Compress() {
     archive->create(archiveName.c_str());
     archive->append(progname.c_str());
     archive->putc(0);
-    archive->putc(level|            ((slow==true)?64:0)|            ((witmode==true)?128:0));
+    archive->putc(settings.level|            ((settings.slow==true)?64:0)|            ((settings.witmode==true)?128:0));
     segment.hpos= archive->curpos();
     
     for (int i=0; i<12+4+2; i++) archive->putc(0); //space for segment size in header +streams info
@@ -458,7 +446,7 @@ void Program::Compress() {
 
     Encoder* en;
     Predictors* predictord;
-    predictord=new Predictor();
+    predictord=new Predictor(settings);
     en=new Encoder(mode, archive,*predictord);
     
     // Compress header
@@ -468,7 +456,7 @@ void Program::Compress() {
     en->compress(0); // block type 0
     en->compress(len>>24); en->compress(len>>16); en->compress(len>>8); en->compress(len); // block length
     for (int i=0; i<len; i++) en->compress(header_string[i]);
-    if (verbose){
+    if (settings.verbose){
         printf("File list compressed from %d to %0lu bytes.\n",len,en->size()-start);
     }
 
@@ -495,17 +483,17 @@ void Program::Compress() {
     en->flush();
     delete en;
     delete predictord;
-    Codec codec(FCOMPRESS, &streams, &segment, rdepth, userPTsize!=1?userPT:nullptr);
-    if (verbose) printf("\nFiles:\n");
+    Codec codec(FCOMPRESS, &streams, &segment, settings);
+    if (settings.verbose) printf("\nFiles:\n");
     for (int i=0; i<files; ++i) {
-        if (verbose) printf("%d/%d %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
+        if (settings.verbose) printf("%d/%d %s (%0" PRIi64 " bytes)\n", i+1, files, fname[i], fsize[i]); 
         codec.EncodeFile(fname[i], fsize[i]);
     }
     segment.put1(0xff); //end marker
     //Display Level statistics
-    if (verbose>1) {
+    if (settings.verbose>1) {
         printf("\n Segment data size: %d bytes\n",segment.pos);
-        codec.PrintStat(rdepth);
+        codec.PrintStat(settings.rdepth);
     }
 
     CompressStreams(archive,streambit);
@@ -519,7 +507,7 @@ void Program::Compress() {
     Encoder* segencode;
     Predictors* segpredict;
     FileTmp tmp;                    // temporary encoded file
-    segpredict=new Predictor();
+    segpredict=new Predictor(settings);
     segencode=new Encoder (COMPRESS, &tmp ,*segpredict); 
     for (U64 k=0; k<segment.pos; ++k) {
         segencode->compress(segment[k]);
@@ -528,10 +516,10 @@ void Program::Compress() {
     delete segpredict;
     delete segencode;
     archive->put32(segment.pos);     // write segment data size
-    if (verbose>0) printf(" Segment data compressed from %d",segment.pos);
+    if (settings.verbose>0) printf(" Segment data compressed from %d",segment.pos);
     segment.pos=tmp.curpos();
     segment.setsize(segment.pos);
-    if (verbose>0) printf(" to %d bytes\n ",segment.pos);
+    if (settings.verbose>0) printf(" to %d bytes\n ",segment.pos);
     tmp.setpos(0); 
     if (tmp.blockread(&segment[0], segment.pos)<segment.pos) quit("Segment data corrupted.");
     tmp.close();
@@ -560,7 +548,7 @@ void Program::CompressStreams(File *archive, uint16_t &streambit) {
         streams.streams[i]->file.setpos(0);
         streambit=(streambit+(datasegmentsize>0))<<1; //set stream bit if streamsize >0
         if (datasegmentsize>0){                       //if segment contains data
-            if (verbose>0) {
+            if (settings.verbose>0) {
                 SetConColor(i+2);
                 printf("%-12s", streams.streams[i+1]->name.c_str());
                 SetConColor(7);  
@@ -576,14 +564,15 @@ void Program::CompressStreams(File *archive, uint16_t &streambit) {
             job.datasegmentsize=datasegmentsize;
             job.st=&streams;
             job.sg=&segment;
+            job.set=&settings;
             jobs.push_back(job);
 #else
-            compressStream(i,datasegmentsize,&streams.streams[i]->file,archive, &streams, &segment);
+            compressStream(i,datasegmentsize,&streams.streams[i]->file,archive, &streams, &segment,&settings);
 #endif
         }
     }
 #ifdef MT
-    run_jobs(jobs, topt);
+    run_jobs(jobs, settings.topt);
     const uint64_t BLOCK=4096*4096*2; // 32mb
     Array<uint8_t> blk(BLOCK);
     // Append temporary files to archive if OK.
@@ -634,10 +623,10 @@ void Program::Decompress() {
     header[i]=0;
     if (strncmp(header.c_str(), progname.c_str(), strlen(progname.c_str())+1))
     printf("%s: not a %s file\n", archiveName.c_str(), progname.c_str()), quit("");
-    level=archive->getc();
-    if (level&64) slow=true;
-    if (level&128) witmode=true;
-    level=level&0xf;
+    settings.level=archive->getc();
+    if (settings.level&64) settings.slow=true;
+    if (settings.level&128) settings.witmode=true;
+    settings.level=settings.level&0xf;
     
     // Read segment data from archive end
     U64 currentpos,datapos=0L;
@@ -658,7 +647,7 @@ void Program::Decompress() {
     FileTmp  tmp;
     tmp.blockwrite(&segment[0],   segment.pos  ); 
     tmp.setpos(0); 
-    segpredict=new Predictor();
+    segpredict=new Predictor(settings);
     segencode=new Encoder (DECOMPRESS, &tmp ,*segpredict);
     segment.pos=0;
     for (U32 k=0; k<segpos; ++k) {
@@ -679,7 +668,7 @@ void Program::Decompress() {
 
     Encoder* en;
     Predictors* predictord;
-    predictord=new Predictor();
+    predictord=new Predictor(settings);
     en=new Encoder(mode, archive,*predictord);
     
     // Deompress header
@@ -741,7 +730,7 @@ void Program::Decompress() {
     for (int i=0; i<streams.Count(); ++i)
     streams.streams[i]->file.setpos(0);
     segment.pos=0;
-    Codec codec(FDECOMPRESS, &streams, &segment);
+    Codec codec(FDECOMPRESS, &streams, &segment, settings);
     for (int i=0; i<files; ++i) {
         std::string out(dir.c_str());
         out+=fname[i];
@@ -762,7 +751,7 @@ void Program::DecompressStreams(File *archive) {
     printf("Reading streams...\n");
     const uint64_t BLOCK=4096*4096*2; // 32mb
     Array<uint8_t> blk(BLOCK);
-    if (level==0) {
+    if (settings.level==0) {
         for (int i=0; i<streams.Count(); ++i) {
             uint64_t datasegmentsize=(streams.streams[i]->streamsize); // get segment data offset
             if (datasegmentsize>0) {      
@@ -791,7 +780,7 @@ void Program::DecompressStreams(File *archive) {
                             remaining-=ReadIn;
                         }
                         tm.setpos(0);
-                        TextFilter textf("text");
+                        TextFilter textf("text",settings);
                         textf.decode(&tm,&streams.streams[i]->file,0,0);
                         streams.streams[i]->file.setpos(0);
                     } else {
@@ -830,14 +819,15 @@ void Program::DecompressStreams(File *archive) {
                 job.datasegmentsize=datasegmentsize;
                 job.st=&streams;
                 job.sg=&segment;
+                job.set=&settings;
                 jobs.push_back(job);
                 
 #else
-                decompressStream(i,datasegmentsize,&streams.streams[i]->out, &streams.streams[i]->file, &streams, &segment);
+                decompressStream(i,datasegmentsize,&streams.streams[i]->out, &streams.streams[i]->file, &streams, &segment,&settings);
 #endif
             }
         }
     }
-    run_jobs(jobs, topt);
+    run_jobs(jobs, settings.topt);
 }
 

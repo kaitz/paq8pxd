@@ -1,7 +1,7 @@
 #include "implodefilter.hpp"
 #include <vector>
 
-implodeFilter::implodeFilter(std::string n, Filetype f) {
+implodeFilter::implodeFilter(std::string n, Settings &s, Filetype f):Filter(s) {
     name = n;
     Type = f;
 }

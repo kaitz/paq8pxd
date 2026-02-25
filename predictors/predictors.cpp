@@ -5,9 +5,7 @@
 // p() returns P(1) as a 12 bit number (0-4095).
 // update(y) trains the predictor with the actual bit (0 or 1).
 
-extern bool slow;
-
-Predictors::Predictors():  mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+Predictors::Predictors(Settings &set):x(set),  mixerInputs(0),mixerNets(0),mixerNetsCount(0){
 }
   void Predictors::loadModels(const U8* amodel,int count){
       models = new Model*[M_MODEL_COUNT];
@@ -112,21 +110,21 @@ Predictors::Predictors():  mixerInputs(0),mixerNets(0),mixerNetsCount(0){
               break;
           }
           case M_PPM:{
-              if (slow==true)
+              if (x.settings.slow==true)
               models[M_PPM] =         new ppmdModel1(x);
               else
               models[M_PPM] =         new blankModel1(x); 
               break;
           }
           case M_CHART:{
-              if (slow==true)
+              if (x.settings.slow==true)
               models[M_CHART] =       new chartModel(x);
               else
               models[M_CHART] =       new blankModel1(x);
               break;
           }
           case M_LSTM:{
-              if (slow==true)
+              if (x.settings.slow==true)
               models[M_LSTM] =        new lstmModel1(x);
               else
               models[M_LSTM] =        new blankModel1(x);

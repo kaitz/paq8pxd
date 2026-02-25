@@ -1,6 +1,6 @@
 #include "decafilter.hpp"
 
-DecAFilter::DecAFilter(std::string n, Filetype f) {  
+DecAFilter::DecAFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

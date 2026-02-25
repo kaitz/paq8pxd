@@ -10,7 +10,7 @@
 
 class shrinkFilter : public Filter {
 public:
-    shrinkFilter(std::string n, Filetype f = DEFAULT);
+    shrinkFilter(std::string n, Settings &s, Filetype f = DEFAULT);
     ~shrinkFilter();
     void encode(File *in, File *out, uint64_t size, uint64_t info);
     uint64_t decode(File *in, File *out, uint64_t size, uint64_t info);

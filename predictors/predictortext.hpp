@@ -38,7 +38,7 @@ class PredictorTXTWRT: public Predictors {
    M_SPARSE,
    M_PPM,M_CHART,M_LSTM    };
 public:
-  PredictorTXTWRT();
+  PredictorTXTWRT(Settings &set);
   int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void wrt();
   void update() ;

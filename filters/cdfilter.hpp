@@ -17,7 +17,7 @@ struct CDHeder{
 class CDFilter: public Filter {
 
 public:
-  CDFilter(std::string n, Filetype f=DEFAULT);
+  CDFilter(std::string n, Settings &s, Filetype f=DEFAULT);
   ~CDFilter();
   void encode(File *in, File *out, uint64_t size, uint64_t info);
   uint64_t decode(File *in, File *out,  uint64_t size, uint64_t info);

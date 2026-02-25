@@ -1,9 +1,6 @@
 #include "normal.hpp"
 
-extern U8 level;
-
-
-  normalModel1::normalModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(10), cm(CMlimit(MEM()*32), N,M_NORMAL,
+normalModel1::normalModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(10), cm(CMlimit(x.MEM()*32), N,M_NORMAL,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+
@@ -14,7 +11,7 @@ extern U8 level;
   CM_M6
   ), StateMaps{ 256, 256*256,256*256,256*256 },
   /*rcm7(CMlimit(MEM()/(level>8?8:4)),bd),*/
-  rcm9(CMlimit(MEM()/((level>8?8:4))),bd), rcm10(CMlimit(MEM()/(level>8?4:2)),bd){
+  rcm9(CMlimit(x.MEM()/((x.settings.level>8?8:4))),bd), rcm10(CMlimit(x.MEM()/(x.settings.level>8?4:2)),bd){
  }
 
   

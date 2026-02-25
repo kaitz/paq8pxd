@@ -983,7 +983,7 @@ int hentclu1r( char *in,char *out,char *p2,int size,int title){
     return 0;
 }
 
-witFilter::witFilter(std::string n, Filetype f) {  
+witFilter::witFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

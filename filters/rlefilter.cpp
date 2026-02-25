@@ -1,6 +1,6 @@
 #include "rlefilter.hpp"
 
-rleFilter::rleFilter(std::string n, Filetype f) {  
+rleFilter::rleFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

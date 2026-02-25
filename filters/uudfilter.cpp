@@ -1,7 +1,7 @@
 #include "uudfilter.hpp"
 
 // needst test with proper input
-uudFilter::uudFilter(std::string n, Filetype f) {  
+uudFilter::uudFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

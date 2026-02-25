@@ -3,7 +3,7 @@
 
 // Model order 1-2 contexts with gaps.
 
-  sparseModely::sparseModely(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(44),cm(CMlimit(MEM()*2), N,M_SPARSE_Y),ctx(0) {
+  sparseModely::sparseModely(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(44),cm(CMlimit(x.MEM()*2), N,M_SPARSE_Y),ctx(0) {
   }
 
   int sparseModely::p(Mixer& m,int seenbefore,int howmany){//match order

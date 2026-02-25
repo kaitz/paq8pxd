@@ -18,7 +18,7 @@ int zlib_inflateInit(z_streamp strm, int zh) {
     if (zh==-1) return inflateInit2(strm, -MAX_WBITS); else return inflateInit(strm);
 }
 
-zlibFilter::zlibFilter(std::string n, Filetype f) {  
+zlibFilter::zlibFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

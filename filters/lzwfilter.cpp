@@ -1,6 +1,6 @@
 #include "lzwfilter.hpp"
 // Needs test with proper working file.
-lzwFilter::lzwFilter(std::string n, Filetype f) {  
+lzwFilter::lzwFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

@@ -3,8 +3,7 @@
 
 // The context is a byte string history that occurs within a
 // 1 or 2 byte context.
-extern U8 level;
-  indirectModel1::indirectModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N(15+1+9-13),mem(0x1000000*(level>9?1:1)),
+  indirectModel1::indirectModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N(15+1+9-13),mem(0x1000000*(x.settings.level>9?1:1)),
 
   cm2((mem/4),4,M_INDIRECT),
   cmt((mem/2),3,M_INDIRECT),

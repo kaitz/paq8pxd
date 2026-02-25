@@ -1,6 +1,6 @@
 #include "giffilter.hpp"
 
-gifFilter::gifFilter(std::string n, Filetype f) {  
+gifFilter::gifFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

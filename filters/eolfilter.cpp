@@ -2,7 +2,7 @@
 
 //Based on XWRT 3.2 (29.10.2007) - XML compressor by P.Skibinski
  
-EOLFilter::EOLFilter(std::string n, Filetype f) {  
+EOLFilter::EOLFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

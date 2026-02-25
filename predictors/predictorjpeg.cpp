@@ -1,8 +1,7 @@
 #include "predictorjpeg.hpp"
 // Jpeg predicor
-extern bool slow;
 
-PredictorJPEG::PredictorJPEG(): pr(16384), 
+PredictorJPEG::PredictorJPEG(Settings &set):Predictors(set), pr(16384), 
   Jpeg{
     { /*APM:*/ { 0x2000} }
   },
@@ -27,8 +26,8 @@ void PredictorJPEG::update()  {
     Bypass=false;
     int ismatch=models[M_MATCH]->p(*m);
     models[M_MATCH1]->p(*m);
-    if (slow==true) models[M_LSTM]->p(*m);
-    if (slow==false && (x.Match.length>0xFF || x.Match.bypass)) {//256b
+    if (x.settings.slow==true) models[M_LSTM]->p(*m);
+    if (x.settings.slow==false && (x.Match.length>0xFF || x.Match.bypass)) {//256b
         x.Match.bypass =   Bypass =    true;
         pr= x.Match.bypassprediction;
         pr=(4096-pr)*(32768/4096);
@@ -39,7 +38,7 @@ void PredictorJPEG::update()  {
         return;
     }
     if (models[M_JPEG]->p(*m)) {
-        if (slow==true) models[M_NORMAL]->p(*m);
+        if (x.settings.slow==true) models[M_NORMAL]->p(*m);
         pr=m->p(1,0);
     }
     else{

@@ -21,7 +21,7 @@ static void write_be32(uint8_t* p, uint32_t v) {
 // Using zlib's crc32 for PNG chunk CRC calculation
 #include "../zlib/zlib.h"
 
-PNGFilter::PNGFilter(std::string n, Filetype f) {
+PNGFilter::PNGFilter(std::string n, Settings &s, Filetype f):Filter(s) {
     name = n;
     Type = f;
 }

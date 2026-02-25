@@ -1,6 +1,6 @@
 #include "bzip2filter.hpp"
 
-bzip2Filter::bzip2Filter(std::string n, Filetype f) {  
+bzip2Filter::bzip2Filter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

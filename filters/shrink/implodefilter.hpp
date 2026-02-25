@@ -10,7 +10,7 @@
 // decode Implode v3 not Implode
 class implodeFilter : public Filter {
 public:
-    implodeFilter(std::string n, Filetype f = DEFAULT);
+    implodeFilter(std::string n, Settings &s, Filetype f = DEFAULT);
     ~implodeFilter();
     void encode(File *in, File *out, uint64_t size, uint64_t info);
     uint64_t decode(File *in, File *out, uint64_t size, uint64_t info);

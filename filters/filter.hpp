@@ -1,6 +1,7 @@
 #pragma once
 #include "../prt/file.hpp"
 #include "../prt/enums.hpp"
+#include "../prt/settings.hpp"
 #include <cstdint>
 #include <string>
 
@@ -13,7 +14,8 @@ public:
     uint64_t diffFound;
     uint64_t fsize;
     uint32_t hdrsize;
-    Filter();
+    Settings &settings;
+    Filter(Settings &s);
     virtual void encode(File *in, File *out, uint64_t size, uint64_t info)=0 ;
     virtual uint64_t decode(File *in, File *out, uint64_t size, uint64_t info)=0;
     virtual uint64_t CompareFiles(File *in, File *out, uint64_t size,uint64_t info,FMode m); 

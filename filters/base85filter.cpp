@@ -2,7 +2,7 @@
 
 int powers[5] = {85*85*85*85, 85*85*85, 85*85, 85, 1};
 
-base85Filter::base85Filter(std::string n, Filetype f) {  
+base85Filter::base85Filter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 } 

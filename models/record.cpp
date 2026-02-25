@@ -1,15 +1,13 @@
 #include "record.hpp"
 
-extern U8 level;
-
 //////////////////////////// recordModel ///////////////////////
 
 // Model 2-D data with fixed record length.  Also order 1-2 models
 // that include the distance to the last match.
 
-  recordModel1::recordModel1( BlockData& bd,U64 msize ): x(bd),buf(bd.buf),  cpos1(256) , cpos2(256),
+  recordModel1::recordModel1( BlockData& bd,U64 msize ): x(bd),buf(bd.buf),   cpos1(256) , cpos2(256),
     cpos3(256), cpos4(256),wpos1(0x10000), rlen(3), rcount(2),padding(0),prevTransition(0),nTransition(0), col(0),mxCtx(0),
-    x1(0),MayBeImg24b(false),cm(32768, 3,M_RECORD), cn(32768/2, 3,M_RECORD),cq(32768*4, 3,M_RECORD), co(32768*2, 3,M_RECORD), cp(level>9?0x10000000 :CMlimit(msize*2), 16,M_RECORD), nMaps ( 6),
+    x1(0),MayBeImg24b(false),cm(32768, 3,M_RECORD), cn(32768/2, 3,M_RECORD),cq(32768*4, 3,M_RECORD), co(32768*2, 3,M_RECORD), cp(x.settings.level>9?0x10000000 :CMlimit(CMlimit(msize?msize:x.MEM()*2)*2), 16,M_RECORD), nMaps ( 6),
     N(0), NN(0), NNN(0), NNNN(0),WxNW(0), nIndCtxs(5){
         // run length and 2 candidates
         rlen[0] = 2; 

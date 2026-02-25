@@ -3,6 +3,8 @@ v144
     -Separate level 0 in compressStream.
     -Add multithreaded decompression.
     -Moving archive management from the main file to the program class.
+    -Implemented global settings.
+     Now Predictors, Codec, Analyzer, Filters have all proper access to settings.
 v143
     -Fix ZLIB type silent transform fail. Add test to compare.
     -Change visual layout on files when compressing. More compact.

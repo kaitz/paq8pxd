@@ -1,7 +1,7 @@
 #include "reducefilter.hpp"
 #include <vector>
 
-reduceFilter::reduceFilter(std::string n, Filetype f) {
+reduceFilter::reduceFilter(std::string n, Settings &s, Filetype f):Filter(s) {
     name = n;
     Type = f;
 }

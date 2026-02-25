@@ -1,11 +1,9 @@
 #include "nested.hpp"
-extern U8 level;
 
-
-  nestModel1::nestModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), ic(0), bc(0),
+nestModel1::nestModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), ic(0), bc(0),
    pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), N(12),
-   cm(CMlimit(level>8?0x800000 :(MEM()/2) ), N,M_NEST)  {
-  }
+   cm(CMlimit(x.settings.level>8?0x800000 :(x.MEM()/2) ), N,M_NEST)  {
+}
 
 int nestModel1::p(Mixer& m,int val1,int val2){
     if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM|| x.filetype==IMGUNK){

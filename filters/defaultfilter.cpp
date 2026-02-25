@@ -1,6 +1,6 @@
 #include "defaultfilter.hpp"
 
-DefaultFilter::DefaultFilter(std::string n, Filetype f) {  
+DefaultFilter::DefaultFilter(std::string n, Settings &s, Filetype f):Filter(s) {  
     name=n;
     Type=f;
 }

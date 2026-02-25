@@ -19,19 +19,19 @@ static ParserType vdefPT[P_LAST]={
 // So we can add our special case for it in GetTypeFromExt.
 // If file needs more then one parser (excluding P_DEF) then it needs to be virtual.
 
-Analyzer::Analyzer(int it, Filetype p, ParserType eparser, ParserType *vup):
-  info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p),BLOCK(0x10000),blk(BLOCK),vusrPT(vup),isUserPL(false) {
+Analyzer::Analyzer(Settings &s, int it, Filetype p, ParserType eparser):set(s),
+  info(0),remaining(0),typefound(false),lastType(0),iter(it),ptype(p),BLOCK(0x10000),blk(BLOCK),isUserPL(false) {
     assert(eparser<P_WLAST && eparser!=P_LAST && eparser>P_DEF);
     assert(p<TYPELAST);
     // Test for user defined parser list and use only that.
-    if (vusrPT!=nullptr) {
+    if (set.userPTsize!=1) {
         //printf("Analyzer: User defined parser list.\n");
         isUserPL=true;
-        assert(vusrPT[0]==P_DEF);
+        assert(set.userPT[0]==P_DEF);
     }
     if (isUserPL && p==DEFAULT && eparser==P_WDEFAULT) {
-        for (int selp=P_DEF; static_cast<ParserType>(vusrPT[selp])!=P_LAST; selp++) {
-            SelectParser(static_cast<ParserType>(vusrPT[selp]));
+        for (int selp=P_DEF; static_cast<ParserType>(set.userPT[selp])!=P_LAST; selp++) {
+            SelectParser(static_cast<ParserType>(set.userPT[selp]));
         }
     }
     // By default add all virtual defaul group parsers, also slowest detection
@@ -99,8 +99,8 @@ void Analyzer::SelectParser(ParserType p) {
     assert(p<P_WLAST);
     if (isUserPL) {
         bool isParserDefined=false;
-        for (int selp=P_DEF; static_cast<ParserType>(vusrPT[selp])!=P_LAST; selp++) {
-            if (static_cast<ParserType>(vusrPT[selp])==p) {
+        for (int selp=P_DEF; static_cast<ParserType>(set.userPT[selp])!=P_LAST; selp++) {
+            if (static_cast<ParserType>(set.userPT[selp])==p) {
                 isParserDefined=true;
                 break;
             }

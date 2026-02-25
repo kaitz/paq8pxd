@@ -1,8 +1,7 @@
 #include "predictorimg1.hpp"
 // 1-bit image predicor
-extern bool slow;
 
-PredictorIMG1::PredictorIMG1(): pr(16384), sse(x) {
+PredictorIMG1::PredictorIMG1(Settings &set):Predictors(set), pr(16384), sse(x) {
    loadModels(activeModels,4);  
    // add extra 
    mixerInputs+=1;
@@ -18,7 +17,7 @@ void PredictorIMG1::update()  {
   m->add(256); 
   int ismatch=models[M_MATCH]->p(*m);
   models[M_MATCH1]->p(*m);
-  if (slow==true) models[M_LSTM]->p(*m);
+  if (x.settings.slow==true) models[M_LSTM]->p(*m);
   m->set(ismatch,256);
   models[M_IM1]->p(*m, x.finfo);
   pr=m->p(); 

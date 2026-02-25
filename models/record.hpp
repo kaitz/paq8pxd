@@ -36,7 +36,7 @@ class recordModel1: public Model {
    U8 N, NN, NNN, NNNN,WxNW;
    const int nIndCtxs  ;
 public:
-  recordModel1( BlockData& bd,U64 msize=CMlimit(MEM()*2) );
+  recordModel1( BlockData& bd,U64 msize=0);
   int inputs() {return (3+3+3+3+16)*cm.inputs()+nMaps*2+2+3*2+3*2;}
   int nets() {return 512+11*32+1024;}
   int netcount() {return 2+1;}
