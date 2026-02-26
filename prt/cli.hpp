@@ -153,6 +153,10 @@ public:
                         c.val=atol(&argv[j][2]);
                         if (c.val>15 || c.val<0) return CError(command);
                         if (c.val==0) c.type=CL_STORE; else c.type=CL_SLOW;
+                    } else if (opt=="-f") { // fast
+                        c.val=atol(&argv[j][2]);
+                        if (c.val>15 || c.val<0) return CError(command);
+                        if (c.val==0) c.type=CL_STORE; else c.type=CL_FAST;
                     } else if (opt=="-x") { //extreme
                         c.val=atol(&argv[j][2]);
                         if (c.val>15 || c.val<0) return CError(command);
@@ -171,7 +175,9 @@ public:
                     } else if (opt=="-t") { // threads
                         c.val=atol(&argv[j][2]);
                         if (c.val>4 || c.val<1) return CError(command);
+                        #ifdef MT
                         c.type=CL_THREADS;
+                        #endif
                     } else {
                         return CError(command);
                     }

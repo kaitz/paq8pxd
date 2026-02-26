@@ -14,6 +14,7 @@
 #include "../predictors/predictortext.hpp"
 #include "../predictors/predictorimg1.hpp"
 #include "../predictors/predictoraudio.hpp"
+#include "../predictors/predictorfast.hpp"
 
 #include "coder.hpp"
 #include "settings.hpp"

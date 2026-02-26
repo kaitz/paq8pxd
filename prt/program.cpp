@@ -15,12 +15,6 @@ pthread_mutex_t wrtcmutex=PTHREAD_MUTEX_INITIALIZER; // protects cv
 HANDLE wrtcmutex;
 #endif
 
-// Print progress: n is the number of bytes compressed or decompressed
-void printStatus(U64 n, U64 size,int level, int tid=-1) {
-    if (level>0 && tid>=0)  fprintf(stderr,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(stdout);
-    else if (level>0)  fprintf(stderr,"%6.2f%%\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(stdout);
-}
-
 void LockWCon() {
 #ifdef MT    
     #ifdef PTHREAD
@@ -30,6 +24,7 @@ void LockWCon() {
     #endif
 #endif
 }
+
 void UnLockWCon() {
 #ifdef MT   
     #ifdef PTHREAD
@@ -39,6 +34,19 @@ void UnLockWCon() {
     #endif
 #endif
 }
+
+// Print progress: n is the number of bytes compressed or decompressed
+// When console is redirected output to stderr
+void printStatus(U64 n, U64 size,int level, bool console=false, int tid=-1) {
+    if (level>0) {
+        FILE *mode;
+        if (console) mode=stderr; // redirected
+        else mode=stdout;
+        if (tid>=0) LockWCon(), fprintf(mode,"%2d %6.2f%%\b\b\b\b\b\b\b\b\b\b\b",tid, float(100)*n/(size+1)), fflush(nullptr), UnLockWCon();
+        else fprintf(mode,"%6.2f%%    \b\b\b\b\b\b\b\b\b\b\b", float(100)*n/(size+1)), fflush(nullptr);    
+    }
+}
+
 void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Segment *segment, Settings *settings) {
     U64 segmentsize;
     U64 segmentlen;
@@ -57,7 +65,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
             while (segmentsize>0) {
                 //#ifndef MT
-                if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size,settings->level, sid);
+                if (!(segmentsize&0x7fff)) printStatus(size-segmentsize, size, settings->level, settings->isConRedirected, sid);
                 //#endif
                 out->putc(in->getc());
                 segmentsize--;
@@ -73,9 +81,9 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             // -e0 option ignores larger wrt size
             if (segmentlen>=segmentsize && settings->minfq!=0) {
                 dictFail=true; //wrt size larger
-                if (settings->verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
+                if (settings->verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize),fflush(nullptr);
             } else {
-                if (settings->verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
+                if (settings->verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen),fflush(nullptr); 
             }
             tm.setpos(0);
             in->setpos(0);
@@ -92,7 +100,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             scompsize=out->curpos();
             #endif
             for (U64 k=0; k<segmentlen; ++k) {
-                if (!(k&0x1fff)) printStatus(k, segmentlen, settings->level, sid);
+                if (!(k&0x7fff)) printStatus(k, segmentlen, settings->level, settings->isConRedirected, sid);
                 if (dictFail==false) out->putc(tm.getc());
                 else                 out->putc(in->getc());
             }
@@ -104,21 +112,25 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
         Encoder* enc;
         Predictors* pred;
         // Select predictor for a stream (sid)
-        switch(sid) {
-        default:
-        case 0: { pred=new Predictor(*settings); break;}
-        case 1: { pred=new PredictorJPEG(*settings); break;}
-        case 2: { pred=new PredictorIMG1(*settings); break;}
-        case 3: { pred=new PredictorIMG4(*settings); break;}
-        case 4: { pred=new PredictorIMG8(*settings); break;}
-        case 5: { pred=new PredictorIMG24(*settings); break;}
-        case 6: { pred=new PredictorAUDIO2(*settings); break;}
-        case 7: { pred=new PredictorEXE(*settings); break;}
-        case 8: 
-        case 9: 
-        case 10: { pred=new PredictorTXTWRT(*settings); break;}
-        case 11: { pred=new PredictorDEC(*settings); break;}
-        case 12: { pred=new Predictor(*settings); break;}
+        if(settings->fast) {
+            pred=new PredictorFast(*settings); 
+        } else {
+            switch(sid) {
+            default:
+            case 0: { pred=new Predictor(*settings); break;}
+            case 1: { pred=new PredictorJPEG(*settings); break;}
+            case 2: { pred=new PredictorIMG1(*settings); break;}
+            case 3: { pred=new PredictorIMG4(*settings); break;}
+            case 4: { pred=new PredictorIMG8(*settings); break;}
+            case 5: { pred=new PredictorIMG24(*settings); break;}
+            case 6: { pred=new PredictorAUDIO2(*settings); break;}
+            case 7: { pred=new PredictorEXE(*settings); break;}
+            case 8: 
+            case 9: 
+            case 10: { pred=new PredictorTXTWRT(*settings); break;}
+            case 11: { pred=new PredictorDEC(*settings); break;}
+            case 12: { pred=new Predictor(*settings); break;}
+            }
         }
         enc=new Encoder(COMPRESS, out, *pred); 
         if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
@@ -134,7 +146,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
                 }
                 for (U64 k=0; k<segmentlen; ++k) {
                     //#ifndef MT
-                    if (!(segmentsize&0x1fff)) printStatus(size-segmentsize, size, settings->level, sid);
+                    if (!(segmentsize&0x7fff)) printStatus(size-segmentsize, size, settings->level, settings->isConRedirected, sid);
                     //#endif
                     enc->compress(in->getc());
                     segmentsize--;
@@ -153,18 +165,19 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             FileTmp tm;
             TextFilter textf("text",*settings);
             textf.encode(in,&tm,segmentsize,sid==8);
-            
+
             segmentlen=tm.curpos();
             streams->streams[sid]->streamsize=segmentlen;
             // -e0 option ignores larger wrt size
             if (segmentlen>=segmentsize && settings->minfq!=0) {
                 dictFail=true; //wrt size larger
-                if (settings->verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize); 
+                if (settings->verbose>0) printf(" WRT larger: %d bytes. Ignoring\n",segmentlen-segmentsize),fflush(nullptr);
             } else {
-                if (settings->verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen); 
+                if (settings->verbose>0) printf(" Total %0" PRIi64 " wrt: %0" PRIi64 "\n",segmentsize,segmentlen),fflush(nullptr);
             }
-            tm.setpos(0);
             UnLockWCon();
+            tm.setpos(0);
+            
             in->setpos(0);
             enc->predictor.x.filetype=DICTTXT;
             enc->predictor.x.blpos=0;
@@ -182,10 +195,15 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             scompsize=out->curpos();
             #endif
             for (U64 k=0; k<segmentlen; ++k) {
-                if (!(k&0x1fff)) printStatus(k, segmentlen,settings->level,sid);
+                if (!(k&0x7fff)) printStatus(k, segmentlen,settings->level, settings->isConRedirected, sid);
                 #ifndef NDEBUG 
                 if (!(k&0x3ffff) && k) {
-                    if (settings->verbose>0) printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
+                    if (settings->verbose>0){
+                        LockWCon();
+                        printf("Stream(%d) block pos %0lu compressed to %0lu bytes\n",sid,k, out->curpos()-scompsize);
+                        fflush(nullptr);
+                        UnLockWCon();
+                    }
                     scompsize= out->curpos();
                 }
                 #endif
@@ -211,6 +229,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
     printf("%0" PRIi64 "", out->curpos()-startpos); // Without MT start pos is not zero
     SetConColor(7);
     printf(" bytes\n");
+    fflush(nullptr);
     UnLockWCon();
 }
 
@@ -219,8 +238,6 @@ void compress(const Job& job) {
     compressStream(job.streamid,job.datasegmentsize,job.in,job.out,job.st,job.sg,job.set);
 }
 #endif
-
-
 
 void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, Segment *segment, Settings *settings) {
     U64 datasegmentsize;
@@ -236,36 +253,40 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
     datasegmentlen=0;
     LockWCon();
     printf("Decompressing %-12s stream(%d).\n", streams->streams[sid+1]->name.c_str(),sid);
+    fflush(nullptr);
     UnLockWCon();
     Predictors* predictord;
     Encoder *defaultencoder;
-
-    switch(sid) {
-    case 0: {
-            predictord=new Predictor(*settings);     break;}
-    case 1: {
-            predictord=new PredictorJPEG(*settings); break;}
-    case 2: {
-            predictord=new PredictorIMG1(*settings); break;}
-    case 3: {
-            predictord=new PredictorIMG4(*settings); break;}
-    case 4: {
-            predictord=new PredictorIMG8(*settings); break;}
-    case 5: {
-            predictord=new PredictorIMG24(*settings); break;}
-    case 6: {
-            predictord=new PredictorAUDIO2(*settings); break;}
-    case 7: {
-            predictord=new PredictorEXE(*settings);    break;}
-    case 8: {
-            predictord=new PredictorTXTWRT(*settings); break;}
-    case 9:
-    case 10: {
-            predictord=new PredictorTXTWRT(*settings); break;}
-    case 11: {
-            predictord=new PredictorDEC(*settings); break;}
-    case 12: {
-            predictord=new Predictor(*settings); break;}
+    if(settings->fast) {
+        predictord=new PredictorFast(*settings); 
+    } else {
+        switch(sid) {
+        case 0: {
+                predictord=new Predictor(*settings);     break;}
+        case 1: {
+                predictord=new PredictorJPEG(*settings); break;}
+        case 2: {
+                predictord=new PredictorIMG1(*settings); break;}
+        case 3: {
+                predictord=new PredictorIMG4(*settings); break;}
+        case 4: {
+                predictord=new PredictorIMG8(*settings); break;}
+        case 5: {
+                predictord=new PredictorIMG24(*settings); break;}
+        case 6: {
+                predictord=new PredictorAUDIO2(*settings); break;}
+        case 7: {
+                predictord=new PredictorEXE(*settings);    break;}
+        case 8: {
+                predictord=new PredictorTXTWRT(*settings); break;}
+        case 9:
+        case 10: {
+                predictord=new PredictorTXTWRT(*settings); break;}
+        case 11: {
+                predictord=new PredictorDEC(*settings); break;}
+        case 12: {
+                predictord=new Predictor(*settings); break;}
+        }
     }
     defaultencoder=new Encoder(DECOMPRESS, in, *predictord); 
     if ((sid>=0 && sid<=7) /*||i==8 || i==9*/ || sid==10 || sid==11 || sid==12) {
@@ -280,7 +301,7 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
                 defaultencoder->predictor.x.finfo=datasegmentinfo;
             }
             for (U64 k=0; k<datasegmentlen; ++k) {
-                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, settings->level, sid);
+                if (!(datasegmentsize&0x7fff)) printStatus(total-datasegmentsize, total, settings->level, settings->isConRedirected, sid);
                 out->putc(defaultencoder->decompress());
                 datasegmentsize--;
             }
@@ -295,7 +316,7 @@ void decompressStream(int sid, U64 size, File* in, File* out, Streams *streams, 
             defaultencoder->predictor.x.blpos=0;
             defaultencoder->predictor.x.finfo=-1;
             for (U64 k=0; k<datasegmentlen; ++k) {
-                if (!(datasegmentsize&0x1fff)) printStatus(total-datasegmentsize, total, settings->level, sid);
+                if (!(datasegmentsize&0x7fff)) printStatus(total-datasegmentsize, total, settings->level, settings->isConRedirected, sid);
                 U8 b=defaultencoder->decompress();
                 if (k==0) {
                     if (b==0xAA) doWRT=false; // flag set?
@@ -329,7 +350,6 @@ void decompress(const Job& job) {
     decompressStream(job.streamid,job.datasegmentsize,job.in,job.out,job.st,job.sg,job.set);
 }
 #endif
-
 
 Program::Program(CLI &c, Settings &s, const std::string p):cli(c),settings(s),mode(COMPRESS),progname(p),
 archive(nullptr),
@@ -366,54 +386,18 @@ void Program::List() {
     if (strncmp(header.c_str(), progname.c_str(), strlen(progname.c_str())+1))
     printf("%s: not a %s file\n", archiveName.c_str(), progname.c_str()), quit("");
     settings.level=archive->getc();
+    if (settings.level&32) settings.fast=true;
     if (settings.level&64) settings.slow=true;
     if (settings.level&128) settings.witmode=true;
     settings.level=settings.level&0xf;
     
-    // Read segment data from archive end
-    U64 currentpos,datapos=0L;
-    for (int i=0; i<8; i++) datapos=datapos<<8,datapos+=archive->getc();
-    segment.hpos=datapos;
-    U32 segpos=archive->get32();  //read segment data size
-    segment.pos=archive->get32(); //read segment data size
-    streambit=archive->getc()<<8; //get bitinfo of streams present
-    streambit+=archive->getc();
-    if (segment.hpos==0 || segment.pos==0) quit("Segment data not found.");
-    segment.setsize(segment.pos);
-    currentpos= archive->curpos();
-    archive->setpos( segment.hpos);
-    if (archive->blockread( &segment[0],   segment.pos  )<segment.pos) quit("Segment data corrupted.");
-    // Decompress segment data 
-    Encoder* segencode;
-    Predictors* segpredict;
-    FileTmp  tmp;
-    tmp.blockwrite(&segment[0],   segment.pos  ); 
-    tmp.setpos(0); 
-    segpredict=new Predictor(settings);
-    segencode=new Encoder (DECOMPRESS, &tmp ,*segpredict);
-    segment.pos=0;
-    for (U32 k=0; k<segpos; ++k) {
-        segment.put1( segencode->decompress());
-    }
-    delete segpredict;
-    delete segencode;
-    tmp.close();
-    //read stream sizes if stream bit is set
-    for (int i=0;i<streams.Count();i++){
-        if ((streambit>>(streams.Count()-i))&1){
-            streams.streams[i]->streamsize=archive->get64();
-            streams.streams[i]->cstreamsize=archive->get64();
-        }
-    }
-    archive->setpos(currentpos); 
     segment.pos=0; //reset to offset 0
-
+    // Deompress header
     Encoder* en;
     Predictors* predictord;
     predictord=new Predictor(settings);
     en=new Encoder(mode, archive,*predictord);
     
-    // Deompress header
     if (en->decompress()!=0) printf("%s: header corrupted\n", archiveName.c_str()), quit("");
     int hdrlen=0;
     hdrlen+=en->decompress()<<24;
@@ -425,7 +409,8 @@ void Program::List() {
         header_string[i]=en->decompress();
         if (header_string[i]=='\n') files++;
     }
-
+    delete predictord;
+    delete en;
     printf("File list of %s archive:\n%s", archiveName.c_str(), header_string.c_str());
 
     archive->close();
@@ -468,7 +453,7 @@ void Program::Compress() {
     archive->create(archiveName.c_str());
     archive->append(progname.c_str());
     archive->putc(0);
-    archive->putc(settings.level|            ((settings.slow==true)?64:0)|            ((settings.witmode==true)?128:0));
+    archive->putc(settings.level|    ((settings.fast==true)?32:0)|           ((settings.slow==true)?64:0)|            ((settings.witmode==true)?128:0));
     segment.hpos= archive->curpos();
     
     for (int i=0; i<12+4+2; i++) archive->putc(0); //space for segment size in header +streams info
@@ -543,6 +528,7 @@ void Program::Compress() {
     segencode=new Encoder (COMPRESS, &tmp ,*segpredict); 
     for (U64 k=0; k<segment.pos; ++k) {
         segencode->compress(segment[k]);
+        printStatus(k, segment.pos, settings.level, settings.isConRedirected);
     }
     segencode->flush();
     delete segpredict;
@@ -636,7 +622,7 @@ void Program::CompressStreams(File *archive, uint16_t &streambit) {
 void Program::Decompress() {
     archiveName=cli.files[0];
     mode=DECOMPRESS;
-
+    printf("Reading archive...\n");
     // Compress: write archive header, get file names and sizes
     std::string header_string;
     std::string filenames;
@@ -656,6 +642,7 @@ void Program::Decompress() {
     if (strncmp(header.c_str(), progname.c_str(), strlen(progname.c_str())+1))
     printf("%s: not a %s file\n", archiveName.c_str(), progname.c_str()), quit("");
     settings.level=archive->getc();
+    if (settings.level&32) settings.fast=true;
     if (settings.level&64) settings.slow=true;
     if (settings.level&128) settings.witmode=true;
     settings.level=settings.level&0xf;
@@ -674,16 +661,18 @@ void Program::Decompress() {
     archive->setpos( segment.hpos);
     if (archive->blockread( &segment[0],   segment.pos  )<segment.pos) quit("Segment data corrupted.");
     // Decompress segment data 
+    printf("Reading segment data...\n");
     Encoder* segencode;
     Predictors* segpredict;
     FileTmp  tmp;
     tmp.blockwrite(&segment[0],   segment.pos  ); 
     tmp.setpos(0); 
     segpredict=new Predictor(settings);
-    segencode=new Encoder (DECOMPRESS, &tmp ,*segpredict);
+    segencode=new Encoder(DECOMPRESS, &tmp, *segpredict);
     segment.pos=0;
     for (U32 k=0; k<segpos; ++k) {
-        segment.put1( segencode->decompress());
+        segment.put1(segencode->decompress());
+        printStatus(k, segpos, settings.level,settings.isConRedirected);
     }
     delete segpredict;
     delete segencode;
@@ -704,6 +693,7 @@ void Program::Decompress() {
     en=new Encoder(mode, archive,*predictord);
     
     // Deompress header
+    printf("Reading file list...\n");
     if (en->decompress()!=0) printf("%s: header corrupted\n", archiveName.c_str()), quit("");
     int hdrlen=0;
     hdrlen+=en->decompress()<<24;

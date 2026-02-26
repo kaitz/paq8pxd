@@ -238,7 +238,7 @@ void PrintHelp() {
             "  " PROGNAME " -s[level] archive files... (creates archive." PROGNAME ")\n"
             "  " PROGNAME " file                       (level -s8 pause when done)\n");
         printf("\nCommands:\n"
-            "  -{s|x}[level]     Compression mode: slow, extreme.\n"
+            "  -{f|s|x}[level]   Compression mode: fast, slow, extreme.\n"
             "                    Level selects memory usage, range 0-15.\n"   
             "                    Default level is 8.\n"
             "                    If level is omitted, default is 0 (store).\n"
@@ -292,9 +292,27 @@ void PrintHelp() {
     exit(0);
 }
 
+bool isConRedirected() {
+#if defined(WINDOWS)    
+    const HANDLE hOut=GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut==NULL || hOut==INVALID_HANDLE_VALUE) return false;
+    DWORD hType=GetFileType(hOut);
+    if (hType==FILE_TYPE_CHAR) return false;     // Console
+    else if (hType==FILE_TYPE_DISK) return true; // Redirected to file
+    else return false;                           // Other or unknown, err
+#else
+    return !isatty(1);                           // Mybe use only this?
+#endif
+}
+
 int main(int argc, char** argv) {
     bool pause=argc<=2;  // Pause when done?
     try {
+        // Look for redirected console
+        if (isConRedirected()) {
+            settings.isConRedirected=true;
+            fprintf(stderr,"Console redirected.\n");
+        }
         // Parse command line
         bool ok=cli.Parse(argc, argv);
         if (ok==false) {
@@ -313,6 +331,7 @@ int main(int argc, char** argv) {
                     settings.level=ccm.val;
                 } else if (ccm.type==CL_FAST) {
                     settings.level=ccm.val;
+                    settings.fast=true;
                 } else if (ccm.type==CL_STORE) {
                     settings.level=0;
                 } else if (ccm.type==CL_THREADS) {

@@ -6,6 +6,7 @@
 // update(y) trains the predictor with the actual bit (0 or 1).
 
 Predictors::Predictors(Settings &set):x(set),  mixerInputs(0),mixerNets(0),mixerNetsCount(0){
+    models=nullptr;
 }
   void Predictors::loadModels(const U8* amodel,int count){
       models = new Model*[M_MODEL_COUNT];

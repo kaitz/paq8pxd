@@ -10,11 +10,13 @@
 struct Settings {
     uint8_t level;
     bool slow;
+    bool fast;
     bool witmode;
     bool staticd;
     bool doExtract;
     bool doList;
     bool showhelp;
+    bool isConRedirected;
     int verbose;
     int rdepth;
     std::string externaDict;

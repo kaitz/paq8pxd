@@ -43,6 +43,7 @@ public:
   Model **models;
 
 virtual ~Predictors(){
+    if (models==nullptr) return;
     //printf("Models peak memory %d mb\n",(getPeakMemory()/1024)/1024);
     for (int i=0;i<M_MODEL_COUNT;i++) {
         delete models[i];
