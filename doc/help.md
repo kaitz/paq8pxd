@@ -19,11 +19,11 @@ If level is omitted, default is 0 (store).
 
 Memory usage (level):
 
-            -{s|x}0               store (no compression)
-                                  (These values are ~ and may change between versions)
-            -{s|x}1...-{s|x}3     uses 393, 398, 409 MB
-            -{s|x}4...-{s|x}9     uses 1.2  1.3  1.5  1.9 2.7 4.9 GB
-            -{s|x}10...-{s|x}15   uses 7.0  9.0 11.1 27.0   x.x x.x GB
+            -{f|s|x}0                 store (no compression)
+                                      (These values are ~ and may change between versions)
+            -{f|s|x}1...-{f|s|x}3     uses 393, 398, 409 MB
+            -{f|s|x}4...-{f|s|x}9     uses 1.2  1.3  1.5  1.9 2.7 4.9 GB
+            -{f|s|x}10...-{f|s|x}15   uses 7.0  9.0 11.1 27.0   x.x x.x GB
 
 #### Command -d
 Decompress archive. If target exist then compare.
