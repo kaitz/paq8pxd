@@ -153,9 +153,18 @@ U32 exeModel1::execxt(int i, int x) {
       memset(&Cache, 0, sizeof(OpCache));
       memset(&Op, 0, sizeof(Instruction));
       memset(&StateBH, 0, sizeof(StateBH));
+      for (int i=0;i<6;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {1024,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {1024,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {1024,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[3],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[4],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[5],0} );
+    
   }
 
-int exeModel1::p(Mixer& m,int val1,int val2){
+int exeModel1::p(Mixers& m,int val1,int val2){
     if (x.filetype==DBASE ||x.filetype==HDR || x.filetype==ARM|| x.filetype==IMGUNK){
         for (int i=0; i<inputs(); i++) m.add(0); 
         return false;
@@ -431,12 +440,12 @@ int exeModel1::p(Mixer& m,int val1,int val2){
          ((Op.Category==OP_GEN_BRANCH)<<4)|
          (((x.c0&((1<<x.bpos)-1))==0)<<5);
 
-  m.set((Context*4+(s>>4)), 1024);
-  m.set((State*64+x.bpos*8+(Op.BytesRead>0)*4+(s>>4)), 1024);
-  m.set( (BrkCtx&0x1FF)|((s&0x20)<<4), 1024 );
-  m.set(hash(Op.Code, State, OpN(Cache, 1)&CodeMask)&0x1FFF, 8192);
-  m.set(hash(State, x.bpos, Op.Code, Op.BytesRead)&0x1FFF, 8192);
-  m.set(hash(State, (x.bpos<<2)|(x.c0&3), OpCategMask&CategoryMask, ((Op.Category==OP_GEN_BRANCH)<<2)|(((Op.Flags&fMODE)==fAM)<<1)|(Op.BytesRead>0))&0x1FFF, 8192);
+  mxcxt[0]=(Context*4+(s>>4));
+  mxcxt[1]=(State*64+x.bpos*8+(Op.BytesRead>0)*4+(s>>4));
+  mxcxt[2]= (BrkCtx&0x1FF)|((s&0x20)<<4);
+  mxcxt[3]=hash(Op.Code, State, OpN(Cache, 1)&CodeMask)&0x1FFF;
+  mxcxt[4]=hash(State, x.bpos, Op.Code, Op.BytesRead)&0x1FFF;
+  mxcxt[5]=hash(State, (x.bpos<<2)|(x.c0&3), OpCategMask&CategoryMask, ((Op.Category==OP_GEN_BRANCH)<<2)|(((Op.Flags&fMODE)==fAM)<<1)|(Op.BytesRead>0))&0x1FFF;
   
   return Valid;
 }

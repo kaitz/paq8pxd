@@ -4,14 +4,26 @@
 
 Predictor::Predictor(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
  sse(x){
-   loadModels(activeModels,18);
+   loadModels(activeModels);
    // add extra 
    mixerInputs+=1;
    mixerNets+=64+    (8+1024)+    256+    512+   2048+   2048+    256+    1536;
    mixerNetsCount+=8;
    sse.p(pr);
+   for (int i=0;i<9;i++) mcxt[i]=0;
+   
+    // Predictor contexts
+    mxp.push_back( {    64,55,7,24,&mcxt[0],0} );
+    mxp.push_back( {8+1024,55,7,24,&mcxt[1],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[2],0} );
+    mxp.push_back( {   512,55,7,24,&mcxt[3],0} );
+    mxp.push_back( {  2048,55,7,24,&mcxt[4],0} );
+    mxp.push_back( {  2048,55,7,24,&mcxt[5],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[6],0} );
+    mxp.push_back( {  1536,55,7,24,&mcxt[7],0} );
+   mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void Predictor::update()  {
@@ -42,7 +54,7 @@ void Predictor::update()  {
            
          }
         /*if(x.filetype==BINTEXT) m->setl(3,2);
-        else*/ m->setl(7,1);
+        else*/ //m->setl(7,1);
     }
     m->update();
     m->add(256);
@@ -70,23 +82,23 @@ void Predictor::update()  {
             
             if (!(x.filetype==DBASE/*||x.filetype==BINTEXT*/||x.filetype==HDR ||x.inpdf==false )) models[M_LINEAR]->p(*m);
     } 
-    m->set((order<<3)|x.bpos, 64);
+    mcxt[0]=(order<<3)|x.bpos;
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-    m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
-    m->set(x.c0, 256);
-    uint32_t bt = x.filetype==DEFAULT ? 0 : (/*x.filetype==BINTEXT ||*/ x.filetype==DBASE) ? 2 : Valid ? 1 : 3;
-    m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+128*bt, 512);
+    mcxt[1]=8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
+    mcxt[2]=x.c0;
+    uint32_t bt = x.filetype==DEFAULT ? 0 : ( x.filetype==DBASE) ? 2 : Valid ? 1 : 3;
+    mcxt[3]=order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+128*bt;
     U8 d=x.c0<<(8-x.bpos);
-    m->set(((xmlstate&3)>0)*1024+(x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4),2048);
-    m->set(x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255)),2048);
-    m->set(ismatch, 256);
+    mcxt[4]=((xmlstate&3)>0)*1024+(x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4);
+    mcxt[5]=x.bpos*256+((x.words<<x.bpos&255)>>x.bpos|(d&255));
+    mcxt[6]=ismatch;
     if (x.bpos) {
       c=d; if (x.bpos==1)c+=c3/2;
       c=(min(x.bpos,5))*256+c1/32+8*(c2/32)+(c&192);
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
-    m->set(c, 1536);
-    pr0=m->p(1,1);
+    mcxt[7]=c;
+    pr0=m->p();
     pr=a.p2(pr0,pr,7);
     sse.update();
     pr = sse.p(pr);

@@ -4,7 +4,7 @@
   linearPredictionModel::linearPredictionModel(BlockData& bd,U32 val):x(bd),buf(bd.buf),nOLS(3),nLnrPrd(3+2)  {
   }
 
-  int linearPredictionModel::p(Mixer& m,int val1,int val2){
+  int linearPredictionModel::p(Mixers& m,int val1,int val2){
   if (x.bpos==0) {
     const U8 W=buf(1), WW=buf(2), WWW=buf(3);
     int i=0;

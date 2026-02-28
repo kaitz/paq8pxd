@@ -16,7 +16,7 @@ IndirectMap::IndirectMap(int BitsOfContext, int InputBits,int s,int l):
     Context = (finalize64(ctx,maskbits)&mask)*stride;
     bCount=B=0;
   }
-  void IndirectMap::mix(Mixer& m, const int Multiplier, const int Divisor, const U16 Limit) {
+  void IndirectMap::mix(Mixers& m, const int Multiplier, const int Divisor, const U16 Limit) {
     // update
     //*cp = nex(*cp, m.x.y);
     int ns=nex(*cp, m.x.y);
@@ -33,7 +33,7 @@ IndirectMap::IndirectMap(int BitsOfContext, int InputBits,int s,int l):
     if (bCount==bTotal)
       bCount=B=0;
   }
-  void IndirectMap::mix1(Mixer& m) {
+  void IndirectMap::mix1(Mixers& m) {
     // update
     //*cp = nex(*cp, m.x.y);
     int ns=nex(*cp, m.x.y);
@@ -50,7 +50,7 @@ IndirectMap::IndirectMap(int BitsOfContext, int InputBits,int s,int l):
     if (bCount==bTotal)
       bCount=B=0;
   }
-  void IndirectMap::mix2(Mixer& m) {
+  void IndirectMap::mix2(Mixers& m) {
     // update
     //*cp = nex(*cp, m.x.y);
     int ns=nex(*cp, m.x.y);

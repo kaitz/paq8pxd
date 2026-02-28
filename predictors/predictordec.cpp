@@ -6,14 +6,27 @@ PredictorDEC::PredictorDEC(Settings &set):Predictors(set), pr(16384),pr0(pr),ord
     { /*APM:*/ { 25*26,20} }
   },
   sse(x){
-   loadModels(activeModels,15);
+   loadModels(activeModels);
    // add extra 
    mixerInputs+=1;
    mixerNets+= (8+1024)+       256+   256+   256+    256+    1536+64;
    mixerNetsCount+=7;
    sse.p(pr);
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2);
+   for (int i=0;i<8;i++) mcxt[i]=0;
+   
+    // Predictor contexts
+    mxp.push_back( {8+1024,55,7,24,&mcxt[0],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[2],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[3],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[4],0} );
+    mxp.push_back( {   1536,55,7,24,&mcxt[5],0} );
+    mxp.push_back( {   64,55,7,24,&mcxt[6],0} );
+    
+   mxp.push_back( {1,6,7,4,&mcxt[7],0} ); // final mixer
+   // create mixer
+   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void PredictorDEC::update()  {
@@ -51,22 +64,22 @@ void PredictorDEC::update()  {
     models[M_INDIRECT]->p(*m);
     models[M_DMC]->p(*m);
     models[M_DEC]->p(*m);
-    m->set(order << 3U | x.bpos, 64);
+    mcxt[6]=order << 3U | x.bpos;
     if (x.settings.slow==true) models[M_CHART]->p(*m);
     if (x.settings.slow==true) models[M_LSTM]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-    m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
-    m->set(x.c0, 256);
-    m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)| (1)<<7, 256);  
-    m->set(c2, 256);
-    m->set(c3, 256);
+    mcxt[0]=8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
+    mcxt[1]=x.c0;
+    mcxt[2]=order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)| (1)<<7;  
+    mcxt[3]=c2;
+    mcxt[4]=c3;
     if (x.bpos) {
       c=x.c0<<(8-x.bpos); if (x.bpos==1)c+=c3/2;
       c=(min(x.bpos,5))*256+c1/32+8*(c2/32)+(c&192);
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
-    m->set(c, 1536);
-    pr0=m->p(0,1); //0,1
+    mcxt[5]=c;
+    pr0=m->p(); //0,1
     int const limit = 0x3FFu >> ((x.blpos < 0xFFFu) * 4);
     pr = DEC.APMs[0].p(pr0, (x.DEC.state * 26u) + x.DEC.bcount, x.y,limit);
     pr = (pr * 4 + pr0 * 2 + 3) / 6;

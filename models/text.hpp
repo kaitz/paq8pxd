@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
 //#include "../prt/stationarymap.hpp"
@@ -122,9 +122,10 @@ private:
   U32 ParseCtx;
    bool doXML;
    bool firstwasspace;
-  void Update(Buf& buffer,Mixer& mixer);
-  void SetContexts(Buf& buffer,Mixer& mixer);
+  void Update(Buf& buffer,Mixers& mixer);
+  void SetContexts(Buf& buffer,Mixers& mixer);
 public:
+    int mxcxt[8];
   TextModel(BlockData& bd, U64 Size);
   virtual ~TextModel() {
     for (int i=0; i<Language::Count-1; i++) {
@@ -136,7 +137,7 @@ public:
   int inputs()   {return N*Map.inputs();}
   int nets()     {return  1024+2048+4096+ 4096+2048+ 2048+ 4096+ 8192;}
   int netcount() {return 8;}
-  int p(Mixer& mixer,int val1=0, int val2=0);
+  int p(Mixers& mixer,int val1=0, int val2=0);
   //void Update(Buf& buffer,Mixer& mixer);
   //void SetContexts(Buf& buffer,Mixer& mixer) ;
 };

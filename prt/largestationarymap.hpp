@@ -2,7 +2,7 @@
 #include "types.hpp"
 #include "bucket.hpp"
 #include "array.hpp"
-#include "mixer.hpp"
+#include "mixers.hpp"
 
 struct HashElementForStationaryMap { // sizeof(HashElemetForStationaryMap) = 4
   uint32_t value;
@@ -54,7 +54,7 @@ public:
     void set(uint64_t ctx);
     void setscale(int scale);
     void reset();
-    void update(Mixer &m) ;
-    void mix(Mixer &m);
+    void update(Mixers &m) ;
+    void mix(Mixers &m);
 };
 

@@ -2,7 +2,7 @@
 #include "types.hpp"
 //#include "../prt/helper.hpp"
 #include "array.hpp"
-#include "mixer.hpp"
+#include "mixers.hpp"
 #include "bh.hpp"
 /////////////////////////// ContextMap /////////////////////////
 //
@@ -44,6 +44,6 @@ public:
   RunContextMap(int m,BlockData& bd);
   void set(U32 cx);
   int p() ;
-  int mix(Mixer& m) ;
+  int mix(Mixers& m) ;
 };
 

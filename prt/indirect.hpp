@@ -2,7 +2,7 @@
 #include "types.hpp"
 #include "array.hpp"
 #include "rnd.hpp"
-#include "mixer.hpp"
+#include "mixers.hpp"
 #include "statemap.hpp"
 #include "hash.hpp"
 
@@ -19,7 +19,7 @@ public:
   IndirectMap(int BitsOfContext, int InputBits = 8,int s=256,int l=1023);
   void set_direct(const U32 ctx);
   void set(const U64 ctx);
-  void mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
-  void mix1(Mixer& m);
-  void mix2(Mixer& m);
+  void mix(Mixers& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
+  void mix1(Mixers& m);
+  void mix2(Mixers& m);
 };

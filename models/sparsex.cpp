@@ -7,7 +7,7 @@
   scm1(8,8), scm2(8,8), scm3(8,8),
      scm4(8,8), scm5(8,8),scm6(8,8), scma(8,8),x(bd),buf(bd.buf) {
     }
-  int sparseModelx::p(Mixer& m, int seenbefore, int howmany){// 21+2*4
+  int sparseModelx::p(Mixers& m, int seenbefore, int howmany){// 21+2*4
   if (x.bpos==0) {
     scm5.set(seenbefore);
     scm6.set(howmany);

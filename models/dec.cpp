@@ -107,9 +107,24 @@
     }
    
    {
+        
+         for (int i=0;i<11;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {State::Count*26,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {State::Count*64,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {2048,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[3],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[4],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[5],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[6],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[7],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[8],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[9],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[10],0} );
+    
  }
  
-int  decModel1::p(Mixer& m,int val1,int val2){  
+int  decModel1::p(Mixers& m,int val1,int val2){  
   if ((x.blpos  == 0u) && (x.bpos == 0)) {
       state = State::OpCode;
       for (std::uint32_t i = 0u; i < nMaps - 1u; i++) {
@@ -465,17 +480,17 @@ int  decModel1::p(Mixer& m,int val1,int val2){
 
     std::uint8_t const opcode = (state != State::OpCode) ? op.Opcode : cache(1).Opcode;
 
-    m.set(static_cast<std::uint32_t>(state) * 26u + count, State::Count * 26u);
-    m.set((state << 6u) | opcode, State::Count * 64u);
-    m.set( (hash(state, count, opcode))&2047, 2048u);
-    m.set( (hash(state, count, op.Opcode, cache(1).Opcode))&4095, 4096u);
-    m.set( (hash(state, count, cache(1).Opcode, cache(2).Opcode))&4095, 4096u);
-    m.set( (hash(state, count, cache(1).Opcode, cache(2).Opcode, cache(3).Opcode))&8191, 8192u);
-    m.set( (hash(state, count, op.Opcode, cache(1).Opcode, cache(2).Opcode, cache(3).Opcode))&8191, 8192u);
-    m.set( (hash(state, opcode, cache(1).Format, cache(2).Format, cache(3).Format, cache(4).Format))&8191, 8192u);
-    m.set( (hash(state, count, op.Opcode, op.Bit, op.Ra))&4095, 4096u);
-    m.set( (hash(state, op.Ra, op.Rb, op.Bit))&4095, 4096u);
-    m.set( (hash(state, op.Ra, last[DECAlpha::Mem].Ra, cache(1).Format))&4095, 4096u);
+    mxcxt[0]=static_cast<std::uint32_t>(state) * 26u + count;
+    mxcxt[1]=(state << 6u) | opcode;
+    mxcxt[2]=(hash(state, count, opcode))&2047;
+    mxcxt[3]=(hash(state, count, op.Opcode, cache(1).Opcode))&4095;
+    mxcxt[4]=(hash(state, count, cache(1).Opcode, cache(2).Opcode))&4095;
+    mxcxt[5]=(hash(state, count, cache(1).Opcode, cache(2).Opcode, cache(3).Opcode))&8191;
+    mxcxt[6]=(hash(state, count, op.Opcode, cache(1).Opcode, cache(2).Opcode, cache(3).Opcode))&8191;
+    mxcxt[7]=(hash(state, opcode, cache(1).Format, cache(2).Format, cache(3).Format, cache(4).Format))&8191;
+    mxcxt[8]=(hash(state, count, op.Opcode, op.Bit, op.Ra))&4095;
+    mxcxt[9]=(hash(state, op.Ra, op.Rb, op.Bit))&4095;
+    mxcxt[10]=(hash(state, op.Ra, last[DECAlpha::Mem].Ra, cache(1).Format))&4095;
 x.DEC.state = state;
     x.DEC.bcount = count;
   return 1;

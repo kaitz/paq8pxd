@@ -67,9 +67,13 @@ SparseMatchModel::SparseMatchModel(BlockData& bd, U32 val1) :
     valid(false)
   {
     //assert(ispowerof2(Size));
+    for (int i=0;i<2;i++) mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {  NumHashes*64,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {NumHashes*2048,55,7,24,&mxcxt[1],0} );
   }
   
-  int SparseMatchModel::p(Mixer& m,int val1,int val2) {
+  int SparseMatchModel::p(Mixers& m,int val1,int val2) {
     const U8 B = x.c0<<(8-x.bpos);
     if (x.bpos==0)
       Update();
@@ -105,8 +109,8 @@ SparseMatchModel::SparseMatchModel(BlockData& bd, U32 val1) :
     }
     else
       for (int i=0; i<11; i++, m.add(0));
-    m.set((hashIndex<<6)|(x.bpos<<3)|min(7, length), NumHashes*64); //256
-    m.set((hashIndex<<11)|(min(7, ilog2(length+1))<<8)|(x.c0^(expectedByte>>(8-x.bpos))), NumHashes*2048); //8192
+    mxcxt[0]=(hashIndex<<6)|(x.bpos<<3)|min(7, length);
+     mxcxt[1]=(hashIndex<<11)|(min(7, ilog2(length+1))<<8)|(x.c0^(expectedByte>>(8-x.bpos)));
     return length;
   }
 

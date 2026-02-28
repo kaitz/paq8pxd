@@ -1,6 +1,6 @@
 #pragma once
 #include "predictors.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/EAPM.hpp"
 #include "../prt/ESSE.hpp"
 
@@ -11,7 +11,7 @@ class PredictorTXTWRT: public Predictors {
   int order;
   int rlen;
   int ismatch;
-  Mixer *m;
+  Mixers *m;
   struct {
     APM APMs[4];
     APM1 APM1s[3];
@@ -23,7 +23,7 @@ class PredictorTXTWRT: public Predictors {
   eSSE sse;
   int decodedTextLen,lasttag;
   int counttags,lState;
-  const U8 activeModels[15] = { 
+  const std::vector<ModelTypes> activeModels { 
    M_RECORD,
    M_MATCH ,
    M_MATCH1,  
@@ -38,6 +38,7 @@ class PredictorTXTWRT: public Predictors {
    M_SPARSE,
    M_PPM,M_CHART,M_LSTM    };
 public:
+    int mcxt[9];
   PredictorTXTWRT(Settings &set);
   int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void wrt();

@@ -16,7 +16,7 @@ normalModel1::normalModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(10), cm(x
  }
 
   
-int normalModel1::p(Mixer& m,int val1,int val2){  
+int normalModel1::p(Mixers& m,int val1,int val2){  
   if (x.bpos==0) {
      // if (val2==-1) return 1;
     int i;

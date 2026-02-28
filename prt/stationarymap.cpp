@@ -30,7 +30,7 @@ StationaryMap::StationaryMap(int BitsOfContext, int InputBits, int Rate): Data((
     for (U32 i=0; i<Data.size(); ++i)
       Data[i]=(1<<31)|min(1023,Rate);
   }
-  int  StationaryMap::mix(Mixer& m, const int Multiplier, const int Divisor, const U16 Limit) {
+  int  StationaryMap::mix(Mixers& m, const int Multiplier, const int Divisor, const U16 Limit) {
     // update
     int Prediction,Error ;
     U32 p0=cp[0];
@@ -56,7 +56,7 @@ StationaryMap::StationaryMap(int BitsOfContext, int InputBits, int Rate): Data((
       bCount=B=0;
     return pr;
   }
-  int  StationaryMap::mix1(Mixer& m, const int Multiplier, const int Divisor, const U16 Limit) {
+  int  StationaryMap::mix1(Mixers& m, const int Multiplier, const int Divisor, const U16 Limit) {
     // update
     int Prediction,Error;
     U32 p0=cp[0];

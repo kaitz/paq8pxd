@@ -8,9 +8,13 @@
   iCtx{ 11, 1, 9 }  { 
   srand(0xDEADBEEF);
   lstm=new LSTM::ByteModel(25, 3, horizon, 0.05);// num_cells, num_layers, horizon, learning_rate)
+  for (int i=0;i<2;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( { 8 * 256,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( { (horizon<<3)+7+1,55,7,24,&mxcxt[1],0} );
  }
 
- int lstmModel1::p(Mixer& m,int val1,int val2){
+ int lstmModel1::p(Mixers& m,int val1,int val2){
     lstm->Perceive(x.y);
     int p=lstm->Predict();
      iCtx += x.y;
@@ -24,8 +28,8 @@
     m.add(stretch(pr1)>>1);
     m.add(stretch(pr2)>>1);
     m.add(stretch(pr3)>>1);
-    m.set((x.bpos<<8) | lstm->expected(), 8 * 256);
-    m.set(lstm->epoch() << 3 | x.bpos, (horizon<<3)+7+1);
+    mxcxt[0]=(x.bpos<<8) | lstm->expected();
+    mxcxt[1]=lstm->epoch() << 3 | x.bpos;
   return 0;
 }
   

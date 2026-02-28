@@ -28,7 +28,7 @@
   dmcmodel3a(mem,720,bd),
   dmcmodel3b(mem,720,bd),
   x(bd){}
-  int dmcModel1::p(Mixer& m,int val1,int val2){
+  int dmcModel1::p(Mixers& m,int val1,int val2){
 
     switch(model1_state) {
       case 0:

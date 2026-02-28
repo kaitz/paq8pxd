@@ -1,7 +1,7 @@
 #pragma once
 #include "types.hpp"
 #include "array.hpp"
-#include "mixer.hpp"
+#include "mixers.hpp"
 /*
   Map for modelling contexts of (nearly-)stationary data.
   The context is looked up directly. For each bit modelled, a 32bit element stores
@@ -24,6 +24,6 @@ public:
   StationaryMap(int BitsOfContext, int InputBits = 8, int Rate = 0);
   void set(U32 ctx);
     void Reset( int Rate = 0 );
-  int mix(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
-  int mix1(Mixer& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
+  int mix(Mixers& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
+  int mix1(Mixers& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
 };

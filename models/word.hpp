@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
 //#include "../prt/stationarymap.hpp"
@@ -42,7 +42,7 @@ public:
   int netcount() {return 0;}
 
 
-   int p(Mixer& m,int val1=0,int val2=0) ;
+   int p(Mixers& m,int val1=0,int val2=0) ;
   
  virtual ~wordModel1(){ }
 };

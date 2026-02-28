@@ -1,6 +1,6 @@
 #pragma once
 #include "predictors.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/EAPM.hpp"
 #include "../prt/ESSE.hpp"
 // DECAlpha predicor
@@ -9,12 +9,12 @@ class PredictorDEC: public Predictors {
   int pr0;
   int order;
   int ismatch;
-  Mixer *m; 
+  Mixers *m; 
   struct {
       APM APMs[1];
     } DEC;
   eSSE sse;
-  const U8 activeModels[15] = { 
+  const std::vector<ModelTypes> activeModels { 
    M_RECORD,
    M_MATCH ,
    M_MATCH1, 
@@ -30,6 +30,7 @@ class PredictorDEC: public Predictors {
    M_SPARSE_Y,
    M_CHART,M_LSTM    };
 public:
+     int mcxt[8];
   PredictorDEC(Settings &set);
   int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
   void update() ;

@@ -1,8 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
-//#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 #include "../prt/sscm.hpp"
 #include "../prt/ols.hpp"
@@ -147,7 +146,7 @@ inline int signedClip8(const int i) {
   return max(-128, min(127, i));
 }
 
-void audio8bModel(Mixer& m, int info) {
+void audio8bModel(Mixers& m, int info,int *mxcxt) {
   const int8_t B = x.c0<<(8-x.bpos);
    if (x.blpos==0 && x.bpos==1) {
   //if (x.bpos==1 &&x.blpos==0) {
@@ -230,11 +229,11 @@ void audio8bModel(Mixer& m, int info) {
     sMap1b[i][1].mix(m, 9, 1, 2+(i>=nOLS));
     sMap1b[i][2].mix(m, 7, 1, 3);
   }
-  m.set((errLog<<8)|x.c0, 4096);
-  m.set((U8(mask)<<3)|(ch<<2)|(x.bpos>>1), 2048);
-  m.set((mxCtx<<7)|(buf(1)>>1), 1280);
-  m.set((errLog<<4)|(ch<<3)|x.bpos, 256);
-  m.set(mxCtx, 10);
+  mxcxt[0]=(errLog<<8)|x.c0;
+  mxcxt[1]=(U8(mask)<<3)|(ch<<2)|(x.bpos>>1);
+  mxcxt[2]=(mxCtx<<7)|(buf(1)>>1);
+  mxcxt[3]=(errLog<<4)|(ch<<3)|x.bpos;
+  mxcxt[4]=mxCtx;
 }
 };
 
@@ -315,7 +314,7 @@ inline int X2(int i) {
 inline int signedClip16(const int i) {
   return max(-32768, min(32767, i));
 }
-void audio16bModel(Mixer& m, int info) {
+void audio16bModel(Mixers& m, int info,int *mxcxt) {
   if (x.blpos==0 && x.bpos==1) {
   //if (x.blpos==1 && x.bpos==1) {
      //info|=4;  // comment this line if skipping the endianness transform
@@ -409,11 +408,11 @@ void audio16bModel(Mixer& m, int info) {
     sMap1b[i][3].mix(m, 6, 1/*, 2+(i>=nOLS)*/);
   }
 
-  m.set((errLog<<9)|(lsb<<8)|x.c0, 8192);
-  m.set((U8(mask)<<4)|(ch<<3)|(lsb<<2)|(x.bpos>>1), 4096);
-  m.set((mxCtx<<7)|(buf(1)>>1), 2560);
-  m.set((errLog<<4)|(ch<<3)|(lsb<<2)|(x.bpos>>1), 256);
-  m.set(mxCtx, 20);
+  mxcxt[0]=(errLog<<9)|(lsb<<8)|x.c0;
+  mxcxt[1]=(U8(mask)<<4)|(ch<<3)|(lsb<<2)|(x.bpos>>1);
+  mxcxt[2]=(mxCtx<<7)|(buf(1)>>1);
+  mxcxt[3]=(errLog<<4)|(ch<<3)|(lsb<<2)|(x.bpos>>1);
+  mxcxt[4]=mxCtx;
 }
 };
 
@@ -421,6 +420,7 @@ void audio16bModel(Mixer& m, int info) {
 audio8 *a8mode;
 audio16 *a16mode;
 public:
+     int mxcxt[6];
   wavModel1(BlockData& bd);
 int inputs() {
     return (14*4)*2;
@@ -429,7 +429,7 @@ int nets() {
      return 8192+ 4096+ 2560+ 256+ 20;
 } 
   int netcount() {return 5;}
-int p(Mixer& m,int info,int val2=0);
+int p(Mixers& m,int info,int val2=0);
 
   virtual ~wavModel1(){
       delete a8mode;

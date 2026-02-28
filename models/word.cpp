@@ -16,7 +16,7 @@
   
 
   
-   int wordModel1::p(Mixer& m,int val1,int val2)  {
+   int wordModel1::p(Mixers& m,int val1,int val2)  {
     if (x.bpos==0) {
       const U8 c1=x.c4;
       //extract text from pdf

@@ -62,6 +62,9 @@ matchModel2::matchModel2(BlockData& bd) :
   iCtx.reset();
   x.Match.bypass=false;
   x.Match.bypassprediction=2048;
+  for (int i=0;i<1;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {12,55,7,24,&mxcxt[0],0} );
 }
 
 void matchModel2::update() {
@@ -107,7 +110,7 @@ void matchModel2::update() {
   }
 }
 
-int matchModel2::p(Mixer &m,int val1,int val2) {
+int matchModel2::p(Mixers &m,int val1,int val2) {
   
   update();
 
@@ -211,7 +214,7 @@ int matchModel2::p(Mixer &m,int val1,int val2) {
   map[0].set(iCtx() << 3 | mode3); // (max 7 bits + 1 leading bit) + 3 bits
   map[0].mix(m);
   
-  m.set(min(mCtx, 11),12);
+  mxcxt[0]=min(mCtx, 11);
   x.Match.length3 =
     length == 0 ? 0 :
     isInDeltaMode ? 1 :

@@ -80,8 +80,11 @@ void matchModel1::Update() {
       x.Match.bypass=false;
       x.Match.bypassprediction=2048;
     assert((Size&(Size-1))==0);
+    for (int i=0;i<1;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {8,55,7,24,&mxcxt[0],0} );
   }
-  int matchModel1::p(Mixer& m,int val1,int val2) {
+  int matchModel1::p(Mixers& m,int val1,int val2) {
     if (x.bpos==0)
       Update();
    else {
@@ -139,7 +142,7 @@ void matchModel1::Update() {
       Maps[1].mix(m);
       Maps[2].mix(m);
      x.Match.length3=(min(ilog2(x.Match.length),3));
-      m.set(min( x.Match.length3 + 1, 7), 8);
+      mxcxt[0]=min( x.Match.length3 + 1, 7);
     }
     x.Match.bypassprediction = length==0 ? 2048 : (expectedBit==0 ? 1 : 4095);
     x.Match.length = length;

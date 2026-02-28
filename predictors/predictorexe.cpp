@@ -7,14 +7,27 @@ PredictorEXE::PredictorEXE(Settings &set):Predictors(set), pr(16384),order(0),
     { /*APM:*/ {0x800,20}, {0x10000,16}, {0x10000,16} }
   },
   count(0), sse(x) {
-  loadModels(activeModels,17);
+  loadModels(activeModels);
    // add extra 
    mixerInputs+=1;
    mixerNets+=( 8+1024)+     256+     256+     256+     256+     256+     1536;
    mixerNetsCount+=7;
    sse.p(pr);
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   for (int i=0;i<8;i++) mcxt[i]=0;
+   
+    // Predictor contexts
+    mxp.push_back( {8+1024,55,7,24,&mcxt[0],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[2],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[3],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[4],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[5],0} );
+    mxp.push_back( {   1536,55,7,24,&mcxt[6],0} );
+    
+   mxp.push_back( {1,6,7,4,&mcxt[7],0} ); // final mixer
+   // create mixer
+   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void PredictorEXE::update()  {
@@ -62,20 +75,20 @@ void PredictorEXE::update()  {
     if (x.settings.slow==true) models[M_CHART]->p(*m);
     if (x.settings.slow==true) models[M_LSTM]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
-    m->set(8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512, 8+1024);
-    m->set(x.c0, 256);
-    m->set(c2, 256);
+    mcxt[0]=8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
+    mcxt[1]=x.c0;
+    mcxt[2]=c2;
     U8 d=x.c0<<(8-x.bpos);
-    m->set(order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+1*128, 256);
-    m->set(c3, 256);
-    m->set(ismatch, 256);
+    mcxt[3]=order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+1*128;
+    mcxt[4]=c3;
+    mcxt[5]=ismatch;
     if (x.bpos) {
         c=d; if (x.bpos==1)c+=c3/2;
         c=(min(x.bpos,5))*256+c1/32+8*(c2/32)+(c&192);
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
-    m->set(c, 1536);
-    int pr0=m->p(1,1);
+    mcxt[6]=c;
+    int pr0=m->p();
     int const limit = 0x3FFu >> (static_cast<int>(x.blpos < 0xFFFu) * 4);
     pr = x86_64.APMs[0].p(pr0, (x.x86_64.state << 3u) | x.bpos,x.y, limit);
     int  pr1 = x86_64.APMs[1].p(pr0, (x.c0 << 8u) | x.x86_64.state,x.y, limit);

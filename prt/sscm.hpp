@@ -1,7 +1,7 @@
 #pragma once
 #include "types.hpp"
 #include "array.hpp"
-#include "mixer.hpp"
+#include "mixers.hpp"
 /*
 Map for modelling contexts of (nearly-)stationary data.
 The context is looked up directly. For each bit modelled, a 16bit prediction is stored.
@@ -22,5 +22,5 @@ public:
   SmallStationaryContextMap(int BitsOfContext, int InputBits = 8);
   void set(U32 ctx);
   void Reset();
-  void mix(Mixer& m, const int rate = 7, const int Multiplier = 1, const int Divisor = 4);
+  void mix(Mixers& m, const int rate = 7, const int Multiplier = 1, const int Divisor = 4);
 };

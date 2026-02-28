@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 #include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 //#include "../prt/mixer.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
@@ -150,6 +150,7 @@ private:
     uint32_t numberOfActiveCandidates = 0;
 void update();
 public:
+    int mxcxt[1];
     virtual ~matchModel2(){ }
     matchModel2(BlockData& bd);
     //int p(Mixer &m,int val1,int val2);
@@ -160,7 +161,7 @@ int netcount() {return 1;}
 
 
 
-int p(Mixer &m,int val1=0,int val2=0) ;
+int p(Mixers &m,int val1=0,int val2=0) ;
 };
 
 

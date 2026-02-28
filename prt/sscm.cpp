@@ -25,7 +25,7 @@ SmallStationaryContextMap::SmallStationaryContextMap(int BitsOfContext, int Inpu
     for (U32 i=0; i<Data.size(); ++i)
       Data[i]=0x7FFF;
   }
-  void SmallStationaryContextMap::mix(Mixer& m, const int rate, const int Multiplier, const int Divisor) {
+  void SmallStationaryContextMap::mix(Mixers& m, const int rate, const int Multiplier, const int Divisor) {
     *cp+=((m.x.y<<16)-(*cp)+(1<<(rate-1)))>>rate;
     B+=(m.x.y && B>0);
     cp = &Data[Context+B];

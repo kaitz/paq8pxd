@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
 //#include "../prt/contextmap2.hpp"
@@ -17,10 +17,11 @@ class sparseModely: public Model {
   ContextMap3 cm;
   U32 ctx;
 public:
+    int mxcxt[1];
   sparseModely(BlockData& bd,U32 val=0);
   int inputs() {return N*cm.inputs();}
   int nets() {return 4 * 256;}
   int netcount() {return 1;}
-  int p(Mixer& m,int seenbefore,int howmany);
+  int p(Mixers& m,int seenbefore,int howmany);
 virtual ~sparseModely(){ }
 };

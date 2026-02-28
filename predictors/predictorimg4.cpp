@@ -3,14 +3,17 @@
 
 PredictorIMG4::PredictorIMG4(Settings &set):Predictors(set), pr(16384), StateMaps{ 256, 256*256}, Image
      {{0x1000, 0x8000, 0x8000, 0x8000},  {{0x10000,x}, {0x10000,x}}}, sse(x) {
-   loadModels(activeModels,4);  
+   loadModels(activeModels);  
    // add extra 
    mixerInputs+=1+2;
    mixerNets+=0;
    mixerNetsCount+=0;
    sse.p(pr);
+   for (int i=0;i<1;i++) mcxt[i]=0;
+   
+   mxp.push_back( {1,6,7,4,&mcxt[0],0} ); // final mixer
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount);
+   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void PredictorIMG4::update()  {

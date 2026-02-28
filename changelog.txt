@@ -2,6 +2,9 @@ v145
     -Add new ContextMap3.
     -Replace ContextMap and ContextMap2 with ContextMap3.
     -Fix fast mode compression.
+    -Add new mixer and remove old one.
+    -Change how mixer contexts are handled in models.
+    -Small tune in 8 bit image model.
 v144
     -Fixes for multithreading issues. pthread now works.
     -Separate level 0 in compressStream.

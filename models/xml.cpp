@@ -185,7 +185,7 @@ XMLModel1::XMLModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), State(None), pSta
     StateBH[pState] = (StateBH[pState]<<8)|B;
     pTag = &Cache.Tags[ (Cache.Index-1)&(CacheSize-1) ];
   }
-int XMLModel1::p(Mixer& m,int val1,int val2){
+int XMLModel1::p(Mixers& m,int val1,int val2){
     if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM  || x.filetype==IMGUNK/*|| x.filetype==BINTEXT*/){
         if (val2==-1) return 1;
         for (int i=0; i<inputs(); ++i)

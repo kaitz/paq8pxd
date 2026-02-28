@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
 //#include "../prt/stationarymap.hpp"

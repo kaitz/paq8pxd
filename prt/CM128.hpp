@@ -3,7 +3,8 @@
 #include "blockdata.hpp"
 #include "statetable.hpp"
 #include "hash.hpp"
-#include "mixer.hpp"
+//#include "mixer.hpp"
+#include "mixers.hpp"
 
 extern short rc1[512];
 extern short st1[4096];
@@ -147,7 +148,19 @@ struct ContextMap3 {
     }
     // Predict to mixer m from bit history state s, using sm to map s to
     // a probability.
-    inline int mix3(Mixer& m, const int s, int i) {
+   /* inline int mix3(Mixer& m, const int s, int i) {
+        if (s==0) {
+            m.add(0);
+            m.add(0);
+            return 0;
+        } else {
+            const int p1=getStatePr(s,i);
+            m.add(st1[p1]);
+            m.add(st32[s]);
+            return 1;
+        }
+    }*/
+    inline int mix3(Mixers& m, const int s, int i) {
         if (s==0) {
             m.add(0);
             m.add(0);
@@ -161,7 +174,12 @@ struct ContextMap3 {
     }
 
     // Zero prediction
-    inline void mix4(Mixer& m) {
+   /* inline void mix4(Mixer& m) {
+        m.add(0);
+        m.add(0);
+        m.add(0);
+    }*/
+    inline void mix4(Mixers& m) {
         m.add(0);
         m.add(0);
         m.add(0);
@@ -175,7 +193,7 @@ struct ContextMap3 {
     }
     // Update the model with bit y1, and predict next bit to mixer m.
     // Context: cc=c0, bp=bpos, c1=buf(1), y1=y.
-    int __attribute__ ((noinline)) mix(Mixer& m) {
+    /*int __attribute__ ((noinline)) mix(Mixer& m) {
         // Update model with y
         result=0;
         updateStates();
@@ -244,9 +262,81 @@ struct ContextMap3 {
             }
         }
         if (x.bpos==7) {
-            /*if (cn!=0 && cn!=C) {
-                printf("FFF");
-            }*/
+            assert(cn==0 || cn==C);
+            cn=cxtMask=0;  
+        } 
+
+        return result;
+    }*/
+    int __attribute__ ((noinline)) mix(Mixers& m) {
+        // Update model with y
+        result=0;
+        updateStates();
+        for (int i=0; i<cn; ++i) {
+            if ((cxtMask>>(cn-i))&1) {
+                mix4(m);
+            } else {
+                if (cp[i]) {
+                    assert(cp[i]>=&t[0].bh[0][0] && cp[i]<=&t[tmask].bh[14][6]);
+                    //assert(((long long)(cp[i])&127)>=29);
+                    *cp[i]=nex(*cp[i], x.y);
+                }
+
+                // Update context pointers
+                int s=0;
+                if (x.bpos>1 && runp[i][0]==0) {
+                    cp[i]=0;
+                } else {
+                    const U16 chksum=(cxt[i]>>16)^i;
+                    
+                    if (x.bpos) {
+                        if (x.bpos==2 || x.bpos==5)cp0[i]=cp[i]=t[(cxt[i]+x.c0)&tmask].get(chksum,kep);
+                        else cp[i]=cp0[i]+getStateByteLocation(x.bpos,x.c0);
+                    } else {// default
+                        cp0[i]=cp[i]=t[(cxt[i]+x.c0)&tmask].get(chksum,kep);
+                        // Update pending bit histories for bits 2-7
+                        if (cp0[i][3]==2) {
+                            const int c=cp0[i][4]+256;
+                            U8 *p=t[(cxt[i]+(c>>6))&tmask].get(chksum,kep);
+                            p[0]=1+((c>>5)&1);
+                            p[1+((c>>5)&1)]=1+((c>>4)&1);
+                            p[3+((c>>4)&3)]=1+((c>>3)&1);
+                            p=t[(cxt[i]+(c>>3))&tmask].get(chksum,kep);
+                            p[0]=1+((c>>2)&1);
+                            p[1+((c>>2)&1)]=1+((c>>1)&1);
+                            p[3+((c>>1)&3)]=1+(c&1);
+                            cp0[i][6]=0;
+                        }
+                        const U8 c1=x.c4;
+                        // Update run count of previous context
+                        if (runp[i][0]==0)  // new context
+                        runp[i][0]=2, runp[i][1]=c1;
+                        else if (runp[i][1]!=c1)  // different byte in context
+                        runp[i][0]=1, runp[i][1]=c1;
+                        else if (runp[i][0]<254)  // same byte in context
+                        runp[i][0]+=2;
+                        runp[i]=cp0[i]+3;
+                    }
+                    s=*cp[i];
+                }
+                // predict from bit context
+
+                result=result+mix3(m, s, i);
+                // predict from last byte in context
+                int bposshift=7-x.bpos;
+                int c0shift_bpos=(x.c0<<1)^(256>>(bposshift));
+                int b=c0shift_bpos^(runp[i][1]>>bposshift);
+                
+                if (b<=1) {
+                    b=b*256;   // predicted bit + for 1, - for 0
+                    // count*2, +1 if 2 different bytes seen
+                    m.add(rc1[runp[i][0]+b]);
+                }
+                else
+                m.add(0);
+            }
+        }
+        if (x.bpos==7) {
             assert(cn==0 || cn==C);
             cn=cxtMask=0;  
         } 

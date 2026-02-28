@@ -7,9 +7,12 @@
   //cm(CMlimit(x.MEM()*2), N,M_SPARSE_Y),
    cm(x,N,CMlimit(x.MEM()*2)),
   ctx(0) {
+      for (int i=0;i<1;i++) mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {4 * 256,55,7,24,&mxcxt[0],0} );
   }
 
-  int sparseModely::p(Mixer& m,int seenbefore,int howmany){//match order
+  int sparseModely::p(Mixers& m,int seenbefore,int howmany){//match order
   int j=0;
   if (x.bpos==0) {
     //context for 4-byte structures and 
@@ -54,6 +57,6 @@
   }
   if (howmany==-1) return 1;
   cm.mix(m);
-   m.set((x.blpos & 3)<<8 | (ctx&0xff), 4 * 256);
+  mxcxt[0]=(x.blpos & 3)<<8 | (ctx&0xff);
   return 0;
 }

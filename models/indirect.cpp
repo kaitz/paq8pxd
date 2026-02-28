@@ -27,7 +27,7 @@
    chars4(0){
   }
  
-int indirectModel1::p(Mixer& m,int val1,int val2){
+int indirectModel1::p(Mixers& m,int val1,int val2){
   int j=0;
   if (!x.bpos) {
     U32 d=x.c4&0xffff;

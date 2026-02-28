@@ -11,7 +11,7 @@
  {   
  }
 
-int chartModel::p(Mixer& m,int val1,int val2){
+int chartModel::p(Mixers& m,int val1,int val2){
    if (!x.bpos){
        U32 c4=x.c4;
     const

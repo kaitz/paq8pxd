@@ -8,12 +8,12 @@
 Predictors::Predictors(Settings &set):x(set),  mixerInputs(0),mixerNets(0),mixerNetsCount(0){
     models=nullptr;
 }
-  void Predictors::loadModels(const U8* amodel,int count){
+  void Predictors::loadModels( const std::vector<ModelTypes> &amodel) {
       models = new Model*[M_MODEL_COUNT];
       // reset
       for (int i=0;i<M_MODEL_COUNT;i++)      models[i]=0;
       // create active models
-      for (int i=0;i<count;i++){
+      for (int i=0;i<amodel.size() ;i++) {
 #ifdef VERBOSE      
           printf("Creating %s\n",modelNames[amodel[i]].c_str());
 #endif
@@ -136,6 +136,7 @@ Predictors::Predictors(Settings &set):x(set),  mixerInputs(0),mixerNets(0),mixer
               break;
           }
      }
+    
   }
   // create blank models
    for (int i=0;i<M_MODEL_COUNT;i++){
@@ -147,6 +148,16 @@ Predictors::Predictors(Settings &set):x(set),  mixerInputs(0),mixerNets(0),mixer
        mixerNets+=models[i]->nets();
        mixerNetsCount+=models[i]->netcount();
    }
+    // Add model mixer contexts
+   for (int i=0; i<amodel.size(); i++) {
+        const ModelTypes mType=amodel[i];
+        if (mType!=M_PPM && mType!=M_CHART && mType!=M_LSTM){
+           mxp.insert(mxp.end(), models[mType]->mxp.begin(), models[mType]->mxp.end());    
+        }
+        if (x.settings.slow==true && (mType==M_PPM || mType==M_CHART || mType==M_LSTM)) {
+            mxp.insert(mxp.end(), models[mType]->mxp.begin(), models[mType]->mxp.end());    
+        }
+    }
   }
   void Predictors::setContexts(){
     const U8 c1=x.buf(1),c2=x.buf(2),c3=x.buf(3);

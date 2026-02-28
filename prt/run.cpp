@@ -46,7 +46,7 @@
     else
       return 0;
   }
-  int RunContextMap::mix(Mixer& m) {  // return run length
+  int RunContextMap::mix(Mixers& m) {  // return run length
     m.add(p());
     return cp[0]!=0;
   }

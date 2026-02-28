@@ -4,10 +4,14 @@ nestModel1::nestModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), ic(0), bc(0),
    pc(0),vc(0), qc(0), lvc(0), wc(0),ac(0), ec(0), uc(0), sense1(0), sense2(0), w(0), N(12),
    cm(x,N,CMlimit(x.settings.level>8?0x800000 :(x.MEM()/2) ))
    //cm(CMlimit(x.settings.level>8?0x800000 :(x.MEM()/2) ), N,M_NEST)
-     {
+   {
+   for (int i=0;i<1;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {512,55,7,24,&mxcxt[0],0} );
+     
 }
 
-int nestModel1::p(Mixer& m,int val1,int val2){
+int nestModel1::p(Mixers& m,int val1,int val2){
     if (x.filetype==DBASE ||x.filetype==HDR ||x.filetype==DECA || x.filetype==ARM|| x.filetype==IMGUNK){
         if (val2==-1) return 1;
         for (int i=0; i<inputs(); i++)
@@ -85,6 +89,6 @@ if (val2==-1) return 1;
   }
     
     cm.mix(m);
-    m.set(vc&511,512);
+    mxcxt[0]=vc&511;
   return 0;
 }

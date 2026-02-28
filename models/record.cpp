@@ -27,9 +27,15 @@
         // candidate counts
         rcount[0] = 0;
         rcount[1] = 0; 
+    for (int i=0;i<3;i++) mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( { 1024,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {  512,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {11*32,55,7,24,&mxcxt[2],0} );
+    
    }
 
-  int recordModel1::p(Mixer& m,int rrlen,int val2) {
+  int recordModel1::p(Mixers& m,int rrlen,int val2) {
    // Find record length
   if (!x.bpos) {
    int w=x.c4&0xffff, c=w&255, d=w>>8,c1=x.b2,w1=(x.b3<<8)+x.b2,  e=x.c4&0xffffff;
@@ -233,9 +239,9 @@ if (val2==-1) return rlen[0];
   sMap[0].mix(m, 6, 1, 3);
   sMap[1].mix(m, 6, 1, 3);
   sMap[2].mix(m, 5, 1, 2);
-  m.set( (rlen[0] > 2) * ((x.bpos << 7U) | mxCtx), 1024);
-  m.set( ((N^B)>>4)|(x1<<4), 512 );
-  m.set( (x.grp<<5)|x1, 11*32);
+  mxcxt[0]=(rlen[0] > 2) * ((x.bpos << 7U) | mxCtx);
+  mxcxt[1]=((N^B)>>4)|(x1<<4);
+  mxcxt[2]=(x.grp<<5)|x1;
   return (rlen[0]>2)*( (x.bpos<<7)|mxCtx );//1024 
   }
  

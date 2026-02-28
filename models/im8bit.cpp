@@ -21,11 +21,21 @@
       NNWWW(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0), NNEEE(0),
       NNNWW(0), NNNW(0), NNN(0), NNNE(0), NNNEE(0),
       NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1),   pOLS(nOLS),sceneOls(13, 1, 0.994){
-
+          for (int i=0;i<8;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {2048+5,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {  6*16,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {  6*32,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {256*16,55,7,24,&mxcxt[3],0} );
+    mxp.push_back( {  1024,55,7,24,&mxcxt[4],0} );
+    mxp.push_back( { 64*16,55,7,24,&mxcxt[5],0} );
+    mxp.push_back( {   128,55,7,24,&mxcxt[6],0} );
+    mxp.push_back( {   256,55,7,24,&mxcxt[7],0} );
+    
   }
 
-  
-int im8bitModel1::p(Mixer& m,int w,int val2){
+  //int im8bitModel1::p(Mixer& m,int w,int val2) {}
+int im8bitModel1::p(Mixers& m,int w,int val2) {
   assert(w>3); 
   if (!bpos) {
     if (xx.blpos==1){
@@ -369,18 +379,18 @@ int im8bitModel1::p(Mixer& m,int w,int val2){
     for (int i=0; i<5; i++)
       sceneMap[i].mix(m, (prevFramePos>0 && prevFrameWidth==w), 4, 255);
 
-    m.set(5+ctx, 2048+5);
-    m.set(col*2+(isPNG && c0==((0x100|res)>>(8-bpos))) + min(5,filterOn?filter+1:0)*16, 6*16);
-    m.set(((isPNG?px:N+W)>>4) + min(5,filterOn?filter+1:0)*32, 6*32);
-    m.set((W>>4)*256+c0-1, 256*16);
-    m.set( ((abs((int)(W-N))>4)<<9)|((abs((int)(N-NE))>4)<<8)|((abs((int)(W-NW))>4)<<7)|((W>N)<<6)|((N>NE)<<5)|((W>NW)<<4)|((W>WW)<<3)|((N>NN)<<2)|((NW>NNWW)<<1)|(NE>NNEE), 1024 );
-    m.set(min(63,column[0])*16+(W>>4), 64*16);
-    m.set(min(127,column[1]), 128);
-    m.set( min(255,(x+line)/32), 256);
+    mxcxt[0]=5+ctx;
+    mxcxt[1]=col*2+(isPNG && c0==((0x100|res)>>(8-bpos))) + min(5,filterOn?filter+1:0)*16;
+    mxcxt[2]=((isPNG?px:N+W)>>4) + min(5,filterOn?filter+1:0)*32;
+    mxcxt[3]=(W>>4)*256+c0-1;
+    mxcxt[4]=((abs((int)(W-N))>4)<<9)|((abs((int)(N-NE))>4)<<8)|((abs((int)(W-NW))>4)<<7)|((W>N)<<6)|((N>NE)<<5)|((W>NW)<<4)|((W>WW)<<3)|((N>NN)<<2)|((NW>NNWW)<<1)|(NE>NNEE);
+    mxcxt[5]=min(63,column[0])*16+(W>>4);
+    mxcxt[6]=min(127,column[1]);
+    mxcxt[7]=min(255,(x+line)/32);
   }
   else{
     m.add( -2048+((filter>>(7-bpos))&1)*4096 );
-    m.set(min(4,filter),5);
+    mxcxt[0]=min(4,filter);
   }
   return 0; //8 8 32 256 512 1792
   }

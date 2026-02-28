@@ -6,8 +6,16 @@
     t(0x23000),N(11), cxt(N),t1(65536/2) {
    sm=new StateMap[N];
    cp=t1[0]+1;
+   
+         for (int i=0;i<5;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {256,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {256,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {256,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {256,55,7,24,&mxcxt[3],0} );
+    mxp.push_back( {256,55,7,24,&mxcxt[4],0} );
    }
-int im1bitModel1::p(Mixer& m,int w,int val2)  {
+int im1bitModel1::p(Mixers& m,int w,int val2)  {
   // update the model
   int i;
   for (i=0; i<N; i++)
@@ -40,10 +48,10 @@ int im1bitModel1::p(Mixer& m,int w,int val2)  {
       m.add(((cp[1]&1)*2-1)*ilog(cp[0]+1)*8);
   else
       m.add(0);
-  m.set((r0&0x7)|(r1>>4&0x38)|(r2>>3&0xc0), 256);
-  m.set(((r1&0x30)^(r3&0x0c))|(r0&3),256);
-  m.set((r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80), 256);
-  m.set((r0&0x3e)^((r1>>8)&0x0c)^((r2>>8)&0xc8),256);
-  m.set(cp[0],256);
+  mxcxt[0]=(r0&0x7)|(r1>>4&0x38)|(r2>>3&0xc0);
+  mxcxt[1]=((r1&0x30)^(r3&0x0c))|(r0&3);
+  mxcxt[2]=(r0&1)|(r1>>4&0x3e)|(r2>>2&0x40)|(r3>>1&0x80);
+  mxcxt[3]=(r0&0x3e)^((r1>>8)&0x0c)^((r2>>8)&0xc8);
+  mxcxt[4]=cp[0];
   return 0;
 }

@@ -2,7 +2,9 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+//#include "../prt/mixer.hpp"
+//#include "../prt/mixer1.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
 #include "../prt/stationarymap.hpp"
@@ -75,14 +77,16 @@ class im8bitModel1: public Model {
     const U8 *ols_ctx4[10] = { &N, &NE, &NEE, &NEEE, &NN, &NNE, &NNEE, &NNN, &NNNE, &NNNN };
     const U8 *ols_ctx5[14] = { &WWWW, &WWW, &WW, &W, &NWWW, &NWW, &NW, &N, &NNWW, &NNW, &NN, &NNNW, &NNN, &NNNN };
     const U8 **ols_ctxs[nOLS] = { &ols_ctx1[0], &ols_ctx2[0], &ols_ctx3[0], &ols_ctx4[0], &ols_ctx5[0] };
-  
+   
 public:
+  int mxcxt[8];
   im8bitModel1( BlockData& bd);
   int inputs() {return inpts*cm.inputs()+cm.inputs()*4+nMaps*2+nPltMaps*2+5*2;}
   int nets() {return ( 2048+5)+    6*16+    6*32+    256*16+    1024+    64*16+    128+    256;}
   int netcount() {return 8;}
   
-int p(Mixer& m,int w,int val2=0);
+  
+int p(Mixers& m,int w=0,int val2=0);
   // Square buf(i)
 inline int sqrbuf(int i) {
   assert(i>0);

@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 #include "../prt/statemap.hpp"
 #include "../prt/bh.hpp"
@@ -20,11 +20,12 @@ class im1bitModel1: public Model {
    BH<4> t1;
   U8* cp;
 public:
+     int mxcxt[5];
   im1bitModel1( BlockData& bd,U32 val=0 );
   int inputs() {return N+2;}
   int nets() {return 256+256+256+256+256;}
   int netcount() {return 5;}
-int p(Mixer& m,int w=0,int val2=0) ;
+int p(Mixers& m,int w=0,int val2=0) ;
  virtual ~im1bitModel1(){  delete[] sm;}
  
 };

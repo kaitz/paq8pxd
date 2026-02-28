@@ -1,7 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 //#include "../prt/indirectcontext.hpp"
 #include "../prt/statemap.hpp"
@@ -127,7 +127,7 @@ public:
   bool isfull() {return x.bpos==1 && top==t.size();}
   bool isalmostfull() {return x.bpos==1 && top>=t.size()*15 >>4;} // *15/16
   void reset() {resetstategraph();sm.Reset();}
-  void mix(Mixer& m, bool activate) {
+  void mix(Mixers& m, bool activate) {
     processbit(m.x.y);
     if(activate) {
       const U32 n0=t[curr].get_c0()+1;
@@ -184,7 +184,7 @@ public:
   int inputs() {return 2;}
   int nets() {return 0;}
   int netcount() {return 0;}
-  int p(Mixer& m,int val1=0,int val2=0);
+  int p(Mixers& m,int val1=0,int val2=0);
   virtual ~dmcModel1(){ }
 };
 

@@ -106,14 +106,14 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             }
             tm.close();
             //printf("Stream(%d) block pos %11.0f compressed to %11.0f bytes\n",i,segmentlen+0.0,ftello(out)-scompsize+0.0);
-            segmentlen=segmentsize=0;   
+            segmentlen=segmentsize=0;
         }
     } else { // Compress
         Encoder* enc;
         Predictors* pred;
         // Select predictor for a stream (sid)
         if(settings->fast) {
-            pred=new PredictorFast(*settings); 
+            pred=new PredictorFast(*settings);
         } else {
             switch(sid) {
             default:
@@ -132,7 +132,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
             case 12: { pred=new Predictor(*settings); break;}
             }
         }
-        enc=new Encoder(COMPRESS, out, *pred); 
+        enc=new Encoder(COMPRESS, out, *pred);
         if ((sid>=0 && sid<=7) || sid==10 ||/*sid==8 || sid==9 ||*/sid==11|| sid==12) {
             while (segmentsize>0) {
                 while (segmentlen==0) {

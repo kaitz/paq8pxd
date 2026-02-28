@@ -1,7 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 #include "../prt/sscm.hpp"
 //#include "../prt/contextmap.hpp"
@@ -19,6 +19,6 @@ public:
     int inputs() {return N*cm.inputs()+7*2;}
     int nets() {return 0;}
   int netcount() {return 0;}
-  int p(Mixer& m, int seenbefore, int howmany);
+  int p(Mixers& m, int seenbefore, int howmany);
  virtual ~sparseModelx(){ }
 };

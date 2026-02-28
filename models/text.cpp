@@ -29,13 +29,23 @@
     cParagraph = &Paragraphs(0);
     memset(&BytePos[0], 0,  sizeof(BytePos));
     memset(&Info, 0, sizeof(Info));
+    for (int i=0;i<8;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {1024,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {2048,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[3],0} );
+    mxp.push_back( {2048,55,7,24,&mxcxt[4],0} );
+    mxp.push_back( {2048,55,7,24,&mxcxt[5],0} );
+    mxp.push_back( {4096,55,7,24,&mxcxt[6],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[7],0} );
  }
 
   void TextModel::setword(U8 *w,int len)     {
       for (int i=0;i<len;i++) xWord+=w[i];
   }
 
-  int TextModel::p(Mixer& mixer,int val1, int val2) {
+  int TextModel::p(Mixers& mixer,int val1, int val2) {
     if (mixer.x.bpos==0) {
         if ((val1==0 || val1==1)&& doXML==true) doXML=false; // None ReadTag
         else if (val1==5) doXML=true;                        // ReadContent
@@ -44,37 +54,37 @@
     }
     if (val2==-1) return 1;
     Map.mix(mixer);
-    mixer.set(hash((Lang.Id!=Language::Unknown)?1+Stemmers[Lang.Id-1]->IsVowel(buffer(1)):0, Info.masks[1]&0xFF, mixer.x.c0)&0x3FF, 1024);
-    mixer.set(hash(ilog2(Info.wordLength[0]+1), mixer.x.c0,
+    mxcxt[0]=hash((Lang.Id!=Language::Unknown)?1+Stemmers[Lang.Id-1]->IsVowel(buffer(1)):0, Info.masks[1]&0xFF, mixer.x.c0)&0x3FF;
+    mxcxt[1]=hash(ilog2(Info.wordLength[0]+1), mixer.x.c0,
       (Info.lastDigit<Info.wordLength[0]+Info.wordGap)|
       ((Info.lastUpper<Info.lastLetter+Info.wordLength[1])<<1)|
       ((Info.lastPunct<Info.wordLength[0]+Info.wordGap)<<2)|
       ((Info.lastUpper<Info.wordLength[0])<<3)|
       ((Info.islink)<<4)|
       ((Info.istemplate)<<5)
-    )&0x7FF, 2048);
-    mixer.set(hash(Info.masks[1]&0x3FF, mixer.x.grp, Info.lastUpper<Info.wordLength[0], Info.lastUpper<Info.lastLetter+Info.wordLength[1])&0xFFF, 4096);
-        mixer.set(hash(Info.spaces&0x1FF, mixer.x.grp,
+    )&0x7FF;
+    mxcxt[2]=hash(Info.masks[1]&0x3FF, mixer.x.grp, Info.lastUpper<Info.wordLength[0], Info.lastUpper<Info.lastLetter+Info.wordLength[1])&0xFFF;
+    mxcxt[3]=hash(Info.spaces&0x1FF, mixer.x.grp,
       (Info.lastUpper<Info.wordLength[0])|
       ((Info.lastUpper<Info.lastLetter+Info.wordLength[1])<<1)|
       ((Info.lastPunct<Info.lastLetter)<<2)|
       ((Info.lastPunct<Info.wordLength[0]+Info.wordGap)<<3)|
       ((Info.lastPunct<Info.lastLetter+Info.wordLength[1]+Info.wordGap)<<4)|
       ((Info.linespace>4)<<5)
-    )&0xFFF, 4096);
-    mixer.set(hash(Info.firstLetter*(Info.wordLength[0]<4), min(6, Info.wordLength[0]), mixer.x.c0)&0x7FF, 2048);
-    mixer.set(hash((*pWord)[0], (*pWord)(0), min(4, Info.wordLength[0]), Info.lastPunct<Info.lastLetter)&0x7FF, 2048);
-    mixer.set(hash(min(4, Info.wordLength[0]),mixer.x.grp,
+    )&0xFFF;
+    mxcxt[4]=hash(Info.firstLetter*(Info.wordLength[0]<4), min(6, Info.wordLength[0]), mixer.x.c0)&0x7FF;
+    mxcxt[5]=hash((*pWord)[0], (*pWord)(0), min(4, Info.wordLength[0]), Info.lastPunct<Info.lastLetter)&0x7FF;
+    mxcxt[6]=hash(min(4, Info.wordLength[0]),mixer.x.grp,
       Info.lastUpper<Info.wordLength[0],
       (Info.nestHash>0)?Info.nestHash&0xFF:0x100|(Info.firstLetter*(Info.wordLength[0]>0 && Info.wordLength[0]<4))
-    )&0xFFF, 4096);
-    mixer.set(hash(mixer.x.grp, Info.masks[4]&0x1F, (Info.masks[4]>>5)&0x1F)&0x1FFF, 8192);
+    )&0xFFF;
+    mxcxt[7]=hash(mixer.x.grp, Info.masks[4]&0x1F, (Info.masks[4]>>5)&0x1F)&0x1FFF;
     
     return 0;
   }
 
 
-void TextModel::Update(Buf& buffer,Mixer& mixer) {
+void TextModel::Update(Buf& buffer,Mixers& mixer) {
     
   Info.lastUpper  = min(0xFF, Info.lastUpper+1), Info.maskUpper<<=1;
   Info.lastLetter = min(0x1F, Info.lastLetter+1);
@@ -363,7 +373,7 @@ void TextModel::Update(Buf& buffer,Mixer& mixer) {
     mixer.x.Text.mask = Info.masks[1]&0xFF;
 }
 
-void TextModel::SetContexts(Buf& buffer,Mixer& mixer) {
+void TextModel::SetContexts(Buf& buffer,Mixers& mixer) {
   U8 c = buffer(1), lc = tolower(c), m2 = Info.masks[2]&0xF, column = min(0xFF, Info.lastNewLine);;
   U16 w = ((State==Parse::ReadingWord)?cWord->Hash[0]:pWord->Hash[0]);
   U32 h = ((State==Parse::ReadingWord)?cWord->Hash[1]:pWord->Hash[2])*271+c;

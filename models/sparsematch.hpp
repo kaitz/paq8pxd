@@ -1,7 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 #include "../prt/blockdata.hpp"
 #include "../prt/buffers.hpp"
@@ -42,9 +42,10 @@ private:
   bool valid;
   void Update();
 public:
+    int mxcxt[2];
     SparseMatchModel(BlockData& bd, U32 val1=0);
   int inputs() {return  4*2+3;}
    int nets() {return NumHashes*64+NumHashes*2048;}
   int netcount() {return 2;}
-  int p(Mixer& m,int val1=0,int val2=0);
+  int p(Mixers& m,int val1=0,int val2=0);
 };

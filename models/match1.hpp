@@ -1,7 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
 #include "../prt/indirectcontext.hpp"
@@ -41,11 +41,12 @@ private:
   void Update();
 public:
   bool canBypass;
+  int mxcxt[1];
   virtual ~matchModel1(){ }
   int inputs() {return  2+NumCtxs+3*2+3*2+2;}
   int nets() {return 8;}
   int netcount() {return 1;}
   matchModel1(BlockData& bd, U32 val1=0);
-  int p(Mixer& m,int val1=0,int val2=0) ;
+  int p(Mixers& m,int val1=0,int val2=0) ;
   };
 

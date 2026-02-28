@@ -3,14 +3,18 @@
 
 PredictorIMG24::PredictorIMG24(Settings &set):Predictors(set), pr(16384),Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
                   StateMaps{ 256, 256*256}, sse(x){
-  loadModels(activeModels,4);   
+  loadModels(activeModels);   
    // add extra 
    mixerInputs+=1+2;
    mixerNets+=  8192;
    mixerNetsCount+=1;
    sse.p(pr);
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2);
+   for (int i=0;i<2;i++) mcxt[i]=0;
+   mxp.push_back( {  8192,55,7,24,&mcxt[0],0} );
+   mxp.push_back( {1,6,7,4,&mcxt[1],0} ); // final mixer
+   // create mixer
+   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void PredictorIMG24::update()  {
@@ -29,9 +33,9 @@ void PredictorIMG24::update()  {
   models[M_IM24]->p(*m,x.finfo);
   m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
   m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
-  m->set(x.Image.ctx&0x1FFF,8192);
+  mcxt[0]=x.Image.ctx&0x1FFF;
   int pr1, pr2, pr3;
-  int pr0=x.filetype==IMAGE24? m->p(1,1): m->p();
+  int pr0=/*x.filetype==IMAGE24? m->p(1,1):*/ m->p();
   int limit=0x3FF>>((x.blpos<0xFFF)*4);
  // pr=pr0;
   pr  = Image.APMs[0].p(pr0, (x.c0<<4)|(x.Misses&0xF), x.y,limit);

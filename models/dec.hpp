@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 #include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 #include "../prt/blockdata.hpp"
 //#include "../prt/buffers.hpp"
@@ -159,10 +159,11 @@ public:
     return r;
   }
   public:
+       int mxcxt[11];
   decModel1(BlockData& bd,U32 val=0);
  int inputs() {return nMaps*2 ;}
  int nets() {return State::Count * 26 + State::Count * 64 + 2048 + 4096 + 4096 + 8192 + 8192 + 8192 + 4096 + 4096 + 4096;;}
   int netcount() {return 11;}
-int p(Mixer& m,int val1=0,int val2=0);
+int p(Mixers& m,int val1=0,int val2=0);
  virtual ~decModel1(){}
 };

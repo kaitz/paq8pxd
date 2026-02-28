@@ -5,14 +5,29 @@ PredictorTXTWRT::PredictorTXTWRT(Settings &set):Predictors(set), pr(16384),pr0(p
 Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },
 count(0),blenght(1024*4),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x),
 decodedTextLen(0),lasttag(0),counttags(0),lState(0){
-   loadModels(activeModels,15);  
+   loadModels(activeModels);  
    // add extra 
    mixerInputs+=1+1;
    mixerNets+= 4096+ 64+ 256+ 256*8+ 256*8+ 256*8+ 1536+ 2048;
    mixerNetsCount+=8;
    sse.p(pr); // must
    // create mixer
-   m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2);
+   //m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2);
+   for (int i=0;i<9;i++) mcxt[i]=0;
+   
+    // Predictor contexts
+    mxp.push_back( {  4096,55,7,24,&mcxt[0],0} );
+    mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
+    mxp.push_back( {    64,55,7,24,&mcxt[2],0} );
+    mxp.push_back( { 256*8,55,7,24,&mcxt[3],0} );
+    mxp.push_back( { 256*8,55,7,24,&mcxt[4],0} );
+    mxp.push_back( { 256*8,55,7,24,&mcxt[5],0} );
+    mxp.push_back( {  1536,55,7,24,&mcxt[6],0} );
+    mxp.push_back( {  2048,55,7,24,&mcxt[7],0} );
+        
+   mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
+   // create mixer
+   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 void PredictorTXTWRT::wrt(){
         U8 c1=x.c4;
@@ -154,7 +169,8 @@ void PredictorTXTWRT::update() {
     order=models[M_NORMAL]->p(*m);
 
         int state=models[M_XML]->p(*m);
-        m->set(models[M_WORD]->p(*m,state&7)&0xfff, 4096);    
+        int wcxt=models[M_WORD]->p(*m,state&7)&0xfff;
+        mcxt[0]=wcxt;    
         models[M_SPARSE]->p(*m,ismatch,order);
         models[M_NEST]->p(*m);
         models[M_INDIRECT]->p(*m);
@@ -171,21 +187,21 @@ void PredictorTXTWRT::update() {
          m->add((stretch(StateMaps[0].p( dd,x.y))+1)>>1);
         U32 c3=x.buf(3), c;
         c=(x.words>>1)&63;
-        m->set(x.c0, 256);
-        m->set(order << 3U | x.bpos, 64);
-        m->set((x.bc4&3)*64+c+order*256, 256*8);
-        m->set(256*order + (x.w4&240) + (x.b3>>4), 256*8);
-        m->set((x.w4&255)+256*x.bpos, 256*8);
+        mcxt[1]=x.c0;
+        mcxt[2]=order << 3U | x.bpos;
+        mcxt[3]=(x.bc4&3)*64+c+order*256;
+        mcxt[4]=256*order + (x.w4&240) + (x.b3>>4);
+        mcxt[5]=(x.w4&255)+256*x.bpos;
         if (x.bpos){
             c=x.c0<<(8-x.bpos); if (x.bpos==1)c+=x.b4/2;
             c=(min(x.bpos,5))*256+(x.tt&63)+(c&192);
         }
         else c=(x.words&12)*16+(x.tt&63);
-        m->set(c, 1536);
+        mcxt[6]=c;
         c=x.bpos*256+((x.c0<<(8-x.bpos))&255);
         c3 = (x.words<<x.bpos) & 255;
-        m->set(c+(c3>>x.bpos), 2048);
-        pr0=m->p(1,1);
+        mcxt[7]=c+(c3>>x.bpos);
+        pr0=m->p();
         int limit=0x3FF>>((x.blpos<0xFFF)*2);
     int pr1, pr2, pr3;
 

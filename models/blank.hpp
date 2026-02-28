@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 //#include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 
 //
 class blankModel1: public Model {
@@ -13,7 +13,7 @@ public:
   int inputs() {return 0;}
   int nets() {return 0;}
   int netcount() {return 0;}
-  inline int p(Mixer& m,int val1=0,int val2=0){  
+  inline int p(Mixers& m,int val1=0,int val2=0){  
     return 0;
   }
   virtual ~blankModel1(){}

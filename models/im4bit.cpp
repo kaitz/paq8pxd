@@ -9,10 +9,20 @@
    sm=new StateMap[S];
    for (int i=0;i<S;i++)
       cp[i]=t[263*i]+1;
+      
+      for (int i=0;i<6;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( { 256,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( { 512,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( { 512,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {1024,55,7,24,&mxcxt[3],0} );
+    mxp.push_back( {  16,55,7,24,&mxcxt[4],0} );
+    mxp.push_back( {   1,55,7,24,&mxcxt[5],0} );
+      
    }
 
    
-int im4bitModel1::p(Mixer& m,int w,int val2)  {
+int im4bitModel1::p(Mixers& m,int w,int val2)  {
   int i;
   if (x.blpos==1){//helps only on bigger files+1024kb
       //t.reset();
@@ -74,12 +84,12 @@ int im4bitModel1::p(Mixer& m,int w,int val2)  {
   }
   m.add(stretch(map.p(px,x.y)));
  
-  m.set(W*16+px, 256);
-  m.set(min(31,col/max(1,w/16))+N*32, 512);
-  m.set((x.bpos&3)+4*W+64*min(7,ilog2(run+1)), 512);
-  m.set(W+NE*16+(x.bpos&3)*256, 1024);
-  m.set(px, 16);
-  m.set(0,1);
+  mxcxt[0]=W*16+px;
+  mxcxt[1]=min(31,col/max(1,w/16))+N*32;
+  mxcxt[2]=(x.bpos&3)+4*W+64*min(7,ilog2(run+1));
+  mxcxt[3]=W+NE*16+(x.bpos&3)*256;
+  mxcxt[4]=px;
+  mxcxt[5]=0;
   return 0;
 }
 

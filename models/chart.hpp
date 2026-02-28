@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 #include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 //#include "../prt/contextmap.hpp"
 #include "../prt/CM128.hpp"
@@ -20,6 +20,6 @@ public:
  int inputs() {return 30*cm.inputs()+20*cn.inputs();}
 int nets() {return 0;}
   int netcount() {return 0;}
-int p(Mixer& m,int val1=0,int val2=0);
+int p(Mixers& m,int val1=0,int val2=0);
   virtual ~chartModel(){ }
 };

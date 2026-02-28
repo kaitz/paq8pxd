@@ -41,7 +41,7 @@ public:
   BlockData x; //maintains current global data block between models
   int mixerInputs,mixerNets,mixerNetsCount;
   Model **models;
-
+  std::vector<mparm> mxp;
 virtual ~Predictors(){
     if (models==nullptr) return;
     //printf("Models peak memory %d mb\n",(getPeakMemory()/1024)/1024);
@@ -53,7 +53,7 @@ virtual ~Predictors(){
 Predictors(Settings &);
   virtual int p() const =0;
   virtual void update()=0;
-  void loadModels(const U8* amodel,int count);
+  void loadModels( const std::vector<ModelTypes> &amodel);
   void setContexts();
   void update0();
 };

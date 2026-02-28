@@ -1,7 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 #include "../prt/indirect.hpp"
 #include "../prt/statemap.hpp"
@@ -296,7 +296,7 @@ class jpegModelx: public Model {
    // Context model
    const int N,M; // size of t, number of contexts
    Array<U64> cxt;  // context hashes
-   Mixer m1;
+   Mixers *m1;
    APM apm[9];
    BlockData& x;
    Buf& buf;
@@ -320,12 +320,17 @@ class jpegModelx: public Model {
      {15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3}
     };
 
+
 public:
+    std::vector<mparm> lmxp;
+    int lmcxt[8];
+     int mcxt[8];
   jpegModelx(BlockData& bd);
   int inputs() {return 2*N+24+M;}
   int nets() {return 9 + 1025 + 1024 + 512 + 4096 + 64 + 4096 + 1024;}
   int netcount() {return 8;}
-  int p(Mixer& m,int val1=0,int val2=0);
+  int p(Mixers& m,int val1=0,int val2=0);
+  int mc(int i) {return mcxt[i];}
   virtual ~jpegModelx(){
    }
  

@@ -1,7 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 #include "../prt/indirect.hpp"
 #include "../prt/indirectcontext.hpp"
@@ -37,10 +37,11 @@ class recordModel1: public Model {
    U8 N, NN, NNN, NNNN,WxNW;
    const int nIndCtxs  ;
 public:
+    int mxcxt[3];
   recordModel1( BlockData& bd,U64 msize=0);
   int inputs() {return (3+3+3+3+16)*cm.inputs()+nMaps*2+2+3*2+3*2;}
   int nets() {return 512+11*32+1024;}
   int netcount() {return 2+1;}
-  int p(Mixer& m,int rrlen=0,int val2=0);
+  int p(Mixers& m,int rrlen=0,int val2=0);
  virtual ~recordModel1(){ }
 };

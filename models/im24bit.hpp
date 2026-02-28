@@ -2,7 +2,7 @@
 #include "../prt/types.hpp"
 //#include "../prt/helper.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
 #include "../prt/stationarymap.hpp"
@@ -87,13 +87,14 @@ class im24bitModel1: public Model {
                                      {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},{11,1}, {11,1}, {11,1}, {11,1}};
     Array<U32> mixCxt;
 public:
+    int mxcxt[13];
   im24bitModel1(BlockData& bd);
    
   int inputs() {return inpts*cm.inputs()+nSCMaps*2+100*2+1;}
   int nets() {return 256+   256+   512+   2048+   8*32+   6*64+   256*2+   1024+   8192+   8192+   8192+   8192+  256;}
   int netcount() {return 13;}
    
-  int p(Mixer& m,int info,int val2=0);
+  int p(Mixers& m,int info,int val2=0);
 
   // Square buf(i)
 inline int sqrbuf(int i) {

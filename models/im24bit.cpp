@@ -23,10 +23,28 @@
     columns[0] = 1, columns[1]=1;
     column[0]=0,column[1]=0;
     ctx[0]=0,ctx[1]=0;
+    
+      for (int i=0;i<12;i++)mxcxt[i]=0;
+    // Set image model mixer contexts and parameters
+    mxp.push_back( {256,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {256,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {512,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {2048,55,7,24,&mxcxt[3],0} );
+    mxp.push_back( { 8*32,55,7,24,&mxcxt[4],0} );
+    mxp.push_back( { 6*64,55,7,24,&mxcxt[5],0} );
+    mxp.push_back( {256*2,55,7,24,&mxcxt[6],0} );
+    mxp.push_back( {1024,55,7,24,&mxcxt[7],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[8],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[9],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[10],0} );
+    mxp.push_back( {8192,55,7,24,&mxcxt[11],0} );
+    mxp.push_back( {256,55,7,24,&mxcxt[12],0} );
+    
+   
     }
    
   
-  int im24bitModel1::p(Mixer& m,int info,int val2){
+  int im24bitModel1::p(Mixers& m,int info,int val2){
   if (!bpos) {
     if (xx.blpos==1  ){
       const int alpha=xx.filetype==IMAGE32?1:xx.filetype==IMPNG32?1:0;
@@ -453,24 +471,24 @@
         mixCxt[i++]=(min(255,(x+line)/32));
     }
     int i=0;
-    m.set(mixCxt[i++]|col, 256);
-    m.set(mixCxt[i++], 256);
-    m.set(mixCxt[i++], 512);
-    m.set(mixCxt[i++]|(bpos>>1), 2048);
-    m.set(col+(isPNG?(ctx[0]&7)+1:(c0==((0x100|((N+W)/2))>>(8-bpos))))*32, 8*32);i++;
-    m.set(mixCxt[i++], 6*64);
-    m.set(c0+mixCxt[i++], 256*2);
-    m.set(mixCxt[i++]|(bpos>>1), 1024);
-    m.set(mixCxt[i++], 8192);
-    m.set(mixCxt[i++], 8192);
-    m.set(hash(LogQt(N,5), LogMeanDiffQt(N,NN,3), c0)&0x1FFF, 8192);i++;
-    m.set(hash(LogQt(W,5), LogMeanDiffQt(W,WW,3), c0)&0x1FFF, 8192);i++;
-    m.set(mixCxt[i++], 256);
+    mxcxt[0]=mixCxt[i++]|col;
+    mxcxt[1]=mixCxt[i++];
+    mxcxt[2]=mixCxt[i++];
+    mxcxt[3]=mixCxt[i++]|(bpos>>1);
+    mxcxt[4]=col+(isPNG?(ctx[0]&7)+1:(c0==((0x100|((N+W)/2))>>(8-bpos))))*32;i++;
+    mxcxt[5]=mixCxt[i++];
+    mxcxt[6]=c0+mixCxt[i++];
+    mxcxt[7]=mixCxt[i++]|(bpos>>1);
+    mxcxt[8]=mixCxt[i++];
+    mxcxt[9]=mixCxt[i++];
+    mxcxt[10]=hash(LogQt(N,5), LogMeanDiffQt(N,NN,3), c0)&0x1FFF;i++;
+    mxcxt[11]=hash(LogQt(W,5), LogMeanDiffQt(W,WW,3), c0)&0x1FFF;i++;
+    mxcxt[12]=mixCxt[i++];
     
   }
   else{
     m.add( -2048+((filter>>(7-bpos))&1)*4096 );
-    m.set(min(4,filter),6);
+    mxcxt[0]=min(4,filter);
   }
   return 0;
 }

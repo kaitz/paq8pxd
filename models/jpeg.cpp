@@ -12,15 +12,27 @@ jpegModelx::jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
   hbuf(2048),color(10), pred(4), dc(0),width(0), row(0),column(0),cbuf(0x20000),
   cpos(0), rs1(0), ssum(0), ssum1(0), ssum2(0), ssum3(0),cbuf2(0x20000),adv_pred(4),adv_pred1(3),adv_pred2(3),adv_pred3(3), run_pred(6),
   sumu(8), sumv(8), ls(10),lcp(7), zpos(64), blockW(10), blockN(10),  SamplingFactors(4),dqt_state(-1),dqt_end(0),qnum(0),qnum16(0),qnum16b(0),pr0(0),
-  qtab(256),qmap(10),N(41),M(66),cxt(N),m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 8,0,3,2),
+  qtab(256),qmap(10),N(41),M(66),cxt(N),
    apm{{0x40000,20-4},{0x40000,20-4},{0x20000,20-4},
    {0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,20-4},{0x20000,27},{0x20000,20-4}},
    x(bd),buf(bd.buf),MJPEGMap( {21, 3, 128, 127}),
   hbcount(2),prev_coef(0),prev_coef2(0), prev_coef_rs(0), rstpos(0),rstlen(0),
   hmap(x.settings.level>10?0x8000000:(CMlimit(bd.MEM()*2)),9,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(1),lma(0),ama(0) {
+      //m1(32+32+3+4+1+1+1+1+N*3+1+3*M+6,2050+3+1024+64+1024 +256+16+64,bd, 8,0,3,2),
+       for (int i=0;i<8;i++) mcxt[i]=0;
+       for (int i=0;i<8;i++) lmcxt[i]=0;
+        lmxp.push_back( {    2,55,7,24,&lmcxt[0],0} );
+        lmxp.push_back( { 1024,55,7,24,&lmcxt[1],0} );
+        lmxp.push_back( { 2048,55,7,24,&lmcxt[2],0} );
+        lmxp.push_back( {   64,55,7,24,&lmcxt[3],0} );
+        lmxp.push_back( { 1024,55,7,24,&lmcxt[4],0} );
+        lmxp.push_back( {  256,55,7,24,&lmcxt[5],0} );
+        lmxp.push_back( {   16,55,7,24,&lmcxt[6],0} );
+        lmxp.push_back( {1,6,7,4,&lmcxt[7],0} ); // final mixer
+       m1=new Mixers(x,lmxp.size(),32+32+3+4+1+1+1+1+N*3+1+3*M+6,lmxp);
   }
 
-  int jpegModelx::p(Mixer& m,int val1,int val2){
+  int jpegModelx::p(Mixers& m,int val1,int val2){
 
  if (idx < 0){
     memset(&images[0], 0, sizeof(images));
@@ -490,33 +502,33 @@ jpegModelx::jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
   // Estimate next bit probability
   if (!images[idx].jpeg || !images[idx].data) return images[idx].next_jpeg;//return 0;
   if (buf(1+(!x.bpos))==FF) {
+  x.Misses+=x.Misses ;
     m.add(128);
-    m.set(0,  9);
-    m.set(0, 1025);
-    m.set(buf(1), 1024);
-    m.set(0, 512);
-    x.Misses+=x.Misses ;
-    m.set(0, 4096 ); 
-    m.set(0, 64);
-    m.set(0, 4096);
-    m.set(0, 1024);
+    mcxt[0]=0;
+    mcxt[1]=0;
+    mcxt[2]=buf(1);
+    mcxt[3]=0;
+    mcxt[4]=0; 
+    mcxt[5]=0;
+    mcxt[6]=0;
+    mcxt[7]=0;
     return 2;
   }
   if (rstlen>0 && rstlen==column+row*width-rstpos && mcupos==0 && (int)huffcode==(1<<huffbits)-1) {
     m.add(2047);
-    m.set(0,  9);
-    m.set(0,  1025); 
-    m.set(buf(1), 1024);
-    m.set(0,  512 );
     x.Misses+=x.Misses;
-    m.set(0, 4096 );
-    m.set(0, 64);
-    m.set(0, 4096);
-    m.set(0, 1024);
+    mcxt[0]=0;
+    mcxt[1]=0;
+    mcxt[2]=buf(1);
+    mcxt[3]=0;
+    mcxt[4]=0; 
+    mcxt[5]=0;
+    mcxt[6]=0;
+    mcxt[7]=0;
     return 2;
   }
   if (val1==1) {if (++hbcount>2 ) hbcount=0;return /*skip++,*/ 1;  }
-  m1.update();
+  m1->update();
   hmap.update();
 
   // Update context
@@ -575,7 +587,7 @@ jpegModelx::jpegModelx(BlockData& bd):  MaxEmbeddedLevel(3),idx(-1),
   }
 
   // Predict next bit
-  m1.add(128);
+  m1->add(128);
   assert(hbcount<=2);
   int p;
 
@@ -586,12 +598,12 @@ if (x.settings.slow==true) x.count=0;
             for (int i=0; i<N; ++i){  
                 p1=p=hmap.ps(i,finalize64(cxt[i],32),y); 
                 const int n0=hmap.sn0(), n1=hmap.sn1();
-                m1.add((p-2048)>>3); 
-                m1.add(p=stretch(p)); 
+                m1->add((p-2048)>>3); 
+                m1->add(p=stretch(p)); 
                 m.add(p>>(1+hmap.siy())); 
                 int p0=4095-p1;
                 m.add((((p1&n0)-(p0&n1))*1)/(4*4));
-                m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
+                m1->add((((p1&n1)-(p0&n0))*1)/(4*4));
             }
         } break;
     case 1: { int hc=1+(huffcode&1)*3;int p1=0;
@@ -599,12 +611,12 @@ if (x.settings.slow==true) x.count=0;
             for (int i=0; i<N; ++i){
                 p1=p=hmap.p(i,hc,y); 
                 const int n0=hmap.sn0(), n1=hmap.sn1();
-                m1.add((p-2048)>>3); 
-                m1.add(p=stretch(p)); 
+                m1->add((p-2048)>>3); 
+                m1->add(p=stretch(p)); 
                 m.add(p>>(1+hmap.siy())); 
                 int p0=4095-p1;
                 m.add((((p1&n0)-(p0&n1))*1)/(4*4));
-                m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
+                m1->add((((p1&n1)-(p0&n0))*1)/(4*4));
             }
         } break;
     default: { int hc=1+(huffcode&1); int p1=0;
@@ -612,12 +624,12 @@ if (x.settings.slow==true) x.count=0;
             for (int i=0; i<N; ++i){  
                 p1=p=hmap.p(i,hc,y); 
                 const int n0=hmap.sn0(), n1=hmap.sn1();
-                m1.add((p-2048)>>3); 
-                m1.add(p=stretch(p)); 
+                m1->add((p-2048)>>3); 
+                m1->add(p=stretch(p)); 
                 m.add(p>>(1+hmap.siy())); 
                 int p0=4095-p1;
                 m.add((((p1&n0)-(p0&n1))*1)/(4*4));
-                m1.add((((p1&n1)-(p0&n0))*1)/(4*4));
+                m1->add((((p1&n1)-(p0&n0))*1)/(4*4));
             }
         } break;
     }
@@ -711,27 +723,27 @@ if (x.settings.slow==true) x.count=0;
   }
   
   for (int i=0; i<M; ++i){
-      int p=stretch(Map1[i].mix(m1));
+      int p=stretch(Map1[i].mix(*m1));
       
-      m.add(p>>1);m1.add(p>>1);
+      m.add(p>>1);m1->add(p>>1);
   } 
   
-  MJPEGMap.mix2( m1);
+  MJPEGMap.mix2( *m1);
 
   int sd=((smx.p((hc)&0xffff,y)));
-   m1.add(sd=stretch(sd));
+   m1->add(sd=stretch(sd));
    m.add(sd);
    
-   m1.set(firstcol, 2,14,250);
-   m1.set( coef+256*min(3,huffbits), 1024,13,250*2 );
-   m1.set( (hc&0x3FE)*2+min(3,ilog2(zu+zv)), 2048,13,250*2 );
-   m1.set(mcupos&63, 64 );
+   lmcxt[0]=firstcol;
+   lmcxt[1]=coef+256*min(3,huffbits);
+   lmcxt[2]=(hc&0x3FE)*2+min(3,ilog2(zu+zv));
+   lmcxt[3]=mcupos&63;
    int colCtx=(width>1024)?(min(1023, column/max(1, width/1024))):column;
-   m1.set(colCtx, 1024); 
-   m1.set(lma, 256); 
-   m1.set(ama, 16); 
+   lmcxt[4]=colCtx; 
+   lmcxt[5]=lma; 
+   lmcxt[6]=ama;
 
-  int pr=m1.p(1,0);
+  int pr=m1->p();
    x.Misses+=x.Misses+((pr0>>11)!=y);
    jmiss+=jmiss+((pr0>>11)!=y);
   pr0=pr;
@@ -767,17 +779,17 @@ if (x.settings.slow==true) x.count=0;
      m.add(stretch(pr)>>1);
      m.add((pr-2048)>>3);   
 
-  m.set( 1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4, 9 ,15,250);
-  m.set( 1 + (hc&0xFF) + 256*min(3,(zu+zv)/3), 1025,9 ,250);
-  m.set( coef+256*min(3,huffbits/2), 1024 ,13);
-  m.set((hc)&511, 512);
+  mcxt[0]=1 + (zu+zv<5)+(huffbits>8)*2+firstcol*4;
+  mcxt[1]=1 + (hc&0xFF) + 256*min(3,(zu+zv)/3);
+  mcxt[2]=coef+256*min(3,huffbits/2);
+  mcxt[3]=(hc)&511;
 
-  m.set( (((abs(adv_pred[1]) / 16) )<<6) |(x.Misses&0x38)|((lma)!=0)*4|(comp == 0)*2 |(min(3,ilog2(zu+zv))>1), 4096);
+  mcxt[4]=(((abs(adv_pred[1]) / 16) )<<6) |(x.Misses&0x38)|((lma)!=0)*4|(comp == 0)*2 |(min(3,ilog2(zu+zv))>1);
   int colCtx1=(width>64)?(min(63, column/max(1, width/64))):column;
-  m.set(colCtx1, 64,10);
+  mcxt[5]=colCtx1;
 
-  m.set(( (((abs(lcp[2]) / 16 )&15)<<8)| (((abs(lcp[1]) / 16 )&15)<<4) | (abs(lcp[0]) / 16)&15  ) , 4096,13 );
-  m.set(( (((abs(adv_pred[1]) / 16) )<<6) |  (((abs(adv_pred[0]) / 16) )<<2) | min(3,huffbits)),1024,13);
+  mcxt[6]=( (((abs(lcp[2]) / 16 )&15)<<8)| (((abs(lcp[1]) / 16 )&15)<<4) | (abs(lcp[0]) / 16)&15  );
+  mcxt[7]=( (((abs(adv_pred[1]) / 16) )<<6) |  (((abs(adv_pred[0]) / 16) )<<2) | min(3,huffbits));
   return 1;
   }
 

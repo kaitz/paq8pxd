@@ -34,7 +34,7 @@ void LargeStationaryMap::reset() {
   }
 }
 
-void LargeStationaryMap::update(Mixer &m) {
+void LargeStationaryMap::update(Mixers &m) {
   uint32_t n0, n1, value;
   value = *cp;
   n0 = value >> 16;
@@ -51,7 +51,7 @@ void LargeStationaryMap::update(Mixer &m) {
   context = hash(context, m.x.y);
 }
 
-void LargeStationaryMap::mix(Mixer &m) {
+void LargeStationaryMap::mix(Mixers &m) {
   update(m);
   uint32_t n0, n1, value, sum;
   int p1, st, bitIsUncertain;

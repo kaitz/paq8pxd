@@ -1,7 +1,7 @@
 #pragma once
 #include "../prt/types.hpp"
 #include "../prt/array.hpp"
-#include "../prt/mixer.hpp"
+#include "../prt/mixers.hpp"
 #include "model.hpp"
 //#include "../prt/blockdata.hpp"
 //#include "../prt/buffers.hpp"
@@ -595,11 +595,12 @@ void ApplyCodeAndSetFlag(Instruction &Op, U32 Flag = 0);
 // Get context at buf(i) relevant to parsing 32-bit x86 code
 U32 execxt(int i, int x=0);
 public:
+    int mxcxt[6];
   exeModel1(BlockData& bd,U32 val=0);
   int inputs() {return 2+(N1+N2)*cm.inputs();}
   int nets() {return  1024+ 1024+ 1024+ 8192+ 8192+ 8192;}
   int netcount() {return 6;}
-int p(Mixer& m,int val1=0,int val2=0);
+int p(Mixers& m,int val1=0,int val2=0);
 
 
 virtual ~exeModel1(){ }
