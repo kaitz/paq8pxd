@@ -8,10 +8,10 @@
 #include "../prt/stationarymap.hpp"
 //#include "../prt/indirect.hpp"
 //#include "../prt/indirectcontext.hpp"
-#include "../prt/contextmap2.hpp"
+//#include "../prt/contextmap2.hpp"
 #include "../prt/sscm.hpp"
 #include "../prt/ols.hpp"
-
+#include "../prt/CM128.hpp"
 //////////////////////////// im24bitModel /////////////////////////////////
 // Model for 24-bit image data
 
@@ -22,7 +22,7 @@
 class im24bitModel1: public Model {
  int nOLS ;
  int inpts;
- ContextMap2 cm;
+ ContextMap3 cm;
  int col, color,stride;
  int ctx[2];
  int padding, x;

@@ -1,3 +1,7 @@
+v145
+    -Add new ContextMap3.
+    -Replace ContextMap and ContextMap2 with ContextMap3.
+    -Fix fast mode compression.
 v144
     -Fixes for multithreading issues. pthread now works.
     -Separate level 0 in compressStream.

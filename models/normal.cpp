@@ -1,6 +1,7 @@
 #include "normal.hpp"
 
-normalModel1::normalModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(10), cm(CMlimit(x.MEM()*32), N,M_NORMAL,
+normalModel1::normalModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(10), cm(x,N,CMlimit(x.MEM()*32)),
+/*cm(CMlimit(x.MEM()*32), N,M_NORMAL,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+
@@ -9,9 +10,9 @@ normalModel1::normalModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(10), cm(C
   CM_MAIN4+
   CM_M12+
   CM_M6
-  ), StateMaps{ 256, 256*256,256*256,256*256 },
+  ),*/ StateMaps{ 256, 256*256,256*256,256*256 },
   /*rcm7(CMlimit(MEM()/(level>8?8:4)),bd),*/
-  rcm9(CMlimit(x.MEM()/((x.settings.level>8?8:4))),bd), rcm10(CMlimit(x.MEM()/(x.settings.level>8?4:2)),bd){
+  rcm9(CMlimit(x.MEM()/((x.settings.level>8?8:4))),bd), rcm10(CMlimit(x.MEM()/(x.settings.level>8?4:2)),bd) {
  }
 
   
@@ -19,7 +20,7 @@ int normalModel1::p(Mixer& m,int val1,int val2){
   if (x.bpos==0) {
      // if (val2==-1) return 1;
     int i;
-    if (val2==0) cm.set(x.cxt[15]);
+    if (val2==0) cm.set(x.cxt[15]); else cm.sets();
     for (i=1; i<=7; ++i)
       cm.set(x.cxt[i]);
 

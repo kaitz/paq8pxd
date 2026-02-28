@@ -5,7 +5,8 @@
 #include "../prt/mixer.hpp"
 #include "../prt/hash.hpp"
 #include "model.hpp"
-#include "../prt/contextmap2.hpp"
+//#include "../prt/contextmap2.hpp"
+#include "../prt/CM128.hpp"
 //////////////////////////// sparseModel ///////////////////////
 
 // Model order 1-2 contexts with gaps.
@@ -13,7 +14,7 @@ class sparseModely: public Model {
   BlockData& x;
   Buf& buf;
   const int N;
-  ContextMap2 cm;
+  ContextMap3 cm;
   U32 ctx;
 public:
   sparseModely(BlockData& bd,U32 val=0);

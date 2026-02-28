@@ -4,11 +4,12 @@
 #include "../prt/mixer.hpp"
 #include "model.hpp"
 #include "../prt/sscm.hpp"
-#include "../prt/contextmap.hpp"
+//#include "../prt/contextmap.hpp"
+#include "../prt/CM128.hpp"
 
 class sparseModelx: public Model {
    const int N;
-   ContextMap cm;
+   ContextMap3 cm;
    SmallStationaryContextMap scm1, scm2, scm3,
    scm4, scm5,scm6, scma;
    BlockData& x;

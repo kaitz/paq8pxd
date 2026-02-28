@@ -3,8 +3,9 @@
 
 
 
-  TextModel::TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),  
-  Map(CMlimit(bd.MEM()*Size), N,M_TEXT,
+  TextModel::TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),
+  Map(bd,N,CMlimit(bd.MEM()*Size)),
+  /*Map(CMlimit(bd.MEM()*Size), N,M_TEXT,
   CM_RUN2+
   CM_RUN1+
   CM_MAIN1+
@@ -12,7 +13,8 @@
   CM_MAIN3+
   CM_MAIN4+
   CM_M12
-  ), Stemmers(Language::Count-1), Languages(Language::Count-1),
+  ),*/
+   Stemmers(Language::Count-1), Languages(Language::Count-1),
    WordPos(0x10000), State(Parse::Unknown), pState(State), Lang{ 0, 0, Language::Unknown, Language::Unknown }, Info{ 0 }, ParseCtx(0),doXML(false),firstwasspace(false) {
     Stemmers[Language::English-1] = new EnglishStemmer();
     Stemmers[Language::French-1] = new FrenchStemmer();

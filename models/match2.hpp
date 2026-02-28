@@ -10,9 +10,9 @@
 #include "../prt/statemap.hpp"
 #include "../prt/stationarymap.hpp"
 //#include "../prt/sscm.hpp"
-#include "../prt/contextmap2.hpp"
+//#include "../prt/contextmap2.hpp"
 #include "../prt/largestationarymap.hpp"
-
+#include "../prt/CM128.hpp"
 
 class matchModel2: public Model {
 private:
@@ -23,7 +23,7 @@ private:
     static constexpr int nSM = 1;
     Array<HashElementForMatchPositions> hashtable;
     StateMap stateMaps[nST];
-    ContextMap2 cm;
+    ContextMap3 cm;
     LargeStationaryMap mapL[nLSM];
     StationaryMap map[nSM];
     static constexpr uint32_t iCtxBits = 7;

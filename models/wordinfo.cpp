@@ -1,6 +1,6 @@
 #include "wordinfo.hpp"
 
-Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm(contextmap),
+Info::Info(BlockData& bd,U32 val, ContextMap3  &contextmap, ContextMap3  &contextmap1):x(bd),buf(bd.buf), cm(contextmap),cm1(contextmap1),
     word0(0),word1(0),word2(0), word3(0),word4(0),word5(0),word6(0),word7(0),
     wrdhsh(0),
     xword0(0),xword1(0),xword2(0),xword3(0),cword0(0),ccword(0),fword(0),
@@ -307,25 +307,25 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
              if(exprlen0>=1) {
              const int wl_wme_mbc=min(exprlen0,1+3)<<2;
              cm.set(hash(++i, wl_wme_mbc, c));
-             }      else {cm.set();i++;}
+             }      else {cm.sets();i++;}
 
              if(exprlen0>=2) {
              const int wl_wme_mbc=min(exprlen0,2+3)<<2;
              cm.set(hash(++i, wl_wme_mbc, expr0chars&0xffff));
-             }      else {cm.set();i++;}
+             }      else {cm.sets();i++;}
 
              if(exprlen0>=3) {
              const int wl_wme_mbc=min(exprlen0,3+3)<<2;
              cm.set(hash(++i, wl_wme_mbc, expr0chars&0xffffff));
-             }      else {cm.set();i++;}
+             }      else {cm.sets();i++;}
 
              if(exprlen0>=4) {
              const int wl_wme_mbc=min(exprlen0,4+3)<<2;
              cm.set(hash(++i, wl_wme_mbc, expr0chars));
-             }   else {cm.set();i++;}
+             }   else {cm.sets();i++;}
              cm.set(hash(++i,x.spaces, (x.words&255), (numbers&255), (x.pwords&255)));//spaces...
-             for(int j=0;j<5;j++)  {cm.set();++i;}
-          } else for(int j=0;j<10;j++)  {cm.set();++i;}
+             for(int j=0;j<5;j++)  {cm.sets();++i;}
+          } else for(int j=0;j<10;j++)  {cm.sets();++i;}
            
         }
         else {
@@ -362,7 +362,7 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
             U32 d=c4&0xf0ff;
             cm.set(hash(++i,d,x.frstchar,ccword));
         }else {
-            for(int j=0;j<8;j++)  {cm.set();++i;}
+            for(int j=0;j<8;j++)  {cm.sets();++i;}
         }
         }
         h=word0*271;
@@ -396,15 +396,15 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
             cm.set(hash(++i,word0,number0,wpword1, xword3));  //
             cm.set(hash(++i,x.frstchar, xword2,inkeyw[w]));
             }else {
-            for(int j=0;j<5;j++)  {cm.set();++i;}
+            for(int j=0;j<5;j++)  {cm.sets();++i;}
         }
         }else{
             //for(int j=0;j<5;j++)  {cm.set();++i;}
             cm.set(hash(++i+512,nl1));    //chars occurring in this paragraph (order 0)
-     cm.set();++i;//cm.set(hash(++i+512,nl1,c));  //chars occurring in this paragraph (order 1)
+     cm.sets();++i;//cm.set(hash(++i+512,nl1,c));  //chars occurring in this paragraph (order 1)
       cm.set(hash(++i+512,x.frstchar));   //chars occurring in a paragraph that began with frstchar (order 0)
       //cm.set(hash(++i+512,x.frstchar,c)); //chars occurring in a paragraph that began with frstchar (order 1)*/
-      if (lastSpace<1024*4)       cm.set(hash(++i+512,h, word1, word4)); else cm.set();++i;
+      if (lastSpace<1024*4)       cm.set(hash(++i+512,h, word1, word4)); else cm.sets();++i;
       cm.set(hash(++i+512,x.col,x.wcol,nl1-nl));//cm.set();   ++i;
     //  cm.set(hash(expr0,expr1,expr2,expr3,expr4));
            
@@ -420,7 +420,7 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
             cm.set(hash(++i,h, word1,word3));
             cm.set(hash(++i,h, word2,word3));
         }else{
-            for(int j=0;j<6;j++)  {cm.set();++i;}
+            for(int j=0;j<6;j++)  {cm.sets();++i;}
         }
         if  (x.filetype!=DECA ){
             if (x.settings.witmode==true  )  {
@@ -433,7 +433,7 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
         }
         cm.set(hash(++i,opened,c,dist!=0,pdf_text_parser_state));
         //cm.set(hash(++i,opened,word0));
-        if (x.dictonline==true) cm.set(hash(buf(1),wchar1,wchar2)); else {cm.set();}
+        if (x.dictonline==true) cm.set(hash(buf(1),wchar1,wchar2)); else {cm.sets();}
         cm.set(x.f4&0x00000fff);
         cm.set(x.f4); 
         
@@ -449,18 +449,18 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
         } 
         else {
           if (x.filetype!=DECA )
-            for(int j=0;j<4;j++)  {cm.set();++i;}
+            for(int j=0;j<4;j++)  {cm.sets();++i;}
         }
  
         if (x.wordlen) cm.set(hash(++i, word0, dist>>4));    
-        else  {cm.set();++i;}
+        else  {cm.sets();++i;}
         if (x.wordlen)cm.set(hash(++i,word1, data0,dist>>2));   
-        else {cm.set();++i;}
+        else {cm.sets();++i;}
         cm.set(hash(++i,buf(1),word0,llog(x.blpos-wpos[word2&(wpos.size()-1)])>>2));
        
             cm.set(hash(++i,mask)); 
             cm.set(hash(++i,mask,buf(1))); 
-            if (pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))    cm.set(hash(++i,mask&0x1ff,x.col,wcol)); else  {cm.set();++i;}
+            if (pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))    cm.set(hash(++i,mask&0x1ff,x.col,wcol)); else  {cm.sets();++i;}
             cm.set(hash(++i,mask,c4&0x00ffff00)); 
             cm.set(hash(++i,mask&0x1ff,x.f4&0x00fff0)); 
             cm.set(hash(++i,h, llog(wordGap), mask&0x1FF, ///// dis>30
@@ -477,8 +477,8 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
              ));
       
         
-        if (x.wordlen1 && pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))            cm.set(hash((wcol<<8)|x.col,x.wordlen1,above,above1,c4&0xfF)); else cm.set(); //wordlist 
-        if (wrdhsh)          cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else i++,cm.set();//?
+        if (x.wordlen1 && pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0))            cm.set(hash((wcol<<8)|x.col,x.wordlen1,above,above1,c4&0xfF)); else cm.sets(); //wordlist 
+        if (wrdhsh)          cm.set(hash(++i,mask2&0x3F, wrdhsh&0xFFF, (0x100|firstLetter)*(x.wordlen<6),(wordGap>4)*2+(x.wordlen1>5)) ); else i++,cm.sets();//?
         hq=hash((wcol<<8)|x.col,above^above1,numbers&127,x.filetype==DECA?c4&0xfF:llog(x.blpos-wpos[word0&(wpos.size()-1)]));
         if (  pdf_text_parser_state==0&&scountset==false &&!(x.frstchar=='{' && istemplate!=0)) cm.set(hash(++i,(wcol<<8)|x.col,above^above1,above2 , ((islink)<<8)|
              ((linespace > 4)<<7)|
@@ -488,7 +488,7 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
              ((x.spafdo == x.wordlen + x.wordlen1 + 3)<<3)|
              ((x.spafdo >= lastLetter + x.wordlen1 + wordGap)<<2)|
              ((lastUpper < lastLetter + x.wordlen1)<<1)|
-             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));   else  {cm.set();++i;}
+             (lastUpper < x.wordlen + x.wordlen1 + wordGap)));   else  {cm.sets();++i;}
         cm.set(hash((*pWord).Hash[2], h));
         
  }
@@ -513,15 +513,16 @@ Info::Info(BlockData& bd,U32 val, ContextMap  &contextmap):x(bd),buf(bd.buf), cm
  if( linespace>0 || x.dictonline==true) {
     U64 i = to_be_collapsed*8;//i=i*65;
     U32 g_a_hi=(g_ascii_lo>>32),g_a_lo=g_ascii_lo&0x00000000ffffffff;
-    cm.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
-    cm.set(hash( (++i), g_a_hi, g_a_lo));                                  // last 8 groups
-    cm.set(hash( (++i), g_a_hi&0x0000ffff, g_a_lo ));                      // last 6 groups
-    cm.set(hash( (++i), g_a_lo));                                          // last 4 groups
-    cm.set(hash( (++i), g_a_lo&0x0000ffff));                               // last 2 groups
-    cm.set(hash( (++i), g_a_hi&0x00ffffff, g_a_lo , c4&0x0000ffff ));    // last 7 groups + last 2 chars
-    cm.set(hash( (++i), g_a_hi&0x000000ff, g_a_lo , c4&0x00ffffff ));    // last 5 groups + last 3 chars
- } else for(int i=0;i<7;i++) cm.set();
+    cm1.set(hash( (++i), g_a_hi, g_a_lo, g_ascii_hi&0x00000000ffffffff ));  // last 12 groups
+    cm1.set(hash( (++i), g_a_hi, g_a_lo));                                  // last 8 groups
+    cm1.set(hash( (++i), g_a_hi&0x0000ffff, g_a_lo ));                      // last 6 groups
+    cm1.set(hash( (++i), g_a_lo));                                          // last 4 groups
+    cm1.set(hash( (++i), g_a_lo&0x0000ffff));                               // last 2 groups
+    cm1.set(hash( (++i), g_a_hi&0x00ffffff, g_a_lo , c4&0x0000ffff ));    // last 7 groups + last 2 chars
+    cm1.set(hash( (++i), g_a_hi&0x000000ff, g_a_lo , c4&0x00ffffff ));    // last 5 groups + last 3 chars
+ } else for(int i=0;i<7;i++) cm1.sets();
   }
+  //printf("%d \n",cm.cn);
      return hq;
     }
 

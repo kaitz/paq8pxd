@@ -4,7 +4,8 @@
 #include "../prt/mixer.hpp"
 #include "model.hpp"
 #include "../prt/indirectcontext.hpp"
-#include "../prt/contextmap.hpp"
+//#include "../prt/contextmap.hpp"
+#include "../prt/CM128.hpp"
 //////////////////////////// indirectModel /////////////////////
 
 // The context is a byte string history that occurs within a
@@ -14,14 +15,14 @@ class indirectModel1: public Model {
   Buf& buf;
   const int N;
   const int mem;
-  ContextMap cm2;
-  ContextMap cm3;
-  ContextMap cm4;
-  ContextMap cm5;
-  ContextMap cmt;
-  ContextMap cm0;
-  ContextMap cma;
-  ContextMap cmc;
+  ContextMap3 cm2;
+  ContextMap3 cm3;
+  ContextMap3 cm4;
+  ContextMap3 cm5;
+  ContextMap3 cmt;
+  ContextMap3 cm0;
+  ContextMap3 cma;
+  ContextMap3 cmc;
   Array<U32> t1;
   Array<U16> t2;
   Array<U16> t3;

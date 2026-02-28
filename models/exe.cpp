@@ -135,7 +135,9 @@ U32 exeModel1::execxt(int i, int x) {
   return prefix|opcode<<4|modrm<<12|x<<20|sib<<(28-6);
 }
 
-  exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10),cm(CMlimit(x.MEM()*4), N1+N2,M_EXE,
+  exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10),
+  cm(bd,N1+N2,CMlimit(bd.MEM()*4)),
+  /*cm(CMlimit(x.MEM()*4), N1+N2,M_EXE,
   CM_MR+
   CM_RUN0+
   CM_MAIN1+
@@ -144,7 +146,8 @@ U32 exeModel1::execxt(int i, int x) {
   CM_MAIN4+
   CM_M12+
   CM_M6
-  ),iMap(20,1),
+  ),*/
+  iMap(20,1),
   pState (Start), State( Start), TotalOps(0), OpMask(0),OpCategMask(0), Context(0),BrkPoint(0),
   BrkCtx(0),Valid(false) {
       memset(&Cache, 0, sizeof(OpCache));
@@ -398,13 +401,18 @@ int exeModel1::p(Mixer& m,int val1,int val2){
       ));
       
     }
+   else 
+      for (int i=0;i<(N1+N2);i++) {
+        cm.sets();
+    }
   }
+  cm.mix(m/*, 1,4*/);
   if (Valid || val1){
-    int  cnx=m.nx;
-    cm.mix(m, 1,4);
-    int count=(m.nx-cnx)/(N1+N2);
-    m.nx=cnx;
-    for (int i=count*(N1+N2);i!=0;--i) m.sp(5); // increase all
+    //int  cnx=m.nx;
+    
+    //int count=(m.nx-cnx)/(N1+N2);
+    //m.nx=cnx;
+    //for (int i=count*(N1+N2);i!=0;--i) m.sp(5); // increase all
 
     iMap.set(hash(BrkCtx, x.bpos));
     if(x.filetype==EXE ) iMap.mix(m,1,4); 
@@ -412,8 +420,9 @@ int exeModel1::p(Mixer& m,int val1,int val2){
     x.x86_64.state = 0x80u | (static_cast<std::uint8_t>(State) << 3u) | Op.BytesRead;
   }else{
       x.x86_64.state=0;
-      for (int i=0; i<inputs(); ++i)
-        m.add(0);
+       m.add(0),m.add(0);
+     // for (int i=0; i<inputs(); ++i)
+     //   m.add(0);
   }
   U8 s = ((StateBH[Context]>>(28-x.bpos))&0x08) |
          ((StateBH[Context]>>(21-x.bpos))&0x04) |

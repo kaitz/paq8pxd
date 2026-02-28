@@ -7,7 +7,18 @@
 
   recordModel1::recordModel1( BlockData& bd,U64 msize ): x(bd),buf(bd.buf),   cpos1(256) , cpos2(256),
     cpos3(256), cpos4(256),wpos1(0x10000), rlen(3), rcount(2),padding(0),prevTransition(0),nTransition(0), col(0),mxCtx(0),
-    x1(0),MayBeImg24b(false),cm(32768, 3,M_RECORD), cn(32768/2, 3,M_RECORD),cq(32768*4, 3,M_RECORD), co(32768*2, 3,M_RECORD), cp(x.settings.level>9?0x10000000 :CMlimit(CMlimit(msize?msize:x.MEM()*2)*2), 16,M_RECORD), nMaps ( 6),
+    x1(0),MayBeImg24b(false),
+    cm(x,3,32768), // replace
+    cn(x,3,32768/2),
+    cq(x,3,32768*4),
+    co(x,3,32768*2),
+    cp(x,16,x.settings.level>9?0x10000000 :CMlimit(CMlimit(msize?msize:x.MEM()*2)*2)),
+   /* cm(32768, 3,M_RECORD),
+     cn(32768/2, 3,M_RECORD),
+     cq(32768*4, 3,M_RECORD),
+      co(32768*2, 3,M_RECORD),
+       cp(x.settings.level>9?0x10000000 :CMlimit(CMlimit(msize?msize:x.MEM()*2)*2), 16,M_RECORD),*/ 
+       nMaps ( 6),
     N(0), NN(0), NNN(0), NNNN(0),WxNW(0), nIndCtxs(5){
         // run length and 2 candidates
         rlen[0] = 2; 
@@ -156,7 +167,7 @@
       cp.set( hash(++i, w, ((dict==true)?x.bufn((x.wcol+1)&0xffff):buf(rlen[0]+1)==padding && N==padding), col/max(1,rlen[0]/32) ) );
     }
     else
-      cp.set(), cp.set();
+      cp.sets(), cp.sets();
 
     cp.set(hash(++i, N|((NN&0xF0)<<4)|((NNN&0xE0)<<7)|((NNNN&0xE0)<<10)|((col/max(1,rlen[0]/16))<<18) ));
     cp.set(hash(++i, (N&0xF8)|((NN&0xF8)<<8)|(col<<16),x.wcol ));

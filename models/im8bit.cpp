@@ -2,7 +2,10 @@
 //////////////////////////// im8bitModel /////////////////////////////////
 // Model for 8-bit image data
 
-  im8bitModel1::im8bitModel1( BlockData& bd):  inpts(49+nPltMaps),cm(CMlimit(bd.MEM()*4), inpts,M_IM8,
+  im8bitModel1::im8bitModel1( BlockData& bd):  inpts(48+1),
+  cm(bd,inpts,CMlimit(bd.MEM()*4)),
+  cmp(bd,nPltMaps,CMlimit(bd.MEM()/4)),
+  /*cm(CMlimit(bd.MEM()*4), inpts,M_IM8,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+
@@ -10,7 +13,8 @@
   CM_MAIN3+
   CM_MAIN4+
   CM_M12
-  ),col(0),xx(bd),buf(bd.buf), ctx(0),lastPos(0), lastWasPNG(0),line(0), x(0),
+  ),*/
+  col(0),xx(bd),buf(bd.buf), ctx(0),lastPos(0), lastWasPNG(0),line(0), x(0),
    filter(0),gray(0),isPNG(0),jump(0), framePos(0), prevFramePos(0), frameWidth(0), prevFrameWidth(0), c4(bd.c4),c0(bd.c0),bpos(bd.bpos), px(0),prvFrmPx(0), prvFrmPred(0),
    res (0),buffer(0x100000),filterOn(false),jumps(0x8000),WWWWWW(0), WWWWW(0), WWWW(0), WWW(0), WW(0), W(0),
       NWWWW(0), NWWW(0), NWW(0), NW(0), N(0), NE(0), NEE(0), NEEE(0), NEEEE(0),
@@ -172,56 +176,56 @@ int im8bitModel1::p(Mixer& m,int w,int val2){
       iCtx[2]=W|(WW<<8);
       iCtx[3]=N|(NN<<8);
       
-        cm.set(hash(++i, W, px));
-        cm.set(hash(++i, W, px, column[0]));
-        cm.set(hash(++i, N, px));
-        cm.set(hash(++i, N, px, column[0]));
-        cm.set(hash(++i, NW, px));
-        cm.set(hash(++i, NW, px, column[0]));
-        cm.set(hash(++i, NE, px));
-        cm.set(hash(++i, NE, px, column[0]));
-        cm.set(hash(++i, NWW, px));
-        cm.set(hash(++i, NEE, px));
-        cm.set(hash(++i, WW, px));
-        cm.set(hash(++i, NN, px));
-        cm.set(hash(++i, W, N, px));
-        cm.set(hash(++i, W, NW, px));
-        cm.set(hash(++i, W, NE, px));
-        cm.set(hash(++i, W, NEE, px));
-        cm.set(hash(++i, W, NWW, px));
-        cm.set(hash(++i, N, NW, px));
-        cm.set(hash(++i, N, NE, px));
-        cm.set(hash(++i, NW, NE, px));
-        cm.set(hash(++i, W, WW, px));
-        cm.set(hash(++i, N, NN, px));
-        cm.set(hash(++i, NW, NNWW, px));
-        cm.set(hash(++i, NE, NNEE, px));
-        cm.set(hash(++i, NW, NWW, px));
-        cm.set(hash(++i, NW, NNW, px));
-        cm.set(hash(++i, NE, NEE, px));
-        cm.set(hash(++i, NE, NNE, px));
-        cm.set(hash(++i, N, NNW, px));
-        cm.set(hash(++i, N, NNE, px));
-        cm.set(hash(++i, N, NNN, px));
-        cm.set(hash(++i, W, WWW, px));
-        cm.set(hash(++i, WW, NEE, px));
-        cm.set(hash(++i, WW, NN, px));
-        cm.set(hash(++i, W, buffer(w-3), px));
-        cm.set(hash(++i, W, buffer(w-4), px));
-        cm.set(hash(++i, W, N,NW, px));
-        cm.set(hash(++i, N, NN,NNN, px));
-        cm.set(hash(++i, W, NE,NEE, px));
-        cm.set(hash(hash( W,NW,N,NE), px));
-        cm.set(hash( hash(N,NE,NN,NNE), px));
-        cm.set(hash( hash(N,NW,NNW,NN), px));
-        cm.set(hash( hash(W,WW,NWW,NW), px));
-        cm.set(hash(++i, W, NW<<8 | N, WW<<8 | NWW, px));
-        cm.set(hash(++i, px, column[0]));
-        cm.set(hash(++i, px));
-        cm.set(hash(++i, N, px, column[1] ));
-        cm.set(hash(++i, W, px, column[1] ));
-        for (int j=0; j<nPltMaps; j++)
-          cm.set(hash(++i, iCtx[j](), px));
+        cm.set(hash( W, px));
+        cm.set(hash( W, px, column[0]));
+        cm.set(hash( N, px));
+        cm.set(hash( N, px, column[0]));
+        cm.set(hash( NW, px));
+        cm.set(hash( NW, px, column[0]));
+        cm.set(hash( NE, px));
+        cm.set(hash( NE, px, column[0]));
+        cm.set(hash( NWW, px));
+        cm.set(hash( NEE, px));
+        cm.set(hash( WW, px));
+        cm.set(hash( NN, px));
+        cm.set(hash( W, N, px));
+        cm.set(hash( W, NW, px));
+        cm.set(hash( W, NE, px));
+        cm.set(hash( W, NEE, px));
+        cm.set(hash( W, NWW, px));
+        cm.set(hash( N, NW, px));
+        cm.set(hash( N, NE, px));
+        cm.set(hash( NW, NE, px));
+        cm.set(hash( W, WW, px));
+        cm.set(hash( N, NN, px));
+        cm.set(hash( NW, NNWW, px));
+        cm.set(hash( NE, NNEE, px));
+        cm.set(hash( NW, NWW, px));
+        cm.set(hash( NW, NNW, px));
+        cm.set(hash( NE, NEE, px));
+        cm.set(hash( NE, NNE, px));
+        cm.set(hash( N, NNW, px));
+        cm.set(hash( N, NNE, px));
+        cm.set(hash( N, NNN, px));
+        cm.set(hash( W, WWW, px));
+        cm.set(hash( WW, NEE, px));
+        cm.set(hash( WW, NN, px));
+        cm.set(hash( W, buffer(w-3), px));
+        cm.set(hash( W, buffer(w-4), px));
+        cm.set(hash( W, N,NW, px));
+        cm.set(hash( N, NN,NNN, px));
+        cm.set(hash( W, NE,NEE, px));
+        cm.set(hash( W,NW,N,NE, px));
+        cm.set(hash( N,NE,NN,NNE, px));
+        cm.set(hash( N,NW,NNW,NN, px));
+        cm.set(hash( W,WW,NWW,NW, px));
+        cm.set(hash( W, NW<<8 | N, WW<<8 | NWW, px));
+        cm.set(hash( px, column[0]));
+        cm.set(( px));
+        cm.set(hash( N, px, column[1] ));
+        cm.set(hash( W, px, column[1] )); //48
+        for (int j=0; j<nPltMaps; j++) //4
+          cmp.set(( iCtx[j]()*191+ px));
         ctx = min(0x1F,(x-isPNG)/min(0x20,columns[0]));
         res = W;
       }
@@ -287,7 +291,7 @@ int im8bitModel1::p(Mixer& m,int w,int val2){
       }
       
      
-        cm.set();
+        //cm.sets();
         cm.set(hash(++i, N, px));
         cm.set(hash(++i, N-px));
         cm.set(hash(++i, W, px));
@@ -312,8 +316,10 @@ int im8bitModel1::p(Mixer& m,int w,int val2){
         cm.set(hash(++i, (W+WWW)/8, Clip(W*3-WW*3+WWW)/4, px));
         cm.set(hash(++i, Clip((-buffer(4)+5*WWW-10*WW+10*W+Clamp4(NE*4-NNE*6+buffer(w*3-1)*4-buffer(w*4-1),N,NE,buffer(w-2),buffer(w-3)))/5)-px));
         cm.set(hash(++i, Clip(N*2-NN)-px, LogMeanDiffQt(N,Clip(NN*2-NNN))));
-        cm.set(hash(++i, Clip(W*2-WW)-px, LogMeanDiffQt(NE,Clip(N*2-NW))));
-
+        cm.set(hash(++i, Clip(W*2-WW)-px, LogMeanDiffQt(NE,Clip(N*2-NW)))); //25
+        for (j=26; j<inpts; j++) cm.sets();
+         for (int j=0; j<nPltMaps; j++) //4
+          cmp.sets();
       
         if (isPNG)
           ctx = ((abs(W-N)>8)<<10)|((W>N)<<9)|((abs(N-NW)>8)<<8)|((N>NW)<<7)|((abs(N-NE)>8)<<6)|((N>NE)<<5)|((W>WW)<<4)|((N>NN)<<3)|min(5,filterOn?filter+1:0);
@@ -350,6 +356,7 @@ int im8bitModel1::p(Mixer& m,int w,int val2){
   col=(col+1)&7;
       if (val2==1)  return 1;   
     cm.mix(m);
+    cmp.mix(m);
     if (gray){
       for (int i=0;i<nMaps;i++)
         Map[i].mix1(m);
@@ -365,9 +372,9 @@ int im8bitModel1::p(Mixer& m,int w,int val2){
     m.set(5+ctx, 2048+5);
     m.set(col*2+(isPNG && c0==((0x100|res)>>(8-bpos))) + min(5,filterOn?filter+1:0)*16, 6*16);
     m.set(((isPNG?px:N+W)>>4) + min(5,filterOn?filter+1:0)*32, 6*32);
-    m.set(c0, 256);
+    m.set((W>>4)*256+c0-1, 256*16);
     m.set( ((abs((int)(W-N))>4)<<9)|((abs((int)(N-NE))>4)<<8)|((abs((int)(W-NW))>4)<<7)|((W>N)<<6)|((N>NE)<<5)|((W>NW)<<4)|((W>WW)<<3)|((N>NN)<<2)|((NW>NNWW)<<1)|(NE>NNEE), 1024 );
-    m.set(min(63,column[0]), 64);
+    m.set(min(63,column[0])*16+(W>>4), 64*16);
     m.set(min(127,column[1]), 128);
     m.set( min(255,(x+line)/32), 256);
   }

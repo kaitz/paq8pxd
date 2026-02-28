@@ -8,12 +8,13 @@
 //#include "../prt/stationarymap.hpp"
 //#include "../prt/indirect.hpp"
 //#include "../prt/indirectcontext.hpp"
-#include "../prt/contextmap2.hpp"
+//#include "../prt/contextmap2.hpp"
 //#include "../prt/sscm.hpp"
 //#include "../prt/ols.hpp"
 //#include "../prt/wrt/wrton.hpp"
 #include "../prt/stemmer/stemmer.hpp"
 #include "../prt/tables.hpp"
+#include "../prt/CM128.hpp"
 
 template <class T, const U32 Size> class Cache {
   static_assert(Size>1 && (Size&(Size-1))==0, "Cache size must be a power of 2 bigger than 1");
@@ -44,7 +45,7 @@ private:
   const U32 MIN_RECOGNIZED_WORDS = 4;
   U32 N;
    Buf& buffer;
-  ContextMap2 Map;
+  ContextMap3 Map;
   Array<Stemmer*> Stemmers;
   Array<Language*> Languages;
   Cache<Word, 8> Words[Language::Count];

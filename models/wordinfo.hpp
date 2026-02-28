@@ -8,17 +8,19 @@
 //#include "../prt/stationarymap.hpp"
 //#include "../prt/indirect.hpp"
 //#include "../prt/indirectcontext.hpp"
-#include "../prt/contextmap.hpp"
+//#include "../prt/contextmap.hpp"
 //#include "../prt/sscm.hpp"
 //#include "../prt/ols.hpp"
 #include "../prt/wrt/wrton.hpp"
 #include "../prt/stemmer/stemmer.hpp"
 #include "../prt/tables.hpp"
+#include "../prt/CM128.hpp"
 
 class Info {
    BlockData& x;
    Buf& buf;
-    ContextMap  &cm;
+    ContextMap3  &cm;
+    ContextMap3  &cm1;
     U32 word0, word1, word2, word3, word4, word5,word6,word7;  // hashes
     U32 wrdhsh;
     U32 xword0,xword1,xword2,xword3,cword0,ccword,fword;
@@ -58,7 +60,7 @@ class Info {
     U32 wpword1;
   public:
    
-    Info(BlockData& bd,U32 val, ContextMap  &contextmap);
+    Info(BlockData& bd,U32 val, ContextMap3  &contextmap,ContextMap3  &contextmap1);
     void reset() ;
     // forget it
     void shrwords() ;

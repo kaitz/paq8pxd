@@ -1,10 +1,13 @@
 #include "sparsex.hpp"
 
  
-  sparseModelx::sparseModelx(BlockData& bd): N(31),cm(CMlimit(bd.MEM()*4), N,M_SPARSE),scm1(8,8), scm2(8,8), scm3(8,8),
+  sparseModelx::sparseModelx(BlockData& bd): N(29),
+  //cm(CMlimit(bd.MEM()*4), N,M_SPARSE),
+  cm(bd,N,CMlimit(bd.MEM()*4)),
+  scm1(8,8), scm2(8,8), scm3(8,8),
      scm4(8,8), scm5(8,8),scm6(8,8), scma(8,8),x(bd),buf(bd.buf) {
     }
-  int sparseModelx::p(Mixer& m, int seenbefore, int howmany){
+  int sparseModelx::p(Mixer& m, int seenbefore, int howmany){// 21+2*4
   if (x.bpos==0) {
     scm5.set(seenbefore);
     scm6.set(howmany);

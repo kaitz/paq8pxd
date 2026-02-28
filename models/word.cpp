@@ -2,8 +2,15 @@
 //////////////////////////// wordModel /////////////////////////
 
 // Model English text (words and columns/end of line)
-  wordModel1::wordModel1( BlockData& bd,U32 val): x(bd),buf(bd.buf),N(64+7),cm(CMlimit(x.MEM()*val), N,M_WORD),cm1(CMlimit(x.MEM()), 1,M_WORD),pdf_text_parser_state(0),math_state(0),pre_state(0),
-  info_normal(bd,0,cm), info_pdf(bd,0,cm), math(bd,0,cm),pre(bd,0,cm),xhtml(bd,0,cm),hq(0){
+  wordModel1::wordModel1( BlockData& bd,U32 val): x(bd),buf(bd.buf),N(62),
+  cm(x,N,CMlimit(bd.MEM()*val)),
+  cm1(x,7,CMlimit(bd.MEM())),
+  cm2(x,1,CMlimit(bd.MEM())),
+  
+ /* cm(CMlimit(x.MEM()*val), N,M_WORD),
+  cm1(CMlimit(x.MEM()), 1,M_WORD),*/
+  pdf_text_parser_state(0),math_state(0),pre_state(0),
+  info_normal(bd,0,cm,cm1), info_pdf(bd,0,cm,cm1), math(bd,0,cm,cm1),pre(bd,0,cm,cm1),xhtml(bd,0,cm,cm1),hq(0){
   
    }
   
@@ -69,10 +76,11 @@
         info_normal.process_char(x.wrtstatus,val1,val2);
         hq=info_normal.predict(pdf_text_parser_state,val1,val2);
       }      
-      cm1.set(x.w4);
+      cm2.set(x.w4);
     }
     cm.mix(m);
     cm1.mix(m);
+    cm2.mix(m);
     return hq;
   }
   

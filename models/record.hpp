@@ -5,10 +5,11 @@
 #include "model.hpp"
 #include "../prt/indirect.hpp"
 #include "../prt/indirectcontext.hpp"
-#include "../prt/contextmap.hpp"
+//#include "../prt/contextmap.hpp"
 #include "../prt/sscm.hpp"
 #include "../prt/stationarymap.hpp"
 #include "../prt/helper.hpp"
+#include "../prt/CM128.hpp"
 //////////////////////////// recordModel ///////////////////////
 
 // Model 2-D data with fixed record length.  Also order 1-2 models
@@ -27,7 +28,7 @@ class recordModel1: public Model {
    int col;
    int mxCtx,x1;
    bool MayBeImg24b;
-   ContextMap cm, cn, cq, co, cp;
+   ContextMap3 cm, cn, cq, co, cp;
     int nMaps ;
    StationaryMap Maps[6] ={ 10,10,8,8,8,{11,1} };
     SmallStationaryContextMap sMap[3]{ {11, 1}, {3, 1}, {16,1} };

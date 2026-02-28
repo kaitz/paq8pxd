@@ -37,7 +37,8 @@ matchModel2::matchModel2(BlockData& bd) :
   stateMaps {{  28 * 512},
              {  8 * 256 * 256 + 1},
              {  256 * 256}},
-  cm( CMlimit(x.MEM()/2), nCM, 0,
+  cm(x,nCM,CMlimit(x.MEM()/2)),           
+  /*cm( CMlimit(x.MEM()/2), nCM, 0,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+
@@ -46,7 +47,7 @@ matchModel2::matchModel2(BlockData& bd) :
   CM_MAIN4+
   CM_M12+
   CM_M6
-  ),
+  ),*/
   mapL{ /* LargeStationaryMap : HashBits, Scale=64, Rate=16  */
         { 20}, // effective bits: ~22
   },
@@ -182,10 +183,15 @@ int matchModel2::p(Mixer &m,int val1,int val2) {
   uint8_t mode3 = min(mode, 7); // 3 bits
   
   //bytewise contexts
-  if( x.bpos == 0 && x.Match.bypass==false) {
+  if( x.bpos == 0 ) {
+      if (x.Match.bypass==false){
+      
     cm.set(hash(U32(length != 0 ? expectedByte : (U8)x.c4)<<3 | mode3)); //max context bits: 8+8+3 = 19
     cm.set( hash(length != 0 ? expectedByte : ((x.c4 >> 8) & 0xff), ((U8)x.c4<<3)| mode3)); //max context bits: 8+8+8+3=27
-    
+    } else {
+        cm.sets();
+        cm.sets();
+    }
   }
   cm.mix(m);
 

@@ -9,8 +9,9 @@
 //#include "../prt/indirectcontext.hpp"
 //#include "../prt/mft.hpp"
 //#include "../prt/helper.hpp"
-#include "../prt/contextmap2.hpp"
+//#include "../prt/contextmap2.hpp"
 #include "../prt/indirect.hpp"
+#include "../prt/CM128.hpp"
 
 #define CacheSize (1<<5)
 
@@ -559,7 +560,7 @@ class exeModel1: public Model {
   BlockData& x;
   Buf& buf;
   const int N1, N2;
- ContextMap2 cm;
+ ContextMap3 cm;
  IndirectMap iMap;
     OpCache Cache;
     ExeState pState , State ;

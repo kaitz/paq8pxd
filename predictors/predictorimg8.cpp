@@ -46,11 +46,11 @@ void PredictorIMG8::update()  {
       pr1 = Image.Palette.APMs[1].p(pr0, hash(x.c0, x.Image.pixels.W, x.Image.pixels.N)&0xFFFF,x.y, limit);
       pr2 = Image.Palette.APMs[2].p(pr0, hash(x.c0, x.Image.pixels.N, x.Image.pixels.NN)&0xFFFF,x.y, limit);
       pr3 = Image.Palette.APMs[3].p(pr0, hash(x.c0, x.Image.pixels.W, x.Image.pixels.WW)&0xFFFF,x.y, limit);
-      pr0 = (pr0+pr1+pr2+pr3+2)>>2;
+      pr0 = (pr0+pr1*2+pr2*2+pr3*3+2)>>3;
       
       pr1 = Image.Palette.APM1s[0].p(pr0, hash(x.c0, x.Match.byte, x.Image.pixels.N)&0xFFFF, 5);
       pr2 = Image.Palette.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.W, x.Image.pixels.N)&0xFFFF, 6);
-      pr = (pr*2+pr1+pr2+2)>>2;
+      pr = (pr+pr1+pr2*2+2)>>2;
       pr = (pr+pr0+1)>>1;   
   }
   sse.update();

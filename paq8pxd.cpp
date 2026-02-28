@@ -20,7 +20,7 @@
 
 */
  
-#define PROGNAME "paq8pxd144"  // Please change this if you change the program.
+#define PROGNAME "paq8pxd145"  // Please change this if you change the program.
 
 //#define MT            //uncomment for multithreading, compression only. Handled by CMake and gcc when -DMT is passed.
 #ifndef DISABLE_SM
@@ -61,6 +61,7 @@ This needs to be define globaly by compiler
 #include "prt/cli.hpp"
 #include "prt/program.hpp"
 #include "prt/settings.hpp"
+#include "prt/log.hpp"
 
 Settings settings;
 CLI cli(PROGNAME);
@@ -68,7 +69,10 @@ Program prog(cli,settings,PROGNAME);
 
 int dt[1024];  // i -> 16K/(i+i+3)
 int n0n1[256]; // for contectmap
-
+  short rc1[512];
+  short st1[4096];
+  //short st2[4096];
+  short st32[256];
 /*
 #include <psapi.h>
 size_t getPeakMemory(){
@@ -160,6 +164,24 @@ Filetype detect(File* in, U64 n, Filetype type, int &info, int &info2, int it=0)
  
 }
 */
+inline int pre(const int state) {
+    assert(state>=0 && state<256);
+    U32 n0=nex(state, 2)*3+1;
+    U32 n1=nex(state, 3)*3+1;
+    return (n1<<12) / (n0+n1);
+}
+inline int sc(int p){
+    if (p>0) return p>>7;
+    return (p+127)>>7;// p+((1<<s)-1);
+}
+inline short clp(int z){
+    if (z<-2047){
+        z=-2047;
+    }else if (z>2047){
+        z=2047;
+    }
+    return z;
+}
 void CalcTables() {
     for (int i=0;i<256;i++) {
         int n0=-!nex(i,2);
@@ -176,6 +198,41 @@ void CalcTables() {
     dt[1023]=1;
     dt[0]=4095;
 #endif
+   //cm3
+   int cms3=65+5;
+    int cms4=12-4;
+    int cms=128; //32        x*cms/128
+    int cmul=8-2;//(c>>8)&255;          // run context mul value
+// precalc int c=ilog(rc+1)<<(2+(~rc&1));
+    for (int rc=0;rc<256;rc++) {
+        int c=ilog(rc+1);
+        c=c<<(2+(~rc&1));
+        if ((rc&1)==0) c=c*cmul/4;
+        rc1[rc+256]=clp(c);
+        rc1[rc]=clp(-c);
+    }
+
+    // precalc mixer inputs
+    for (int i=0;i<4096;i++) {
+        st1[i]=clp(sc(cms*stretch(i)));
+    } 
+
+    for (int s=0;s<256;s++) {
+        int n0=-!nex(s,2);
+        int n1=-!nex(s,3);
+        int r=0;
+        int sp0=0;
+        if ((n1-n0)==1 ) sp0=0,r=1;
+        if ((n1-n0)==-1 ) sp0=4095,r=1;
+        if (r) {
+            int st8=clp(sc((cms4)*(pre(s))-sp0));
+            st32[s]=clp(sc((cms3)*stretch(pre(s))));
+            if (s<8) st32[s]=st8;
+            else st32[s]=((clp(st8+3*st32[s]))>>1);
+        }else{
+            st32[s]=0;
+        }
+    }
 }
 
 void PrintHelp() {

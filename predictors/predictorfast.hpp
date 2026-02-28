@@ -23,7 +23,6 @@ public:
   int p() const { return pr0; }
 
   void update() {
-    update0();
     if (match!=x.y) len=0;  //bit mismatch
     if (x.bpos==0){
         cxt4=cxt3;

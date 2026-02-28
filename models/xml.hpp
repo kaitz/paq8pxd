@@ -4,7 +4,8 @@
 #include "../prt/array.hpp"
 #include "../prt/mixer.hpp"
 #include "model.hpp"
-#include "../prt/contextmap.hpp"
+//#include "../prt/contextmap.hpp"
+#include "../prt/CM128.hpp"
 /*
 ====== XML model ======
 */
@@ -110,7 +111,7 @@ class XMLModel1: public Model {
   XMLTagCache Cache;
   XMLState State, pState;
   U32 c8, WhiteSpaceRun, pWSRun, IndentTab, IndentStep, LineEnding,lastState;
-  ContextMap cm;
+  ContextMap3 cm;
   U32 StateBH[8],stateContext;
   XMLTag *pTag,*Tag;
     XMLAttribute *Attribute;

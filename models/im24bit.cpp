@@ -3,7 +3,9 @@
 //////////////////////////// im24bitModel /////////////////////////////////
 // Model for 24-bit image data
 
-  im24bitModel1::im24bitModel1(BlockData& bd): nOLS(6),inpts(47),cm(CMlimit(bd.MEM()*4), inpts,M_IM24,
+  im24bitModel1::im24bitModel1(BlockData& bd): nOLS(6),inpts(47),
+  cm(bd,inpts,CMlimit(bd.MEM()*4)),
+  /*cm(CMlimit(bd.MEM()*4), inpts,M_IM24,
   CM_RUN1+
   CM_RUN0+
   CM_MAIN1+
@@ -11,7 +13,8 @@
   CM_MAIN3+
   CM_MAIN4+
   CM_M12
-  ), col(0) ,color(-1),stride(3), padding(0), x(0),xx(bd),
+  ), */
+  col(0) ,color(-1),stride(3), padding(0), x(0),xx(bd),
    buf(bd.buf), buffer(0x100000),WWW(0), WW(0), W(0),NWW(0),NW(0) ,N(0), NE(0), NEE(0), NNWW(0), NNW(0),
    NN(0), NNE(0), NNEE(0), NNN(0), px(0),filter(0),  w(0), line(0), isPNG(0),R1(0), R2(0),filterOn(false),
    c4(bd.c4),c0(bd.c0),bpos(bd.bpos),lastWasPNG(0), WWp1(0), Wp1(0), p1(0), NWp1(0),
@@ -370,7 +373,7 @@
         cm.set(hash(i>>8, buf(w+1), buf((w+1)*2), buf((w+1)*3), px));
                                                    
         cm.set(U32(~0x5ca1ab1e));
-        for (int j=0;j<9;j++)cm.set();
+        for (int j=0;j<9;j++)cm.sets();
 
         ctx[0] = (min(color,stride-1)<<9)|((abs(W-N)>3)<<8)|((W>N)<<7)|((W>NW)<<6)|((abs(N-NW)>3)<<5)|((N>NW)<<4)|((N>NE)<<3)|min(5, filterOn?filter+1:0);
         ctx[1] = ((LogMeanDiffQt(p1,Clip(Np1+NEp1-buffer(w*2-stride+1)))>>1)<<5)|((LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))>>1)<<2)|min(color,stride-1);
@@ -421,12 +424,12 @@
   if (x || !isPNG){
   if (++col>=stride*8) col=0;
       if (val2==1) return 1; 
-      int  cnx=m.nx;
+      //int  cnx=m.nx;
       cm.mix(m);
-      int count=(m.nx-cnx)/inpts;
+   /*   int count=(m.nx-cnx)/inpts;
       m.nx=cnx;
       for (int i=count*inpts;i!=0;--i) m.sp(3); // decrease all
-
+*/
     for (int i=0;i<n2Maps;i++)
       Map[i].mix1(m);
     for (int i=0;i<nSCMaps;i++)

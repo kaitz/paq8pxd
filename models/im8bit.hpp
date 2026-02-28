@@ -8,9 +8,10 @@
 #include "../prt/stationarymap.hpp"
 #include "../prt/indirect.hpp"
 #include "../prt/indirectcontext.hpp"
-#include "../prt/contextmap2.hpp"
+//#include "../prt/contextmap2.hpp"
 #include "../prt/sscm.hpp"
 #include "../prt/ols.hpp"
+#include "../prt/CM128.hpp"
 //////////////////////////// im8bitModel /////////////////////////////////
 // Model for 8-bit image data
 
@@ -23,7 +24,8 @@ class im8bitModel1: public Model {
     nPltMaps = 4
  } im8M;
  int inpts;
- ContextMap2 cm;
+ ContextMap3 cm;
+ ContextMap3 cmp;
  int col;
  BlockData& xx;
  Buf& buf;
@@ -76,8 +78,8 @@ class im8bitModel1: public Model {
   
 public:
   im8bitModel1( BlockData& bd);
-  int inputs() {return inpts*cm.inputs()+nMaps*2+nPltMaps*2+5*2;}
-  int nets() {return ( 2048+5)+    6*16+    6*32+    256+    1024+    64+    128+    256;}
+  int inputs() {return inpts*cm.inputs()+cm.inputs()*4+nMaps*2+nPltMaps*2+5*2;}
+  int nets() {return ( 2048+5)+    6*16+    6*32+    256*16+    1024+    64*16+    128+    256;}
   int netcount() {return 8;}
   
 int p(Mixer& m,int w,int val2=0);

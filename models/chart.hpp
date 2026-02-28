@@ -4,13 +4,13 @@
 #include "../prt/array.hpp"
 #include "../prt/mixer.hpp"
 #include "model.hpp"
-#include "../prt/contextmap.hpp"
-
+//#include "../prt/contextmap.hpp"
+#include "../prt/CM128.hpp"
 ///////////////////////////// chartModel ////////////////////////////
 class chartModel: public Model {
   BlockData& x;
   Buf& buf;
-  ContextMap cm,cn;
+  ContextMap3 cm,cn;
   Array<U32> chart;
   Array<U8> indirect;
   Array<U8> indirect2;

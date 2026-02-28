@@ -5,7 +5,10 @@
 */
 
 XMLModel1::XMLModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), State(None), pState(None), c8(0),
-   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0), cm(x.settings.level>9?0x1000000:CMlimit(x.MEM()/4), 4,M_XML) {
+   WhiteSpaceRun(0), pWSRun(0), IndentTab(0), IndentStep(2), LineEnding(2),lastState(0),
+   cm(x,4,x.settings.level>9?0x1000000:CMlimit(x.MEM()/4))
+    //cm(x.settings.level>9?0x1000000:CMlimit(x.MEM()/4), 4,M_XML)
+     {
        memset(&Cache, 0, sizeof(XMLTagCache));
        memset(&StateBH, 0, sizeof(StateBH));  
         
@@ -203,9 +206,9 @@ int XMLModel1::p(Mixer& m,int val1,int val2){
         cm.set(hash((*pTag).Name, State*2+(*pTag).EndTag, (*pTag).Content.Type, (*Tag).Content.Type));
         cm.set(hash(State*2+(*Tag).EndTag, (*Tag).Name, (*Tag).Content.Type, x.c4&0xE0FF));
     }else {
-        cm.set();
-        cm.set();
-        cm.set();
+        cm.sets();
+        cm.sets();
+        cm.sets();
     } 
   }
    if (val2==0)  cm.mix(m);

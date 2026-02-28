@@ -3,7 +3,10 @@
 
 // Model order 1-2 contexts with gaps.
 
-  sparseModely::sparseModely(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(44),cm(CMlimit(x.MEM()*2), N,M_SPARSE_Y),ctx(0) {
+  sparseModely::sparseModely(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(44),
+  //cm(CMlimit(x.MEM()*2), N,M_SPARSE_Y),
+   cm(x,N,CMlimit(x.MEM()*2)),
+  ctx(0) {
   }
 
   int sparseModely::p(Mixer& m,int seenbefore,int howmany){//match order
@@ -27,7 +30,7 @@
     cm.set(hash(j++,buf(1)|buf(3)<<8|buf(5)<<16));
     cm.set(hash(j++,buf(2)|buf(4)<<8|buf(6)<<16));
     if (x.c4==0){
-        for (int i=0; i<13; ++i) cm.set(); j++;
+        for (int i=0; i<13; ++i) cm.sets(); j++;
     }else{
     cm.set(hash(j++,x.c4&0x00f0f0ff));
     cm.set(hash(j++,x.c4&0x00ff00ff));

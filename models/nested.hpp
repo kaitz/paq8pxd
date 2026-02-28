@@ -4,14 +4,15 @@
 #include "../prt/array.hpp"
 #include "../prt/mixer.hpp"
 #include "model.hpp"
-#include "../prt/contextmap.hpp"
+//#include "../prt/contextmap.hpp"
+#include "../prt/CM128.hpp"
 
 class nestModel1: public Model {
   BlockData& x;
   Buf& buf;
   int ic, bc, pc,vc, qc, lvc, wc,ac, ec, uc, sense1, sense2, w;
   const int N;
-  ContextMap cm;
+  ContextMap3 cm;
 public:
   nestModel1(BlockData& bd,U32 val=0);
   int inputs() {return N*cm.inputs();}

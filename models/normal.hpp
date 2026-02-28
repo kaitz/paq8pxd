@@ -10,16 +10,16 @@
 #include "../prt/statemap.hpp"
 //#include "../prt/stationarymap.hpp"
 //#include "../prt/sscm.hpp"
-#include "../prt/contextmap2.hpp"
+//#include "../prt/contextmap2.hpp"
 #include "../prt/run.hpp"
-
+#include "../prt/CM128.hpp"
 static const int primes[17]={ 0, 257,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173};   
 
 class normalModel1: public Model {
   BlockData& x;
   Buf& buf;
   const int N;
-  ContextMap2   cm;
+  ContextMap3   cm;
   StateMap StateMaps[4];
   RunContextMap /*rcm7,*/ rcm9, rcm10;
   int inpt;

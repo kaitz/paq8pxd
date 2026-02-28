@@ -4,15 +4,23 @@
 // The context is a byte string history that occurs within a
 // 1 or 2 byte context.
   indirectModel1::indirectModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N(15+1+9-13),mem(0x1000000*(x.settings.level>9?1:1)),
+    cm2(x,4,(mem/4)),
+    cmt(x,3,(mem/2)),
+    cm0(x,3,(mem/2)), 
+    cma(x,3,(mem/4)), 
+    cmc(x,3,(mem/4)), 
+    cm3(x,3,(mem/4)), 
+    cm4(x,3,(mem/4)), 
+    cm5(x,3,(mem/4)), 
 
-  cm2((mem/4),4,M_INDIRECT),
+  /*cm2((mem/4),4,M_INDIRECT),
   cmt((mem/2),3,M_INDIRECT),
     cm0((mem/2),3,M_INDIRECT), 
     cma((mem/4),3,M_INDIRECT), 
     cmc((mem/4),3,M_INDIRECT), 
     cm3((mem/4),3,M_INDIRECT), 
     cm4((mem/4),3,M_INDIRECT), 
-    cm5((mem/4),3,M_INDIRECT), 
+    cm5((mem/4),3,M_INDIRECT), */
    t1(256),
    t2(0x10000), t3(0x8000),t4(0x8000),t5(256*256),
    iCtx{16,8 },

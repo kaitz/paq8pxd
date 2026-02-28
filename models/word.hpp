@@ -8,12 +8,13 @@
 //#include "../prt/stationarymap.hpp"
 //#include "../prt/indirect.hpp"
 //#include "../prt/indirectcontext.hpp"
-#include "../prt/contextmap.hpp"
+//#include "../prt/contextmap.hpp"
 //#include "../prt/sscm.hpp"
 //#include "../prt/ols.hpp"
 #include "../prt/wrt/wrton.hpp"
 //#include "../prt/stemmer/stemmer.hpp"
 #include "wordinfo.hpp"
+#include "../prt/CM128.hpp"
 //////////////////////////// wordModel /////////////////////////
 
 // Model English text (words and columns/end of line)
@@ -23,8 +24,9 @@ class wordModel1: public Model {
    Buf& buf;  
 private:
    int N;
-   ContextMap cm;
-   ContextMap cm1;
+   ContextMap3 cm;
+   ContextMap3 cm1;
+   ContextMap3 cm2;
     
   U8 pdf_text_parser_state,math_state,pre_state; // 0,1,2,3
   Info info_normal;
@@ -35,7 +37,7 @@ private:
   U32 hq;
 public:
   wordModel1( BlockData& bd,U32 val=16);
-   int inputs() {return N*cm.inputs()+7;}
+   int inputs() {return N*cm.inputs()+cm1.inputs()*7+cm2.inputs();}
    int nets() {return 0;}
   int netcount() {return 0;}
 
