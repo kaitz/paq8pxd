@@ -1,20 +1,20 @@
 #include "predictordec.hpp"
 // DECAlpha predicor
 
-PredictorDEC::PredictorDEC(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),ismatch(0),
-  DEC{
-    { /*APM:*/ { 25*26,20} }
-  },
-  sse(x){
-   loadModels(activeModels);
-   // add extra 
-   mixerInputs+=1;
-   mixerNets+= (8+1024)+       256+   256+   256+    256+    1536+64;
-   mixerNetsCount+=7;
-   sse.p(pr);
-   // create mixer
-   for (int i=0;i<8;i++) mcxt[i]=0;
-   
+PredictorDEC::PredictorDEC(Settings &set):Predictors(set),
+    pr(16384),pr0(pr),order(0),ismatch(0),
+    DEC{
+       { /*APM:*/ { 25*26,20} }
+    },
+    sse(x) {
+
+    loadModels(activeModels);
+    // add extra 
+    mixerInputs+=1;
+    sse.p(pr);
+    // create mixer
+    for (int i=0;i<8;i++) mcxt[i]=0;
+
     // Predictor contexts
     mxp.push_back( {8+1024,55,7,24,&mcxt[0],0} );
     mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
@@ -24,9 +24,9 @@ PredictorDEC::PredictorDEC(Settings &set):Predictors(set), pr(16384),pr0(pr),ord
     mxp.push_back( {   1536,55,7,24,&mcxt[5],0} );
     mxp.push_back( {   64,55,7,24,&mcxt[6],0} );
     
-   mxp.push_back( {1,6,7,4,&mcxt[7],0} ); // final mixer
-   // create mixer
-   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mxp.push_back( {1,6,7,4,&mcxt[7],0} ); // final mixer
+    // create mixer
+    m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void PredictorDEC::update()  {
@@ -74,8 +74,8 @@ void PredictorDEC::update()  {
     mcxt[3]=c2;
     mcxt[4]=c3;
     if (x.bpos) {
-      c=x.c0<<(8-x.bpos); if (x.bpos==1)c+=c3/2;
-      c=(min(x.bpos,5))*256+c1/32+8*(c2/32)+(c&192);
+        c=x.c0<<(8-x.bpos); if (x.bpos==1)c+=c3/2;
+        c=(min(x.bpos,5))*256+c1/32+8*(c2/32)+(c&192);
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     mcxt[5]=c;

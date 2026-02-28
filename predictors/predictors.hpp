@@ -29,32 +29,34 @@
 #include "../models/text.hpp"
 #include "../models/ppmd.hpp"
 #include "../prt/settings.hpp"
+
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:
 // p() returns P(1) as a 12 bit number (0-4095).
 // update(y) trains the predictor with the actual bit (0 or 1).
 
-//base class
+//Base class
+
 class Predictors {
 public:
-  BlockData x; //maintains current global data block between models
-  int mixerInputs,mixerNets,mixerNetsCount;
-  Model **models;
-  std::vector<mparm> mxp;
-virtual ~Predictors(){
-    if (models==nullptr) return;
-    //printf("Models peak memory %d mb\n",(getPeakMemory()/1024)/1024);
-    for (int i=0;i<M_MODEL_COUNT;i++) {
-        delete models[i];
-    }
-    delete[] models;    
-   };
-Predictors(Settings &);
-  virtual int p() const =0;
-  virtual void update()=0;
-  void loadModels( const std::vector<ModelTypes> &amodel);
-  void setContexts();
-  void update0();
+    BlockData x; //maintains current global data block between models
+    int mixerInputs;
+    Model **models;
+    std::vector<mparm> mxp;
+    virtual ~Predictors() {
+        if (models==nullptr) return;
+        //printf("Models peak memory %d mb\n",(getPeakMemory()/1024)/1024);
+        for (int i=0;i<M_MODEL_COUNT;i++) {
+            delete models[i];
+        }
+        delete[] models;    
+    };
+    Predictors(Settings &);
+    virtual int p() const =0;
+    virtual void update()=0;
+    void loadModels( const std::vector<ModelTypes> &amodel);
+    void setContexts();
+    void update0();
 };
 

@@ -1,21 +1,19 @@
 #include "predictorexe.hpp"
 
 // x86/64 predicor
-
 PredictorEXE::PredictorEXE(Settings &set):Predictors(set), pr(16384),order(0),
-  x86_64{
-    { /*APM:*/ {0x800,20}, {0x10000,16}, {0x10000,16} }
-  },
-  count(0), sse(x) {
-  loadModels(activeModels);
-   // add extra 
-   mixerInputs+=1;
-   mixerNets+=( 8+1024)+     256+     256+     256+     256+     256+     1536;
-   mixerNetsCount+=7;
-   sse.p(pr);
-   // create mixer
-   for (int i=0;i<8;i++) mcxt[i]=0;
-   
+    x86_64{
+        { /*APM:*/ {0x800,20}, {0x10000,16}, {0x10000,16} }
+    },
+    count(0), sse(x) {
+
+    loadModels(activeModels);
+    // add extra 
+    mixerInputs+=1;
+    sse.p(pr);
+
+    for (int i=0; i<8; i++) mcxt[i]=0;
+
     // Predictor contexts
     mxp.push_back( {8+1024,55,7,24,&mcxt[0],0} );
     mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
@@ -25,9 +23,9 @@ PredictorEXE::PredictorEXE(Settings &set):Predictors(set), pr(16384),order(0),
     mxp.push_back( {   256,55,7,24,&mcxt[5],0} );
     mxp.push_back( {   1536,55,7,24,&mcxt[6],0} );
     
-   mxp.push_back( {1,6,7,4,&mcxt[7],0} ); // final mixer
-   // create mixer
-   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mxp.push_back( {1,6,7,4,&mcxt[7],0} ); // final mixer
+    // create mixer
+    m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void PredictorEXE::update()  {
@@ -54,7 +52,7 @@ void PredictorEXE::update()  {
     }
     m->update();
     m->add(256);
-     
+    
     int ismatch=models[M_MATCH]->p(*m);
     models[M_MATCH1]->p(*m);
     if (x.bpos==0)x.count++;

@@ -6,25 +6,23 @@
 
 // 4-bit image predicor
 class PredictorIMG4: public Predictors {
-  int pr;
-  Mixers *m;
-  StateMap StateMaps[2];
-  struct {
-      APM APMs[4];
-      APM1 APM1s[2];
-  } Image;
-  eSSE sse;
-  const std::vector<ModelTypes> activeModels { 
-   M_MATCH ,
-   M_MATCH1, 
-   M_IM4,
-   M_LSTM    };
+    int pr;
+    Mixers *m;
+    StateMap StateMaps[2];
+    struct {
+        APM APMs[4];
+        APM1 APM1s[2];
+    } Image;
+    eSSE sse;
+    const std::vector<ModelTypes> activeModels { 
+        M_MATCH ,
+        M_MATCH1, 
+        M_IM4,
+        M_LSTM};
 public:
     int mcxt[1];
-  int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
-   ~PredictorIMG4(){ }
-
-PredictorIMG4(Settings &set);
-
-void update();
+    int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
+    ~PredictorIMG4(){ }
+    PredictorIMG4(Settings &set);
+    void update();
 };

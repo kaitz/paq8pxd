@@ -170,18 +170,21 @@ inline int pre(const int state) {
     U32 n1=nex(state, 3)*3+1;
     return (n1<<12) / (n0+n1);
 }
-inline int sc(int p){
+
+inline int sc(int p) {
     if (p>0) return p>>7;
     return (p+127)>>7;// p+((1<<s)-1);
 }
-inline short clp(int z){
-    if (z<-2047){
+
+inline short clp(int z) {
+    if (z<-2047) {
         z=-2047;
-    }else if (z>2047){
+    } else if (z>2047) {
         z=2047;
     }
     return z;
 }
+
 void CalcTables() {
     for (int i=0;i<256;i++) {
         int n0=-!nex(i,2);
@@ -198,12 +201,11 @@ void CalcTables() {
     dt[1023]=1;
     dt[0]=4095;
 #endif
-   //cm3
    int cms3=65+5;
     int cms4=12-4;
-    int cms=128; //32        x*cms/128
-    int cmul=8-2;//(c>>8)&255;          // run context mul value
-// precalc int c=ilog(rc+1)<<(2+(~rc&1));
+    int cms=128;           //  x*cms/128
+    int cmul=8-2;          // run context mul value
+    // precalc int c=ilog(rc+1)<<(2+(~rc&1));
     for (int rc=0;rc<256;rc++) {
         int c=ilog(rc+1);
         c=c<<(2+(~rc&1));
@@ -229,7 +231,7 @@ void CalcTables() {
             st32[s]=clp(sc((cms3)*stretch(pre(s))));
             if (s<8) st32[s]=st8;
             else st32[s]=((clp(st8+3*st32[s]))>>1);
-        }else{
+        } else {
             st32[s]=0;
         }
     }

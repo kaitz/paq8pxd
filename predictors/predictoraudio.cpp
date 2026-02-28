@@ -2,30 +2,28 @@
 // Audio predicor
 
 PredictorAUDIO2::PredictorAUDIO2(Settings &set):Predictors(set), pr(16384),a(x), sse(x) {
-   loadModels(activeModels);  
-   // add extra 
-   mixerInputs+=1;
-   mixerNets+=0;
-   mixerNetsCount+=0;
-   sse.p(pr);
-   // create mixer
-  for (int i=0;i<1;i++) mcxt[i]=0;
-   mxp.push_back( {1,6,7,4,&mcxt[0],0} ); // final mixer
-   // create mixer
-   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    loadModels(activeModels);  
+    // add extra 
+    mixerInputs+=1;
+    sse.p(pr);
+
+    for (int i=0; i<1; i++) mcxt[i]=0;
+    mxp.push_back( {1,6,7,4,&mcxt[0],0} ); // final mixer
+    // create mixer
+    m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
 void PredictorAUDIO2::update()  {
-  m->update();
-  m->add(256);
-  models[M_MATCH]->p(*m);  
-  models[M_RECORD]->p(*m);
-  models[M_WAV]->p(*m,x.finfo);
-  pr=(32768-pr)/(32768/4096);
-  if(pr<1) pr=1;
-  if(pr>4095) pr=4095;
-  pr=a.p1(m->p(/*((x.finfo&2)==0),1*/),pr,7);
-  sse.update();
+    m->update();
+    m->add(256);
+    models[M_MATCH]->p(*m);  
+    models[M_RECORD]->p(*m);
+    models[M_WAV]->p(*m,x.finfo);
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
+    pr=a.p1(m->p(/*((x.finfo&2)==0),1*/),pr,7);
+    sse.update();
     pr = sse.p(pr);
 }
 

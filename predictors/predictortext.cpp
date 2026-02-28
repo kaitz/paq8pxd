@@ -1,20 +1,17 @@
 #include "predictortext.hpp"
-// Text predicor
 
+// Text predicor
 PredictorTXTWRT::PredictorTXTWRT(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),rlen(0),ismatch(0),
-Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },
-count(0),blenght(1024*4),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x),
-decodedTextLen(0),lasttag(0),counttags(0),lState(0){
-   loadModels(activeModels);  
-   // add extra 
-   mixerInputs+=1+1;
-   mixerNets+= 4096+ 64+ 256+ 256*8+ 256*8+ 256*8+ 1536+ 2048;
-   mixerNetsCount+=8;
-   sse.p(pr); // must
-   // create mixer
-   //m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2);
-   for (int i=0;i<9;i++) mcxt[i]=0;
-   
+    Text{ {0x10000, 0x10000, 0x10000, 0x10000}, {{0x10000,x}, {0x10000,x}, {0x10000,x}} },
+    count(0),blenght(1024*4),StateMaps{  ( 0x7FFFFF+1)<<2},sse(x),
+    decodedTextLen(0),lasttag(0),counttags(0),lState(0) {
+
+    loadModels(activeModels);  
+    // add extra 
+    mixerInputs+=1+1;
+    sse.p(pr); // must
+    for (int i=0; i<9; i++) mcxt[i]=0;
+
     // Predictor contexts
     mxp.push_back( {  4096,55,7,24,&mcxt[0],0} );
     mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
@@ -24,70 +21,70 @@ decodedTextLen(0),lasttag(0),counttags(0),lState(0){
     mxp.push_back( { 256*8,55,7,24,&mcxt[5],0} );
     mxp.push_back( {  1536,55,7,24,&mcxt[6],0} );
     mxp.push_back( {  2048,55,7,24,&mcxt[7],0} );
-        
-   mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
-   // create mixer
-   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
+    // create mixer
+    m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
-void PredictorTXTWRT::wrt(){
-        U8 c1=x.c4;
-        if (x.wrtLoaded==true) {
-           if (c1=='<' && x.ishtml==true ) x.istex=false; // open
-        }
+
+void PredictorTXTWRT::wrt() {
+    U8 c1=x.c4;
+    if (x.wrtLoaded==true) {
+        if (c1=='<' && x.ishtml==true ) x.istex=false; // open
+    }
     // load wrt dictionary from file
-        // detect header//'!Pq8'
-        if (x.c4==0x21507138 && x.blpos<16){ 
-          x.wrtpos=x.blpos;
-        }
-        if (x.wrtpos>0)  { 
-          if (x.wrtpos+4+4==x.blpos){ 
+    // detect header//'!Pq8'
+    if (x.c4==0x21507138 && x.blpos<16) {
+        x.wrtpos=x.blpos;
+    }
+    if (x.wrtpos>0) {
+        if (x.wrtpos+4+4==x.blpos) {
             x.wrtfile=(U64((x.c8))<<32)| U64(x.c4);
-          }
-          //load size
-          if (x.wrtpos+4+4+3==x.blpos) { 
-          x.wrtsize=(x.c4&0xffffff);
-          if (x.wrtsize<4) x.wrtpos=0;
-          }
-          //load count
-          if (x.wrtpos+4+4+3+3==x.blpos) { 
+        }
+        //load size
+        if (x.wrtpos+4+4+3==x.blpos) {
+            x.wrtsize=(x.c4&0xffffff);
+            if (x.wrtsize<4) x.wrtpos=0;
+        }
+        //load count
+        if (x.wrtpos+4+4+3+3==x.blpos) {
             x.wrtcount=(x.c4&0xffffff);
             x.wrtcount=(x.wrtcount>>16)+((x.wrtcount&0xff)<<16)+(x.wrtcount&0xff00);
             //printf("WRT dict count %d words.\n",x.wrtcount);
             x.wwords=x.wrtcount;
             if (x.wrtcount==0) x.wrtpos=x.wrtsize=0;
-          }
-          if (x.wrtsize>0 && x.wrtpos+4+4+3+3+x.wrtsize+3==x.blpos && x.wrtdata==0) { 
+        }
+        if (x.wrtsize>0 && x.wrtpos+4+4+3+3+x.wrtsize+3==x.blpos && x.wrtdata==0) { 
             if (x.buf(6)==5) {
-              x.wrtdata=x.blpos+5;
+                x.wrtdata=x.blpos+5;
             }
             else x.wrtLoaded==false,x.wrtpos=x.wrtdata=x.wrtsize=0;
-          }
-          if (x.wrtdata>0 && x.blpos>=x.wrtdata &&x.wrtLoaded==false) { 
+        }
+        if (x.wrtdata>0 && x.blpos>=x.wrtdata &&x.wrtLoaded==false) { 
             wr.WRT_start_decoding(x.wrtcount,x.wrtsize,&x.buf[x.buf.pos-5-3-x.wrtsize]);
             x.wrtLoaded=x.dictonline=true;
             //printf("WRT dict online.\n");
-          }
         }
-        if (x.wrtLoaded==true) {
-           // Returned wrtstatus values
-           // codeword size   1-3
-           // D_REGULAR_CHAR    0
-           // D_WORD_DECODED   -1     
-           // D_FIRSTUPPER     -2
-           // D_UPPERWORD      -3
-           // D_ESCAPE         -4
-           // D_UTFUPPER       -5
-          x.wrtstatus=wr.WRT_decode(x.buf(1),&x.wrtText[0],&x.wrtTextSize);
-          x.wstat=  (x.wrtstatus==-1)||  (x.wrtstatus>0);
-          x.wdecoded=false;
-          if (x.wrtstatus==-1){
+    }
+    if (x.wrtLoaded==true) {
+        // Returned wrtstatus values
+        // codeword size   1-3
+        // D_REGULAR_CHAR    0
+        // D_WORD_DECODED   -1     
+        // D_FIRSTUPPER     -2
+        // D_UPPERWORD      -3
+        // D_ESCAPE         -4
+        // D_UTFUPPER       -5
+        x.wrtstatus=wr.WRT_decode(x.buf(1),&x.wrtText[0],&x.wrtTextSize);
+        x.wstat=  (x.wrtstatus==-1)||  (x.wrtstatus>0);
+        x.wdecoded=false;
+        if (x.wrtstatus==-1) {
             x.wrtbytesize++;
             x.wdecoded=true;
             // print decoded word
             // for (int p=0;p<x.wrtTextSize;p++)printf("%c",x.wrtText[p]);
             models[M_TEXT]->setword(&x.wrtText[0],x.wrtTextSize);
             x.wlen=x.wrtbytesize;
-             int y=0;
+            int y=0;
             if (x.wrtTextSize<5 && x.wrtText[0]>'z') y=utf8_check(&x.wrtText[0]); 
             if (y==x.wrtbytesize){
                 x.utf8l=y;
@@ -95,43 +92,43 @@ void PredictorTXTWRT::wrt(){
                 x.bufn[x.bufn.pos++]=x.wrtc4&0xff;
                 x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
             }else {
-            x.utf8l=0;
-            for (int p=0;p<x.wrtTextSize;p++){
-                U8 wc=x.wrtText[p];
-                x.wrtc4=(x.wrtc4<<8)|wc;
-                x.bufn[x.bufn.pos++]=wc;
-                x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
-            }
+                x.utf8l=0;
+                for (int p=0;p<x.wrtTextSize;p++){
+                    U8 wc=x.wrtText[p];
+                    x.wrtc4=(x.wrtc4<<8)|wc;
+                    x.bufn[x.bufn.pos++]=wc;
+                    x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+                }
             }
             decodedTextLen=x.wrtTextSize;
             x.wrtbytesize=0;
             x.wrtTextSize=0;
-          }else if (x.wrtstatus>0){
+        } else if (x.wrtstatus>0) {
             x.wrtbytesize++;
-          }
-          // if line starts with <someword>
-          if ((x.buf(decodedTextLen)=='<' || x.bufn(decodedTextLen+1)=='<' /*|| (x.bufn(decodedTextLen+1)=='<' && x.bufn(decodedTextLen+2)=='&')*/) && c1=='>'){
-              counttags++;lasttag=x.blpos;
-          }
-          if ( c1 >'@' && lState==0)  lState=1;
-          if ((c1=='<' && lState==0)) lState=2;
-          if ((c1==10 || c1==5) && counttags && lState==2) {
-              x.ishtml=true;
-              counttags=0;
-          } else if (c1==10 || c1==5){ 
-               counttags=lState=0;
-               if ((x.blpos-lasttag)>256*4 && x.ishtml==true) x.ishtml=false;// standard break 1k
-          }
         }
+        // if line starts with <someword>
+        if ((x.buf(decodedTextLen)=='<' || x.bufn(decodedTextLen+1)=='<' /*|| (x.bufn(decodedTextLen+1)=='<' && x.bufn(decodedTextLen+2)=='&')*/) && c1=='>'){
+            counttags++;lasttag=x.blpos;
+        }
+        if ( c1 >'@' && lState==0)  lState=1;
+        if ((c1=='<' && lState==0)) lState=2;
+        if ((c1==10 || c1==5) && counttags && lState==2) {
+            x.ishtml=true;
+            counttags=0;
+        } else if (c1==10 || c1==5){ 
+            counttags=lState=0;
+            if ((x.blpos-lasttag)>256*4 && x.ishtml==true) x.ishtml=false;// standard break 1k
+        }
+    }
 
-        if (x.wrtstatus==0 && x.wrtLoaded==true){
-          if (c1==5) c1=10;
-          x.wrtc4=(x.wrtc4<<8)|c1;// printf("%c",c1);
-          x.bufn[x.bufn.pos++]=c1;
-          x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
-        }
-        if (c1=='>') x.istex=true;  //close
-        //if (x.c4==0x10103d3d) x.ishtml=false,x.istex=true;  // w - fast break
+    if (x.wrtstatus==0 && x.wrtLoaded==true) {
+        if (c1==5) c1=10;
+        x.wrtc4=(x.wrtc4<<8)|c1;// printf("%c",c1);
+        x.bufn[x.bufn.pos++]=c1;
+        x.bufn.pos=x.bufn.pos&x.bufn.poswr; //wrap
+    }
+    if (c1=='>') x.istex=true;  //close
+    //if (x.c4==0x10103d3d) x.ishtml=false,x.istex=true;  // w - fast break
 }
 void PredictorTXTWRT::update() {
     if (x.bpos==0) {
@@ -168,41 +165,41 @@ void PredictorTXTWRT::update() {
     models[M_SPARSEMATCH]->p(*m);
     order=models[M_NORMAL]->p(*m);
 
-        int state=models[M_XML]->p(*m);
-        int wcxt=models[M_WORD]->p(*m,state&7)&0xfff;
-        mcxt[0]=wcxt;    
-        models[M_SPARSE]->p(*m,ismatch,order);
-        models[M_NEST]->p(*m);
-        models[M_INDIRECT]->p(*m);
-        models[M_DMC]->p(*m);
-        rlen=models[M_RECORD]->p(*m);
-        models[M_TEXT]->p(*m,(state&7));
-        if (x.settings.slow==true) models[M_PPM]->p(*m);
-        if (x.settings.slow==true) models[M_CHART]->p(*m);
-        if (x.settings.slow==true) models[M_LSTM]->p(*m);
-        int dd=((pr>>9)>0?1:0)+((pr>>9)>14?1:0);
-        dd=(dd<<7)|(x.bc4&127);
-        dd=(dd<<8)|(x.buf(1));
-        dd=(dd<<8)|x.c0;
-         m->add((stretch(StateMaps[0].p( dd,x.y))+1)>>1);
-        U32 c3=x.buf(3), c;
-        c=(x.words>>1)&63;
-        mcxt[1]=x.c0;
-        mcxt[2]=order << 3U | x.bpos;
-        mcxt[3]=(x.bc4&3)*64+c+order*256;
-        mcxt[4]=256*order + (x.w4&240) + (x.b3>>4);
-        mcxt[5]=(x.w4&255)+256*x.bpos;
-        if (x.bpos){
-            c=x.c0<<(8-x.bpos); if (x.bpos==1)c+=x.b4/2;
-            c=(min(x.bpos,5))*256+(x.tt&63)+(c&192);
-        }
-        else c=(x.words&12)*16+(x.tt&63);
-        mcxt[6]=c;
-        c=x.bpos*256+((x.c0<<(8-x.bpos))&255);
-        c3 = (x.words<<x.bpos) & 255;
-        mcxt[7]=c+(c3>>x.bpos);
-        pr0=m->p();
-        int limit=0x3FF>>((x.blpos<0xFFF)*2);
+    int state=models[M_XML]->p(*m);
+    int wcxt=models[M_WORD]->p(*m,state&7)&0xfff;
+    mcxt[0]=wcxt;    
+    models[M_SPARSE]->p(*m,ismatch,order);
+    models[M_NEST]->p(*m);
+    models[M_INDIRECT]->p(*m);
+    models[M_DMC]->p(*m);
+    rlen=models[M_RECORD]->p(*m);
+    models[M_TEXT]->p(*m,(state&7));
+    if (x.settings.slow==true) models[M_PPM]->p(*m);
+    if (x.settings.slow==true) models[M_CHART]->p(*m);
+    if (x.settings.slow==true) models[M_LSTM]->p(*m);
+    int dd=((pr>>9)>0?1:0)+((pr>>9)>14?1:0);
+    dd=(dd<<7)|(x.bc4&127);
+    dd=(dd<<8)|(x.buf(1));
+    dd=(dd<<8)|x.c0;
+    m->add((stretch(StateMaps[0].p( dd,x.y))+1)>>1);
+    U32 c3=x.buf(3), c;
+    c=(x.words>>1)&63;
+    mcxt[1]=x.c0;
+    mcxt[2]=order << 3U | x.bpos;
+    mcxt[3]=(x.bc4&3)*64+c+order*256;
+    mcxt[4]=256*order + (x.w4&240) + (x.b3>>4);
+    mcxt[5]=(x.w4&255)+256*x.bpos;
+    if (x.bpos) {
+        c=x.c0<<(8-x.bpos); if (x.bpos==1)c+=x.b4/2;
+        c=(min(x.bpos,5))*256+(x.tt&63)+(c&192);
+    }
+    else c=(x.words&12)*16+(x.tt&63);
+    mcxt[6]=c;
+    c=x.bpos*256+((x.c0<<(8-x.bpos))&255);
+    c3 = (x.words<<x.bpos) & 255;
+    mcxt[7]=c+(c3>>x.bpos);
+    pr0=m->p();
+    int limit=0x3FF>>((x.blpos<0xFFF)*2);
     int pr1, pr2, pr3;
 
     pr  = Text.APMs[0].p(pr0, (x.c0<<8)|(x.Text.mask&0xF)|((x.Misses&0xF)<<4), x.y, limit);

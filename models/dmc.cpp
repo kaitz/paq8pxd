@@ -17,31 +17,32 @@
 // - All counts are updated adaptively.
 // - The "dmcModel" is used in "dmcForest". See below.
 
+// This model is from paq8px
 
+dmcModel1::dmcModel1(BlockData& bd, U32 val):
+mem(CMlimit(( (bd.settings.level<11?(0x10000UL<<bd.settings.level):((0x10000UL<<11))))/9)),
+dmcmodel1a(mem,240,bd),
+dmcmodel1b(mem,240,bd),
+dmcmodel2a(mem,480,bd),
+dmcmodel2b(mem,480,bd),
+dmcmodel3a(mem,720,bd),
+dmcmodel3b(mem,720,bd),
+x(bd){}
 
-  dmcModel1::dmcModel1(BlockData& bd, U32 val):
-  mem(CMlimit(( (bd.settings.level<11?(0x10000UL<<bd.settings.level):((0x10000UL<<11))))/9)),
-  dmcmodel1a(mem,240,bd),
-  dmcmodel1b(mem,240,bd),
-  dmcmodel2a(mem,480,bd),
-  dmcmodel2b(mem,480,bd),
-  dmcmodel3a(mem,720,bd),
-  dmcmodel3b(mem,720,bd),
-  x(bd){}
-  int dmcModel1::p(Mixers& m,int val1,int val2){
+int dmcModel1::p(Mixers& m, int val1, int val2){
 
     switch(model1_state) {
-      case 0:
+    case 0:
         dmcmodel1a.mix(m,true);
         dmcmodel1b.mix(m,false);
         if(dmcmodel1a.isalmostfull()){dmcmodel1b.reset();model1_state++;}
         break;
-      case 1:
+    case 1:
         dmcmodel1a.mix(m, true);
         dmcmodel1b.mix(m, false);
         if(dmcmodel1a.isfull() && dmcmodel1b.isalmostfull()){dmcmodel1a.reset();model1_state++;}
         break;
-      case 2:
+    case 2:
         dmcmodel1b.mix(m,true);
         dmcmodel1a.mix(m,false);
         if(dmcmodel1b.isfull() && dmcmodel1a.isalmostfull()){dmcmodel1b.reset();model1_state--;}
@@ -50,39 +51,39 @@
     
     switch(model2_state) {
     case 0:
-      dmcmodel2a.mix(m,true);
-      dmcmodel2b.mix(m,false);
-      if(dmcmodel2a.isalmostfull()){dmcmodel2b.reset();model2_state++;}
-      break;
+        dmcmodel2a.mix(m,true);
+        dmcmodel2b.mix(m,false);
+        if(dmcmodel2a.isalmostfull()){dmcmodel2b.reset();model2_state++;}
+        break;
     case 1:
-      dmcmodel2a.mix(m,true);
-      dmcmodel2b.mix(m,false);
-      if(dmcmodel2a.isfull() && dmcmodel2b.isalmostfull()){dmcmodel2a.reset();model2_state++;}
-      break;
+        dmcmodel2a.mix(m,true);
+        dmcmodel2b.mix(m,false);
+        if(dmcmodel2a.isfull() && dmcmodel2b.isalmostfull()){dmcmodel2a.reset();model2_state++;}
+        break;
     case 2:
-      dmcmodel2b.mix(m,true);
-      dmcmodel2a.mix(m,false);
-      if(dmcmodel2b.isfull() && dmcmodel2a.isalmostfull()){dmcmodel2b.reset();model2_state--;}
-      break;
+        dmcmodel2b.mix(m,true);
+        dmcmodel2a.mix(m,false);
+        if(dmcmodel2b.isfull() && dmcmodel2a.isalmostfull()){dmcmodel2b.reset();model2_state--;}
+        break;
     }
 
     switch(model3_state) {
     case 0:
-      dmcmodel3a.mix(m,true);
-      dmcmodel3b.mix(m,false);
-      if(dmcmodel3a.isalmostfull()){dmcmodel3b.reset();model3_state++;}
-      break;
+        dmcmodel3a.mix(m,true);
+        dmcmodel3b.mix(m,false);
+        if(dmcmodel3a.isalmostfull()){dmcmodel3b.reset();model3_state++;}
+        break;
     case 1:
-      dmcmodel3a.mix(m,true);
-      dmcmodel3b.mix(m,false);
-      if(dmcmodel3a.isfull() && dmcmodel3b.isalmostfull()){dmcmodel3a.reset();model3_state++;}
-      break;
+        dmcmodel3a.mix(m,true);
+        dmcmodel3b.mix(m,false);
+        if(dmcmodel3a.isfull() && dmcmodel3b.isalmostfull()){dmcmodel3a.reset();model3_state++;}
+        break;
     case 2:
-      dmcmodel3b.mix(m,true);
-      dmcmodel3a.mix(m,false);
-      if(dmcmodel3b.isfull() && dmcmodel3a.isalmostfull()){dmcmodel3b.reset();model3_state--;}
-      break;
+        dmcmodel3b.mix(m,true);
+        dmcmodel3a.mix(m,false);
+        if(dmcmodel3b.isfull() && dmcmodel3a.isalmostfull()){dmcmodel3b.reset();model3_state--;}
+        break;
     }
     return 0;
-  }
+}
 

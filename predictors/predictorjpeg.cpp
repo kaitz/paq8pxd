@@ -1,21 +1,17 @@
 #include "predictorjpeg.hpp"
-// Jpeg predicor
 
+// Jpeg predicor
 PredictorJPEG::PredictorJPEG(Settings &set):Predictors(set), pr(16384), 
-  Jpeg{
-    { /*APM:*/ { 0x2000} }
-  },
-  Bypass(false){
-   loadModels(activeModels);
-   // add extra 
-   mixerInputs+=3+1+1-3;
-   mixerNets+=        (8+1024)+       256+       256+       256+       256+       1536;
-     
-   mixerNetsCount+=6;
-   // create mixer
-   //m=new Mixer(mixerInputs,  mixerNets,x, mixerNetsCount,0,3,2); //set  error update rate to 1.5 (3/2), default is 7/1
-   for (int i=0;i<9;i++) mcxt[i]=0;
-   
+    Jpeg{
+        { /*APM:*/ { 0x2000} }
+    },
+    Bypass(false) {
+
+    loadModels(activeModels);
+    // add extra 
+    mixerInputs+=3+1+1-3;
+
+    for (int i=0; i<9; i++) mcxt[i]=0;
     // Predictor contexts - select larger cxt     //def    jpg
     mxp.push_back( {8+1024,55,7,24,&mcxt[0],0} ); //8+1024    9
     mxp.push_back( {  1025,55,7,24,&mcxt[1],0} ); //256    1025
@@ -25,14 +21,12 @@ PredictorJPEG::PredictorJPEG(Settings &set):Predictors(set), pr(16384),
     mxp.push_back( {  1536,55,7,24,&mcxt[5],0} ); //1536     64
     mxp.push_back( {  4096,55,7,24,&mcxt[6],0} ); //0      4096
     mxp.push_back( {  1024,55,7,24,&mcxt[7],0} ); //0      1024
-    
-
-   mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
-   // create mixer
-   m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
+    // create mixer
+    m=new Mixers(x,mxp.size(),mixerInputs,mxp);
 }
 
-void PredictorJPEG::update()  {
+void PredictorJPEG::update() {
     pr=(32768-pr)/(32768/4096);
     if(pr<1) pr=1;
     if(pr>4095) pr=4095;
@@ -57,8 +51,7 @@ void PredictorJPEG::update()  {
         for (int i=0;i<8;i++) mcxt[i]=dynamic_cast<jpegModelx *>(models[M_JPEG])->mc(i);
         if (x.settings.slow==true) models[M_NORMAL]->p(*m);
         pr=m->p();
-    }
-    else{
+    } else {
         int order =models[M_NORMAL]->p(*m);
         U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
         mcxt[0]=8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
@@ -81,4 +74,3 @@ void PredictorJPEG::update()  {
     if(pr<1) pr=1;
     if(pr>32767) pr=32767;
 }
-
