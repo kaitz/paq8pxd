@@ -17,7 +17,9 @@ class PredictorAUDIO2: public Predictors {
 public:
     int mcxt[1];
     int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
-    ~PredictorAUDIO2(){ }
+    ~PredictorAUDIO2() {
+        delete m;
+    }
     PredictorAUDIO2(Settings &set);
     void update();
 };

@@ -10,20 +10,20 @@ PredictorTXTWRT::PredictorTXTWRT(Settings &set):Predictors(set), pr(16384),pr0(p
     // add extra 
     mixerInputs+=1+1;
     sse.p(pr); // must
-    for (int i=0; i<9; i++) mcxt[i]=0;
 
     // Predictor contexts
-    mxp.push_back( {  4096,55,7,24,&mcxt[0],0} );
-    mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
-    mxp.push_back( {    64,55,7,24,&mcxt[2],0} );
-    mxp.push_back( { 256*8,55,7,24,&mcxt[3],0} );
-    mxp.push_back( { 256*8,55,7,24,&mcxt[4],0} );
-    mxp.push_back( { 256*8,55,7,24,&mcxt[5],0} );
-    mxp.push_back( {  1536,55,7,24,&mcxt[6],0} );
-    mxp.push_back( {  2048,55,7,24,&mcxt[7],0} );
-    mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
+    mxp.push_back( {  4096,64,0,28,&mcxt[0],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[1],0} );
+    mxp.push_back( {    64,64,0,28,&mcxt[2],0} );
+    mxp.push_back( { 256*8,64,0,28,&mcxt[3],0} );
+    mxp.push_back( { 256*8,64,0,28,&mcxt[4],0} );
+    mxp.push_back( { 256*8,64,0,28,&mcxt[5],0} );
+    mxp.push_back( {  1536,64,0,28,&mcxt[6],0} );
+    mxp.push_back( {  2048,64,0,28,&mcxt[7],0} );
+    mxp.push_back( {     1, 8,0,14,&mcxt[8],0} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mcxt[8]=0;
 }
 
 void PredictorTXTWRT::wrt() {
@@ -198,7 +198,7 @@ void PredictorTXTWRT::update() {
     c=x.bpos*256+((x.c0<<(8-x.bpos))&255);
     c3 = (x.words<<x.bpos) & 255;
     mcxt[7]=c+(c3>>x.bpos);
-    pr0=m->p();
+    pr0=m->p(1,1);
     int limit=0x3FF>>((x.blpos<0xFFF)*2);
     int pr1, pr2, pr3;
 

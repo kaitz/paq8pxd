@@ -143,17 +143,17 @@ exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10),
     memset(&Cache, 0, sizeof(OpCache));
     memset(&Op, 0, sizeof(Instruction));
     memset(&StateBH, 0, sizeof(StateBH));
-    for (int i=0;i<6;i++)mxcxt[i]=0;
+
     // Set model mixer contexts and parameters
-    mxp.push_back( {1024,55,7,24,&mxcxt[0],0} );
-    mxp.push_back( {1024,55,7,24,&mxcxt[1],0} );
-    mxp.push_back( {1024,55,7,24,&mxcxt[2],0} );
-    mxp.push_back( {8192,55,7,24,&mxcxt[3],0} );
-    mxp.push_back( {8192,55,7,24,&mxcxt[4],0} );
-    mxp.push_back( {8192,55,7,24,&mxcxt[5],0} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[1],0} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[2],0} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[3],0} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[4],0} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[5],0} );
 }
 
-int exeModel1::p(Mixers& m,int val1,int val2){
+int exeModel1::p(Mixers& m,int val1,int val2) {
     if (x.filetype==DBASE ||x.filetype==HDR || x.filetype==ARM|| x.filetype==IMGUNK){
         for (int i=0; i<inputs(); i++) m.add(0); 
         return false;

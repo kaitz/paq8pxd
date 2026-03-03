@@ -7,9 +7,8 @@ sparseModely::sparseModely(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(44),
     cm(x,N,CMlimit(x.MEM()*2)),
     ctx(0) {
 
-    for (int i=0; i<1; i++) mxcxt[i]=0;
     // Set model mixer contexts and parameters
-    mxp.push_back( {4 * 256,55,7,24,&mxcxt[0],0} );
+    mxp.push_back( {4*256,64,0,28,&mxcxt[0],0} );
 }
 
 int sparseModely::p(Mixers& m,int seenbefore,int howmany) {//match order

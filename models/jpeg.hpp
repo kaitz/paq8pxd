@@ -322,13 +322,15 @@ class jpegModelx: public Model {
 
 public:
     std::vector<mparm> lmxp;
+    //std::vector<mparm> mxp;
     int lmcxt[8];
     int mcxt[8];
     jpegModelx(BlockData& bd);
     int inputs() {return 2*N+24+M;}
     int p(Mixers& m, int val1=0, int val2=0);
     int mc(int i) {return mcxt[i];}
-    virtual ~jpegModelx() {
+     ~jpegModelx() {
+        delete m1;
     }
 };
 

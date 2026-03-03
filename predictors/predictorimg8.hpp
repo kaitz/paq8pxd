@@ -29,7 +29,9 @@ class PredictorIMG8: public Predictors {
 public:
     int mcxt[1];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
-    ~PredictorIMG8(){ }
+    ~PredictorIMG8() {
+        delete m;
+    }
     PredictorIMG8(Settings &set);
     void update();
 };

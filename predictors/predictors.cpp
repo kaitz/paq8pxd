@@ -153,10 +153,14 @@ void Predictors::loadModels(const std::vector<ModelTypes> &amodel) {
     // Add model mixer contexts
     for (int i=0; i<amodel.size(); i++) {
         const ModelTypes mType=amodel[i];
-        if (mType!=M_PPM && mType!=M_CHART && mType!=M_LSTM){
+        if (mType!=M_PPM && mType!=M_CHART && mType!=M_LSTM && models[mType]->mxp.size()){
+           /* printf("Add Model %d, mixers %d\n",mType,models[mType]->mxp.size());
+            for (size_t j=0; j<models[mType]->mxp.size(); j++) {
+            printf(" m%d: %d %d %d %d %d\n",j,models[mType]->mxp[j].m,models[mType]->mxp[j].dmul, models[mType]->mxp[j].elim, models[mType]->mxp[j].lr, models[mType]->mxp[j].bias);
+             }*/
             mxp.insert(mxp.end(), models[mType]->mxp.begin(), models[mType]->mxp.end());    
         }
-        if (x.settings.slow==true && (mType==M_PPM || mType==M_CHART || mType==M_LSTM)) {
+        if (x.settings.slow==true && (mType==M_PPM || mType==M_CHART || mType==M_LSTM) && models[mType]->mxp.size()) {
             mxp.insert(mxp.end(), models[mType]->mxp.begin(), models[mType]->mxp.end());    
         }
     }

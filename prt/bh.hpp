@@ -1,7 +1,9 @@
 #pragma once
 #include "types.hpp"
 #include "array.hpp"
+#include "hash.hpp"
 #include <string>
+
 ///////////////////////////// BH ////////////////////////////////
 
 // A BH maps a 32 bit hash to an array of B bytes (checksum and B-2 values)
@@ -51,7 +53,7 @@ inline  U8* BH<B>::operator[](U32 i) {
     if (p[2]==0) {*cp=chk;break;}
     if (*cp==chk) break;  // found
   }
-  if (j==0) return p+1;  // front
+  if (j==0) return p+2;  // front
   //static U8 tmp[B];  // element to move to front
   if (j==M) {
     --j;
@@ -62,5 +64,6 @@ inline  U8* BH<B>::operator[](U32 i) {
   else memcpy(&tmp, cp, B);
   memmove(&t[(i+1)*B], &t[i*B], j*B);
   memcpy(&t[i*B], &tmp, B);
-  return &t[i*B+1];
+  return &t[i*B+2];
 }
+

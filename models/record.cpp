@@ -24,11 +24,10 @@ recordModel1::recordModel1( BlockData& bd,U64 msize ): x(bd),buf(bd.buf), cpos1(
     // candidate counts
     rcount[0] = 0;
     rcount[1] = 0;
-    for (int i=0; i<3; i++) mxcxt[i]=0;
     // Set model mixer contexts and parameters
-    mxp.push_back( { 1024,55,7,24,&mxcxt[0],0} );
-    mxp.push_back( {  512,55,7,24,&mxcxt[1],0} );
-    mxp.push_back( {11*32,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( { 1024,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {  512,64,0,28,&mxcxt[1],0} );
+    mxp.push_back( {11*32,64,0,28,&mxcxt[2],0} );
     
 }
 
@@ -145,7 +144,7 @@ int recordModel1::p(Mixers& m, int rrlen, int val2) {
             // Set 2 dimensional contexts
             cm.set(hash(++i,c<<8| (min(255, (dict==true)?x.bufn.pos:buf.pos-cpos1[c])/4)));
             if (!( x.filetype==DECA))
-            cm.set(hash(++i,w<<9| llog((dict==true)?x.bufn.pos:buf.pos-wpos1[w])>>2));
+            cm.set(hash(++i,w<<9| llog((dict==true)?x.bufn.pos:buf.pos-wpos1[w])>>2)); else cm.sets();
             cm.set(hash(++i,rlen[0]|N<<10|NN<<18));
 
             cn.set(hash(++i,w|rlen[0]<<8));

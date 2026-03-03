@@ -81,9 +81,8 @@ matchModel1::matchModel1(BlockData& bd, U32 val1) :
     x.Match.bypassprediction=2048;
     assert((Size&(Size-1))==0);
     
-    for (int i=0; i<1; i++) mxcxt[i]=0;
-    // Set image model mixer contexts and parameters
-    mxp.push_back( {8,55,7,24,&mxcxt[0],0} );
+    // Set model mixer contexts and parameters
+    mxp.push_back( {8,64,0,28,&mxcxt[0],0} );
 }
 
 int matchModel1::p(Mixers& m, int val1, int val2) {

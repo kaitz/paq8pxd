@@ -7,10 +7,10 @@ PredictorAUDIO2::PredictorAUDIO2(Settings &set):Predictors(set), pr(16384),a(x),
     mixerInputs+=1;
     sse.p(pr);
 
-    for (int i=0; i<1; i++) mcxt[i]=0;
-    mxp.push_back( {1,6,7,4,&mcxt[0],0} ); // final mixer
+    mxp.push_back( {1,8,0,14,&mcxt[0],0} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mcxt[0]=0;
 }
 
 void PredictorAUDIO2::update()  {
@@ -22,7 +22,7 @@ void PredictorAUDIO2::update()  {
     pr=(32768-pr)/(32768/4096);
     if(pr<1) pr=1;
     if(pr>4095) pr=4095;
-    pr=a.p1(m->p(/*((x.finfo&2)==0),1*/),pr,7);
+    pr=a.p1(m->p(((x.finfo&2)==0),1),pr,7);
     sse.update();
     pr = sse.p(pr);
 }

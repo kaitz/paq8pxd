@@ -13,16 +13,15 @@ im8bitModel1::im8bitModel1( BlockData& bd):inpts(48+1),
     NNNWW(0), NNNW(0), NNN(0), NNNE(0), NNNEE(0),
     NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1), pOLS(nOLS), sceneOls(13, 1, 0.994) {
 
-    for (int i=0; i<8; i++) mxcxt[i]=0;
     // Set  model mixer contexts and parameters
-    mxp.push_back( {2048+5,55,7,24,&mxcxt[0],0} );
-    mxp.push_back( {  6*16,55,7,24,&mxcxt[1],0} );
-    mxp.push_back( {  6*32,55,7,24,&mxcxt[2],0} );
-    mxp.push_back( {256*16,55,7,24,&mxcxt[3],0} );
-    mxp.push_back( {  1024,55,7,24,&mxcxt[4],0} );
-    mxp.push_back( { 64*16,55,7,24,&mxcxt[5],0} );
-    mxp.push_back( {   128,55,7,24,&mxcxt[6],0} );
-    mxp.push_back( {   256,55,7,24,&mxcxt[7],0} );
+    mxp.push_back( {2048+5,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {  6*16,64,0,28,&mxcxt[1],0} );
+    mxp.push_back( {  6*32,64,0,28,&mxcxt[2],0} );
+    mxp.push_back( {256*16,64,0,28,&mxcxt[3],0} );
+    mxp.push_back( {  1024,64,0,28,&mxcxt[4],0} );
+    mxp.push_back( { 64*16,64,0,28,&mxcxt[5],0} );
+    mxp.push_back( {   128,64,0,28,&mxcxt[6],0} );
+    mxp.push_back( {   256,64,0,28,&mxcxt[7],0} );
 }
 
 int im8bitModel1::p(Mixers& m ,int w, int val2) {
@@ -374,6 +373,7 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
     } else {
         m.add( -2048+((filter>>(7-bpos))&1)*4096 );
         mxcxt[0]=min(4,filter);
+        for (int i=1; i<8; i++) mxcxt[i]=-1;
     }
     return 0;
 }

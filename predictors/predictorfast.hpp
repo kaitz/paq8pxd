@@ -18,7 +18,9 @@ public:
         sm=new StateMap[4];
         cxt[0]=cxt[1]=cxt[2]=cxt[3]=0;     
     }
-
+    ~PredictorFast() {
+        delete [] sm;
+    }
     int p() const { return pr0; }
 
     void update() {

@@ -10,11 +10,12 @@ PredictorIMG24::PredictorIMG24(Settings &set):Predictors(set), pr(16384),
     mixerInputs+=1+2;
     sse.p(pr);
 
-    for (int i=0; i<2; i++) mcxt[i]=0;
-    mxp.push_back( {  8192,55,7,24,&mcxt[0],0} );
-    mxp.push_back( {1,6,7,4,&mcxt[1],0} ); // final mixer
+    //for (int i=0; i<2; i++) mcxt[i]=0;
+    mxp.push_back( {  8192,64,0,28,&mcxt[0],0} );
+    mxp.push_back( {1,8,0,14,&mcxt[1],0} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mcxt[1]=0;
 }
 
 void PredictorIMG24::update() {
@@ -35,7 +36,7 @@ void PredictorIMG24::update() {
     m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
     mcxt[0]=x.Image.ctx&0x1FFF;
     int pr1, pr2, pr3;
-    int pr0=/*x.filetype==IMAGE24? m->p(1,1):*/ m->p();
+    int pr0=x.filetype==IMAGE24? m->p(1,1): m->p();
     int limit=0x3FF>>((x.blpos<0xFFF)*4);
     // pr=pr0;
     pr  = Image.APMs[0].p(pr0, (x.c0<<4)|(x.Misses&0xF), x.y,limit);

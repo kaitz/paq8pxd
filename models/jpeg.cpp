@@ -22,15 +22,24 @@ jpegModelx::jpegModelx(BlockData& bd): MaxEmbeddedLevel(3),idx(-1),
     hmap(x.settings.level>10?0x8000000:(CMlimit(bd.MEM()*2)),9,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(1),lma(0),ama(0) {
 
     for (int i=0; i<8; i++) mcxt[i]=0;
+    mxp.push_back( {     9,64,0,28,&mcxt[0],0} ); //    9
+    mxp.push_back( {  1025,64,0,28,&mcxt[1],0} ); //  1025
+    mxp.push_back( {  1024,64,0,28,&mcxt[2],0} ); //  1024
+    mxp.push_back( {   512,64,0,28,&mcxt[3],0} ); //   512
+    mxp.push_back( {  4096,64,0,28,&mcxt[4],0} ); //  4096
+    mxp.push_back( {    64,64,0,20,&mcxt[5],0} ); //    64
+    mxp.push_back( {  4096,64,0,28,&mcxt[6],0} ); //  4096
+    mxp.push_back( {  1024,64,0,28,&mcxt[7],0} ); //  1024
+    
     for (int i=0; i<8; i++) lmcxt[i]=0; // local mixer
-    lmxp.push_back( {    2,55,7,24,&lmcxt[0],0} );
-    lmxp.push_back( { 1024,55,7,24,&lmcxt[1],0} );
-    lmxp.push_back( { 2048,55,7,24,&lmcxt[2],0} );
-    lmxp.push_back( {   64,55,7,24,&lmcxt[3],0} );
-    lmxp.push_back( { 1024,55,7,24,&lmcxt[4],0} );
-    lmxp.push_back( {  256,55,7,24,&lmcxt[5],0} );
-    lmxp.push_back( {   16,55,7,24,&lmcxt[6],0} );
-    lmxp.push_back( {1,6,7,4,&lmcxt[7],0} ); // final mixer
+    lmxp.push_back( {    2,64,0,28,&lmcxt[0],0} );
+    lmxp.push_back( { 1024,64,0,28,&lmcxt[1],0} );
+    lmxp.push_back( { 2048,64,0,28,&lmcxt[2],0} );
+    lmxp.push_back( {   64,64,0,28,&lmcxt[3],0} );
+    lmxp.push_back( { 1024,64,0,28,&lmcxt[4],0} );
+    lmxp.push_back( {  256,64,0,28,&lmcxt[5],0} );
+    lmxp.push_back( {   16,64,0,28,&lmcxt[6],0} );
+    lmxp.push_back( {    1, 8,0,14,&lmcxt[7],0} ); // final mixer
     m1=new Mixers(x,lmxp.size(),32+32+3+4+1+1+1+1+N*3+1+3*M+6,lmxp);
 }
 
@@ -525,10 +534,13 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
         mcxt[7]=0;
         return 2;
     }
-    if (val1==1) {if (++hbcount>2 ) hbcount=0;return 1;  }
+    if (val1==1) {
+        if (++hbcount>2 ) hbcount=0;
+        return 1; 
+    }
     m1->update();
     hmap.update();
-
+    
     // Update context
     const int comp=color[mcupos>>6];
     const int coef=(mcupos&63)|comp<<6;
@@ -742,7 +754,8 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
     lmcxt[4]=colCtx; 
     lmcxt[5]=lma; 
     lmcxt[6]=ama;
-    int pr=m1->p();
+    lmcxt[7]=0;
+    int pr=m1->p(1,0);
     
     x.Misses+=x.Misses+((pr0>>11)!=y);
     jmiss+=jmiss+((pr0>>11)!=y);

@@ -4,11 +4,10 @@
 // Model for modelling distances between symbols
 
 distanceModel1::distanceModel1(BlockData& bd):pos00(0),pos20(0),posnl(0), x(bd),buf(bd.buf),Maps{ {8}, {8}, {8} } {
-    for (int i=0; i<3; i++) mxcxt[i]=0;
     // Set model mixer contexts and parameters
-    mxp.push_back( {256,55,7,24,&mxcxt[0],0} );
-    mxp.push_back( {256,55,7,24,&mxcxt[1],0} );
-    mxp.push_back( {256,55,7,24,&mxcxt[2],0} );
+    mxp.push_back( {256,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {256,64,0,28,&mxcxt[1],0} );
+    mxp.push_back( {256,64,0,28,&mxcxt[2],0} );
 }
 
 int distanceModel1::p(Mixers& m, int val1, int val2) {

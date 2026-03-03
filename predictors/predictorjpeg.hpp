@@ -17,11 +17,13 @@ class PredictorJPEG: public Predictors {
         M_MATCH ,
         M_MATCH1, 
         M_NORMAL, 
-        M_LSTM};
+        //M_LSTM
+        };
 public:
-    int mcxt[9];
+    int mcxt[7];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
-    ~PredictorJPEG(){   //printf("\n JPEG Count of skipped bytes %d\n",x.count);
+    ~PredictorJPEG() {   //printf("\n JPEG Count of skipped bytes %d\n",x.count);
+    delete m;
     }
     PredictorJPEG(Settings &set);
     void update() ;

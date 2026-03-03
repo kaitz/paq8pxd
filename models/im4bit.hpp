@@ -24,6 +24,8 @@ public:
     im4bitModel1(BlockData& bd, U32 val=0);
     int inputs() {return S*3+2;}
     int p(Mixers& m,int w=0,int val2=0);
-    virtual ~im4bitModel1(){  delete[] sm;}
+    ~im4bitModel1() {
+        delete [] sm;
+    }
 
 };

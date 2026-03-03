@@ -35,7 +35,8 @@ public:
     PredictorDEC(Settings &set);
     int p()  const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
     void update() ;
-    ~PredictorDEC(){
+    ~PredictorDEC() {
+        delete m;
     }
 };
 

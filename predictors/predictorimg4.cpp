@@ -9,11 +9,12 @@ PredictorIMG4::PredictorIMG4(Settings &set):Predictors(set), pr(16384), StateMap
     // add extra 
     mixerInputs+=1+2;
     sse.p(pr);
-    for (int i=0;i<1;i++) mcxt[i]=0;
+    //for (int i=0;i<1;i++) mcxt[i]=0;
 
-    mxp.push_back( {1,6,7,4,&mcxt[0],0} ); // final mixer
+    mxp.push_back( {1,8,0,14,&mcxt[0],0} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mcxt[0]=0;
 }
 
 void PredictorIMG4::update()  {

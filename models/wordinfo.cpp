@@ -348,8 +348,8 @@ Info::Info(BlockData& bd,U32 val, ContextMap3  &contextmap, ContextMap3  &contex
             cm.set(hash(++i,number0, cword0,inkeyw[word1&(inkeyw.size()-1)]));
         }
         U32 h=x.wordcount*64+x.spacecount+numbercount*128;
-        if (x.filetype!=DECA){
-        if ( scountset==false /*&&!(x.frstchar=='{' && istemplate!=0)*/   ){
+        //if (x.filetype!=DECA){
+        if ( scountset==false && x.filetype!=DECA/*&&!(x.frstchar=='{' && istemplate!=0)*/   ){
        
             cm.set(hash(++i,x.wordlen,wrth,x.col));
             cm.set(hash(++i,c,x.spacecount/2,wordGap));
@@ -364,7 +364,7 @@ Info::Info(BlockData& bd,U32 val, ContextMap3  &contextmap, ContextMap3  &contex
         }else {
             for(int j=0;j<8;j++)  {cm.sets();++i;}
         }
-        }
+       // }
         h=word0*271;
         h=h+buf(1);U32 isfword=x.filetype==DECA?-1:fword;
         if (/*x.filetype==DEFAULT||*/x.filetype==DECA){
@@ -430,7 +430,7 @@ Info::Info(BlockData& bd,U32 val, ContextMap3  &contextmap, ContextMap3  &contex
             
             cm.set(hash(++i,isfword));
             cm.set(hash(++i,isfword,c));}
-        }
+        } else cm.sets(),cm.sets();
         cm.set(hash(++i,opened,c,dist!=0,pdf_text_parser_state));
         //cm.set(hash(++i,opened,word0));
         if (x.dictonline==true) cm.set(hash(buf(1),wchar1,wchar2)); else {cm.sets();}
@@ -448,7 +448,7 @@ Info::Info(BlockData& bd,U32 val, ContextMap3  &contextmap, ContextMap3  &contex
             cm.set(hash(++i,x.col,wcol,c==32));  
         } 
         else {
-          if (x.filetype!=DECA )
+          //if (x.filetype!=DECA )
             for(int j=0;j<4;j++)  {cm.sets();++i;}
         }
  

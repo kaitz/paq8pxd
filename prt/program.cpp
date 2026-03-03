@@ -225,7 +225,7 @@ void compressStream(int sid, U64 size, File* in, File* out, Streams *streams, Se
     SetConColor(7);
 
     printf(") compressed from %0" PRIi64 " to ",size);
-    SetConColor(9);
+    SetConColor(9+2);
     printf("%0" PRIi64 "", out->curpos()-startpos); // Without MT start pos is not zero
     SetConColor(7);
     printf(" bytes\n");

@@ -67,10 +67,10 @@ SparseMatchModel::SparseMatchModel(BlockData& bd, U32 val1):
     valid(false) {
 
     //assert(ispowerof2(Size));
-    for (int i=0; i<2; i++) mxcxt[i]=0;
+
     // Set model mixer contexts and parameters
-    mxp.push_back( {  NumHashes*64,55,7,24,&mxcxt[0],0} );
-    mxp.push_back( {NumHashes*2048,55,7,24,&mxcxt[1],0} );
+    mxp.push_back( {  NumHashes*64,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {NumHashes*2048,64,0,28,&mxcxt[1],0} );
 }
 
 int SparseMatchModel::p(Mixers& m, int val1, int val2) {

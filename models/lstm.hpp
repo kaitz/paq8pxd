@@ -21,5 +21,5 @@ public:
     lstmModel1(BlockData& bd, U32 val=0);
     int inputs() {return 2+1+1+1;}
     int p(Mixers& m, int val1=0, int val2=0);
-    virtual ~lstmModel1(){ delete lstm;}
+    virtual ~lstmModel1() { delete lstm;}
 };

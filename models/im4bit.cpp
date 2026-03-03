@@ -10,23 +10,22 @@ im4bitModel1::im4bitModel1( BlockData& bd, U32 val): x(bd),buf(bd.buf),
 
     sm=new StateMap[S];
     for (int i=0;i<S;i++)
-        cp[i]=t[263*i]+1;
+        cp[i]=t[hash(i,0)];
     
-    for (int i=0;i<6;i++)mxcxt[i]=0;
     // Set model mixer contexts and parameters
-    mxp.push_back( { 256,55,7,24,&mxcxt[0],0} );
-    mxp.push_back( { 512,55,7,24,&mxcxt[1],0} );
-    mxp.push_back( { 512,55,7,24,&mxcxt[2],0} );
-    mxp.push_back( {1024,55,7,24,&mxcxt[3],0} );
-    mxp.push_back( {  16,55,7,24,&mxcxt[4],0} );
-    mxp.push_back( {   1,55,7,24,&mxcxt[5],0} );
+    mxp.push_back( { 256,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( { 512,64,0,28,&mxcxt[1],0} );
+    mxp.push_back( { 512,64,0,28,&mxcxt[2],0} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[3],0} );
+    mxp.push_back( {  16,64,0,28,&mxcxt[4],0} );
+    mxp.push_back( {   1,64,0,28,&mxcxt[5],0} );
 }
 
 int im4bitModel1::p(Mixers& m, int w, int val2)  {
     int i;
     if (x.blpos==1) {//helps only on bigger files+1024kb
         for (i=0;i<S;i++)
-        cp[i]=t[263*i]+1;
+        cp[i]=t[263*i];
     }
     for (i=0;i<S;i++)
         *cp[i]=nex(*cp[i],x.y);
@@ -41,20 +40,20 @@ int im4bitModel1::p(Mixers& m, int w, int val2)  {
         run=(W!=WW || col==0)?(prevColor=WW,0):min(0xFFF,run+1);
         px=1, i=0;
 
-        cp[i++]=t[hash(W,NW,N)]+1;
-        cp[i++]=t[hash(N, min(0xFFF, col/8))]+1;
-        cp[i++]=t[hash(W,NW,N,NN,NE)]+1;
-        cp[i++]=t[hash(W, N, NE+NNE*16, NEE+NNEE*16)]+1;
-        cp[i++]=t[hash(W, N, NW+NNW*16, NWW+NNWW*16)]+1;
-        cp[i++]=t[hash(W, ilog2(run+1), prevColor, col/max(1,w/2) )]+1;
-        cp[i++]=t[hash(NE, min(0x3FF, (col+line)/max(1,w*8)))]+1;
-        cp[i++]=t[hash(NW, (col-line)/max(1,w*8))]+1;
-        cp[i++]=t[hash(WW*16+W,NN*16+N,NNWW*16+NW)]+1;
-        cp[i++]=t[hash(i,N,NN)]+1;
-        cp[i++]=t[hash(i,W,WW)]+1;
-        cp[i++]=t[hash(i,W,NE)]+1;
-        cp[i++]=t[hash(i,WW,NN,NEE)]+1;
-        cp[i++]=t[-1]+1;
+        cp[i++]=t[hash(W,NW,N)];
+        cp[i++]=t[hash(N, min(0xFFF, col/8))];
+        cp[i++]=t[hash(W,NW,N,NN,NE)];
+        cp[i++]=t[hash(W, N, NE+NNE*16, NEE+NNEE*16)];
+        cp[i++]=t[hash(W, N, NW+NNW*16, NWW+NNWW*16)];
+        cp[i++]=t[hash(W, ilog2(run+1), prevColor, col/max(1,w/2) )];
+        cp[i++]=t[hash(NE, min(0x3FF, (col+line)/max(1,w*8)))];
+        cp[i++]=t[hash(NW, (col-line)/max(1,w*8))];
+        cp[i++]=t[hash(WW*16+W,NN*16+N,NNWW*16+NW)];
+        cp[i++]=t[hash(i,N,NN)];
+        cp[i++]=t[hash(i,W,WW)];
+        cp[i++]=t[hash(i,W,NE)];
+        cp[i++]=t[hash(i,WW,NN,NEE)];
+        cp[i++]=t[hash(i,0)];
         
         col++;
         if(col==w*2) {col=0;line++;}

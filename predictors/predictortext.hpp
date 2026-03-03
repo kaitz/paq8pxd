@@ -43,7 +43,8 @@ public:
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
     void wrt();
     void update() ;
-    ~PredictorTXTWRT(){
+    ~PredictorTXTWRT() {
         // printf("\n TXTWRT Count of skipped bytes %d\n",count/8);
+        delete m;
     }
 };

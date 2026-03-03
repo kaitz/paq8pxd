@@ -11,43 +11,64 @@ public:
     int N;                // Max input prediction count
     Array<short, 32> tx;  // Predictions from models
     int nx;               // Input count
-    int K;                // Final mixer input count
+    const int K;          // Final mixer input count
     Array<short, 32> pr;  // Predictions from mixers
-    int cxt;              // Local dummy context=0
+    const std::vector<mparm> &mp; // All mixer parameters
 
-    Mixers(BlockData& bd, int c, int t,std::vector<mparm> &p):x(bd),C(c-1),m(C),N((t+15)&-16),tx(N),nx(0),K((C+15)&-16),pr(K),cxt(0) {
+    Mixers(BlockData& bd, const int c, const int t, const std::vector<mparm> &p):x(bd),C(c-1),m(C),mf(nullptr),
+        N((t+15)&-16),tx(N+16),nx(0),K((C+15)&-16),pr(K+16),mp(p) {
+
+        assert(C>0);
         for (int i=0; i<C; ++i) {
             m[i]=new Mixer1(tx, p[i].m, N, p[i].dmul, p[i].elim, p[i].lr, p[i].cxt, p[i].bias);
         }
         // Mixer to combine all mixers
-        mf=new Mixer1(pr, p[C].m, K, p[C].dmul, p[C].elim, p[C].lr,&cxt,p[C].bias);
+        mf=new Mixer1(pr, p[C].m, K, p[C].dmul, p[C].elim, p[C].lr,p[C].cxt,p[C].bias);
+        // Disable all mixers
+        reset();
     }
 
     ~Mixers() {
-        for (int i=0; i<C; ++i) {
-            delete m[i];
+        if (mf!=nullptr) {
+            //int tskip=0;
+            //int tcount=0;
+            for (int i=0; i<C; ++i) {
+                //tskip+=m[i]->count;
+                //tcount+=m[i]->tcount;
+                delete m[i];
+            }
+            //tskip+=mf->count;
+            //tcount+=mf->tcount;
+            delete mf;
+            mf=nullptr;
+            //printf("Total mix skip %d %d %f%\n",tskip,tcount,tskip*100.0f/tcount);
         }
-        delete mf;
     }
-
 
     void add(int x) {
         assert(nx<N);
         tx[nx++]=x;
     }
-
-    void update() {
-        for (int i=0; i<C; ++i) {
-            m[i]->update(x.y);
-        }
+    
+    void reset() {
+        for (size_t i=0; i<mp.size(); i++)  *mp[i].cxt=-1;
         nx=0;
-        mf->update(x.y);
     }
 
-    short p(){
+    void update() {
+        while (nx&15) tx[nx++]=0; 
         for (int i=0; i<C; ++i) {
-            pr[i]= m[i]->p1();
+            m[i]->update(x.y,nx);
         }
-        return mf->p();
+        nx=0;
+        mf->update(x.y,K);
+    }
+
+    short p(int sh0=0, int sh1=0) {
+        while (nx&15) tx[nx++]=0; 
+        for (int i=0; i<C; ++i) {
+            pr[i]= m[i]->p1(nx,sh0);
+        }
+        return mf->p(K,sh1);
     }
 };

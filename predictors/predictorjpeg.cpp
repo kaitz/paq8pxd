@@ -11,19 +11,17 @@ PredictorJPEG::PredictorJPEG(Settings &set):Predictors(set), pr(16384),
     // add extra 
     mixerInputs+=3+1+1-3;
 
-    for (int i=0; i<9; i++) mcxt[i]=0;
-    // Predictor contexts - select larger cxt     //def    jpg
-    mxp.push_back( {8+1024,55,7,24,&mcxt[0],0} ); //8+1024    9
-    mxp.push_back( {  1025,55,7,24,&mcxt[1],0} ); //256    1025
-    mxp.push_back( {  1024,55,7,24,&mcxt[2],0} ); //256    1024
-    mxp.push_back( {   512,55,7,24,&mcxt[3],0} ); //256     512
-    mxp.push_back( {  4096,55,7,24,&mcxt[4],0} ); //256    4096
-    mxp.push_back( {  1536,55,7,24,&mcxt[5],0} ); //1536     64
-    mxp.push_back( {  4096,55,7,24,&mcxt[6],0} ); //0      4096
-    mxp.push_back( {  1024,55,7,24,&mcxt[7],0} ); //0      1024
-    mxp.push_back( {1,6,7,4,&mcxt[8],0} ); // final mixer
+    // Predictor contexts - select larger cxt    
+    mxp.push_back( {8+1024,64,0,28,&mcxt[0],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[1],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[2],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[3],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[4],0} );
+    mxp.push_back( {  1536,64,0,28,&mcxt[5],0} );
+    mxp.push_back( {     1, 8,0,14,&mcxt[6],0} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mcxt[6]=0;
 }
 
 void PredictorJPEG::update() {
@@ -44,14 +42,16 @@ void PredictorJPEG::update() {
         if(pr<1) pr=1;
         if(pr>32767) pr=32767;
         models[M_JPEG]->p(*m,1);//we found long repeating match. update, do not predict. artificial images, same partial content
-        //m->reset(); 
+        m->reset(); 
         return;
     }
     if (models[M_JPEG]->p(*m)) {
-        for (int i=0;i<8;i++) mcxt[i]=dynamic_cast<jpegModelx *>(models[M_JPEG])->mc(i);
+        mcxt[6]=0;                          // Enable final mixer
+        for (int i=0; i<6; i++) mcxt[i]=-1; // Disable local mixers
         if (x.settings.slow==true) models[M_NORMAL]->p(*m);
-        pr=m->p();
+        pr=m->p(1,0);
     } else {
+        mcxt[6]=0;
         int order =models[M_NORMAL]->p(*m);
         U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
         mcxt[0]=8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
@@ -66,7 +66,7 @@ void PredictorJPEG::update() {
         }
         else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
         mcxt[5]=c;
-        pr=m->p();
+        pr=m->p(1,1);
     }
     U32 pr0 = Jpeg.APMs[0].p(pr , x.JPEG.state,x.y, 0x3FF);
     pr = (pr + pr0 + 1) / 2;

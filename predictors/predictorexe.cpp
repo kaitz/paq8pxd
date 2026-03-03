@@ -12,20 +12,18 @@ PredictorEXE::PredictorEXE(Settings &set):Predictors(set), pr(16384),order(0),
     mixerInputs+=1;
     sse.p(pr);
 
-    for (int i=0; i<8; i++) mcxt[i]=0;
-
     // Predictor contexts
-    mxp.push_back( {8+1024,55,7,24,&mcxt[0],0} );
-    mxp.push_back( {   256,55,7,24,&mcxt[1],0} );
-    mxp.push_back( {   256,55,7,24,&mcxt[2],0} );
-    mxp.push_back( {   256,55,7,24,&mcxt[3],0} );
-    mxp.push_back( {   256,55,7,24,&mcxt[4],0} );
-    mxp.push_back( {   256,55,7,24,&mcxt[5],0} );
-    mxp.push_back( {   1536,55,7,24,&mcxt[6],0} );
-    
-    mxp.push_back( {1,6,7,4,&mcxt[7],0} ); // final mixer
+    mxp.push_back( {8+1024,64,0,28,&mcxt[0],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[1],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[2],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[3],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[4],0} );
+    mxp.push_back( {   256,64,0,28,&mcxt[5],0} );
+    mxp.push_back( {  1536,64,0,28,&mcxt[6],0} );
+    mxp.push_back( {     1, 8,0,14,&mcxt[7],0} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
+    mcxt[7]=0;
 }
 
 void PredictorEXE::update()  {
@@ -86,7 +84,7 @@ void PredictorEXE::update()  {
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     mcxt[6]=c;
-    int pr0=m->p();
+    int pr0=m->p(1,1);
     int const limit = 0x3FFu >> (static_cast<int>(x.blpos < 0xFFFu) * 4);
     pr = x86_64.APMs[0].p(pr0, (x.x86_64.state << 3u) | x.bpos,x.y, limit);
     int  pr1 = x86_64.APMs[1].p(pr0, (x.c0 << 8u) | x.x86_64.state,x.y, limit);

@@ -10,11 +10,11 @@ typedef __m256i YMM;
 // Mixer input parameters from models
 struct mparm {
     int m;
-    U32 dmul;
-    int elim;
-    int lr;
-    int *cxt;
-    int bias;
+    U32 dmul;              // range 1...254
+    int elim;              // range 0...32767
+    int lr;                // range 1...31
+    int *cxt;              // range 0...X, where X is set by user. Or -1 to skip p() and update()
+    int bias;              // range -+32767
 };
 
 class Mixer1 { 
@@ -23,47 +23,59 @@ class Mixer1 {
     Array<short, 32> wx ;  // N*M weights
     int *cxt;              // S contexts
     int pr;                // last result (scaled 12 bits)
-    int dotMul;            // dot product shift scale
-    int errLimit;          // error limit
-    int lrate;             // learning rate
+    const int dotMul;      // dot product shift scale
+    const int errLimit;    // error limit
+    const int lrate;       // learning rate
     int bs;                // bias
+    
 public:
-    Mixer1(Array<short, 32> &t, int m, int n, U32 dmul, int elim, int lr, int *context, int bias=0):N(n),M(m),tx(t),wx(N*M),
-    cxt(context), pr(2048), dotMul(dmul), errLimit(elim), lrate(lr) {
+    U64 count;
+    U64 tcount;
+    Mixer1(Array<short, 32> &t, int m, int n, const int dmul, const int elim, const int lr, int *context, const int bias=0):N(n),M(m),tx(t),wx(N*M),
+    cxt(context), pr(2048), dotMul(dmul), errLimit(elim), lrate(lr),count(0),tcount(0) {
         assert(dmul<255);
-        assert(lrate<112);
+        assert(lrate>0 && lrate<32);
         assert(errLimit<32767);
         assert(M>0);
         assert(N == ((N + 15) & -16));
         // Set bias
-        for (int j=0; j<M*N; ++j) wx[j]=129+bias;
+        for (int j=0; j<M*N; ++j) wx[j]=0+bias;
+        
     }
-
+    ~Mixer1() {
+        //printf("Mix %d\n",count);
+    }
     // Adjust weights to minimize coding cost of last prediction
-    void __attribute__ ((noinline)) update(int y) {
-        int err=((y<<12)-pr)*lrate/4;
-        if (err>32767)  err=32767;
-        else if (err<-32768) err=-32768;
-        if (err>=-errLimit && err<=errLimit) err=0;
-        train(&tx[0], &wx[*cxt*N], N, err);
-        *cxt=0;
+    void __attribute__ ((noinline)) update(int y, int n) {
+        if (*cxt!=-1) {
+            int err=((y<<12)-pr)*lrate/4;
+            if (err<-errLimit || err>errLimit)
+            train(&tx[0], &wx[*cxt*N], n, err);
+            else  count++;
+            tcount++;
+        }
     }
 
     // predict next bit
-    int __attribute__ ((noinline)) p() {
-        assert(*cxt>=0 && *cxt<M);
-        int dp=dot_product(&tx[0], &wx[*cxt*N], N)*dotMul>>11;
+    int __attribute__ ((noinline)) p(int n, int sh=0) {
+        assert(*cxt>=0 && *cxt<M || *cxt==-1);
+        int dp=0;
+        if (*cxt!=-1) {
+            dp=dot_product(&tx[0], &wx[*cxt*N], n)*(dotMul>>sh)>>11;
+        }
         return pr=squash(dp);
     }
 
-    int __attribute__ ((noinline)) p1() {
-        assert(*cxt>=0 && *cxt<M);
-        int dp=dot_product(&tx[0], &wx[*cxt*N], N)*dotMul>>11;
-        if (dp<-2047) {
-            dp=-2047;
-        }
-        else if (dp>2047) {
-            dp=2047;
+    int p1(int n, int sh=0) {
+        assert(*cxt>=0 && *cxt<M || *cxt==-1);
+        int dp=0;
+        if (*cxt!=-1) {
+            dp=dot_product(&tx[0], &wx[*cxt*N], n)*(dotMul>>sh)>>11;
+            if (dp<-2047) {
+                dp=-2047;
+            } else if (dp>2047) {
+                dp=2047;
+            }
         }
         pr=squash(dp);
         return dp;
@@ -87,19 +99,19 @@ public:
 
     void train (const short* const t, short* const w, int n, const int e) {
         assert(n == ((n + 15) & -16));
-        if (e) {
-            const YMM one = _mm256_set1_epi16 (1);
-            const YMM err = _mm256_set1_epi16 (short(e));
-            // Each iteration adjusts 16 weights
-            while ((n-=16) >= 0) {
-                YMM tmp = _mm256_adds_epi16 (*(YMM *) &t[n], *(YMM *) &t[n]); // t[n] * 2
-                tmp = _mm256_mulhi_epi16 (tmp, err);                          //  (t[n] * 2 * err) >> 16
-                tmp = _mm256_adds_epi16 (tmp, one);                           //  ((t[n] * 2 * err) >> 16) + 1
-                tmp = _mm256_srai_epi16 (tmp, 1);                             //  (((t[n] * 2 * err) >> 16) + 1) >> 1
-                tmp = _mm256_adds_epi16 (tmp, *(YMM *) &w[n]);                //  ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
-                *(YMM *) &w[n] = tmp;                                         //  save the new eight weights, bounded to +- 32K
-            }
+        //if (e) {
+        const YMM one = _mm256_set1_epi16 (1);
+        const YMM err = _mm256_set1_epi16 (short(e));
+        // Each iteration adjusts 16 weights
+        while ((n-=16) >= 0) {
+            YMM tmp = _mm256_adds_epi16 (*(YMM *) &t[n], *(YMM *) &t[n]); // t[n] * 2
+            tmp = _mm256_mulhi_epi16 (tmp, err);                          //  (t[n] * 2 * err) >> 16
+            tmp = _mm256_adds_epi16 (tmp, one);                           //  ((t[n] * 2 * err) >> 16) + 1
+            tmp = _mm256_srai_epi16 (tmp, 1);                             //  (((t[n] * 2 * err) >> 16) + 1) >> 1
+            tmp = _mm256_adds_epi16 (tmp, *(YMM *) &w[n]);                //  ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
+            *(YMM *) &w[n] = tmp;                                         //  save the new eight weights, bounded to +- 32K
         }
+        //}
     }
 
     /*
