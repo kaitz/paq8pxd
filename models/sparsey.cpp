@@ -4,11 +4,11 @@
 // Model order 1-2 contexts with gaps.
 
 sparseModely::sparseModely(BlockData& bd,U32 val):x(bd),buf(bd.buf), N(44),
-    cm(x,N,CMlimit(x.MEM()*2)),
+    cm(x,N,CMlimit(x.MEM()*2)), // bad
     ctx(0) {
 
     // Set model mixer contexts and parameters
-    mxp.push_back( {4*256,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {4*256,64,0,28,&mxcxt[0],0,false} );
 }
 
 int sparseModely::p(Mixers& m,int seenbefore,int howmany) {//match order

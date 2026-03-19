@@ -20,7 +20,7 @@ IndirectMap::IndirectMap(int BitsOfContext, int InputBits,int s,int l):
     // update
     //*cp = nex(*cp, m.x.y);
     int ns=nex(*cp, m.x.y);
-      if (ns>=204 && rnd() << ((452-ns)>>3)) ns-=4;  // probabilistic increment
+      //if (ns>=204 && rnd() << ((452-ns)>>3)) ns-=4;  // probabilistic increment
       *cp=ns;
     // predict
     B+=(m.x.y && B>0);
@@ -28,7 +28,7 @@ IndirectMap::IndirectMap(int BitsOfContext, int InputBits,int s,int l):
     const U8 state = *cp;
     const int p1 = Map.p(state,m.x.y, Limit);
     m.add((stretch(p1)*Multiplier)/Divisor);
-    m.add(((p1-2048)*Multiplier)/(Divisor*2));
+    //m.add(((p1-2048)*Multiplier)/(Divisor*2));
     bCount++; B+=B+1;
     if (bCount==bTotal)
       bCount=B=0;

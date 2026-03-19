@@ -82,6 +82,16 @@ void StateMap::Reset(int Rate){
     update2(y,limit);
     return t[cxt=cx]>>20;
   }
+  int StateMap::p3(int cx,const int y,const int rate) {
+    assert(cx>=0 && cx<N);
+    assert(limit>0 && limit<1024);
+    assert(y==0 || y==1);
+    U32 p0=t[cxt];
+    int pr=p0>>10;  // count, prediction
+    p0+=(((y<<22)-pr)>>(3+rate));
+    t[cxt]=p0;
+    return t[cxt=cx]>>20;
+  }
 
 StateMap::~StateMap() {
 /*    if (N==256){

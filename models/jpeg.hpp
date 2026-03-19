@@ -153,7 +153,7 @@ class BHMap {
     Array<U8*> cp;
     BlockData& x;
     StateMap **sm;
-    int n0,n1,iy;
+    int n0,n1,iy,state;
     inline U8* find(U32 i) {
         int chk=(i>>24^i>>12^i)&255;
         i&=n;
@@ -191,10 +191,12 @@ public:
     int sn0() {return n0;}
     int sn1() {return n1;}
     int siy() {return iy;}
+    int st() {return state;}
     inline int ps(int i, U32 a, const int y) {
         assert(i<ncontext);
         cp[i]=find(a)+1;  // set
         const int s=*cp[i];
+        state=s;
         iy = int(s <= 2);
         n0=-!nex(s,2);
         n1=-!nex(s,3);
@@ -204,6 +206,7 @@ public:
         assert(i<ncontext);
         cp[i]+=a;                    // add
         const int s=*cp[i];
+        state=s;
         iy = int(s <= 2);
         n0=-!nex(s,2);
         n1=-!nex(s,3);
@@ -237,6 +240,7 @@ class jpegModelx: public Model {
     // State of parser
     enum {SOF0=0xc0, SOF1, SOF2, SOF3, DHT, RST0=0xd0, SOI=0xd8, EOI, SOS, DQT,
         DNL, DRI, APP0=0xe0, COM=0xfe, FF};  // Second byte of 2 byte codes
+    enum {HVS_N=0, HVS_H, HVS_V, HVS_HV, HVS_O};
     int jpeg;  // 1 if JPEG is header detected, 2 if image data
     //static int next_jpeg=0;  // updated with jpeg on next byte boundary
     int app;  // Bytes remaining to skip in APPx or COM field
@@ -319,8 +323,13 @@ class jpegModelx: public Model {
         {15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},
         {15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3},{15,3}
     };
-
+    ErrorInfo einfo;
+    int HVss;
+    
+    int hsum;
+    
 public:
+    int mode;
     std::vector<mparm> lmxp;
     //std::vector<mparm> mxp;
     int lmcxt[8];

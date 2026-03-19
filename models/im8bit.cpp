@@ -14,14 +14,14 @@ im8bitModel1::im8bitModel1( BlockData& bd):inpts(48+1),
     NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1), pOLS(nOLS), sceneOls(13, 1, 0.994) {
 
     // Set  model mixer contexts and parameters
-    mxp.push_back( {2048+5,64,0,28,&mxcxt[0],0} );
-    mxp.push_back( {  6*16,64,0,28,&mxcxt[1],0} );
-    mxp.push_back( {  6*32,64,0,28,&mxcxt[2],0} );
-    mxp.push_back( {256*16,64,0,28,&mxcxt[3],0} );
-    mxp.push_back( {  1024,64,0,28,&mxcxt[4],0} );
-    mxp.push_back( { 64*16,64,0,28,&mxcxt[5],0} );
-    mxp.push_back( {   128,64,0,28,&mxcxt[6],0} );
-    mxp.push_back( {   256,64,0,28,&mxcxt[7],0} );
+    mxp.push_back( {2048+5,64,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( {  6*16,64,0,28,&mxcxt[1],0,false} );
+    mxp.push_back( {  6*32,64,0,28,&mxcxt[2],0,false} );
+    mxp.push_back( {256*16,64,0,28,&mxcxt[3],0,false} );
+    mxp.push_back( {  1024,64,0,28,&mxcxt[4],0,false} );
+    mxp.push_back( { 64*16,64,0,28,&mxcxt[5],0,false} );
+    mxp.push_back( {   128,64,0,28,&mxcxt[6],0,false} );
+    mxp.push_back( {   256,64,0,28,&mxcxt[7],0,false} );
 }
 
 int im8bitModel1::p(Mixers& m ,int w, int val2) {
@@ -347,16 +347,16 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
     // Predict next bit
     if (x || !isPNG) {
         col=(col+1)&7;
-        if (val2==1)  return 1;   
+        if (val2==1)  return 1;
         cm.mix(m);
         cmp.mix(m);
         if (gray) {
             for (int i=0; i<nMaps; i++)
-                Map[i].mix1(m);
+                Map[i].mix1(m,4);
         } else {
             for (int i=0; i<nPltMaps; i++) {
                 pltMap[i].set((bpos<<8)|iCtx[i]());
-                pltMap[i].mix(m);
+                pltMap[i].mix(m,7,4);
             }
         }
         for (int i=0; i<5; i++)
@@ -370,10 +370,11 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
         mxcxt[5]=min(63,column[0])*16+(W>>4);
         mxcxt[6]=min(127,column[1]);
         mxcxt[7]=min(255,(x+line)/32);
+        mxcxt[7]=-1;
     } else {
         m.add( -2048+((filter>>(7-bpos))&1)*4096 );
         mxcxt[0]=min(4,filter);
-        for (int i=1; i<8; i++) mxcxt[i]=-1;
+        for (int i=1; i<9; i++) mxcxt[i]=-1;
     }
     return 0;
 }

@@ -7,6 +7,7 @@
 #include "../prt/statemap.hpp"
 #include "../prt/run.hpp"
 #include "../prt/CM128.hpp"
+
 static const int primes[17]={ 0, 257,251,241,239,233,229,227,223,211,199,197,193,191,181,179,173};   
 
 class normalModel1: public Model {

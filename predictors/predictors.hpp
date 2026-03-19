@@ -30,6 +30,7 @@
 #include "../models/ppmd.hpp"
 #include "../prt/settings.hpp"
 
+
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
 // uncompressed data is 1.  Methods:

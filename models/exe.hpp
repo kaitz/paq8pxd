@@ -5,6 +5,8 @@
 #include "model.hpp"
 #include "../prt/indirect.hpp"
 #include "../prt/CM128.hpp"
+//#include "../prt/contextmap2.hpp"
+//#include "../prt/stationarymap.hpp"
 
 // This model is from paq8px
 
@@ -179,6 +181,40 @@ enum InstructionCategory {
     OP_MMX                  = 29,
     OP_SSE                  = 30,
     OP_SSE_DATAMOV          = 31
+};
+const static U8 opMap[32] ={
+    /*OP_INVALID              =*/  7,
+    /*OP_PREFIX_SEGREG        =*/  1,
+    /*OP_PREFIX               =*/  1,
+    /*OP_PREFIX_X87FPU        =*/  1,
+    /*OP_GEN_DATAMOV          =*/  2,
+    /*OP_GEN_STACK            =*/ 3,
+    /*OP_GEN_CONVERSION       =*/  3,
+    /*OP_GEN_ARITH_DECIMAL    =*/  4,
+    /*OP_GEN_ARITH_BINARY     =*/  4,
+    /*OP_GEN_LOGICAL          =*/  4,
+    /*OP_GEN_SHF_ROT          =*/ 4,
+    /*OP_GEN_BIT              =*/ 4,
+    /*OP_GEN_BRANCH           =*/ 0,
+    /*OP_GEN_BRANCH_COND      =*/ 0,
+    /*OP_GEN_BREAK            =*/ 3,
+    /*OP_GEN_STRING           =*/ 4,
+    /*OP_GEN_INOUT            =*/ 3,
+    /*OP_GEN_FLAG_CONTROL     =*/ 3,
+    /*OP_GEN_SEGREG           =*/ 3,
+    /*OP_GEN_CONTROL          =*/ 3,
+    /*OP_SYSTEM               =*/ 3,
+    /*OP_X87_DATAMOV          =*/ 2,
+    /*OP_X87_ARITH            =*/ 4,
+    /*OP_X87_COMPARISON       =*/ 4,
+    /*OP_X87_TRANSCENDENTAL   =*/ 3,
+    /*OP_X87_LOAD_CONSTANT    =*/ 2,
+    /*OP_X87_CONTROL          =*/ 3,
+    /*OP_X87_CONVERSION       =*/ 3,
+    /*OP_STATE_MANAGEMENT     =*/ 3,
+    /*OP_MMX                  =*/ 5,
+    /*OP_SSE                  =*/ 6,
+    /*OP_SSE_DATAMOV          =*/ 2
 };
 
 const static U8 TypeOp1[256] = {
@@ -511,6 +547,24 @@ enum ExeState {
     Error             = 15
 };
 
+const static int esMap[16]={
+    /*Start             = */ 0,
+    /*Pref_Op_Size      =*/  0,
+    /*Pref_MultiByte_Op =*/  1,
+    /*ParseFlags        =*/  2,
+    /*ExtraFlags        =*/  2,
+    /*ReadModRM         =*/  3,
+    /*Read_OP3_38       =*/  4,
+    /*Read_OP3_3A       =*/  4,
+    /*ReadSIB           = */ 5,
+    /*Read8             =*/  6,
+    /*Read16            =*/ 6,
+    /*Read32            =*/ 6,
+    /*Read8_ModRM       =*/ 6,
+    /*Read16_f          =*/ 6,
+    /*Read32_ModRM      =*/ 6,
+    /*Error             =*/ 7
+};
 struct OpCache {
     U32 Op[CacheSize];
     U32 Index;
@@ -555,14 +609,19 @@ class exeModel1: public Model {
     Buf& buf;
     const int N1, N2;
     ContextMap3 cm;
+    ContextMap3 cm1;
+    ContextMap3 cmx[8];
+    ContextMap3 cmo[8];
     IndirectMap iMap;
     OpCache Cache;
-    ExeState pState , State ;
+    ExeState pState, State;
+    U32 StateO, StateW;
     Instruction Op;
     U32 TotalOps, OpMask, OpCategMask, Context, BrkPoint , BrkCtx ;
     bool Valid;
     U32 StateBH[256];
-
+    U32 StateCXT[32*8];
+    U32 opCatCXT[256*8];
     bool IsInvalidX64Op(U8 Op);
     bool IsValidX64Prefix(U8 Prefix);
     void ProcessMode(Instruction &Op, ExeState &State);
@@ -578,9 +637,9 @@ class exeModel1: public Model {
     // Get context at buf(i) relevant to parsing 32-bit x86 code
     U32 execxt(int i, int x=0);
 public:
-    int mxcxt[6];
+    int mxcxt[8];
     exeModel1(BlockData& bd, U32 val=0);
-    int inputs() {return 2+(N1+N2)*cm.inputs();}
+    int inputs() {return 2+(N1+N2+5+3*8+ 4*8)*cm.inputs();}
     int p(Mixers& m,int val1=0,int val2=0);
     virtual ~exeModel1(){ }
 };

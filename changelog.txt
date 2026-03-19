@@ -10,6 +10,14 @@ v145
     -Revert mixer parameters in all predictors and models to default values.
     -Some fixes in models (asserts)
     -Import 1bit image model from paq8px
+    -Add 4/8 bit image filter for bmp images, sort color indexes
+    -Add APMPost from paq8px for testing
+    -Adjust predictors, remove some p-2048 predictions.
+    -Add Adaptive Error Info to most predictors. 
+      Controls mixer training and learning rate.
+    -In exe model add two new ContextMaps and some new mixer contexts.
+    -Remove nest, text and dmc model from exe predictor.
+    
 v144
     -Fixes for multithreading issues. pthread now works.
     -Separate level 0 in compressStream.

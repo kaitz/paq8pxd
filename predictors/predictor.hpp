@@ -12,6 +12,7 @@ class Predictor: public Predictors {
     int order;
     int ismatch;
     Mixers *m;
+    ErrorInfo einfo;
     EAPM a;
     bool isCompressed; 
     U32 count;
@@ -22,7 +23,7 @@ class Predictor: public Predictors {
         M_MATCH ,
         M_MATCH1, 
         M_DISTANCE, 
-        M_EXE, 
+       // M_EXE, 
         M_INDIRECT, 
         M_DMC, 
         M_NEST, 

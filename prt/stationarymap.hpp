@@ -25,5 +25,6 @@ public:
   void set(U32 ctx);
     void Reset( int Rate = 0 );
   int mix(Mixers& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
+  int mix2(Mixers& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
   int mix1(Mixers& m, const int Multiplier = 1, const int Divisor = 4, const U16 Limit = 1023);
 };

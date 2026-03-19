@@ -2,7 +2,7 @@
 
 // 24/32-bit image predicor
 PredictorIMG24::PredictorIMG24(Settings &set):Predictors(set), pr(16384),
-    Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },
+    Image{ {0x1000/*, 0x10000, 0x10000, 0x10000*/}, {{0x10000,x}, {0x10000,x}} },APMPostA(8), APMPostB(8),
     StateMaps{ 256, 256*256}, sse(x){
 
     loadModels(activeModels);   
@@ -10,12 +10,12 @@ PredictorIMG24::PredictorIMG24(Settings &set):Predictors(set), pr(16384),
     mixerInputs+=1+2;
     sse.p(pr);
 
-    //for (int i=0; i<2; i++) mcxt[i]=0;
-    mxp.push_back( {  8192,64,0,28,&mcxt[0],0} );
-    mxp.push_back( {1,8,0,14,&mcxt[1],0} ); // final mixer
+    mxp.push_back( {  8192,64,0,28,&mcxt[0],0,false} );
+    mxp.push_back( {     1, 8,0,14,&mcxt[1],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
     mcxt[1]=0;
+    einfo.reset();
 }
 
 void PredictorIMG24::update() {
@@ -26,6 +26,10 @@ void PredictorIMG24::update() {
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
     m->add(256);
+    if (einfo.stat(pr,x.y)) {
+        const int el=(14-einfo.rates)*8;
+        m->setErrLimit(el,einfo.rates*2); // slow, range 14...2
+    }
     if (x.bpos==0)x.count++;
     models[M_MATCH]->p(*m);
     models[M_MATCH1]->p(*m);
@@ -48,8 +52,13 @@ pr0 = (pr0+pr1+pr2+pr3+2)>>2;
     pr1 = Image.APM1s[0].p(pr, hash(x.c0, x.Image.pixels.W, x.buf(1)-x.Image.pixels.Wp1, x.Image.plane)&0xFFFF);
     pr2 = Image.APM1s[1].p(pr, hash(x.c0, x.Image.pixels.N, x.buf(1)-x.Image.pixels.Np1, x.Image.plane)&0xFFFF);
     pr=(pr*2+pr1*3+pr2*3+4)>>3;
-    pr = (pr+pr0+1)>>1;
+    //pr = (pr+pr0+1)>>1;
+    APMPostA.update(x.y);APMPostB.update(x.y);
+        pr=(APMPostA.p(pr0, 0) + APMPostB.p(pr, 0) + 1) >> 1;
     sse.update();
     pr = sse.p(pr);
+    /*pr=(4096-pr)*(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>32767) pr=32767;*/
 }
 

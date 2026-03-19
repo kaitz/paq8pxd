@@ -110,17 +110,17 @@ maps10{
 
 {
     // Set model mixer contexts and parameters
-    mxp.push_back( {State::Count*26,64,0,28,&mxcxt[0],0} );
-    mxp.push_back( {State::Count*64,64,0,28,&mxcxt[1],0} );
-    mxp.push_back( {2048,64,0,28,&mxcxt[2],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[3],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[4],0} );
-    mxp.push_back( {8192,64,0,28,&mxcxt[5],0} );
-    mxp.push_back( {8192,64,0,28,&mxcxt[6],0} );
-    mxp.push_back( {8192,64,0,28,&mxcxt[7],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[8],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[9],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[10],0} );
+    mxp.push_back( {State::Count*26,64,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( {State::Count*64,64,0,28,&mxcxt[1],0,false} );
+    mxp.push_back( {2048,64,0,28,&mxcxt[2],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[3],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[4],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[5],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[6],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[7],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[8],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[9],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[10],0,false} );
 }
 
 int decModel1::p(Mixers& m, int val1, int val2) {

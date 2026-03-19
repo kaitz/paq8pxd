@@ -77,7 +77,7 @@ class im8bitModel1: public Model {
     const U8 **ols_ctxs[nOLS] = { &ols_ctx1[0], &ols_ctx2[0], &ols_ctx3[0], &ols_ctx4[0], &ols_ctx5[0] };
 
 public:
-    int mxcxt[8];
+    int mxcxt[9];
     im8bitModel1(BlockData& bd);
     int inputs() {return inpts*cm.inputs()+cm.inputs()*4+nMaps*2+nPltMaps*2+5*2;}
     int p(Mixers& m, int w=0, int val2=0);

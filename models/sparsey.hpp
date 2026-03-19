@@ -5,6 +5,7 @@
 #include "../prt/hash.hpp"
 #include "model.hpp"
 #include "../prt/CM128.hpp"
+
 //////////////////////////// sparseModel ///////////////////////
 
 // Model order 1-2 contexts with gaps.

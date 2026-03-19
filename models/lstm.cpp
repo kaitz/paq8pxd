@@ -10,8 +10,8 @@ lstmModel1::lstmModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),
     srand(0xDEADBEEF);
     lstm=new LSTM::ByteModel(25, 3, horizon, 0.05);// num_cells, num_layers, horizon, learning_rate)
     // Set  model mixer contexts and parameters
-    mxp.push_back( {          8 * 256,64,0,28,&mxcxt[0],0} );
-    mxp.push_back( { (horizon<<3)+7+1,64,0,28,&mxcxt[1],0} );
+    mxp.push_back( {          8 * 256,64,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( { (horizon<<3)+7+1,64,0,28,&mxcxt[1],0,false} );
 }
 
 int lstmModel1::p(Mixers& m, int val1, int val2){

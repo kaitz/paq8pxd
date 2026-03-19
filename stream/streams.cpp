@@ -46,6 +46,8 @@ Streams::Streams():streams(0){
     streams[0]->dataType.push_back({SHRINK,TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({REDUCE,TR_RECURSIVE|TR_TRANSFORM});
     streams[0]->dataType.push_back({IMPLODE,TR_RECURSIVE|TR_TRANSFORM});
+    streams[0]->dataType.push_back({BM8_IMG,TR_INFO|TR_RECURSIVE|TR_TRANSFORM});
+    streams[0]->dataType.push_back({BM4_IMG,TR_INFO|TR_RECURSIVE|TR_TRANSFORM});
     
     //STR_DEFAULT
     streams[1]->dataType.push_back({DEFAULT,TR_NONE});
@@ -64,6 +66,7 @@ Streams::Streams():streams(0){
     //STR_IMAGE8
     streams[5]->dataType.push_back({IMAGE8,TR_INFO});
     streams[5]->dataType.push_back({IMAGE8GRAY,TR_INFO});
+    
     //STR_IMAGE24
     streams[6]->dataType.push_back({IMAGE24,TR_INFO|TR_TRANSFORM});
     streams[6]->dataType.push_back({IMAGE32,TR_INFO|TR_TRANSFORM});

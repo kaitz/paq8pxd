@@ -12,18 +12,19 @@ PredictorTXTWRT::PredictorTXTWRT(Settings &set):Predictors(set), pr(16384),pr0(p
     sse.p(pr); // must
 
     // Predictor contexts
-    mxp.push_back( {  4096,64,0,28,&mcxt[0],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[1],0} );
-    mxp.push_back( {    64,64,0,28,&mcxt[2],0} );
-    mxp.push_back( { 256*8,64,0,28,&mcxt[3],0} );
-    mxp.push_back( { 256*8,64,0,28,&mcxt[4],0} );
-    mxp.push_back( { 256*8,64,0,28,&mcxt[5],0} );
-    mxp.push_back( {  1536,64,0,28,&mcxt[6],0} );
-    mxp.push_back( {  2048,64,0,28,&mcxt[7],0} );
-    mxp.push_back( {     1, 8,0,14,&mcxt[8],0} ); // final mixer
+    mxp.push_back( {  4096,64,0,28,&mcxt[0],0,false} );
+    mxp.push_back( {   256,64,0,28,&mcxt[1],0,false} );
+    mxp.push_back( {    64,64,0,28,&mcxt[2],0,false} );
+    mxp.push_back( { 256*8,64,0,28,&mcxt[3],0,false} );
+    mxp.push_back( { 256*8,64,0,28,&mcxt[4],0,false} );
+    mxp.push_back( { 256*8,64,0,28,&mcxt[5],0,false} );
+    mxp.push_back( {  1536,64,0,28,&mcxt[6],0,false} );
+    mxp.push_back( {  2048,64,0,28,&mcxt[7],0,false} );
+    mxp.push_back( {     1, 8,7,14,&mcxt[8],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
     mcxt[8]=0;
+    einfo.reset();
 }
 
 void PredictorTXTWRT::wrt() {
@@ -156,6 +157,10 @@ void PredictorTXTWRT::update() {
     pr=(32768-pr)/(32768/4096);
     if(pr<1) pr=1;
     if(pr>4095) pr=4095;
+    if (einfo.stat(pr,x.y)) {
+        const int el=(14-einfo.rates)*16;
+        m->setErrLimit(el);
+    }
     x.Misses+=x.Misses+((pr>>11)!=x.y);
     m->update();
     m->add(256);

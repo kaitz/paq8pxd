@@ -82,7 +82,7 @@ matchModel1::matchModel1(BlockData& bd, U32 val1) :
     assert((Size&(Size-1))==0);
     
     // Set model mixer contexts and parameters
-    mxp.push_back( {8,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {8,64,0,28,&mxcxt[0],0,false} );
 }
 
 int matchModel1::p(Mixers& m, int val1, int val2) {
@@ -148,6 +148,6 @@ int matchModel1::p(Mixers& m, int val1, int val2) {
     }
     x.Match.bypassprediction = length==0?2048 : (expectedBit==0?1:4095);
     x.Match.length=length;
-    return ilog(length);
+    return ilog(length+1);
 }
 

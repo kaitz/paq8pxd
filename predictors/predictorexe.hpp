@@ -9,6 +9,7 @@ class PredictorEXE: public Predictors {
     int pr;  // next prediction
     int order;
     Mixers *m;
+    ErrorInfo einfo;
     struct {
         APM APMs[3];
     } x86_64;
@@ -21,11 +22,8 @@ class PredictorEXE: public Predictors {
         M_DISTANCE, 
         M_EXE, 
         M_INDIRECT, 
-        M_DMC, 
-        M_NEST, 
         M_NORMAL, 
         M_XML, 
-        M_TEXT, 
         M_WORD,
         M_SPARSEMATCH, 
         M_SPARSE_Y,

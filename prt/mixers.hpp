@@ -20,28 +20,28 @@ public:
 
         assert(C>0);
         for (int i=0; i<C; ++i) {
-            m[i]=new Mixer1(tx, p[i].m, N, p[i].dmul, p[i].elim, p[i].lr, p[i].cxt, p[i].bias);
+            m[i]=new Mixer1(tx, p[i].m, N, p[i].dmul, p[i].elim, p[i].lr, p[i].cxt, p[i].bias, p[i].adaptive);
         }
         // Mixer to combine all mixers
-        mf=new Mixer1(pr, p[C].m, K, p[C].dmul, p[C].elim, p[C].lr,p[C].cxt,p[C].bias);
+        mf=new Mixer1(pr, p[C].m, K, p[C].dmul, p[C].elim, p[C].lr,p[C].cxt,p[C].bias, p[C].adaptive);
         // Disable all mixers
         reset();
     }
 
     ~Mixers() {
         if (mf!=nullptr) {
-            //int tskip=0;
-            //int tcount=0;
+            U64 tskip=0;
+            U64 tcount=0;
             for (int i=0; i<C; ++i) {
-                //tskip+=m[i]->count;
-                //tcount+=m[i]->tcount;
+                tskip+=m[i]->count;
+                tcount+=m[i]->tcount;
                 delete m[i];
             }
-            //tskip+=mf->count;
-            //tcount+=mf->tcount;
+            tskip+=mf->count;
+            tcount+=mf->tcount;
             delete mf;
             mf=nullptr;
-            //printf("Total mix skip %d %d %f%\n",tskip,tcount,tskip*100.0f/tcount);
+            printf("Total mix skip %f%\n",tskip*100.0f/tcount);
         }
     }
 
@@ -50,6 +50,11 @@ public:
         tx[nx++]=x;
     }
     
+    void setErrLimit(int e, int r=28) {
+        for (int i=0; i<C; ++i) {
+            m[i]->ErrLimit(e,r);
+        }
+    }
     void reset() {
         for (size_t i=0; i<mp.size(); i++)  *mp[i].cxt=-1;
         nx=0;

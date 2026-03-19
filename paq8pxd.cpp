@@ -202,9 +202,9 @@ void CalcTables() {
     dt[0]=4095;
 #endif
    int cms3=65+5;
-    int cms4=12-4;
+    int cms4=12+2;
     int cms=128;           //  x*cms/128
-    int cmul=8-2;          // run context mul value
+    int cmul=8+2;          // run context mul value
     // precalc int c=ilog(rc+1)<<(2+(~rc&1));
     for (int rc=0;rc<256;rc++) {
         int c=ilog(rc+1);

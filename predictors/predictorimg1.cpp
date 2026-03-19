@@ -7,28 +7,33 @@ PredictorIMG1::PredictorIMG1(Settings &set):Predictors(set), pr(16384), sse(x),a
     mixerInputs+=1;
     sse.p(pr);
 
-    //for (int i=0; i<2; i++) mcxt[i]=0;
-    mxp.push_back( {  256,64,0,28,&mcxt[0],0} );
-    mxp.push_back( {    1, 8,0,14,&mcxt[1],0} ); // final mixer
+    mxp.push_back( {  256,64,0,28,&mcxt[0],0,false} );
+    mxp.push_back( {    1, 8,0,14,&mcxt[1],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
-    //for (size_t i=0;i<mxp.size();i++)  *mxp[i].cxt=-1;
     mcxt[1]=0; // Enable final mixer
+    einfo.reset();
 }
 
 void PredictorIMG1::update()  {
     m->update();
     m->add(256); 
+    pr=(32768-pr)/(32768/4096);
+    if(pr<1) pr=1;
+    if(pr>4095) pr=4095;
+    if (einfo.stat(pr,x.y)) {
+        const int el=(14-einfo.rates)*8;
+        m->setErrLimit(el); // slow, range 14...2
+    }
     int ismatch=models[M_MATCH]->p(*m);
-    models[M_MATCH1]->p(*m);
     if (x.settings.slow==true) models[M_LSTM]->p(*m);
     mcxt[0]=ismatch;
-    int s4=models[M_IM1]->p(*m, x.finfo);
-    pr=m->p();
-    //pr=pr*3+apm.p(pr, s4+ismatch, x.y,3)>>2;
+    models[M_IM1]->p(*m, x.finfo);
+    pr=m->p(3,1);
+    //pr=pr*3+apm.p(pr, 32*x.y^hash(s4,ismatch,x.Misses&0xf)&0xffff, x.y,5)>>2;
     //sse.update();
     //pr = sse.p(pr);
-     pr=(4096-pr)*(32768/4096);
+    pr=(4096-pr)*(32768/4096);
     if(pr<1) pr=1;
     if(pr>32767) pr=32767;
 }

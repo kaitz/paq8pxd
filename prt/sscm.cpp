@@ -31,7 +31,7 @@ SmallStationaryContextMap::SmallStationaryContextMap(int BitsOfContext, int Inpu
     cp = &Data[Context+B];
     int Prediction = (*cp)>>4;
     m.add((stretch(Prediction)*Multiplier)/Divisor);
-    m.add(((Prediction-2048)*Multiplier)/(Divisor*2));
+    //m.add(((Prediction-2048)*Multiplier)/(Divisor*2));
     bCount++; B+=B+1;
     if (bCount==bTotal)
       bCount=B=0;

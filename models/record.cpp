@@ -14,6 +14,7 @@ recordModel1::recordModel1( BlockData& bd,U64 msize ): x(bd),buf(bd.buf), cpos1(
     cq(x,3,32768*4),
     co(x,3,32768*2),
     cp(x,16,x.settings.level>9?0x10000000 :CMlimit(CMlimit(msize?msize:x.MEM()*2)*2)),
+
     nMaps ( 6),
     N(0), NN(0), NNN(0), NNNN(0),WxNW(0), nIndCtxs(5) {
 
@@ -25,9 +26,9 @@ recordModel1::recordModel1( BlockData& bd,U64 msize ): x(bd),buf(bd.buf), cpos1(
     rcount[0] = 0;
     rcount[1] = 0;
     // Set model mixer contexts and parameters
-    mxp.push_back( { 1024,64,0,28,&mxcxt[0],0} );
-    mxp.push_back( {  512,64,0,28,&mxcxt[1],0} );
-    mxp.push_back( {11*32,64,0,28,&mxcxt[2],0} );
+    mxp.push_back( { 1024,64,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( {  512,64,0,28,&mxcxt[1],0,false} );
+    mxp.push_back( {11*32,64,0,28,&mxcxt[2],0,false} );
     
 }
 
@@ -196,6 +197,7 @@ int recordModel1::p(Mixers& m, int rrlen, int val2) {
             iMap[1].set(N*2-NN);
             iMap[2].set(N*3-NN*3+NNN);
         }
+
         // update last context positions
         cpos4[c]=cpos3[c];
         cpos3[c]=cpos2[c];
@@ -222,6 +224,7 @@ int recordModel1::p(Mixers& m, int rrlen, int val2) {
     cq.mix(m);
     co.mix(m);
     cp.mix(m);
+
     if (x.filetype==DICTTXT || x.filetype==BIGTEXT || x.filetype==TEXT || x.filetype==TEXT0  ||x.filetype==EXE|| x.filetype==DECA || x.filetype==DBASE) {
     } else {
         for (int i=0;i<nMaps;i++)
@@ -229,9 +232,9 @@ int recordModel1::p(Mixers& m, int rrlen, int val2) {
         for (int i=0;i<3;i++)
             iMap[i].mix(m, 1, 3, 255); 
     }
-    sMap[0].mix(m, 6, 1, 3);
-    sMap[1].mix(m, 6, 1, 3);
-    sMap[2].mix(m, 5, 1, 2);
+    sMap[0].mix(m, 6, 1, 1);
+    sMap[1].mix(m, 6, 1, 1);
+    sMap[2].mix(m, 5, 1, 1);
 
     mxcxt[0]=(rlen[0] > 2) * ((x.bpos << 7U) | mxCtx);
     mxcxt[1]=((N^B)>>4)|(x1<<4);

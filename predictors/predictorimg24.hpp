@@ -3,15 +3,18 @@
 #include "../prt/mixers.hpp"
 #include "../prt/EAPM.hpp"
 #include "../prt/ESSE.hpp"
+#include "../prt/APMPost.hpp"
 
 // 24/32-bit image predicor
 class PredictorIMG24: public Predictors {
     int pr;  // next prediction
     Mixers *m;
+    ErrorInfo einfo;
     struct {
         APM APMs[1];
         APM1 APM1s[2];
     } Image;
+    APMPost APMPostA, APMPostB;
     StateMap StateMaps[2];
     eSSE sse;
     const std::vector<ModelTypes> activeModels { 

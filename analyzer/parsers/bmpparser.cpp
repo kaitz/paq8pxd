@@ -65,10 +65,10 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             type=IMAGE24;
                         } else  if (bpp==4) {
                             info=((x*4+31)>>5)*4;
-                            type=IMAGE4;
+                            if (hdrless) type=IMAGE4; else type=BM4_IMG;
                         } else  if (bpp==8) {
                             info=(x+3)&0xFFFFFFFC;// -4;
-                            type=IMAGE8;
+                            if (hdrless) type=IMAGE8; else type=BM8_IMG;
                         } else  if (bpp==1) {
                             info=(((x-1)>>5)+1)*4;
                             type=IMAGE1;
@@ -76,6 +76,14 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         if (type!=DEFAULT){
                             state=INFO;
                             jstart=of+bmp-1;
+                            if (type==BM8_IMG){
+                                jstart=jstart-1024;
+                                jend=info*y+jstart+1024;
+                            }  else  if (type==BM4_IMG){
+                                jstart=jstart-64;
+                                jend=info*y+jstart+64;
+                            
+                            }else
                             jend=info*y+jstart;
                             pinfo="(width: "+ itos(info) +")";
                             // report state only if larger then block

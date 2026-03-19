@@ -54,7 +54,7 @@ matchModel2::matchModel2(BlockData& bd) :
     x.Match.bypass=false;
     x.Match.bypassprediction=2048;
     // Set model mixer contexts and parameters
-    mxp.push_back( {12,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {12,64,0,28,&mxcxt[0],0,false} );
 }
 
 void matchModel2::update() {

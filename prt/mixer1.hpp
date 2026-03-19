@@ -4,6 +4,7 @@
 #include "blockdata.hpp"
 #include "log.hpp"
 #include "logistic.hpp"
+#include "aerr.hpp"
 typedef __m128i XMM;
 typedef __m256i YMM;
 
@@ -15,6 +16,7 @@ struct mparm {
     int lr;                // range 1...31
     int *cxt;              // range 0...X, where X is set by user. Or -1 to skip p() and update()
     int bias;              // range -+32767
+    bool adaptive;         // use adaptive learning rate
 };
 
 class Mixer1 { 
@@ -25,14 +27,19 @@ class Mixer1 {
     int pr;                // last result (scaled 12 bits)
     const int dotMul;      // dot product shift scale
     const int errLimit;    // error limit
-    const int lrate;       // learning rate
+    int errALimit;         // error limit
+    int lrate;             // learning rate
     int bs;                // bias
-    
+    ErrorInfo einfo;
+    bool aenabled;         // is adaptive learning rate enabled  
 public:
     U64 count;
     U64 tcount;
-    Mixer1(Array<short, 32> &t, int m, int n, const int dmul, const int elim, const int lr, int *context, const int bias=0):N(n),M(m),tx(t),wx(N*M),
-    cxt(context), pr(2048), dotMul(dmul), errLimit(elim), lrate(lr),count(0),tcount(0) {
+    Mixer1(Array<short, 32> &t, int m, int n, const int dmul, const int elim, const int lr, int *context, const int bias=0, const bool alr=false):
+      N(n),M(m),tx(t),wx(N*M),
+      cxt(context), pr(2048), dotMul(dmul), errLimit(elim), errALimit(elim),
+      lrate(lr),count(0),tcount(0),aenabled(alr) {
+
         assert(dmul<255);
         assert(lrate>0 && lrate<32);
         assert(errLimit<32767);
@@ -40,18 +47,28 @@ public:
         assert(N == ((N + 15) & -16));
         // Set bias
         for (int j=0; j<M*N; ++j) wx[j]=0+bias;
-        
+        einfo.reset();
     }
     ~Mixer1() {
         //printf("Mix %d\n",count);
     }
+    // Set learning rate and train skip limit
+    // Assume that learning rate 28 is default,
+    // otherwise if user set value is not the seame then enable adaptive learning rate.
+    void ErrLimit(int e,int r) {
+        if (errLimit==0) errALimit=e;
+        if (r!=28) lrate=r, aenabled=false;
+    }
     // Adjust weights to minimize coding cost of last prediction
     void __attribute__ ((noinline)) update(int y, int n) {
         if (*cxt!=-1) {
+            if (aenabled && einfo.stat(pr,y)) {
+                lrate=einfo.rates*2;
+            }
             int err=((y<<12)-pr)*lrate/4;
-            if (err<-errLimit || err>errLimit)
-            train(&tx[0], &wx[*cxt*N], n, err);
-            else  count++;
+            if (err<-errALimit || err>errALimit) {
+                train(&tx[0], &wx[*cxt*N], n, err);
+            } else count++;
             tcount++;
         }
     }
@@ -99,7 +116,6 @@ public:
 
     void train (const short* const t, short* const w, int n, const int e) {
         assert(n == ((n + 15) & -16));
-        //if (e) {
         const YMM one = _mm256_set1_epi16 (1);
         const YMM err = _mm256_set1_epi16 (short(e));
         // Each iteration adjusts 16 weights
@@ -111,7 +127,6 @@ public:
             tmp = _mm256_adds_epi16 (tmp, *(YMM *) &w[n]);                //  ((((t[n] * 2 * err) >> 16) + 1) >> 1) + w[n]
             *(YMM *) &w[n] = tmp;                                         //  save the new eight weights, bounded to +- 32K
         }
-        //}
     }
 
     /*

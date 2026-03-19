@@ -8,7 +8,8 @@
 class PredictorIMG4: public Predictors {
     int pr;
     Mixers *m;
-    StateMap StateMaps[2];
+    ErrorInfo einfo;
+    StateMap StateMaps[3];
     struct {
         APM APMs[4];
         APM1 APM1s[2];
@@ -16,13 +17,13 @@ class PredictorIMG4: public Predictors {
     eSSE sse;
     const std::vector<ModelTypes> activeModels { 
         M_MATCH ,
-        M_MATCH1, 
         M_IM4,
         M_LSTM};
 public:
     int mcxt[1];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
     ~PredictorIMG4() {
+        //printf("IM4 mixer inputs: %d\n",m->tx.size());
         delete m;
     }
     PredictorIMG4(Settings &set);

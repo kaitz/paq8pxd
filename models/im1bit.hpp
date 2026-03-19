@@ -7,10 +7,12 @@
 #include "../prt/statemap.hpp"
 #include "../prt/bh.hpp"
 #include "../prt/largestationarymap.hpp"
+#include "../prt/indirect.hpp"
+
 //////////////////////////// im1bitModel /////////////////////////////////
 // Model for 1-bit image data
 class im1bitModel1: public Model {
-    static constexpr int C = (1<<2)+(1<<7) + (1<<4) + (1<<4) + (1<<6) + (1<<8) + (1<<8) + (1<<8) + (1<<8) + (1<<8) + (1<<9) + (1<<10) + (1<<12) + (1<<12) + 5 + 13 + 25 + 41; //11192
+    static constexpr int C = (1<<2)+(1 << 8)+(1<<7)+ (1 << 8) + (1<<4) + (1<<4) + (1<<6) + (1<<8) + (1<<8) + (1<<8) + (1<<8) + (1<<8) + (1<<9) + (1<<10) + (1<<12) + (1<<12) + 5 + 13 + 25 + 41; //11192
     BlockData& x;
     Buf& buf;
     U32 r0, r1, r2, r3, r4, r5, r6, r7, r8;  // last 4 rows, bit 8 is over current pixel
@@ -19,16 +21,14 @@ class im1bitModel1: public Model {
     Array<int> cxt;      // contexts
     Array<uint32_t> counts;
     StateMap* sm;
-    //const int nLSM=5;
-    LargeStationaryMap mapL[5];
-    //BH<4> t1;
-    //U8* cp;
-      
+    LargeStationaryMap mapL[6];
+    int32_t row,col;
+    IndirectMap im;
 
 public:
-    int mxcxt[8];
+    int mxcxt[9];
     im1bitModel1(BlockData& bd, U32 val=0);
-    int inputs() {return N*3+2+4+5*3;}
+    int inputs() {return N*2+6*2+4+  2;}
     int p(Mixers& m, int w=0, int val2=0);
     void add(Mixers& m, uint32_t n0, uint32_t n1);
     virtual ~im1bitModel1(){ delete[] sm;}

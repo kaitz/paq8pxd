@@ -7,6 +7,7 @@
 #include "../prt/wrt/wrton.hpp"
 #include "wordinfo.hpp"
 #include "../prt/CM128.hpp"
+
 //////////////////////////// wordModel /////////////////////////
 
 // Model English text (words and columns/end of line)

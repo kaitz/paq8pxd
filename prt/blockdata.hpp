@@ -49,7 +49,7 @@ public:
     } Match;
     struct {
         struct {
-            U8 WW, W, NN, N, Wp1, Np1;
+            U8 WW, W, NN, N, Wp1, Np1, px;
         } pixels;
         U8 plane;
         U8 ctx;
@@ -78,6 +78,9 @@ public:
     Array<U64>  cxt;
     struct {
         std::uint8_t state; // used by SSE stage
+        std::uint8_t flags;
+        std::uint8_t code;
+        std::uint8_t data;
     } x86_64;
     BlockData(Settings &set);
     ~BlockData(){ }

@@ -5,7 +5,7 @@ nestModel1::nestModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf), ic(0), bc(0),
     cm(x,N,CMlimit(x.settings.level>8?0x800000 :(x.MEM()/2) )) {
 
     // Set model mixer contexts and parameters
-    mxp.push_back( {512,64,0,28,&mxcxt[0],0} );
+    mxp.push_back( {512,64,0,28,&mxcxt[0],0,false} );
 }
 
 int nestModel1::p(Mixers& m, int val1, int val2) {

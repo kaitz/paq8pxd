@@ -26,9 +26,10 @@ public:
   ~StateMap();
   void Reset(int Rate=0);
   // update bit y (0..1), predict next bit in context cx
-  int p(int cx,const int y,int limit=1023);
-  int p1(int cx,const int y,int limit=1023);
-  int p2(int cx,const int y,int limit=1023);
+  int p(int cx, const int y, int limit=1023);
+  int p1(int cx, const int y, int limit=1023);
+  int p2(int cx, const int y, int limit=1023);
+  int p3(int cx, const int y, const int rate=0);
 };
 
 

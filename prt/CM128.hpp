@@ -138,7 +138,7 @@ struct ContextMap3 {
     }
     // Predict to mixer m from bit history state s, using sm to map s to
     // a probability.
-    inline int mix3(Mixers& m, const int s, int i) {
+    /*inline int mix3(Mixers& m, const int s, int i) {
         if (s==0) {
             m.add(0);
             m.add(0);
@@ -149,14 +149,14 @@ struct ContextMap3 {
             m.add(st32[s]);
             return 1;
         }
-    }
+    }*/
 
     // Zero prediction
-    inline void mix4(Mixers& m) {
+    /*inline void mix4(Mixers& m) {
         m.add(0);
         m.add(0);
         m.add(0);
-    }
+    }*/
 
     inline U32 getStateByteLocation(const int bpos, const int c0) {
         U32 pis = 0; //state byte position in slot
@@ -166,13 +166,16 @@ struct ContextMap3 {
     }
     // Update the model with bit y1, and predict next bit to mixer m.
     // Context: cc=c0, bp=bpos, c1=buf(1), y1=y.
-    int __attribute__ ((noinline)) mix(Mixers& m) {
+    int __attribute__ ((noinline)) mix(Mixers& m, int sh=0) {
         // Update model with y
         result=0;
         updateStates();
         for (int i=0; i<cn; ++i) {
             if ((cxtMask>>(cn-i))&1) {
-                mix4(m);
+                //mix4(m);
+                m.add(0);
+                m.add(0);
+                m.add(0);
             } else {
                 if (cp[i]) {
                     assert(cp[i]>=&t[0].bh[0][0] && cp[i]<=&t[tmask].bh[14][6]);
@@ -219,7 +222,16 @@ struct ContextMap3 {
                 }
                 // predict from bit context
 
-                result=result+mix3(m, s, i);
+                //result=result+mix3(m, s, i);
+                if (s==0) {
+                    m.add(0);
+                    m.add(0);
+                } else {
+                   const int p1=getStatePr(s,i);
+                   m.add(st1[p1]>>sh);
+                   m.add(st32[s]);
+                   result++;
+                }
                 // predict from last byte in context
                 int bposshift=7-x.bpos;
                 int c0shift_bpos=(x.c0<<1)^(256>>(bposshift));

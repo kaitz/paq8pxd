@@ -22,25 +22,26 @@ jpegModelx::jpegModelx(BlockData& bd): MaxEmbeddedLevel(3),idx(-1),
     hmap(x.settings.level>10?0x8000000:(CMlimit(bd.MEM()*2)),9,N,bd),skip(0), smx(256*256),jmiss(0),zux(0),ccount(1),lma(0),ama(0) {
 
     for (int i=0; i<8; i++) mcxt[i]=0;
-    mxp.push_back( {     9,64,0,28,&mcxt[0],0} ); //    9
-    mxp.push_back( {  1025,64,0,28,&mcxt[1],0} ); //  1025
-    mxp.push_back( {  1024,64,0,28,&mcxt[2],0} ); //  1024
-    mxp.push_back( {   512,64,0,28,&mcxt[3],0} ); //   512
-    mxp.push_back( {  4096,64,0,28,&mcxt[4],0} ); //  4096
-    mxp.push_back( {    64,64,0,20,&mcxt[5],0} ); //    64
-    mxp.push_back( {  4096,64,0,28,&mcxt[6],0} ); //  4096
-    mxp.push_back( {  1024,64,0,28,&mcxt[7],0} ); //  1024
+    mxp.push_back( {     9,64,250*2,28,&mcxt[0],0,true} ); //    9
+    mxp.push_back( {  1025,64,250*2,28,&mcxt[1],0,true} ); //  1025
+    mxp.push_back( {  1024,64,0,28,&mcxt[2],0,true} ); //  1024
+    mxp.push_back( {   512,64,0,28,&mcxt[3],0,true} ); //   512
+    mxp.push_back( {  4096,64,0,28,&mcxt[4],0,true} ); //  4096
+    mxp.push_back( {    64,64,0,20,&mcxt[5],0,true} ); //    64
+    mxp.push_back( {  4096,64,0,28,&mcxt[6],0,true} ); //  4096
+    mxp.push_back( {  1024,64,0,28,&mcxt[7],0,true} ); //  1024
     
     for (int i=0; i<8; i++) lmcxt[i]=0; // local mixer
-    lmxp.push_back( {    2,64,0,28,&lmcxt[0],0} );
-    lmxp.push_back( { 1024,64,0,28,&lmcxt[1],0} );
-    lmxp.push_back( { 2048,64,0,28,&lmcxt[2],0} );
-    lmxp.push_back( {   64,64,0,28,&lmcxt[3],0} );
-    lmxp.push_back( { 1024,64,0,28,&lmcxt[4],0} );
-    lmxp.push_back( {  256,64,0,28,&lmcxt[5],0} );
-    lmxp.push_back( {   16,64,0,28,&lmcxt[6],0} );
-    lmxp.push_back( {    1, 8,0,14,&lmcxt[7],0} ); // final mixer
+    lmxp.push_back( {    2,64,250*2,28,&lmcxt[0],0,true} );
+    lmxp.push_back( { 1024,64,250*2,26,&lmcxt[1],0,true} );
+    lmxp.push_back( { 2048,64,250*2,26,&lmcxt[2],0,true} );
+    lmxp.push_back( {   64,64,0,28,&lmcxt[3],0,true} );
+    lmxp.push_back( { 1024,64,0,28,&lmcxt[4],0,true} );
+    lmxp.push_back( {  256,64,0,28,&lmcxt[5],0,true} );
+    lmxp.push_back( {   16,64,0,28,&lmcxt[6],0,true} );
+    lmxp.push_back( {    1, 8,7,14,&lmcxt[7],0,false} ); // final mixer
     m1=new Mixers(x,lmxp.size(),32+32+3+4+1+1+1+1+N*3+1+3*M+6,lmxp);
+    einfo.reset();
 }
 
 int jpegModelx::p(Mixers& m, int val1, int val2) {
@@ -182,6 +183,7 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
         if (buf.pos==images[idx].data && x.bpos==1) {
             //jassert(htsize>0);
             int i;
+            hsum=0;
             for (i=0; i<images[idx].htsize; ++i) {
                 int p=images[idx].ht[i]+4;  // pointer to current table after length field
                 int end=p+buf[p-2]*256+buf[p-1]-2;  // end of Huffman table
@@ -199,7 +201,9 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
                     int code=0;
                     for (j=0; j<16; ++j) {
                         h[j].min=code;
-                        h[j].max=code+=buf[p+j+1];
+                        const int hcode=buf[p+j+1];
+                        hsum+=hcode;
+                        h[j].max=code+=hcode;
                         h[j].val=hval;
                         val+=buf[p+j+1];
                         hval+=buf[p+j+1];
@@ -207,12 +211,15 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
                     }
                     p=val;
                     jassert(hval>=0 && hval<2048);
+                    //printf("HSUM %d\n",hsum);
                 }
                 jassert(p==end);
             }
+            if (hsum<200) mode=1; else mode=0;
             huffcode=huffbits=huffsize=0, rs=-1;
             // load default tables
             if (!images[idx].htsize){
+                //printf("HSUM default\n");
                 for (int tc = 0; tc < 2; tc++) {
                     for (int th = 0; th < 2; th++) {
                         HUF* h = &huf[tc*64+th*16];
@@ -261,14 +268,27 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
             jassert(ns<=4 && nf<=4);
             mcusize=0;  // blocks per MCU
             int hmax=0;  // MCU horizontal dimension
+            ccount=-1;
+            hsum=0;
             for (i=0; i<ns; ++i) {
                 for (int j=0; j<nf; ++j) {
                     if (buf[images[idx].sos+2*i+5]==buf[images[idx].sof+3*j+10]) { // Cs == C ?
                         int hv=buf[images[idx].sof+3*j+11];  // packed dimensions H x V
                         SamplingFactors[j] = hv;
                         if (hv>>4>hmax) hmax=hv>>4;
+                        if (ccount==-1) {
+                            if (hv==0x11) HVss=HVS_N;
+                            else if (hv==0x21) HVss=HVS_H;
+                            else if (hv==0x12) HVss=HVS_V;
+                            else if (hv==0x22) HVss=HVS_HV;
+                            else  HVss=HVS_O;
+                            //printf("HV %d %d %x\n",hv&15,hv>>4,HVss);
+                            ccount=0;
+                        }
+                        hsum++; // Count, if =1 then gray
                         hv=(hv&15)*(hv>>4);  // number of blocks in component C
                         ccount=max(hv,ccount);
+                        
                         jassert(hv>=1 && hv+mcusize<=10);
                         while (hv) {
                             jassert(mcusize<10);
@@ -285,6 +305,7 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
                     }
                 }
             }
+            if (hsum==1) mode=0; //gray
 
             jassert(hmax>=1 && hmax<=10);
             int j;
@@ -738,13 +759,17 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
         int p=stretch(Map1[i].mix(*m1));
         m.add(p>>1);
         m1->add(p>>1);
-    } 
+    }
 
     MJPEGMap.mix2( *m1);
 
     int sd=((smx.p((hc)&0xffff,y)));
     m1->add(sd=stretch(sd));
     m.add(sd);
+    if (einfo.stat(pr0,x.y)) {
+        const int el=(14-einfo.rates)*16;
+        m1->setErrLimit(el);
+    }
     // local mixer
     lmcxt[0]=firstcol;
     lmcxt[1]=coef+256*min(3,huffbits);
@@ -755,10 +780,11 @@ int jpegModelx::p(Mixers& m, int val1, int val2) {
     lmcxt[5]=lma; 
     lmcxt[6]=ama;
     lmcxt[7]=0;
-    int pr=m1->p(1,0);
+    int pr=m1->p(1-mode,(mode-0)); // 0,0  v1?kui hsum väiksem kui 200
     
     x.Misses+=x.Misses+((pr0>>11)!=y);
     jmiss+=jmiss+((pr0>>11)!=y);
+    
     pr0=pr;
     m.add(stretch(pr)>>1);
     m.add((pr-2048)>>3);

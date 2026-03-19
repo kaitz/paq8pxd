@@ -1,8 +1,5 @@
 #include "text.hpp"
 
-
-
-
 TextModel::TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),
     Map(bd,N,CMlimit(bd.MEM()*Size)),
     Stemmers(Language::Count-1), Languages(Language::Count-1),
@@ -22,14 +19,14 @@ TextModel::TextModel(BlockData& bd, U64 Size) : N(37),buffer(bd.buf),
     memset(&Info, 0, sizeof(Info));
 
     // Set model mixer contexts and parameters
-    mxp.push_back( {1024,64,0,28,&mxcxt[0],0} );
-    mxp.push_back( {2048,64,0,28,&mxcxt[1],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[2],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[3],0} );
-    mxp.push_back( {2048,64,0,28,&mxcxt[4],0} );
-    mxp.push_back( {2048,64,0,28,&mxcxt[5],0} );
-    mxp.push_back( {4096,64,0,28,&mxcxt[6],0} );
-    mxp.push_back( {8192,64,0,28,&mxcxt[7],0} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( {2048,64,0,28,&mxcxt[1],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[2],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[3],0,false} );
+    mxp.push_back( {2048,64,0,28,&mxcxt[4],0,false} );
+    mxp.push_back( {2048,64,0,28,&mxcxt[5],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[6],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[7],0,false} );
 }
 
 void TextModel::setword(U8 *w, int len) {

@@ -19,19 +19,19 @@ im24bitModel1::im24bitModel1(BlockData& bd): nOLS(6),inpts(47),
     
     //for (int i=0; i<12; i++) mxcxt[i]=0;
     // Set model mixer contexts and parameters
-    mxp.push_back( {  256,64,0,28,&mxcxt[0],0} );
-    mxp.push_back( {  256,64,0,28,&mxcxt[1],0} );
-    mxp.push_back( {  512,64,0,28,&mxcxt[2],0} );
-    mxp.push_back( { 2048,64,0,28,&mxcxt[3],0} );
-    mxp.push_back( { 8*32,64,0,28,&mxcxt[4],0} );
-    mxp.push_back( { 6*64,64,0,28,&mxcxt[5],0} );
-    mxp.push_back( {256*2,64,0,28,&mxcxt[6],0} );
-    mxp.push_back( { 1024,64,0,28,&mxcxt[7],0} );
-    mxp.push_back( { 8192,64,0,28,&mxcxt[8],0} );
-    mxp.push_back( { 8192,64,0,28,&mxcxt[9],0} );
-    mxp.push_back( { 8192,64,0,28,&mxcxt[10],0} );
-    mxp.push_back( { 8192,64,0,28,&mxcxt[11],0} );
-    mxp.push_back( {  256,64,0,28,&mxcxt[12],0} );
+    mxp.push_back( {  256,64,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( {  256,64,0,28,&mxcxt[1],0,false} );
+    mxp.push_back( {  512,64,0,28,&mxcxt[2],0,false} );
+    mxp.push_back( { 2048,64,0,28,&mxcxt[3],0,false} );
+    mxp.push_back( { 8*32,64,0,28,&mxcxt[4],0,false} );
+    mxp.push_back( { 6*64,64,0,28,&mxcxt[5],0,false} );
+    mxp.push_back( {256*2,64,0,28,&mxcxt[6],0,false} );
+    mxp.push_back( { 1024,64,0,28,&mxcxt[7],0,false} );
+    mxp.push_back( { 8192,64,0,28,&mxcxt[8],0,false} );
+    mxp.push_back( { 8192,64,0,28,&mxcxt[9],0,false} );
+    mxp.push_back( { 8192,64,0,28,&mxcxt[10],0,false} );
+    mxp.push_back( { 8192,64,0,28,&mxcxt[11],0,false} );
+    mxp.push_back( {  256,64,0,28,&mxcxt[12],0,false} );
 }
 
 int im24bitModel1::p(Mixers& m, int info, int val2) {

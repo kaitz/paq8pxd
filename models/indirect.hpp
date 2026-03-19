@@ -5,6 +5,7 @@
 #include "model.hpp"
 #include "../prt/indirectcontext.hpp"
 #include "../prt/CM128.hpp"
+//#include "../prt/contextmap.hpp"
 
 //////////////////////////// indirectModel /////////////////////
 

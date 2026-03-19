@@ -14,14 +14,14 @@ PredictorDEC::PredictorDEC(Settings &set):Predictors(set),
     sse.p(pr);
     
     // Predictor contexts
-    mxp.push_back( {8+1024,64,0,28,&mcxt[0],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[1],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[2],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[3],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[4],0} );
-    mxp.push_back( {  1536,64,0,28,&mcxt[5],0} );
-    mxp.push_back( {    64,64,0,28,&mcxt[6],0} );
-    mxp.push_back( {     1, 8,0,14,&mcxt[7],0} ); // final mixer
+    mxp.push_back( {8+1024,64,0,28,&mcxt[0],0,false} );
+    mxp.push_back( {   256,64,0,28,&mcxt[1],0,false} );
+    mxp.push_back( {   256,64,0,28,&mcxt[2],0,false} );
+    mxp.push_back( {   256,64,0,28,&mcxt[3],0,false} );
+    mxp.push_back( {   256,64,0,28,&mcxt[4],0,false} );
+    mxp.push_back( {  1536,64,0,28,&mcxt[5],0,false} );
+    mxp.push_back( {    64,64,0,28,&mcxt[6],0,false} );
+    mxp.push_back( {     1, 8,0,14,&mcxt[7],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
     mcxt[7]=0;

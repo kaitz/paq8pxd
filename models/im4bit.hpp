@@ -6,6 +6,7 @@
 #include "model.hpp"
 #include "../prt/statemap.hpp"
 #include "../prt/bh.hpp"
+#include "../prt/largestationarymap.hpp"
 //////////////////////////// im4bitModel /////////////////////////////////
 
 // Model for 4-bit image data
@@ -15,14 +16,16 @@ class im4bitModel1: public Model {
     BH<16> t;
     const int S; // number of contexts
     Array<U8*> cp;
+    Array<U32> cxt;
     StateMap *sm;
     StateMap map;
     U8 WW, W, NWW, NW, N, NE, NEE, NNWW, NNW, NN, NNE, NNEE;
-    int col, line, run, prevColor, px;
+    int col, line, run, runN, prevColor, px;
+    LargeStationaryMap mapL[18];
 public:
-    int mxcxt[6];
+    int mxcxt[7];
     im4bitModel1(BlockData& bd, U32 val=0);
-    int inputs() {return S*3+2;}
+    int inputs() {return S*3+S*3+2;}
     int p(Mixers& m,int w=0,int val2=0);
     ~im4bitModel1() {
         delete [] sm;

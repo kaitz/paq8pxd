@@ -7,7 +7,7 @@ PredictorAUDIO2::PredictorAUDIO2(Settings &set):Predictors(set), pr(16384),a(x),
     mixerInputs+=1;
     sse.p(pr);
 
-    mxp.push_back( {1,8,0,14,&mcxt[0],0} ); // final mixer
+    mxp.push_back( {1,8,0,14,&mcxt[0],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
     mcxt[0]=0;

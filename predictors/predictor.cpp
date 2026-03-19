@@ -10,18 +10,19 @@ Predictor::Predictor(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),
     sse.p(pr);
 
     // Predictor contexts
-    mxp.push_back( {    64,64,0,28,&mcxt[0],0} );
-    mxp.push_back( {8+1024,64,0,28,&mcxt[1],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[2],0} );
-    mxp.push_back( {   512,64,0,28,&mcxt[3],0} );
-    mxp.push_back( {  2048,64,0,28,&mcxt[4],0} );
-    mxp.push_back( {  2048,64,0,28,&mcxt[5],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[6],0} );
-    mxp.push_back( {  1536,64,0,28,&mcxt[7],0} );
-    mxp.push_back( {     1, 8,0,14,&mcxt[8],0} ); // final mixer
+    mxp.push_back( {    64,64,0,28,&mcxt[0],0,false} );
+    mxp.push_back( {8+1024,64,0,28,&mcxt[1],0,false} );
+    mxp.push_back( {   256,64,0,28,&mcxt[2],0,false} );
+    mxp.push_back( {   512,64,0,28,&mcxt[3],0,false} );
+    mxp.push_back( {  2048,64,0,28,&mcxt[4],0,false} );
+    mxp.push_back( {  2048,64,0,28,&mcxt[5],0,false} );
+    mxp.push_back( {   256,64,0,28,&mcxt[6],0,false} );
+    mxp.push_back( {  1536,64,0,28,&mcxt[7],0,false} );
+    mxp.push_back( {     1, 8,7,14,&mcxt[8],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
     mcxt[8]=0;
+    einfo.reset();
 }
 
 void Predictor::update()  {
@@ -29,7 +30,10 @@ void Predictor::update()  {
     if(pr<1) pr=1;
     if(pr>4095) pr=4095;
     x.Misses+=x.Misses+((pr>>11)!=x.y);
-    
+    if (einfo.stat(pr,x.y)) {
+        const int el=(14-einfo.rates)*16;
+        m->setErrLimit(el,einfo.rates*2);
+    }
     if (x.bpos==0) {
         lastmiss=x.Misses&0xFF?x.blpos:lastmiss;
         int b1=x.buf(1);
@@ -54,7 +58,7 @@ void Predictor::update()  {
     }
     m->update();
     m->add(256);
-    int rlen=0,Valid=0,xmlstate=0;
+    int rlen=0/*,Valid=0*/,xmlstate=0;
     ismatch=models[M_MATCH]->p(*m);
     models[M_MATCH1]->p(*m);
     if (x.bpos==0)x.count++;
@@ -74,7 +78,7 @@ void Predictor::update()  {
         if (x.settings.slow==true) models[M_LSTM]->p(*m);
         xmlstate=models[M_XML]->p(*m);
         models[M_TEXT]->p(*m);
-        Valid=models[M_EXE]->p(*m);
+        //Valid=models[M_EXE]->p(*m);
         
         if (!(x.filetype==DBASE/*||x.filetype==BINTEXT*/||x.filetype==HDR ||x.inpdf==false )) models[M_LINEAR]->p(*m);
     } 
@@ -82,7 +86,7 @@ void Predictor::update()  {
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     mcxt[1]=8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
     mcxt[2]=x.c0;
-    uint32_t bt = x.filetype==DEFAULT ? 0 : ( x.filetype==DBASE) ? 2 : Valid ? 1 : 3;
+    uint32_t bt = x.filetype==DEFAULT ? 0 : ( x.filetype==DBASE) ? 2 : /*Valid ? 1 :*/ 3;
     mcxt[3]=order+8*(x.c4>>6&3)+32*(x.bpos==0)+64*(c1==c2)+128*bt;
     U8 d=x.c0<<(8-x.bpos);
     mcxt[4]=((xmlstate&3)>0)*1024+(x.bpos>0)*512+(order>3)*256+(x.w4&240)+(x.b3>>4);

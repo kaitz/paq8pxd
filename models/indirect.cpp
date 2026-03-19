@@ -12,7 +12,8 @@ indirectModel1::indirectModel1(BlockData& bd, U32 val):x(bd),buf(bd.buf),N(15+1+
     cmc(x,3,(mem/4)), 
     cm3(x,3,(mem/4)), 
     cm4(x,3,(mem/4)), 
-    cm5(x,3,(mem/4)), 
+    cm5(x,3,(mem/4)),  // ?
+
     t1(256),
     t2(0x10000), t3(0x8000), t4(0x8000), t5(256*256),
     iCtx{16,8},

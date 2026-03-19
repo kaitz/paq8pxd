@@ -12,6 +12,7 @@ class PredictorTXTWRT: public Predictors {
     int rlen;
     int ismatch;
     Mixers *m;
+    ErrorInfo einfo;
     struct {
         APM APMs[4];
         APM1 APM1s[3];

@@ -48,6 +48,8 @@ Codec::Codec(FMode m, Streams *s, Segment *g, Settings &set):settings(set),mode(
     AddFilter( new shrinkFilter(std::string("shrink"),set,SHRINK));
     //AddFilter( new reduceFilter(std::string("reduce"),REDUCE));
     //AddFilter( new implodeFilter(std::string("implode"),IMPLODE));
+    AddFilter( new Img8Filter(std::string("image 8bit"),set,BM8_IMG));
+    AddFilter( new Img4Filter(std::string("image 4bit"),set,BM4_IMG));
     AddFilter( new DefaultFilter(std::string("default"),set,DEFAULT)); // must be last
     
     //
@@ -249,6 +251,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         Filter* dataf=GetFilter(type);
         if (type==IMAGE24) dataf->encode(in, tmp, len, uint64_t(info));
         else if (type==IMAGE32) dataf->encode(in, tmp, len, uint64_t(info));
+        else if (type==BM8_IMG) dataf->encode(in, tmp, len, uint64_t(info));
+        else if (type==BM4_IMG) dataf->encode(in, tmp, len, uint64_t(info));
         else if (type==MRBR) dataf->encode(in, tmp, len, uint64_t(info)+(uint64_t(info2)<<32));
         else if (type==MRBR4) dataf->encode(in, tmp, len, uint64_t(((info*4+15)/16)*2)+(uint64_t(info2)<<32));
         else if (type==RLE) dataf->encode(in, tmp, len, info);
@@ -336,12 +340,16 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         
         if (type==BZIP2 || type==CD || type==MDF || type==SZDD || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||
             type==LZW||type==BASE85 || type==BASE64 || type==UUENC|| type==DECA || type==ARM || type==WIT || type==TEXT ||
-            type==TXTUTF8 || type==TEXT0 || type==EOLTEXT || type==SHRINK || type==REDUCE || type==IMPLODE || type==ZLIB) {
+            type==TXTUTF8 || type==TEXT0 || type==EOLTEXT || type==SHRINK || type==REDUCE || type==IMPLODE || type==ZLIB || type==BM8_IMG|| type==BM4_IMG) {
             
             in->setpos(begin);
             if (type==BASE64 ) {
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==UUENC ) {
+                diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==BM8_IMG) {
+                diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+                } else if (type==BM4_IMG) {
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==MDF ) {
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
@@ -446,6 +454,28 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 if (it==itcount)    itcount=it+1;
                 AddStat(type2,tmpsize-hdrsize,it+1);
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
+            } else if (type==BM8_IMG) {
+                segment->putdata(type,tmpsize,0);
+                int hdrsize=( tmp->getc()<<8)+(tmp->getc());
+                //Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
+                hdrsize=2+hdrsize;
+                tmp->setpos(0);
+                AddStat(HDR,hdrsize,it+1);
+                direct_encode_blockstream(HDR, tmp, hdrsize);
+                if (it==itcount)    itcount=it+1;
+                AddStat(IMAGE8,tmpsize-hdrsize,it+1);
+                direct_encode_blockstream(IMAGE8, tmp, tmpsize-hdrsize, info);
+            } else if (type==BM4_IMG) {
+                segment->putdata(type,tmpsize,0);
+                int hdrsize=( tmp->getc()<<8)+(tmp->getc());
+                //Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
+                hdrsize=2+hdrsize;
+                tmp->setpos(0);
+                AddStat(HDR,hdrsize,it+1);
+                direct_encode_blockstream(HDR, tmp, hdrsize);
+                if (it==itcount)    itcount=it+1;
+                AddStat(IMAGE4,tmpsize-hdrsize,it+1);
+                direct_encode_blockstream(IMAGE4, tmp, tmpsize-hdrsize, info);
             } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
                 segment->putdata(type,tmpsize,0);
                 Filetype type2 =(Filetype)(info>>24);

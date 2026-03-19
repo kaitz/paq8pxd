@@ -60,7 +60,7 @@ class Info {
     U32 wpword1;
   public:
    
-    Info(BlockData& bd,U32 val, ContextMap3  &contextmap,ContextMap3  &contextmap1);
+    Info(BlockData& bd,U32 val, ContextMap3  &contextmap, ContextMap3  &contextmap1);
     void reset() ;
     // forget it
     void shrwords() ;

@@ -9,6 +9,8 @@
 #include "../prt/stationarymap.hpp"
 #include "../prt/helper.hpp"
 #include "../prt/CM128.hpp"
+//#include "../prt/CM32.hpp"
+//#include "../prt/contextmap.hpp"
 
 //////////////////////////// recordModel ///////////////////////
 
@@ -34,7 +36,7 @@ class recordModel1: public Model {
     IndirectMap iMap[3]{ 8,8,8 };
     IndirectContext<U16> iCtx[5]{ {16,8}, {16,8}, {16,8}, {20,8}, {11,1} };
     U8 N, NN, NNN, NNNN,WxNW;
-    const int nIndCtxs  ;
+    const int nIndCtxs;
 public:
     int mxcxt[3];
     recordModel1( BlockData& bd, U64 msize=0);

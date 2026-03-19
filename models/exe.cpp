@@ -1,8 +1,7 @@
 #include "exe.hpp"
 
-
 bool exeModel1::IsInvalidX64Op(U8 Op) {
-    for (int i=0; i<19; i++){
+    for (int i=0; i<19; i++) {
         if (Op == InvalidX64Ops[i])
         return true;
     }
@@ -10,7 +9,7 @@ bool exeModel1::IsInvalidX64Op(U8 Op) {
 }
 
 bool exeModel1::IsValidX64Prefix(U8 Prefix) {
-    for (int i=0; i<8; i++){
+    for (int i=0; i<8; i++) {
         if (Prefix == X64Prefixes[i])
         return true;
     }
@@ -34,7 +33,7 @@ void exeModel1::ProcessMode(Instruction &Op, ExeState &State) {
             }
         }
     } else {
-        switch (Op.Flags&fTYPE){
+        switch (Op.Flags&fTYPE) {
         case fBI : State = Read8; break;
         case fWI : {
                 State = Read16;
@@ -134,10 +133,27 @@ U32 exeModel1::execxt(int i, int x) {
     return prefix|opcode<<4|modrm<<12|x<<20|sib<<(28-6);
 }
 
-exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10),
-    cm(bd,N1+N2,CMlimit(bd.MEM()*4)),
+exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10+1+1-2),
+    cm(bd,N1+N2,CMlimit(bd.MEM()*8)),
+    cm1(bd,5,CMlimit(bd.MEM())),
+    cmx{{bd,3,CMlimit(bd.MEM()*1)},
+        {bd,3,CMlimit(bd.MEM()*1)},
+        {bd,3,CMlimit(bd.MEM()*1)},
+        {bd,3,CMlimit(bd.MEM()*1)},
+        {bd,3,CMlimit(bd.MEM()*1)},
+        {bd,3,CMlimit(bd.MEM()*1)},
+        {bd,3,CMlimit(bd.MEM()*1)},
+        {bd,3,CMlimit(bd.MEM()*1)}},
+    cmo{{bd,4,CMlimit(bd.MEM()*1)},
+        {bd,4,CMlimit(bd.MEM()*1)},
+        {bd,4,CMlimit(bd.MEM()*1)},
+        {bd,4,CMlimit(bd.MEM()*1)},
+        {bd,4,CMlimit(bd.MEM()*1)},
+        {bd,4,CMlimit(bd.MEM()*1)},
+        {bd,4,CMlimit(bd.MEM()*1)},
+        {bd,4,CMlimit(bd.MEM()*1)}},
     iMap(20,1),
-    pState(Start), State(Start), TotalOps(0), OpMask(0),OpCategMask(0), Context(0),BrkPoint(0),
+    pState(Start), State(Start),StateO(),StateW(0), TotalOps(0), OpMask(0),OpCategMask(0), Context(0),BrkPoint(0),
     BrkCtx(0),Valid(false) {
 
     memset(&Cache, 0, sizeof(OpCache));
@@ -145,12 +161,14 @@ exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10),
     memset(&StateBH, 0, sizeof(StateBH));
 
     // Set model mixer contexts and parameters
-    mxp.push_back( {1024,64,0,28,&mxcxt[0],0} );
-    mxp.push_back( {1024,64,0,28,&mxcxt[1],0} );
-    mxp.push_back( {1024,64,0,28,&mxcxt[2],0} );
-    mxp.push_back( {8192,64,0,28,&mxcxt[3],0} );
-    mxp.push_back( {8192,64,0,28,&mxcxt[4],0} );
-    mxp.push_back( {8192,64,0,28,&mxcxt[5],0} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[1],0,false} );
+    mxp.push_back( {1024,64,0,28,&mxcxt[2],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[3],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[4],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[5],0,false} );
+    mxp.push_back( { 256,64,0,28,&mxcxt[6],0,false} );
+    mxp.push_back( {8192,64,0,28,&mxcxt[7],0,false} );
 }
 
 int exeModel1::p(Mixers& m,int val1,int val2) {
@@ -349,12 +367,16 @@ int exeModel1::p(Mixers& m,int val1,int val2) {
                 break;
             }
         }
+        if (StateO!=State){
+            StateO=State;
+            StateW=(StateW<<4)+State;
+        }
 
         Valid = (TotalOps>2*MinRequired) && ((OpMask&((1<<MinRequired)-1))==((1<<MinRequired)-1));
         Context = State+16*Op.BytesRead+16*(Op.REX & REX_w);
         StateBH[Context] = (StateBH[Context]<<8)|B;
 
-        if (Valid || val1){
+        if (Valid /*|| val1*/){
             int mask=0, count0=0;
             int i=0;
             while (i<N1){
@@ -387,7 +409,7 @@ int exeModel1::p(Mixers& m,int val1,int val2) {
             mask = PrefixMask|CodeMask|OperandSizeOverride|MultiByteOpcode|Prefix38|Prefix3A|HasExtraFlags|HasModRM;
             cm.set(hash(OpN(Cache, 1)&mask, State, Op.BytesRead*2+((Op.REX&REX_w)>0), Op.Data&((U16)(mask^OperandSizeOverride))));
 
-            mask = 0x04|(0xFE<<CodeShift)|MultiByteOpcode|Prefix38|Prefix3A|(ModRM_reg<<ModRMShift);
+            mask = 0x04|(0xFE<<CodeShift)|MultiByteOpcode|Prefix38|Prefix3A|(ModRM_reg<<ModRMShift); // !!
             cm.set(hash(OpN(Cache, 1)&mask, OpN(Cache, 2)&mask, State+16*Op.BytesRead, Op.Data&(mask|PrefixMask|CodeMask)));
 
             cm.set(hash(++i,State+16*Op.BytesRead));
@@ -397,24 +419,54 @@ int exeModel1::p(Mixers& m,int val1,int val2) {
             State+16*pState+256*Op.BytesRead,
             ((Op.Flags&fMODE)==fAM)*16 + (Op.REX & REX_w) + (Op.o16)*4 + ((Op.Code & 0xFE)==0xE8)*2 + ((Op.Data & MultiByteOpcode)!=0 && (Op.Code & 0xF0)==0x80)
             ));
-            
-        }
-        else 
-        for (int i=0;i<(N1+N2);i++) {
+
+            cm1.set(hash(OpN(Cache, 1)&(0x04|CodeMask),State));
+            cm1.set(hash(StateW&0xfff,State));
+            cm1.set(hash(StateW,Op.Data&(mask|PrefixMask|CodeMask)));
+            cm1.set(hash(BrkCtx,StateW&0xfff0));
+            cm1.set(hash(OpN(Cache, 2),State,StateO));
+
+            int exes=esMap[State];
+            StateCXT[0*8+exes]=OpN(Cache, 1);
+            for (int i=0;i<(8);i++) {
+               cmx[i].set(hash(StateCXT[0*8+i], State, (0x100|B)*Op.BytesRead));
+               cmx[i].set(hash(StateCXT[0*8+i], State+16*Op.BytesRead, Op.Data&mask, Op.Category));
+               cmx[i].set(hash(StateCXT[0*8+i], BrkCtx, Op.BytesRead, Op.REX, Op.Category));
+            }
+            int opCat=opMap[Op.Category];
+            opCatCXT[opCat]=hash(OpN(Cache, 1),Op.Code);
+            for (int i=0;i<(8);i++) {
+               cmo[i].set(hash(opCatCXT[0*8+i],(0x100|B)*(Op.BytesRead)));
+               cmo[i].set(hash(opCatCXT[0*8+i], State, Op.BytesRead));
+               cmo[i].set(hash(opCatCXT[0*8+i], BrkCtx, Op.BytesRead));
+               cmo[i].set(hash(opCatCXT[0*8+i], StateBH[Context],State));
+            }
+        } else {
+            for (int i=0;i<(N2+N1);i++) 
             cm.sets();
+            for (int i=0;i<5;i++) 
+            cm1.sets();
+            for (int i=0;i<8;i++) 
+            cmx[i].sets(),cmx[i].sets(),cmx[i].sets();
+             for (int i=0;i<8;i++) 
+            cmo[i].sets(),cmo[i].sets(),cmo[i].sets(),cmo[i].sets();
         }
     }
     cm.mix(m);
-    if (Valid || val1){
+    cm1.mix(m);
+    for (int i=0;i<8;i++) cmx[i].mix(m);
+    for (int i=0;i<8;i++) cmo[i].mix(m);
+
+    if (Valid /*|| val1*/){
         iMap.set(hash(BrkCtx, x.bpos));
         if(x.filetype==EXE ) iMap.mix(m,1,4); 
         else m.add(0),m.add(0);
         x.x86_64.state = 0x80u | (static_cast<std::uint8_t>(State) << 3u) | Op.BytesRead;
+        x.x86_64.flags=Op.Flags;
+        x.x86_64.data=Op.Data;
     }else{
         x.x86_64.state=0;
         m.add(0),m.add(0);
-        // for (int i=0; i<inputs(); ++i)
-        //   m.add(0);
     }
     U8 s = ((StateBH[Context]>>(28-x.bpos))&0x08) |
     ((StateBH[Context]>>(21-x.bpos))&0x04) |
@@ -426,9 +478,10 @@ int exeModel1::p(Mixers& m,int val1,int val2) {
     mxcxt[0]=(Context*4+(s>>4));
     mxcxt[1]=(State*64+x.bpos*8+(Op.BytesRead>0)*4+(s>>4));
     mxcxt[2]= (BrkCtx&0x1FF)|((s&0x20)<<4);
-    mxcxt[3]=hash(Op.Code, State, OpN(Cache, 1)&CodeMask)&0x1FFF;
-    mxcxt[4]=hash(State, x.bpos, Op.Code, Op.BytesRead)&0x1FFF;
-    mxcxt[5]=hash(State, (x.bpos<<2)|(x.c0&3), OpCategMask&CategoryMask, ((Op.Category==OP_GEN_BRANCH)<<2)|(((Op.Flags&fMODE)==fAM)<<1)|(Op.BytesRead>0))&0x1FFF;
-
+    mxcxt[3]=finalize64(hash(Op.Code, State, OpN(Cache, 1)&CodeMask),13);
+    mxcxt[4]=finalize64(hash(State, x.bpos, Op.Code, Op.BytesRead,(Op.Prefix!=0)),13);
+    mxcxt[5]=finalize64(hash(State, (x.bpos<<2)|(x.c0&3), OpCategMask&CategoryMask, ((Op.Category==OP_GEN_BRANCH)<<2)|(((Op.Flags&fMODE)==fAM)<<1)|(Op.BytesRead>0)),13);
+    mxcxt[6]=StateW&255;
+    mxcxt[7]=finalize64(hash(State, x.bpos, Op.Category,Op.Flags, Op.BytesRead),13);
     return Valid;
 }

@@ -64,13 +64,19 @@ void LargeStationaryMap::mix(Mixers &m) {
   n1 = value & 0xffff;
 
   sum = n0 + n1;
+  if (sum == 0) {
+      //m.add(0);
+      m.add(0);
+      m.add(0);
+    }    else {
   p1 = ((n1 * 2 + 1) << 12) / (sum * 2 + 2);
   st = (stretch(p1) * scale) >> 8;
   m.add(st);
-  m.add(((p1 - 2048) * scale) >> 9);
+  //m.add(((p1 - 2048) * scale) >> 9);
   bitIsUncertain = int(sum <= 1 || (n0 != 0 && n1 != 0));
   m.add((bitIsUncertain - 1) & st); // when both counts are nonzero add(0) otherwise add(st)
   //p0 = 4095 - p1;
   //m.add((((p1 & (-!n0)) - (p0 & (-!n1))) * scale) >> 10);
+  }
 }
 

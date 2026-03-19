@@ -12,22 +12,27 @@ PredictorJPEG::PredictorJPEG(Settings &set):Predictors(set), pr(16384),
     mixerInputs+=3+1+1-3;
 
     // Predictor contexts - select larger cxt    
-    mxp.push_back( {8+1024,64,0,28,&mcxt[0],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[1],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[2],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[3],0} );
-    mxp.push_back( {   256,64,0,28,&mcxt[4],0} );
-    mxp.push_back( {  1536,64,0,28,&mcxt[5],0} );
-    mxp.push_back( {     1, 8,0,14,&mcxt[6],0} ); // final mixer
+    mxp.push_back( {8+1024,64,0,28,&mcxt[0],0,true} );
+    mxp.push_back( {   256,64,0,28,&mcxt[1],0,true} );
+    mxp.push_back( {   256,64,0,28,&mcxt[2],0,true} );
+    mxp.push_back( {   256,64,0,28,&mcxt[3],0,true} );
+    mxp.push_back( {   256,64,0,28,&mcxt[4],0,true} );
+    mxp.push_back( {  1536,64,0,28,&mcxt[5],0,true} );
+    mxp.push_back( {     1, 8,0,14,&mcxt[6],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
     mcxt[6]=0;
+    einfo.reset();
 }
 
 void PredictorJPEG::update() {
     pr=(32768-pr)/(32768/4096);
     if(pr<1) pr=1;
     if(pr>4095) pr=4095;
+    if (einfo.stat(pr,x.y)) {
+        const int el=(14-einfo.rates)*16;
+        m->setErrLimit(el,einfo.rates); // slow, range 14...2
+    }
     x.Misses+=x.Misses+((pr>>10)!=x.y);
     m->update();
     m->add(256);
@@ -45,11 +50,12 @@ void PredictorJPEG::update() {
         m->reset(); 
         return;
     }
-    if (models[M_JPEG]->p(*m)) {
+    if (models[M_JPEG]->p(*m,0,pr)) {
         mcxt[6]=0;                          // Enable final mixer
         for (int i=0; i<6; i++) mcxt[i]=-1; // Disable local mixers
         if (x.settings.slow==true) models[M_NORMAL]->p(*m);
-        pr=m->p(1,0);
+        int mode=dynamic_cast<jpegModelx*>(models[M_JPEG])->mode;
+        pr=m->p(1-mode,(mode-0));
     } else {
         mcxt[6]=0;
         int order =models[M_NORMAL]->p(*m);
