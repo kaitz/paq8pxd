@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include <assert.h>
+#include <cmath>
 
 #define bswap(x) \
     +   ((((x) & 0xff000000) >> 24) | \
