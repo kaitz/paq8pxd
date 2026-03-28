@@ -9,14 +9,15 @@ void rleFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     U8 b, c=in->getc();
     int i=1, maxBlockSize=info&0xFFFFFF;
     out->put32(maxBlockSize);
+    for (int i=0; i<256; ++i) out->putc(pData[i]); // pal order
     while (i<(int)size) {
         b=in->getc(), i++;
         if (c==0x80) { c=b; continue; }
         else if (c>0x7F) {
-            for (int j=0; j<=(c&0x7F); j++) out->putc(b);
+            for (int j=0; j<=(c&0x7F); j++) /*out->putc(b);*/out->putc(pData[b]);
             c=in->getc(), i++;
         } else {
-            for (int j=0; j<=c; j++, i++) { out->putc(b), b=in->getc(); }
+            for (int j=0; j<=c; j++, i++) {/* out->putc(b),*/ out->putc(pData[b]),b=in->getc(); }
             c=b;
         }
     }
@@ -27,10 +28,16 @@ uint64_t rleFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     U8 outBuffer[0x10200]={0};
     U64 pos = 0;
     int maxBlockSize=(int)in->get32();
+    uint8_t pal[256];
+    for (int j=0; j<256; ++j) {
+        int i=in->getc();
+        pal[i]=j;
+    }
     enum { BASE, LITERAL, RUN, LITERAL_RUN } state;
     do {
         U64 remaining = in->blockread(&inBuffer[0], maxBlockSize);
         U8 *inPtr = (U8*)inBuffer;
+        for (int j=0; j<remaining; ++j) inPtr[j]=pal[inPtr[j]];
         U8 *outPtr= (U8*)outBuffer;
         U8 *lastLiteral=nullptr;
         state=BASE;

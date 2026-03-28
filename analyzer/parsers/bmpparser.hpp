@@ -12,7 +12,10 @@ class BMPParser: public Parser {
     uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
-public:    
+    int TCOLORS;
+    std::vector<ColorRGBA> bmcolor;
+public:
+    uint8_t pal[256];
     BMPParser();
     ~BMPParser();
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;

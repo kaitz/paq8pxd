@@ -17,7 +17,15 @@ v145
       Controls mixer training and learning rate.
     -In exe model add two new ContextMaps and some new mixer contexts.
     -Remove nest, text and dmc model from exe predictor.
-    
+    -Move IsGrayscalePalette to main parser.
+    -Add OS/2 bmp parser.
+    -Add side data (pal info) to parsers (used by filters).
+    -Enable gray image detection in gif parser.
+    -Fix RLE detection in tga parser.
+    -Add RGB palette reordering filter for 4/8 bit images.
+     Enable in parsers: mrb, tga, bmp, gif.
+    -In default predictor add direct compression mode for reordered palette.
+    -Adjust main mixer in 4/8 bit image predictor.
 v144
     -Fixes for multithreading issues. pthread now works.
     -Separate level 0 in compressStream.

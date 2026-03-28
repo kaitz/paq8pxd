@@ -3,7 +3,6 @@
 #include "../prt/mixers.hpp"
 #include "../prt/EAPM.hpp"
 #include "../prt/ESSE.hpp"
-#include "../prt/APMPost.hpp"
 
 // 8-bit image predicor
 class PredictorIMG8: public Predictors {
@@ -19,11 +18,10 @@ class PredictorIMG8: public Predictors {
             APM APMs[3];
         } Gray;
     } Image;
-    APMPost APMPostA, APMPostB;
     StateMap StateMaps[2];
     eSSE sse;
     const std::vector<ModelTypes> activeModels { 
-        M_MATCH ,
+        M_MATCH,
         M_IM8,
         M_LSTM};
 public:

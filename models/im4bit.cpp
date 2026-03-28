@@ -2,6 +2,14 @@
 
 //////////////////////////// im4bitModel /////////////////////////////////
 // Model for 4-bit image data
+static inline short clp(int z) {
+    if (z<-2047) {
+        z=-2047;
+    } else if (z>2047) {
+        z=2047;
+    }
+    return z;
+}
 
 im4bitModel1::im4bitModel1( BlockData& bd, U32 val): x(bd),buf(bd.buf),
     t(CMlimit((x.settings.level>14?x.MEM()/2:x.MEM())/4) ),
@@ -90,7 +98,7 @@ int im4bitModel1::p(Mixers& m, int w, int val2)  {
         const int p1=sm[i].p3(s,x.y,2);
         const int st=stretch(p1);
         m.add(st);
-        m.add(st*abs(n1-n0));
+        m.add(clp(st*abs(n1-n0))); 
     }
     m.add(stretch(map.p3(px,x.y,1)));
 

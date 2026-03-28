@@ -16,6 +16,14 @@
 +    (((x) & 0x00ff) <<  8)
 
 #define MAX_PRI 7
+
+struct ColorRGBA {
+    union {
+	uint32_t  c;
+	uint8_t   rgba[4];
+	};
+	uint8_t   i;
+};
 // base class for file type detection
 
 // Forward declaration - actual class in prt/file.hpp
@@ -30,6 +38,9 @@ struct dType {
     std::string pinfo;  // parser info string: width, etc
     bool     recursive; // is data recursive
     uint32_t pID;       // parser index 
+    uint8_t *sData;     // side data
+    dType():sData(nullptr){
+    }
 };
 
 class Parser {
@@ -57,4 +68,5 @@ public:
     virtual dType getType()=0;
     virtual void Reset()=0;
     std::string itos(int64_t x, int n=1);
+    bool IsGrayscalePalette(uint8_t* palb, int n=256, int isRGBA=0);
 };

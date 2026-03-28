@@ -2,7 +2,7 @@
 //////////////////////////// im8bitModel /////////////////////////////////
 // Model for 8-bit image data
 
-im8bitModel1::im8bitModel1( BlockData& bd):inpts(48+1),
+im8bitModel1::im8bitModel1( BlockData& bd):inpts(48+1+1+1+1+1+1-3),
     cm(bd,inpts,CMlimit(bd.MEM()*4)),
     cmp(bd,nPltMaps,CMlimit(bd.MEM()/4)),
     col(0),xx(bd),buf(bd.buf), ctx(0),lastPos(0), lastWasPNG(0),line(0), x(0),
@@ -14,14 +14,15 @@ im8bitModel1::im8bitModel1( BlockData& bd):inpts(48+1),
     NNNNW(0), NNNN(0), NNNNE(0), NNNNN(0), NNNNNN(0),MapCtxs(nMaps1), pOLS(nOLS), sceneOls(13, 1, 0.994) {
 
     // Set  model mixer contexts and parameters
-    mxp.push_back( {2048+5,64,0,28,&mxcxt[0],0,false} );
-    mxp.push_back( {  6*16,64,0,28,&mxcxt[1],0,false} );
-    mxp.push_back( {  6*32,64,0,28,&mxcxt[2],0,false} );
-    mxp.push_back( {256*16,64,0,28,&mxcxt[3],0,false} );
-    mxp.push_back( {  1024,64,0,28,&mxcxt[4],0,false} );
-    mxp.push_back( { 64*16,64,0,28,&mxcxt[5],0,false} );
-    mxp.push_back( {   128,64,0,28,&mxcxt[6],0,false} );
-    mxp.push_back( {   256,64,0,28,&mxcxt[7],0,false} );
+    mxp.push_back( {2048+5,64/2,0,28,&mxcxt[0],0,false} );
+    mxp.push_back( {  6*16,64/2,0,28,&mxcxt[1],0,false} );
+    mxp.push_back( {  6*32,64/2,0,28,&mxcxt[2],0,false} );
+    mxp.push_back( {256*16,64/2,0,28,&mxcxt[3],0,false} );
+    mxp.push_back( {  1024,64/2,0,28,&mxcxt[4],0,false} );
+    mxp.push_back( { 64*16,64/2,0,28,&mxcxt[5],0,false} );
+    mxp.push_back( {   128,64/2,0,28,&mxcxt[6],0,false} );
+    mxp.push_back( {   256,64/2,0,28,&mxcxt[7],0,false} );
+    mxp.push_back( {  1024,64/2,0,28,&mxcxt[8],0,false} );
 }
 
 int im8bitModel1::p(Mixers& m ,int w, int val2) {
@@ -44,7 +45,7 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
             }
             buffer.Fill(0x7F);
             prevFramePos = framePos;
-            framePos = xx.blpos;
+            framePos = xx.buf.pos ;
             prevFrameWidth = frameWidth;
             frameWidth = w;
         } else {
@@ -154,7 +155,7 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
                 prvFrmPred = W;
             } else
                 prvFrmPx = prvFrmPred = W;
-
+              
             sceneMap[0].set_direct(prvFrmPx);
             sceneMap[1].set_direct(prvFrmPred);
 
@@ -171,55 +172,62 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
                 iCtx[1]=W|(N<<8);
                 iCtx[2]=W|(WW<<8);
                 iCtx[3]=N|(NN<<8);
-                
-                cm.set(hash( W, px));
-                cm.set(hash( W, px, column[0]));
-                cm.set(hash( N, px));
-                cm.set(hash( N, px, column[0]));
-                cm.set(hash( NW, px));
-                cm.set(hash( NW, px, column[0]));
-                cm.set(hash( NE, px));
-                cm.set(hash( NE, px, column[0]));
-                cm.set(hash( NWW, px));
-                cm.set(hash( NEE, px));
-                cm.set(hash( WW, px));
-                cm.set(hash( NN, px));
-                cm.set(hash( W, N, px));
-                cm.set(hash( W, NW, px));
-                cm.set(hash( W, NE, px));
-                cm.set(hash( W, NEE, px));
-                cm.set(hash( W, NWW, px));
-                cm.set(hash( N, NW, px));
-                cm.set(hash( N, NE, px));
-                cm.set(hash( NW, NE, px));
-                cm.set(hash( W, WW, px));
-                cm.set(hash( N, NN, px));
-                cm.set(hash( NW, NNWW, px));
-                cm.set(hash( NE, NNEE, px));
-                cm.set(hash( NW, NWW, px));
-                cm.set(hash( NW, NNW, px));
-                cm.set(hash( NE, NEE, px));
-                cm.set(hash( NE, NNE, px));
-                cm.set(hash( N, NNW, px));
-                cm.set(hash( N, NNE, px));
-                cm.set(hash( N, NNN, px));
-                cm.set(hash( W, WWW, px));
-                cm.set(hash( WW, NEE, px));
-                cm.set(hash( WW, NN, px));
-                cm.set(hash( W, buffer(w-3), px));
-                cm.set(hash( W, buffer(w-4), px));
-                cm.set(hash( W, N,NW, px));
-                cm.set(hash( N, NN,NNN, px));
-                cm.set(hash( W, NE,NEE, px));
-                cm.set(hash( W,NW,N,NE, px));
-                cm.set(hash( N,NE,NN,NNE, px));
-                cm.set(hash( N,NW,NNW,NN, px));
-                cm.set(hash( W,WW,NWW,NW, px));
-                cm.set(hash( W, NW<<8 | N, WW<<8 | NWW, px));
-                cm.set(hash( px, column[0]));
-                cm.set(( px));
-                cm.set(hash( N, px, column[1] ));
-                cm.set(hash( W, px, column[1] )); //48
+                U32 bcxt[53];
+                i=0;
+                bcxt[i++]=(hash( W, px));
+                bcxt[i++]=(hash( W, px, column[0]));
+                bcxt[i++]=(hash( N, px));
+                bcxt[i++]=(hash( N, px, column[0]));
+                bcxt[i++]=(hash( NW, px));
+                bcxt[i++]=(hash( NW, px, column[0]));
+                bcxt[i++]=(hash( NE, px));
+                bcxt[i++]=(hash( NE, px, column[0]));
+                bcxt[i++]=(hash( NWW, px));
+                bcxt[i++]=(hash( NEE, px));
+                bcxt[i++]=(hash( WW, px));
+                bcxt[i++]=(hash( NN, px));
+                bcxt[i++]=(hash( W, N, px));
+                bcxt[i++]=(hash( W*N/2, px));
+                bcxt[i++]=(hash( W, NW, px));
+                bcxt[i++]=(hash( W, NE, px));
+                bcxt[i++]=(hash( W, NEE, px));
+                bcxt[i++]=(hash( W, NWW, px));
+                bcxt[i++]=(hash( N, NW, px));
+                bcxt[i++]=(hash( N, NE, px));
+                bcxt[i++]=(hash( NW, NE, px));
+                bcxt[i++]=(hash( W, WW, px));
+                bcxt[i++]=(hash( N, NN, px));
+                bcxt[i++]=(hash( N* NN/2, px));
+                bcxt[i++]=(hash( NW, NNWW, px));
+                bcxt[i++]=(hash( NE, NNEE, px));
+                bcxt[i++]=(hash( NW, NWW, px));
+                bcxt[i++]=(hash( NW, NNW, px));
+                bcxt[i++]=(hash( NE, NEE, px));
+                bcxt[i++]=(hash( NE, NNE, px));
+                bcxt[i++]=(hash( N, NNW, px));
+                bcxt[i++]=(hash( N, NNE, px));
+                bcxt[i++]=(hash( N, NNN, px));
+                bcxt[i++]=(hash( W, WWW, px));
+                bcxt[i++]=(hash( WW, NEE, px));
+                bcxt[i++]=(hash( WW, NN, px));
+                bcxt[i++]=(hash( W, buffer(w-3), px));
+                bcxt[i++]=(hash( W, buffer(w-4), px));
+                bcxt[i++]=(hash( W, N,NW, px));
+                bcxt[i++]=(hash( N, NN,NNN, px));
+                bcxt[i++]=(hash( W, NE,NEE, px));
+                bcxt[i++]=(hash( W,NW,N,NE, px));
+                bcxt[i++]=(hash( N,NE,NN,NNE, px));
+                bcxt[i++]=(hash( N,NW,NNW,NN, px));
+                bcxt[i++]=(hash( W,WW,NWW,NW, px));
+                bcxt[i++]=(hash( W, NW<<8 | N, WW<<8 | NWW, px));
+                bcxt[i++]=(hash( px, column[0]));
+                bcxt[i++]=(hash( px,Clip((buffer(w*5)-6*buffer(w*4)+15*NNN-20*NN+15*N+Clamp4(W*2-NWW,W,NW,N,NN))/6)));
+                bcxt[i++]=(hash( N, px, column[1] ));
+                bcxt[i++]=(hash( W, px, column[1] )); //48
+                /*bcxt[i++]=hash( std::sqrt(W*WW+NW*NWW),std::sqrt(N*NN+ NE*NNE), px);
+                bcxt[i++]=hash( std::sqrt(W*WW+NW*NWW),std::sqrt(N*NN+ NE*NNE),std::sqrt(N*NW+ NN*NNW) ,px);
+                bcxt[i++]=hash( std::sqrt(W*WW+NW*NWW)-std::sqrt(W*NW+ N*128) ,px);*/
+                for (int j=0; j<53-3; j++) cm.set(bcxt[j]);
                 for (int j=0; j<nPltMaps; j++) //4
                 cmp.set(( iCtx[j]()*191+ px));
                 ctx = min(0x1F,(x-isPNG)/min(0x20,columns[0]));
@@ -370,7 +378,7 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
         mxcxt[5]=min(63,column[0])*16+(W>>4);
         mxcxt[6]=min(127,column[1]);
         mxcxt[7]=min(255,(x+line)/32);
-        mxcxt[7]=-1;
+        mxcxt[8]=gray?((N>>5)*8+(W>>5)*64+(NW>>5))*2+(bpos==0):-1;//((W==WW)*2+(N=NN));
     } else {
         m.add( -2048+((filter>>(7-bpos))&1)*4096 );
         mxcxt[0]=min(4,filter);

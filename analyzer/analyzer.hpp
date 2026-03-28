@@ -43,6 +43,7 @@
 #include "parsers/isoparser.hpp"
 #include "parsers/iscabparser.hpp"
 #include "parsers/armparser.hpp"
+#include "parsers/bmp2parser.hpp"
 
 class Analyzer {
     Settings &set;

@@ -11,7 +11,10 @@ class GIFParser: public Parser {
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
     bool rec;
-public:    
+    int TCOLORS;
+    std::vector<ColorRGBA> bmcolor;
+public:
+    uint8_t palo[256];
     GIFParser();
     ~GIFParser();
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;

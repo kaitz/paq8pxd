@@ -7,11 +7,12 @@ gifFilter::gifFilter(std::string n, Settings &s, Filetype f):Filter(s) {
 
 void gifFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     uint64_t len=size;
-    int codesize=in->getc(),hdrsize=6,clearpos=0,bsize=0,code,offset=0;
+    int codesize=in->getc(),hdrsize=6+256,clearpos=0,bsize=0,code,offset=0;
     U64 diffpos=0,beginin= in->curpos(),beginout= out->curpos();
     Array<U8,1> output(4096);
     out->putc(hdrsize>>8);
     out->putc(hdrsize&255);
+    for (int i=0; i<256; ++i) out->putc(pData[i]); // pal order
     out->putc(bsize);
     out->putc(clearpos>>8);
     out->putc(clearpos&255);
@@ -53,8 +54,8 @@ void gifFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
                             j=dict[j]>>8;
                         }
                         output[4096-size]=j;
-                        if (phase==1) out->blockwrite(&output[4096-size],  size  ); else diffpos+=size;
-                        if (code==maxcode+1) { if (phase==1) out->putc(j); else diffpos++; }
+                        if (phase==1) for (int i=0; i<size; ++i) out->putc(pData[output[(4096-size)+i]])/*out->blockwrite(&output[4096-size],  size  )*/; else diffpos+=size;
+                        if (code==maxcode+1) { if (phase==1) out->putc(pData[j])/*out->putc(j)*/; else diffpos++; }
                         if (last!=-1) {
                             if (++maxcode>=8191) {diffFound=1;return;}
                             if (maxcode<=4095) {
@@ -81,6 +82,7 @@ void gifFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     out->setpos(beginout);
     out->putc(hdrsize>>8);
     out->putc(hdrsize&255);
+    for (int i=0; i<256; ++i) out->putc(pData[i]); // pal order
     out->putc(255-bsize);
     out->putc((clearpos>>8)&255);
     out->putc(clearpos&255);
@@ -91,7 +93,12 @@ void gifFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
 uint64_t gifFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     int diffcount=in->getc(), curdiff=0;
     Array<int> diffpos(4096);//, diffpos[4096];
-    diffcount=((diffcount<<8)+in->getc()-6)/4;
+    Array<int> pal(4096);
+    diffcount=((diffcount<<8)+in->getc()-(6+256))/4;
+    for (int j=0; j<256; ++j) {
+        int i=in->getc();
+        pal[i]=j;
+    }
     int bsize=255-in->getc();
     int clearpos=in->getc(); clearpos=(clearpos<<8)+in->getc();
     clearpos=(69631-clearpos)&0xffff;
@@ -110,10 +117,11 @@ uint64_t gifFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
     }
     Array<U8,1> output(256);
     size-=6+diffcount*4;
-    int last=in->getc(),total=size+1,outsize=1;
+    int last=pal[in->getc()],total=size+1,outsize=1;
     out->putc(codesize);
     if (diffcount==0 || diffpos[0]!=0) gif_write_code(1<<codesize) else curdiff++;
     while (size!=0 && (input=in->getc())!=EOF) {
+        input=pal[input&255];
         size--;
         int key=(last<<8)+input, index=(code=-1);
         if (last<0) index=input; else lzw_find(key);
@@ -121,9 +129,10 @@ uint64_t gifFilter::decode(File *in, File *out, uint64_t size, uint64_t info) {
         if (curdiff<diffcount && total-(int)size>diffpos[curdiff]) curdiff++, code=-1;
         if (code<0) {
             gif_write_code(last);
-            if (maxcode==clearpos) { gif_write_code(1<<codesize); bits=codesize+1, maxcode=(1<<codesize)+1; lzw_reset }
-            else
-            {
+            if (maxcode==clearpos) {
+                gif_write_code(1<<codesize); bits=codesize+1, maxcode=(1<<codesize)+1;
+                lzw_reset
+            } else {
                 ++maxcode;
                 if (maxcode<=4095) { dict[maxcode]=key; table[(index<0)?-index-1:offset]=maxcode; }
                 if (maxcode>=(1<<bits) && bits<12) bits++;

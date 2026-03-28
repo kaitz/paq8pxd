@@ -221,7 +221,7 @@ void Codec::EncodeFileRecursive(File*in, uint64_t n, char *blstr, int it, Filety
             if (settings.verbose>2) {
                 printf("|%12.0f [%0.0f - %0.0f] %s\n",len+0.0,begin+0.0,(begin+len-1)+0.0, block.pinfo.c_str());
             }
-            transform_encode_block(type, in, len, info,info2, blstr, it, begin,tmp);
+            transform_encode_block(type, in, len, info,info2, blstr, it, begin,tmp,&block);
             n-=len;
 
             begin+=len;
@@ -241,7 +241,7 @@ void Codec::direct_encode_blockstream(Filetype type, File*in, U64 len, int info)
     for (U64 j=0; j<len; ++j) sout->file.putc(in->getc());
 }
 
-void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin,File*tmp) {
+void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin,File*tmp, dType *dblock) {
     tmp->truncate();
     assert(it<recDepth);
     if (streams->GetTypeInfo(type)&TR_TRANSFORM) {
@@ -249,6 +249,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         U64 diffFound=0;
         U32 winfo=0;
         Filter* dataf=GetFilter(type);
+        dataf->SetData(dblock->sData);
         if (type==IMAGE24) dataf->encode(in, tmp, len, uint64_t(info));
         else if (type==IMAGE32) dataf->encode(in, tmp, len, uint64_t(info));
         else if (type==BM8_IMG) dataf->encode(in, tmp, len, uint64_t(info));
@@ -445,37 +446,40 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 direct_encode_blockstream(type, tmp, tmpsize, info);
             } else if (type==MRBR || type==MRBR4) {
                 segment->putdata(type,tmpsize,0);
+                int colorsw=int((info>>24)&0xffffff)==IMAGE8?1:0;
+                tmp->setpos(tmp->curpos()+256*colorsw+1);
                 int hdrsize=( tmp->getc()<<8)+(tmp->getc());
                 Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
-                hdrsize=2+hdrsize*4+4; // diffcount(x=2),diff(x*4),len(4)
+                hdrsize=256*colorsw+1+2+hdrsize*4+4; // diffcount(x=2),diff(x*4),len(4)
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
-                direct_encode_blockstream(HDR, tmp, hdrsize);
+                direct_encode_blockstream(HDR, tmp, hdrsize,MRBR);
                 if (it==itcount)    itcount=it+1;
                 AddStat(type2,tmpsize-hdrsize,it+1);
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==BM8_IMG) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=( tmp->getc()<<8)+(tmp->getc());
-                //Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
                 hdrsize=2+hdrsize;
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
-                direct_encode_blockstream(HDR, tmp, hdrsize);
+                Filetype type2 =(Filetype)(info>>24);
+                direct_encode_blockstream(HDR, tmp, hdrsize,type2);
+                if (type2 ==BM8_OS2) type2 =IMAGE8;
                 if (it==itcount)    itcount=it+1;
-                AddStat(IMAGE8,tmpsize-hdrsize,it+1);
-                direct_encode_blockstream(IMAGE8, tmp, tmpsize-hdrsize, info);
+                AddStat(type2,tmpsize-hdrsize,it+1);
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==BM4_IMG) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=( tmp->getc()<<8)+(tmp->getc());
-                //Filetype type2 =type==MRBR?IMAGE8:IMAGE4;
                 hdrsize=2+hdrsize;
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
-                direct_encode_blockstream(HDR, tmp, hdrsize);
+                Filetype type2 =(Filetype)(info>>24);
+                direct_encode_blockstream(HDR, tmp, hdrsize,type2);
                 if (it==itcount)    itcount=it+1;
-                AddStat(IMAGE4,tmpsize-hdrsize,it+1);
-                direct_encode_blockstream(IMAGE4, tmp, tmpsize-hdrsize, info);
+                AddStat(type2,tmpsize-hdrsize,it+1);
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
                 segment->putdata(type,tmpsize,0);
                 Filetype type2 =(Filetype)(info>>24);
@@ -490,14 +494,14 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==RLE) {
                 segment->putdata(type,tmpsize,0);
-                int hdrsize=( 4);
+                int hdrsize=( 4+256);
                 Filetype type2 =(Filetype)(info>>24);
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
-                direct_encode_blockstream(HDR, tmp, hdrsize);
+                direct_encode_blockstream(HDR, tmp, hdrsize,RLE);
                 if (it==itcount)    itcount=it+1;
                 AddStat(type2,tmpsize-hdrsize,it+1);
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info);
+                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==LZW) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=0;
@@ -507,7 +511,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 AddStat(type2,tmpsize-hdrsize,it+1);
                 if (type2==IMAGE32 || type2==IMAGE24) {
                     FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
-                    transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it, hdrsize, treb);
+                    transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it, hdrsize, treb,dblock);
                     treb->close();
                 } else
                     direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
@@ -550,7 +554,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 direct_encode_blockstream(CMP, tmp, hdrsize);
                 AddStat(TEXT,tmpsize-hdrsize,it+1);
                 FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
-                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize,  -1,-1, blstr, it, hdrsize,treb);
+                transform_encode_block(TEXT,  tmp, tmpsize-hdrsize,  -1,-1, blstr, it, hdrsize,treb,dblock);
                 treb->close();
             } else if (streams->GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
@@ -570,7 +574,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                         else if (info2 && (imlen/(info&0xffffff)/info2)==4) type2=IMAGE32,info=(info&0xffffff)*4;
                         AddStat(type2,imlen,it+1);
                         FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
-                        transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it, hdrsize, treb);
+                        transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it, hdrsize, treb,dblock);
                         treb->close();
                     } else {
                         EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, ZLIB);
@@ -587,10 +591,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, type, pt);
                 } else if (type==SHRINK || type==REDUCE|| type==IMPLODE) { 
                     if (it==itcount) itcount=it+1;
-                    //int hdrsize=4+tmp->get32(); // recon_info
                     tmp->setpos(0);
-                    //typenamess[HDR][it+1]+=hdrsize, typenamesc[HDR][it+1]++; 
-                    //direct_encode_blockstream(HDR, tmp, hdrsize);
                     ParserType pt=P_WDEFAULT;
                     if (type==SHRINK) pt=(ParserType)info;
                     assert(pt<P_WLAST);

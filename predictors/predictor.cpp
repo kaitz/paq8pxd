@@ -2,8 +2,8 @@
 
 // General predicor class
 Predictor::Predictor(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),
-    ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
-    sse(x) {
+ismatch(0), a(x),isCompressed(false),count(0),lastmiss(0),
+sse(x) {
     loadModels(activeModels);
     // add extra 
     mixerInputs+=1;
@@ -23,6 +23,8 @@ Predictor::Predictor(Settings &set):Predictors(set), pr(16384),pr0(pr),order(0),
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
     mcxt[8]=0;
     einfo.reset();
+    palactive=false;
+    paloff=0;
 }
 
 void Predictor::update()  {
@@ -34,6 +36,62 @@ void Predictor::update()  {
         const int el=(14-einfo.rates)*16;
         m->setErrLimit(el,einfo.rates*2);
     }
+    // predict pal reordered bytes
+    if (palactive==true && x.blpos>=paloff) {
+        pr=(((pal[(x.blpos-paloff)&255]>>(7-x.bpos))&1)*4096);
+        pr=(4096-pr)*(32768/4096);
+        if (pr<1) pr=1;
+        if (pr>32767) pr=32767;
+        if (x.blpos==(TCOLORS-1+paloff)&&x.bpos==7) palactive=false;
+        return;
+    }
+    if (x.blpos==1 && palactive==false && x.bpos==7) {
+        if (x.filetype==HDR && (x.finfo==RLE || x.finfo==MRBR || x.finfo==IMAGE4 || x.finfo==IMAGE8 || x.finfo==BM8_OS2 || x.finfo==IMAGE8GRAY)) {
+            TCOLORS=256;
+            int alpha=1;
+            if (x.finfo==MRBR) paloff=1;
+            else if (x.finfo==IMAGE4 || x.finfo==IMAGE8 || x.finfo==IMAGE8GRAY) paloff=2;
+            else if (x.finfo==BM8_OS2) paloff=2,alpha=0;
+            else if (x.finfo==RLE) paloff=4,alpha=0; // tga
+            if (x.finfo==IMAGE4) TCOLORS=16;
+            int i=0;
+            struct ColorRGBA {
+                union {
+                    uint32_t c;
+                    uint8_t  rgba[4];
+                };
+                uint8_t   i;
+            };
+            std::vector<ColorRGBA> bmcolor;
+            for (int j=0; j<TCOLORS*(3+alpha); j=j+(3+alpha)) {
+                uint32_t c=x.buf(TCOLORS*(3+alpha)+1-j);
+                c=c*256+x.buf(TCOLORS*(3+alpha)+1-j-1);
+                c=c*256+x.buf(TCOLORS*(3+alpha)+1-j-2);
+                c=c*256+alpha*x.buf(TCOLORS*(3+alpha)+1-j-3);
+                ColorRGBA colori;
+                colori.c=c;
+                colori.i=i++;
+                bmcolor.push_back(colori);
+            }
+            // Sort colors by Cartesian distance
+            std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b) {
+                int a1=std::sqrt(a.rgba[3] + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
+                int b1=std::sqrt(b.rgba[3] + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
+                return (a1 < b1);
+            });
+            // Map to new order
+            for (int i=0; i<TCOLORS; ++i) {
+                for (int j=0; j<TCOLORS; ++j) {
+                    ColorRGBA colori=bmcolor[j];
+                    if (colori.i==i) {
+                        pal[i]=j;
+                        break;
+                    } 
+                }
+            }
+            palactive=true;
+        }
+    } // end pal
     if (x.bpos==0) {
         lastmiss=x.Misses&0xFF?x.blpos:lastmiss;
         int b1=x.buf(1);

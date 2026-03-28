@@ -31,7 +31,49 @@ DetectState GIFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         } 
          if (state==START || state==INFO) {
             if (gif==1 && i==gifi) gif=2,gifi = i+5+(plt=(c&128)?(3*(2<<(c&7))):0);
-            if (gif==2 && plt && i==gifi-plt-3) /*gray = IsGrayscalePalette(in, plt/3),*/ plt = 0;
+            if (gif==2 && plt && i==gifi-plt-3) {
+                 TCOLORS=plt/3;
+                                int i=0;
+                                for (int j=0; j<TCOLORS*3; j=j+3) {
+                                    ColorRGBA colori;
+                                    uint32_t c=data[inSize+1+j];
+                                    c=c*256+data[inSize+1+j+1];
+                                    c=c*256+data[inSize+1+j+2];
+                                    c=c*256+0;
+                                    colori.c=c;
+                                    colori.i=i++;
+                                    bmcolor.push_back(colori);
+                                }
+                                // fill empty
+                                for (int j=TCOLORS*3; j<256*3; j=j+3) {
+                                    ColorRGBA colori;
+                                    uint32_t c=0xffffffff;
+                                    colori.c=c;
+                                    colori.i=i++;
+                                    bmcolor.push_back(colori);
+                                }
+                                // Sort colors by Cartesian distance
+                                std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b){
+                                    int a1=std::sqrt(a.rgba[3] + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
+                                    int b1=std::sqrt(b.rgba[3] + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
+                                    // plain a.c < b.c also works but is worse
+                                    //return (a.c < b.c);
+                                    return (a1 < b1);
+                                });
+                                TCOLORS=256;
+                                // Map to new order
+                                for (int i=0; i<TCOLORS; ++i) {
+                                    for (int j=0; j<TCOLORS; ++j) {
+                                        ColorRGBA colori=bmcolor[j];
+                                        if (colori.i==i) {
+                                            palo[i]=j;
+                                            break;
+                                        } 
+                                    }
+                                }
+                                bmcolor.clear();
+                                gray = IsGrayscalePalette(&data[inSize+1], plt/3), plt = 0;
+            }
             if (gif==2 && i==gifi) {
                 if ((buf0&0xff0000)==0x210000) gif=5,gifi=i;
                 else if ((buf0&0xff0000)==0x2c0000) gif=3,gifi=i,state=INFO;
@@ -39,7 +81,7 @@ DetectState GIFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             }
             if (gif==3 && i==gifi+6) gifw=(bswap(buf0)&0xffff);
             if (gif==3 && i==gifi+7) gif=4,gifc=gifb=0,gifa=gifi=i+2+(plt=((c&128)?(3*(2<<(c&7))):0));
-            if (gif==4 && plt) /*gray = IsGrayscalePalette(in, plt/3),*/ plt = 0;
+            if (gif==4 && plt) gray = IsGrayscalePalette(&data[inSize+1], plt/3), plt = 0;
             if (gif==4 && i==gifi) {
                 if (c>0 && gifb && gifc!=gifb) gifw=0;
                 if (c>0) gifb=gifc,gifc=c,gifi+=c+1;
@@ -87,6 +129,7 @@ dType GIFParser::getType() {
     t.rpos=0;      // pos where start was set in block
     t.type=type;
     t.recursive=rec;
+    t.sData=&palo[0];
     return t;
 }
 
@@ -96,4 +139,6 @@ void GIFParser::Reset() {
     info=i=inSize=0;
     rec=false;
     priority=3;
+    TCOLORS=256;
+    bmcolor.reserve(TCOLORS);
 }

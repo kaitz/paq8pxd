@@ -10,7 +10,6 @@
 #include "../prt/sscm.hpp"
 #include "../prt/ols.hpp"
 #include "../prt/CM128.hpp"
-
 //////////////////////////// im8bitModel /////////////////////////////////
 // Model for 8-bit image data
 
@@ -75,11 +74,10 @@ class im8bitModel1: public Model {
     const U8 *ols_ctx4[10] = { &N, &NE, &NEE, &NEEE, &NN, &NNE, &NNEE, &NNN, &NNNE, &NNNN };
     const U8 *ols_ctx5[14] = { &WWWW, &WWW, &WW, &W, &NWWW, &NWW, &NW, &N, &NNWW, &NNW, &NN, &NNNW, &NNN, &NNNN };
     const U8 **ols_ctxs[nOLS] = { &ols_ctx1[0], &ols_ctx2[0], &ols_ctx3[0], &ols_ctx4[0], &ols_ctx5[0] };
-
 public:
     int mxcxt[9];
     im8bitModel1(BlockData& bd);
-    int inputs() {return inpts*cm.inputs()+cm.inputs()*4+nMaps*2+nPltMaps*2+5*2;}
+    int inputs() {return inpts*cm.inputs()+cm.inputs()*4+ nMaps*2+nPltMaps*2;}
     int p(Mixers& m, int w=0, int val2=0);
     // Square buf(i)
     inline int sqrbuf(int i) {

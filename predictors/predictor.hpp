@@ -35,7 +35,9 @@ class Predictor: public Predictors {
         M_SPARSEMATCH, 
         M_SPARSE_Y,
         M_PPM,M_CHART,M_LSTM};
-
+    bool palactive;
+    int pal[256];
+    int paloff,TCOLORS;
 public:
     int mcxt[9];
     Predictor(Settings &);

@@ -35,5 +35,4 @@ public:
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;
     dType getType() final;
     void Reset() final;
-    bool IsGrayscalePalette(uint8_t * palb, int n = 256, int isRGBA = 0);
 };

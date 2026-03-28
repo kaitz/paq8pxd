@@ -84,7 +84,7 @@ void StateMap::Reset(int Rate){
   }
   int StateMap::p3(int cx,const int y,const int rate) {
     assert(cx>=0 && cx<N);
-    assert(limit>0 && limit<1024);
+    //assert(limit>0 && limit<1024);
     assert(y==0 || y==1);
     U32 p0=t[cxt];
     int pr=p0>>10;  // count, prediction

@@ -56,7 +56,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     y=x;
                     // if DIB and not 24bpp, we must calculate the data offset based on BPP or num. of entries in color palette
                     if (hdrless && (bpp<24))
-                        of=of+((buf0)?bswap(buf0)*4:4<<bpp);
+                    of=of+((buf0)?bswap(buf0)*4:4<<bpp);
                     of=of+(bmp-1)*(bmp<1?-1:0);
                     if (hdrless && size && size<((x*y*bpp)>>3)) { }//Guard against erroneous DIB detections
                     else { 
@@ -65,10 +65,14 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             type=IMAGE24;
                         } else  if (bpp==4) {
                             info=((x*4+31)>>5)*4;
-                            if (hdrless) type=IMAGE4; else type=BM4_IMG;
+                            if (hdrless || y<=64 ) 
+                            type=IMAGE4; else type=BM4_IMG;
+                            TCOLORS=16;
                         } else  if (bpp==8) {
                             info=(x+3)&0xFFFFFFFC;// -4;
-                            if (hdrless) type=IMAGE8; else type=BM8_IMG;
+                            if (hdrless) 
+                            type=IMAGE8; else type=BM8_IMG;
+                            TCOLORS=256;
                         } else  if (bpp==1) {
                             info=(((x-1)>>5)+1)*4;
                             type=IMAGE1;
@@ -76,16 +80,52 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         if (type!=DEFAULT){
                             state=INFO;
                             jstart=of+bmp-1;
-                            if (type==BM8_IMG){
-                                jstart=jstart-1024;
-                                jend=info*y+jstart+1024;
-                            }  else  if (type==BM4_IMG){
-                                jstart=jstart-64;
-                                jend=info*y+jstart+64;
-                            
-                            }else
                             jend=info*y+jstart;
-                            pinfo="(width: "+ itos(info) +")";
+                            if (type==BM8_IMG || type==BM4_IMG) {
+                                inSize++;inSize+=4;
+                                for (int j=0; j<TCOLORS; ++j) {
+                                    ColorRGBA colori;
+                                    uint32_t c=data[inSize++];
+                                    c=c*256+data[inSize++];
+                                    c=c*256+data[inSize++]; 
+                                    c=c*256+data[inSize++];
+                                    colori.c=(c);
+                                    colori.i=j;
+                                    bmcolor.push_back(colori);
+                                }
+                                // Sort colors by Cartesian distance
+                                std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b){
+                                    int a1=std::sqrt((a.rgba[3]) + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
+                                    int b1=std::sqrt((b.rgba[3]) + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
+                                    // plain a.c < b.c also works but is worse
+                                    //return (a.c < b.c);
+                                    return (a1 < b1);
+                                });
+                                // Map to new order
+                                for (int i=0; i<TCOLORS; ++i) {
+                                    for (int j=0; j<TCOLORS; ++j) {
+                                        ColorRGBA colori=bmcolor[j];
+                                        if (colori.i==i) {
+                                            pal[i]=j;
+                                            break;
+                                        } 
+                                    }
+                                }
+                                // Count how many values are out of range (64)
+                                // When count is below 5 then report gray image.
+                                int largeDCount=0;
+                                for (int i=0; i<TCOLORS-1; ++i) {
+                                    ColorRGBA colori=bmcolor[i];
+                                    ColorRGBA colorj=bmcolor[i+1];
+                                    int distance=abs(abs(colori.rgba[1]-colorj.rgba[1])) + abs(colori.rgba[2]-colorj.rgba[2]);
+                                    if (distance>64) largeDCount++;
+                                }
+                                bmcolor.clear();
+                                if (type==BM4_IMG) info=info+(IMAGE4<<24);
+                                else if (type==BM8_IMG && largeDCount<1) info=info+(IMAGE8GRAY<<24);
+                                else if (type==BM8_IMG) info=info+(IMAGE8<<24);
+                            }
+                            pinfo="(width: "+ itos(info&0xffffff) +")";
                             // report state only if larger then block
                             if ((jend-jstart)>len) return state;
                             else if ((jend-jstart)<len) {
@@ -120,6 +160,8 @@ dType BMPParser::getType() {
     t.rpos=0;      // pos where start was set in block
     t.type=type;
     t.recursive=false;
+    t.sData=&pal[0];
+    //printf("Get  data %d\n",pal[0]);
     return t;
 }
 
@@ -127,4 +169,6 @@ void BMPParser::Reset() {
     state=NONE,type=DEFAULT,jstart=jend=buf0=buf1=0;
     bmp=bpp=x=y=of=size=hdrless=info=i=inSize=0;
     priority=2;
+    TCOLORS=256;
+    bmcolor.reserve(TCOLORS);
 }

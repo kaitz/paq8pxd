@@ -34,7 +34,7 @@ void PredictorIMG4::update()  {
     m->add((stretch(StateMaps[0].p(x.Image.pixels.px,x.y))+1));
     m->add((stretch(StateMaps[1].p(x.Image.pixels.px|(x.Image.pixels.W<<4),x.y))+1));
     m->add((stretch(StateMaps[2].p(x.Image.pixels.px|(x.Image.pixels.N<<4),x.y))+1));
-    int pr0=m->p(3,0);
+    int pr0=m->p(2+min(1,m->nx/(m->zpr+1)),1);
     int pr1, pr2, pr3;
     int limit=0x3FF;//>>((x.blpos<0xFFF)*4);
     pr  = Image.APMs[0].p(pr0, (x.Image.pixels.px<<4)|(x.Misses&0xF), x.y, limit);

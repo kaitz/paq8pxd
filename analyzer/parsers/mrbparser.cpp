@@ -97,9 +97,39 @@ DetectState mrbParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         } else if (mrbPackingMethod==1) {
                             jstart=mrb+7+CompressedOffset;
                             if (BitCount==8) type=MRBR;
-                            else if (BitCount==4) type=MRBR4,
+                            else if (BitCount==4) type=MRBR4,state=NONE,mrb=0;
                             pinfo="(width: "+ itos(mrbw) +")";
                             info=(((mrbw+3)/4)*4)+(mrbh<<32);
+                            if (type==MRBR) {
+                                info=info+(IMAGE8<<24);
+                                for (int j=0; j<TCOLORS; ++j) {
+                                    uint32_t c=data[inSize++];
+                                    c=c*256+data[inSize++];
+                                    c=c*256+data[inSize++]; 
+                                    c=c*256+data[inSize++];
+                                    ColorRGBA colori;
+                                    colori.c=c;
+                                    colori.i=j;
+                                    bmcolor.push_back(colori);
+                                }
+                                // Sort colors by Cartesian distance
+                                std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b) {
+                                    int a1=std::sqrt(a.rgba[3] + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
+                                    int b1=std::sqrt(b.rgba[3] + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
+                                    return (a1 < b1);
+                                });
+                                // Map to new order
+                                for (int i=0; i<TCOLORS; ++i) {
+                                    for (int j=0; j<TCOLORS; ++j) {
+                                        ColorRGBA colori=bmcolor[j];
+                                        if (colori.i==i) {
+                                            pal[i]=j;
+                                            break;
+                                        } 
+                                    }
+                                }
+                                bmcolor.clear();
+                            }
                         }
                         jend=jstart+mrbcsize;   
                         state=END;
@@ -131,6 +161,7 @@ dType mrbParser::getType() {
     t.rpos=0;      // pos where start was set in block
     t.type=type;
     t.recursive=false;
+    t.sData=&pal[0];
     return t;
 }
 
@@ -139,4 +170,6 @@ void mrbParser::Reset() {
     mrb=0,mrbsize=0,mrbcsize=0,mrbPictureType=0,mrbPackingMethod=0,mrbTell=0,mrbTell1=0,mrbw=0,mrbh=0;
     info=i=inSize=0;
     priority=3;
+    TCOLORS=256;
+    bmcolor.reserve(TCOLORS);
 }

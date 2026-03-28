@@ -115,6 +115,7 @@ void Analyzer::SelectParser(ParserType p) {
         return;
     case P_BMP:
         AddParser( new BMPParser());
+        AddParser( new BMP2Parser());
         return;
     case P_TXT:
         AddParser( new TextParser());

@@ -2,6 +2,8 @@
 #include "../parser.hpp"
 #include <cstdint>
 #include <vector>
+#include <vector>
+#include <algorithm>
 
 // detect rle encoded, uncompressed mrb files inside windows .hlp files
 // signature: 0x506C (SHG,lP) or 0x706C (MRB,lp)
@@ -14,10 +16,13 @@ class mrbParser: public Parser {
     uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
-    uint32_t GetCDWord(unsigned char *data );
-    uint16_t GetCWord(unsigned char *data );
-    uint8_t GetC(unsigned char *data );
-public:    
+    int TCOLORS;
+    std::vector<ColorRGBA> bmcolor;
+    uint32_t GetCDWord(unsigned char *data);
+    uint16_t GetCWord(unsigned char *data);
+    uint8_t GetC(unsigned char *data);
+public:
+    uint8_t pal[256];
     mrbParser();
     ~mrbParser();
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;

@@ -7,9 +7,10 @@ ImgMRBFilter::ImgMRBFilter(std::string n, Settings &s, Filetype f):Filter(s) {
 
 // simple color transform (b, g, r) -> (g, g-r, g-b)
 void ImgMRBFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
-    int width=int(info&0xffffffff);
+    int width=int(info&0xffffff);
+    int colorsw=int((info>>24)&0xff);
     int height=int(info>>32);
-  U64 savepos= in->curpos();
+    U64 savepos= in->curpos();
     int totalSize=(width)*height;
     Array<U8,1> ptrin(totalSize+4);
     Array<U8,1> ptr(size+4);
@@ -34,16 +35,25 @@ void ImgMRBFilter::encode(File *in, File *out, uint64_t size, uint64_t info) {
     assert(a<(size+4));
     // compare to original and output diff data
     in->setpos(savepos);
-    for(int i=0;i<size;i++){
+    for(int i=0; i<size; i++) {
         U8 b=ptr[i],c=in->getc();
-        if (diffcount==4095 ||  diffcount>(size/2)||i>0xFFFFFF) return; // fail
-        if (b!=c ) {
-            if (diffcount<4095)diffpos[diffcount++]=c+(i<<8);
+        if (diffcount==4095 ||  diffcount>(size/2) || i>0xFFFFFF) return; // fail
+        if (b!=c) {
+            if (diffcount<4095) diffpos[diffcount++]=c+(i<<8);
         }
     }
+    if (colorsw) {
+        for(int i=0; i<totalSize; i++) {
+            ptrin[i]=pData[ptrin[i]];
+        }
+    }
+    if (colorsw) {
+        out->putc(1);
+        out->blockwrite(pData, 256);
+    } else out->putc(0);
     out->putc((diffcount>>8)&255); out->putc(diffcount&255);
     if (diffcount>0)
-    out->blockwrite((U8*)&diffpos[0], diffcount*4);
+        out->blockwrite((U8*)&diffpos[0], diffcount*4);
     out->put32(size);
     out->blockwrite(&ptrin[0], totalSize);
 } 
@@ -55,13 +65,28 @@ uint64_t ImgMRBFilter::decode(File *in, File *out, uint64_t size, uint64_t info)
     }
     Array<U32> diffpos(4096);
     int diffcount=0;
+    uint8_t pal1[256];
+    uint8_t pal[256];
+    int colorsw=in->getc();
+    if (colorsw) {
+        in->blockread((uint8_t*)&pal1[0],256);
+        for (int j=0; j<256; ++j) {
+            pal[pal1[j]]=j;
+        }
+    }
     diffcount=(in->getc()<<8)+in->getc();
     if (diffcount>0) in->blockread((U8*)&diffpos[0], diffcount*4);
     int len=in->get32();
     Array<U8,1> fptr(size+4);
     Array<U8,1> ptr(size+4);
     in->blockread(&fptr[0], size);
-    encodeRLE(&ptr[0],&fptr[0],size-2-4-diffcount*4,len); //size - header
+    const int imgSize=(size-256*colorsw-1-2-4-diffcount*4);
+    if (colorsw) {
+        for (int j=0; j<imgSize; ++j) {
+            fptr[j]=pal[fptr[j]];
+        }
+    }
+    encodeRLE(&ptr[0],&fptr[0],imgSize,len); //size - header
     //Write out or compare
     int diffo=diffpos[0]>>8;
     int diffp=0;
@@ -98,7 +123,7 @@ int ImgMRBFilter::encodeRLE(U8 *dst, U8 *ptr, int src_end, int maxlen) {
             // Get the number of repeating bytes
             int j=0;
             for (j=ind+1;j<(src_end);j++)
-                if (ptr[j+0]!=ptr[j+1]) break;
+            if (ptr[j+0]!=ptr[j+1]) break;
             int pixels=j-ind+1;          
             if (j==src_end && pixels<4) {
                 pixels--;              

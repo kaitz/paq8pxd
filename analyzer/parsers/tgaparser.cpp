@@ -35,7 +35,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             total=0; isPal=false;
         } else if (state==NONE && (buf1&0xFFF7FF)==0x00000300 && buf0==0x00000000) {
             state=START;
-            tga=i,tgax=tgay,tgaz=8,tgat=(buf1>>8)&0xF;
+            tga=i,tgax=tgay,tgaz=8,tgat=(buf1>>8)&0xF;tgaid=buf1>>24;
             total=0; isPal=false;
         } else if (state==START) {
             if (i-tga==8) tga=(buf1==0?tga:0),tgax=(bswap(buf0)&0xffff),tgay=(bswap(buf0)>>16);
@@ -43,6 +43,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 if ((buf0&0xFFF7)==32<<8)
                 tgaz=32;
                 if ((tgaz<<8)==(int)(buf0&0xFFD7) && tgax && tgay && uint32_t(tgax*tgay)<0xFFFFFFF) {
+                    for (int j=0; j<256; ++j) palo[i]=i;
                     if (tgat==1) {
                         jstart=tga-7+18+tgaid+256*tgamap;
                         jend=jstart+tgax*tgay;
@@ -74,7 +75,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             pali=0;
                         }
                         else
-                            info=IMAGE8GRAY<<24;
+                        info=IMAGE8GRAY<<24,jstart=tga-7+18+tgaid;
                         info|=tgax;
                         pinfo="(width: "+ itos(tgax) +")";
                         total=tgax*tgay, line=0;
@@ -82,15 +83,46 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 }
                 tga=0;
             }
-        } else if (state==INFO && isPal && i>=(jstart-palcolors)) { // fill pal buffer and test if grayscale
-                    assert(pali<palcolors);
-                    pal[pali++]=c;
-                    if (pali==palcolors) {
-                        tgagray=IsGrayscalePalette(&pal[0], palcolors/3);
-                        isPal=false;
-                        palcolors=pali=0;
-                        if (tgagray) info=tgax|(IMAGE8GRAY<<24);
+        } else if (state==INFO && isPal && i>=(jstart-palcolors) && palcolors) { // fill pal buffer and test if grayscale
+            assert(pali<palcolors);
+            pal[pali++]=c;
+            if (pali==palcolors) {
+                tgagray=IsGrayscalePalette(&pal[0], palcolors/3);
+                isPal=false;
+                palcolors=pali=0;
+                if (tgagray) info=tgax|(IMAGE8GRAY<<24);
+                TCOLORS=256;
+                int i=0;
+                for (int j=0; j<TCOLORS*3; j=j+3) {
+                    ColorRGBA colori;
+                    uint32_t c=pal[j+0];
+                    c=c*256+pal[j+1];
+                    c=c*256+pal[j+2];
+                    c=c*256+0;
+                    colori.c=c;
+                    colori.i=i++;
+                    bmcolor.push_back(colori);
+                }
+                // Sort colors by Cartesian distance
+                std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b){
+                    int a1=std::sqrt(a.rgba[3] + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
+                    int b1=std::sqrt(b.rgba[3] + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
+                    // plain a.c < b.c also works but is worse
+                    //return (a.c < b.c);
+                    return (a1 < b1);
+                });
+                // Map to new order
+                for (int i=0; i<TCOLORS; ++i) {
+                    for (int j=0; j<TCOLORS; ++j) {
+                        ColorRGBA colori=bmcolor[j];
+                        if (colori.i==i) {
+                            palo[i]=j;
+                            break;
+                        } 
                     }
+                }
+                bmcolor.clear();
+            }
         } else if (state==INFO && total && i>=jstart) {
             // Detect RLE compressed image data size
             if (rlep) {
@@ -126,37 +158,6 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     else return NONE;
 }
 
-bool TGAParser::IsGrayscalePalette(uint8_t *palb, int n, int isRGBA) {
-  int stride = 3+isRGBA, res = (n>0)<<8, order=1;
-  int l=0;
-  for (int i = 0; (i < n*stride) && (res>>8); i++) {
-    int b = palb[l++];
-    if (l>n*3) {
-      res = 0;
-      break;
-    }
-    if (!i) {
-      res = 0x100|b;
-      order = 1-2*(b>int(ilog2(n)/4));
-      continue;
-    }
-
-    //"j" is the index of the current byte in this color entry
-    int j = i%stride;
-    if (!j){
-      // load first component of this entry
-      int k = (b-(res&0xFF))*order;
-      res = res&((k>=0 && k<=8)<<8);
-      res|=(res)?b:0;
-    }
-    else if (j==3)
-      res&=((!b || (b==0xFF))*0x1FF); // alpha/attribute component must be zero or 0xFF
-    else
-      res&=((b==(res&0xFF))*0x1FF);
-  }
-  return (res>>8)>0;
-}
-
 dType TGAParser::getType() {
     dType t;
     t.start=jstart;     // start pos of type data in block
@@ -165,6 +166,7 @@ dType TGAParser::getType() {
     t.rpos=0;      // pos where start was set in block
     t.type=type;
     t.recursive=false;
+    t.sData=&palo[0];
     return t;
 }
 
@@ -179,4 +181,6 @@ void TGAParser::Reset() {
     pali=0;
     isPal=false;
     priority=3;
+    TCOLORS=256;
+    bmcolor.reserve(TCOLORS);
 }

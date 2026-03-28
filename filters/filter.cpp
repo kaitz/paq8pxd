@@ -4,7 +4,9 @@ Filter::Filter(Settings &s):settings(s),Type(DEFAULT),Info(0),name(""),diffFound
 }
 
 Filter::~Filter(){}
-
+void Filter::SetData(uint8_t *d) {
+    pData=d;
+}
 FMode Filter::compare(File *in, File *out, uint64_t size) {
     diffFound=0;
     const int BLOCK=0x10000;

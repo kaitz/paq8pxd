@@ -150,11 +150,11 @@ int matchModel2::p(Mixers &m,int val1,int val2) {
             if( c != 0 ) {
                 const int p1 = stateMaps[i].p(c,x.y);
                 const int st = stretch(p1);
-                m.add(st >> 2);
-                m.add((p1 - 2048) >> 3);
+                m.add(st >> 0);
+                //m.add((p1 - 2048) >> 3);
             } else {
                 m.add(0);
-                m.add(0);
+                //m.add(0);
             }
         }
     }

@@ -63,7 +63,7 @@ class Codec {
     
     void AddFilter(Filter *f);
     void direct_encode_blockstream(Filetype type, File*in, U64 len, int info=0);
-    void transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin,File*tmp);
+    void transform_encode_block(Filetype type, File*in, U64 len, int info, int info2, char *blstr, int it, U64 begin, File*tmp, dType *dblock);
     void Status(uint64_t n, uint64_t size, uint64_t len, uint64_t r);
     void AddStat(Filetype type, uint64_t len, int i);
     void RemoveStat(Filetype type, uint64_t len, int i);

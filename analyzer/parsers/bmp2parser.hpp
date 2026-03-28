@@ -3,25 +3,21 @@
 #include <cstdint>
 #include <vector>
 
-class TGAParser: public Parser {
-    uint64_t tga;
-    uint64_t tgax;
-    int tgay,tgaz,tgat,tgaid,tgamap;
+class BMP2Parser: public Parser {
+    int bpp, x, y;
+    int64_t bmp;
+    uint64_t  of, size;
     uint64_t info;
     uint32_t buf0, buf1;
-    int32_t total,line,rlep;             // RLE
-    uint8_t pal[768];                    // pal
-    bool isPal;
-    uint32_t palcolors,pali,tgagray;
     uint64_t i;
     Filetype type;
     uint64_t jstart, jend, inSize, inpos;
     int TCOLORS;
     std::vector<ColorRGBA> bmcolor;
-public:
-    uint8_t palo[256];
-    TGAParser();
-    ~TGAParser();
+public:    
+uint8_t pal[256];
+    BMP2Parser();
+    ~BMP2Parser();
     DetectState Parse(unsigned char *data, uint64_t len, uint64_t pos, bool last) final;
     dType getType() final;
     void Reset() final;
