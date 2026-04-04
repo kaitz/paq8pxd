@@ -9,8 +9,8 @@ mszip           3     MSZIP(CMP)
 nes             3     NESROM DEFAULT)
 text            4     TEXT
 wav             3     AUDIO
-zlib            2     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
-zlib            5     ZLIB(CMP) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
+zlib            2     ZLIB(CMP,PREFLATE) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=false
+zlib            5     ZLIB(CMP,PREFLATE) (in pdf IMAGE8GRAY,IMAGE8,IMAGE24,IMAGE32,IMAGE4,IMAGE1) brute=true
 pnmp            3     IMAGE1 IMAGE8GRAY IMAGE24 IMAGE32
 pdflzw          3     CMP
 gif             3     GIF (CMP)
@@ -28,7 +28,7 @@ mdf             1     MDF
 uue             3     UUENC
 tiff            2     IMAGE1,IMAGE4,IMAGE8,IMAGE24,IMAGE32,LZW,CMP,JPEG,ZLIB,DEFAULT
 tar             2     TAR,RECE
-png             2     ZLIB(PNG8GRAY,PNG8,PNG24,PNG32)
+png             2     ZLIB,PREFLATE,CMP (PNG8GRAY,PNG8,PNG24,PNG32->IMPNG8,IMPNG8GRAY,IMPNG24,IMPNG32)
 bzip2           2     BZIP2(CMP)
 szdd            3     SZDD(CMP)
 mscf            3     CMP

@@ -46,10 +46,13 @@ void Predictor::update()  {
         return;
     }
     if (x.blpos==1 && palactive==false && x.bpos==7) {
-        if (x.filetype==HDR && (x.finfo==RLE || x.finfo==MRBR || x.finfo==IMAGE4 || x.finfo==IMAGE8 || x.finfo==BM8_OS2 || x.finfo==IMAGE8GRAY)) {
+        if (x.filetype==HDR && (x.finfo==RLE || x.finfo==MRBR || x.finfo==IMAGE4 || (x.finfo&255)==GIF || x.finfo==IMAGE8 || x.finfo==BM8_OS2 || x.finfo==IMAGE8GRAY)) {
             TCOLORS=256;
             int alpha=1;
+            int gifpal=0;
+            int paldoff=1; // start of pal data in buffer, 1= if pal was just before image data
             if (x.finfo==MRBR) paloff=1;
+            else if ((x.finfo&255)==GIF) alpha=0,TCOLORS=((x.finfo/256)&1023),gifpal=(x.finfo/256)/1024, paloff=2,paldoff=1+(gifpal-TCOLORS*3);
             else if (x.finfo==IMAGE4 || x.finfo==IMAGE8 || x.finfo==IMAGE8GRAY) paloff=2;
             else if (x.finfo==BM8_OS2) paloff=2,alpha=0;
             else if (x.finfo==RLE) paloff=4,alpha=0; // tga
@@ -64,15 +67,23 @@ void Predictor::update()  {
             };
             std::vector<ColorRGBA> bmcolor;
             for (int j=0; j<TCOLORS*(3+alpha); j=j+(3+alpha)) {
-                uint32_t c=x.buf(TCOLORS*(3+alpha)+1-j);
-                c=c*256+x.buf(TCOLORS*(3+alpha)+1-j-1);
-                c=c*256+x.buf(TCOLORS*(3+alpha)+1-j-2);
-                c=c*256+alpha*x.buf(TCOLORS*(3+alpha)+1-j-3);
+                uint32_t c=x.buf(TCOLORS*(3+alpha)+paldoff-j);
+                c=c*256+x.buf(TCOLORS*(3+alpha)+paldoff-j-1);
+                c=c*256+x.buf(TCOLORS*(3+alpha)+paldoff-j-2);
+                c=c*256+alpha*x.buf(TCOLORS*(3+alpha)+paldoff-j-3);
                 ColorRGBA colori;
                 colori.c=c;
+                //printf("%x ",c);
                 colori.i=i++;
                 bmcolor.push_back(colori);
             }
+            for (int j=TCOLORS*3; j<256*3; j=j+3) {
+                                    ColorRGBA colori;
+                                    uint32_t c=0xffffffff;
+                                    colori.c=c;
+                                    colori.i=i++;
+                                    bmcolor.push_back(colori);
+                                }
             // Sort colors by Cartesian distance
             std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b) {
                 int a1=std::sqrt(a.rgba[3] + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));

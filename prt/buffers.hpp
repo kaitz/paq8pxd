@@ -58,5 +58,11 @@ public:
   int operator()(const int i) const {
     return b[(offset-i)&(b.size()-1)];
   }
+  int operator[](const uint32_t i) const {
+    return b[i & (b.size()-1)];
+  }
+  uint32_t getpos() const {
+    return offset;
+  }
 };
 

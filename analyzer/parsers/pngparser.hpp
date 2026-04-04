@@ -8,6 +8,7 @@ struct PNGfile {
     uint64_t size;
     Filetype f;
     uint64_t info;
+    std::string pinfo; 
 };
 
 // Only signle IDAT chunk images are supported
@@ -26,7 +27,7 @@ class PNGParser: public Parser {
     uint32_t palcolors,pali;
     bool isiCCP;
     uint32_t iCCPsize, iCCPinfo;
-    Array<PNGfile> pngF;
+    std::vector<PNGfile> pngF;
     uint32_t pfcount;
     bool rec;
 public:    

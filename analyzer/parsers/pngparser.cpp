@@ -18,9 +18,8 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     if (inpos!=pos) {
         inSize=0,inpos=pos;
         i=pos;
-//        if (rec==false && state==END) state=NONE,printf(".");
     }
-    
+
     while (inSize<len && rec==false) {
         buf3=(buf3<<8)|(buf2>>24);
         buf2=(buf2<<8)|(buf1>>24);
@@ -33,7 +32,6 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
             state=START;
             png=i, pngtype=-1, lastchunk=buf3;
             pali=0; isPal=false;
-            //pngF.clear();
             pfcount=0;
         } else if (state==NONE && buf0==0x49444154 && (uint64_t)inSize+2<len) { // Not safe, will conflict with MNG file
             // Detached IDAT sequence detection (smart scanning)
@@ -74,14 +72,16 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         iCCPsize=iCCPsize-pali;
                         pali=0;
                         isiCCP=false;
-                        //iCCPinfo=iCCPsize+((i)<<16);
-                       // printf("Profile %s\n %d\n",pal,iCCPsize);
+                        iCCPinfo=iCCPsize+((i)<<16);
+                        //printf("Profile %s\n %d\n",pal,iCCPsize);
                         PNGfile pf;
-                            pf.start=i+1; // off by one
-                            pf.size=i+1+iCCPsize;
-                            pf.f=CMP;
-                            pf.info=0;
-                            pngF.push_back(pf);
+                        pf.start=i+1; // off by one
+                        pf.size=i+1+iCCPsize;
+                        pf.f=PREFLATE;
+                        pf.info=(2<<16)+4; //Header (2) + Adler32 (4)
+                        pf.pinfo="PNG - ";
+                        pf.pinfo+= reinterpret_cast<char*>(pal);
+                        pngF.push_back(pf);
                     } else if (pali>80) {
                         pali=0;
                         isiCCP=false;
@@ -91,7 +91,7 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                 if (p==13) { // This is not safe, IHDR not tested
                     // Parse IHDR data (offsets relative to IHDR type end)
                     auto getByte = [&](int offset) {
-                         return data[inSize - (13 - offset)];
+                        return data[inSize - (13 - offset)];
                     };
 
                     pngw = (getByte(1)<<24) | (getByte(2)<<16) | (getByte(3)<<8) | getByte(4);
@@ -103,13 +103,13 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     pnggray = 0;
                     
                     bool valid = (pngw > 0 && pngh > 0 && 
-                                 (pngbps==1 || pngbps==2 || pngbps==4 || pngbps==8 || pngbps==16) && 
-                                 (pngtype==0 || pngtype==2 || pngtype==3 || pngtype==4 || pngtype==6) &&
-                                 interlace <= 1);
-                                 
+                    (pngbps==1 || pngbps==2 || pngbps==4 || pngbps==8 || pngbps==16) && 
+                    (pngtype==0 || pngtype==2 || pngtype==3 || pngtype==4 || pngtype==6) &&
+                    interlace <= 1);
+                    
                     if (!valid) {
-                         png = 0;
-                         state = NONE;
+                        png = 0;
+                        state = NONE;
                     } else {
                         // Determine PNG subtype from color type
                         if (pngw<0x1000000 && pngh) {
@@ -157,62 +157,61 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         pali=0;
                         png*=(buf1%3==0);
                         if (png==0) state=NONE; // fail if bad size
-                    } else if (lastchunk==0x69434350) { //iCCP 
+                    } else if (lastchunk==0x69434350  || lastchunk==0x7A545874 ) { //iCCP zTXt
                         //characters (33-126 and 161-255) and spaces (32), but no leading, trailing, or consecutive spaces
                         iCCPsize=buf1;
                         pali=0;
-                        //printf("iCCPsize %d\n",iCCPsize);
                         isiCCP=true;
                     } else {
                         // Non-IDAT chunk after IDATs - end the sequence
                         if (idats > 0) {
                             jend = idat_end;
                             state=END;
-                            if (pngw==0 || pngF.size()>1 ) {state=NONE; continue;}
+                            if (pngw==0) {state=NONE; continue;}
                             if (pngF.size()==0) {
                                 return state;
-                            }else{
-                            assert(pngF.size()==1);
-                              PNGfile pngfile=pngF[0];
-                            PNGfile pf;
-                            pf.start=jstart-pngfile.size;
-                            pf.size=jend-pngfile.size;
-                            pf.f=type;
-                            pf.info=info;
-                            pngF.push_back(pf);
-                            //printf("Types: %d\n",pngF.size());
-                            
-                            pfcount=0;
-                            rec=true;
-                            break; //return state;
+                            } else {
+                                PNGfile pngfile=pngF[0];
+                                PNGfile pf;
+                                pf.start=jstart;
+                                pf.size=jend;
+                                pf.f=type;
+                                pf.info=info;
+                                pf.pinfo=pinfo;
+                                pngF.push_back(pf);
+                                //printf("Types: %d %d\n",pngF.size(),pf.start,pf.size);
+                                pfcount=0;
+                                rec=true;
+                                break; //return state;
                             }
                         }
                     }
                     if (lastchunk==0x49454E44) { // IEND
-                       if (idats > 0) {
-                           jend = idat_end;
-                           state=END;
-                           if (pngw==0 || pngF.size()>1) {state=NONE; continue;}
+                        if (idats > 0) {
+                            jend = idat_end;
+                            state=END;
+                            if (pngw==0) {state=NONE; continue;}
                             if (pngF.size()==0) {
-                                 return state;
+                                return state;
                             }else{
-                            assert(pngF.size()==1);
-                           PNGfile pngfile=pngF[0];
-                            PNGfile pf;
-                            pf.start=jstart-pngfile.size;
-                            pf.size=jend-pngfile.size;
-                            pf.f=type;
-                            pf.info=info;
-                            pngF.push_back(pf);
-                            //printf("Types: %d\n",pngF.size());
-                            pfcount=0;
-                           if (pngw==0) state=NONE;
-                           rec=true;
-                           break; //return state;
-                           }
-                       }
-                       state=NONE;
-                       return state;
+                                assert(pngF.size()==1);
+                                PNGfile pngfile=pngF[0];
+                                PNGfile pf;
+                                pf.start=jstart;
+                                pf.size=jend;
+                                pf.f=type;
+                                pf.info=info;
+                                pf.pinfo=pinfo;
+                                pngF.push_back(pf);
+                                //printf("Types: %d\n",pngF.size());
+                                pfcount=0;
+                                if (pngw==0) state=NONE;
+                                rec=true;
+                                break; 
+                            }
+                        }
+                        state=NONE;
+                        return state;
                     }
                 }
                 
@@ -222,15 +221,19 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
         inSize++;
         i++;
     }
-    if (rec && state==END) { 
+    if (rec && state==END) {
+        PNGfile pngfilel;
+        pngfilel.size=0;
+        if (pfcount) pngfilel=pngF[pfcount-1];
         PNGfile pngfile=pngF[pfcount++];
-        jstart=pngfile.start;
-        jend=pngfile.size;
-        //printf("%d %d %d\n",pfcount,jstart,jend);
+        jstart=pngfile.start-pngfilel.size;
+        jend=pngfile.size-pngfile.start+jstart;
+        //printf("%d %d %d pos %d\n",pfcount,jstart,jend,pngfilel.size);
         type=pngfile.f;
         info=pngfile.info;
+        pinfo=pngfile.pinfo;
         //priority=0;
-        if (pfcount==pngF.size()){
+        if (pfcount==pngF.size()) {
             while (pngF.size())pngF.pop_back();
             rec=false,priority=2;
         } 
@@ -238,9 +241,9 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
     }
     if (state==INFO) return INFO;
     if (state!=NONE)
-        return DATA;
+    return DATA;
     else 
-        return NONE;
+    return NONE;
 }
 
 dType PNGParser::getType() {

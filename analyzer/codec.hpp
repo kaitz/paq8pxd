@@ -38,6 +38,7 @@
 #include "../filters/pngfilter.hpp"
 #include "../filters/img8filter.hpp"
 #include "../filters/img4filter.hpp"
+#include "../filters/impngfilter.hpp"
 #include "analyzer.hpp"
 #include "../prt/settings.hpp"
 

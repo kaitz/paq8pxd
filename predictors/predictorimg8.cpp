@@ -11,10 +11,11 @@ PredictorIMG8::PredictorIMG8(Settings &set):Predictors(set), pr(16384),
     mixerInputs+=1+2+1;
     sse.p(pr);
     x.count=0x1ffff;
-    mxp.push_back( {1,8,0,14,&mcxt[0],0,false} ); // final mixer
+    mxp.push_back( {64,64/2,0,28,&mcxt[0],0,false} ); 
+    mxp.push_back( {1,8,0,14,&mcxt[1],0,false} ); // final mixer
     // create mixer
     m=new Mixers(x,mxp.size(),mixerInputs,mxp);
-    mcxt[0]=0;
+    mcxt[1]=0;
     einfo.reset();
 }
 
@@ -32,10 +33,16 @@ void PredictorIMG8::update() {
     if (x.bpos==0) x.count++;
     models[M_MATCH]->p(*m);
     models[M_IM8]->p(*m,x.finfo);
+    /*U64  cxt[16];
+    for (int i=0; i<16; ++i) cxt[i]=x.cxt[i];
+    for (int i=14; i>0; --i)  // update order 0-11 context hashes
+    x.cxt[i] = hash(x.cxt[i - 1], x.Image.pixels.N,x.Image.ctx);
+    int ord=models[M_NORMAL]->p(*m);
+    for (int i=0; i<16; ++i) x.cxt[i]=cxt[i];*/
     if (x.settings.slow==true) models[M_LSTM]->p(*m);
     m->add((stretch(StateMaps[0].p(x.c0,x.y))+1));
     m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1));
-
+    mcxt[0]=-1;//(ord<<3)|x.bpos;;
     if (x.filetype==IMAGE8GRAY) {
         int pr0=m->p(1-min(1,m->nx/(m->zpr+1)),1-min(1,m->nx/(m->zpr+1)));
         int pr1, pr2, pr3;
@@ -51,7 +58,7 @@ void PredictorIMG8::update() {
         int limit=0x3FF>>((x.blpos<0xFFF)*4);
         pr  = Image.Palette.APMs[0].p(pr0, (x.c0<<4)|(x.Misses&0xF), x.y, limit);
         pr1 = Image.Palette.APMs[1].p(pr0, hash(x.c0,x.Image.pixels.W, x.Image.pixels.N)&0xFFFF,x.y, limit);
-        pr2 = Image.Palette.APMs[2].p(pr0, hash(x.c0,x.Image.pixels.N, x.Image.pixels.NN)&0xFFFF,x.y, limit);
+        pr2 = Image.Palette.APMs[2].p(pr0, hash(x.c0,x.Image.pixels.N, x.Image.pixels.NN)&0xFFFF,x.y, limit);// NE
         pr3 = Image.Palette.APMs[3].p(pr0, hash(x.c0,x.Image.pixels.W, x.Image.pixels.WW)&0xFFFF,x.y, limit);
         pr0 = (pr0+pr1+pr2+pr3+2)>>2;
         

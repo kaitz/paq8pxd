@@ -28,13 +28,10 @@ class im24bitModel1: public Model {
     BlockData& xx;
     Buf& buf; 
     RingBuffer buffer; // internal rotating buffer for PNG unfiltered pixel data
-    U8 px;             // current PNG filter prediction
-    int filter, w, line, isPNG,R1, R2;
-    bool filterOn;
+    int w, line, R1, R2;
     U32& c4;
     int& c0;
     int& bpos;
-    int lastWasPNG;
     U8 WWp1, Wp1, p1, NWp1, Np1, NEp1, NNp1 ;
     U8 WWp2, Wp2, p2, NWp2, Np2, NEp2, NNp2;
     U32 lastw,lastpos,curpos;

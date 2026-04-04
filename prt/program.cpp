@@ -526,6 +526,8 @@ void Program::Compress() {
     FileTmp tmp;                    // temporary encoded file
     segpredict=new Predictor(settings);
     segencode=new Encoder (COMPRESS, &tmp ,*segpredict); 
+    segencode->predictor.x.filetype=IMGUNK; // fake
+    segencode->predictor.x.finfo=1+8+4;     // type, len, info
     for (U64 k=0; k<segment.pos; ++k) {
         segencode->compress(segment[k]);
         printStatus(k, segment.pos, settings.level, settings.isConRedirected);
@@ -669,6 +671,8 @@ void Program::Decompress() {
     tmp.setpos(0); 
     segpredict=new Predictor(settings);
     segencode=new Encoder(DECOMPRESS, &tmp, *segpredict);
+    segencode->predictor.x.filetype=IMGUNK;
+    segencode->predictor.x.finfo=1+8+4;
     segment.pos=0;
     for (U32 k=0; k<segpos; ++k) {
         segment.put1(segencode->decompress());

@@ -23,9 +23,10 @@ class PredictorIMG8: public Predictors {
     const std::vector<ModelTypes> activeModels { 
         M_MATCH,
         M_IM8,
+        //M_NORMAL,
         M_LSTM};
 public:
-    int mcxt[1];
+    int mcxt[2];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 
     ~PredictorIMG8() {
         //printf("IM8 mixer inputs: %d\n",m->tx.size());

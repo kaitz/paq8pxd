@@ -55,8 +55,10 @@ U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4);
 U8 LogMeanDiffQt(const U8 a, const U8 b, const U8 limit = 7);
 U32 LogQt(const U8 Px, const U8 bits);
 
-U8 Paeth(U8 W, U8 N, U8 NW);
+//U8 Paeth(U8 W, U8 N, U8 NW);
 #define MAX_WORD_SIZE 64
 bool CharInArray(const char c, const char a[], const int len) ;
    
 ParserType GetTypeFromExt(std::string ext);
+
+uint32_t nextPowerOf2(uint32_t x);

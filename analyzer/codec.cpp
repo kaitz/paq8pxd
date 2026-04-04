@@ -37,6 +37,10 @@ Codec::Codec(FMode m, Streams *s, Segment *g, Settings &set):settings(set),mode(
     AddFilter( new PNGFilter(std::string("png"),set,PNG32));
     AddFilter( new PNGFilter(std::string("png"),set,PNG8));
     AddFilter( new PNGFilter(std::string("png"),set,PNG8GRAY));
+    AddFilter( new ImPngFilter(std::string("png im"),set,IMPNG24));
+    AddFilter( new ImPngFilter(std::string("png im"),set,IMPNG32));
+    AddFilter( new ImPngFilter(std::string("png im"),set,IMPNG8));
+    AddFilter( new ImPngFilter(std::string("png im"),set,IMPNG8GRAY));
     AddFilter( new DecAFilter(std::string("dec alpha"),set,DECA));
     AddFilter( new rleFilter(std::string("rle tga"),set,RLE));
     AddFilter( new base85Filter(std::string("base85"),set,BASE85));
@@ -250,6 +254,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
         U32 winfo=0;
         Filter* dataf=GetFilter(type);
         dataf->SetData(dblock->sData);
+        // Try to decode/encode
         if (type==IMAGE24) dataf->encode(in, tmp, len, uint64_t(info));
         else if (type==IMAGE32) dataf->encode(in, tmp, len, uint64_t(info));
         else if (type==BM8_IMG) dataf->encode(in, tmp, len, uint64_t(info));
@@ -300,10 +305,20 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             diffFound=dataf->diffFound;
         } else if (type==ZLIB) {
             dataf->encode(in, tmp, len,0);   
-            diffFound=dataf->diffFound;
+            diffFound=dataf->diffFound; 
+            if (diffFound) { // try type PREFLATE
+                type=PREFLATE;
+                dataf=GetFilter(type);
+                in->setpos(begin);
+                tmp->setpos(0);
+                info=0;
+                dataf->encode(in, tmp, len, info);   
+                diffFound=dataf->diffFound;
+            }     
         } else if (type==ZIP) {
             dataf->encode(in, tmp, len,0);   
             diffFound=dataf->diffFound;
+              
         } else if (type==GZIP) {
             dataf->encode(in, tmp, len,0);   
             diffFound=dataf->diffFound;
@@ -317,10 +332,13 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             dataf->encode(in, tmp, len,info2);   
             diffFound=dataf->diffFound;
         } else if (type==PREFLATE) {
-            dataf->encode(in, tmp, len,0);   
+            dataf->encode(in, tmp, len,info);   
             diffFound=dataf->diffFound;
         } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
             dataf->encode(in, tmp, len, 0);
+            diffFound=dataf->diffFound;
+        } else if (type==IMPNG24 || type==IMPNG32 || type==IMPNG8 || type==IMPNG8GRAY) {
+            dataf->encode(in, tmp, len, info);
             diffFound=dataf->diffFound;
         } else if (type==BZIP2){
             dataf->encode(in, tmp, len,info=info+256*17);
@@ -335,13 +353,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             winfo=dataf->fsize;
         }
         
+        // Test transform
         const U64 tmpsize= tmp->curpos();
         int tfail=0;
         tmp->setpos(0);
-        
         if (type==BZIP2 || type==CD || type==MDF || type==SZDD || type==GIF || type==MRBR|| type==MRBR4 || type==RLE ||
             type==LZW||type==BASE85 || type==BASE64 || type==UUENC|| type==DECA || type==ARM || type==WIT || type==TEXT ||
-            type==TXTUTF8 || type==TEXT0 || type==EOLTEXT || type==SHRINK || type==REDUCE || type==IMPLODE || type==ZLIB || type==BM8_IMG|| type==BM4_IMG) {
+            type==TXTUTF8 || type==TEXT0 || type==EOLTEXT || type==SHRINK || type==REDUCE || type==IMPLODE || type==ZLIB || type==BM8_IMG|| type==BM4_IMG ||
+            type==IMPNG24 || type==IMPNG32 || type==IMPNG8 || type==IMPNG8GRAY || type==PREFLATE
+            ) {
             
             in->setpos(begin);
             if (type==BASE64 ) {
@@ -362,6 +382,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==MRBR || type==MRBR4) {
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
+            } else if (type==IMPNG24 || type==IMPNG32 || type==IMPNG8 || type==IMPNG8GRAY) {
+                diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             } else if (type==RLE)           {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             }  else if (type==CD)           {
@@ -374,6 +396,8 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info2),FCOMPARE);
             } else if (type==IMPLODE) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info2),FCOMPARE);
+            } else if (type==PREFLATE) {
+                diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if (type==DECA) {
                 diffFound=dataf->CompareFiles(tmp,in,tmpsize,uint64_t(info),FCOMPARE);
             } else if (type==ARM) {
@@ -391,24 +415,18 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             else if (type==EOLTEXT ){
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
             }
-            if (type==EOLTEXT && (diffFound )) {
+            if (type==EOLTEXT && diffFound) {
                 // if fail fall back to text
                 diffFound=0,info=-1, in->setpos(begin),type=TEXT;
                 dataf=GetFilter(type),
                 tmp->truncate();
                 dataf->encode(in, tmp, len,0); 
-            }  else if (type==BZIP2 && (diffFound) ) {
+            }  else if (type==BZIP2 && diffFound) {
                 // maxLen was changed from 20 to 17 in bzip2-1.0.3 so try 20
                 in->setpos(begin);
                 tmp->setpos(0);
                 diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info=(info&255)+256*20), FCOMPARE);
-            }  /*else if (type==ZLIB && (diffFound) ) {
-                type=PREFLATE;
-                dataf=GetFilter(type);
-                in->setpos(begin);
-                tmp->setpos(0);
-                diffFound=dataf->CompareFiles(tmp,in, tmpsize, uint64_t(info), FCOMPARE);
-            }    */  
+            }
             // Fail transform if:
             //   Files are different.
             //   Transformed file was not consumed (no EOF).
@@ -480,18 +498,33 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 if (it==itcount)    itcount=it+1;
                 AddStat(type2,tmpsize-hdrsize,it+1);
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
+            } else if (type==IMPNG24 || type==IMPNG32 || type==IMPNG8 || type==IMPNG8GRAY) {
+                segment->putdata(type,tmpsize,info&0xffffffff);
+                Filetype type2 =(Filetype)(info>>24);
+                if (it==itcount)    itcount=it+1;
+                int hdrsize=dataf->hdrsize+4;
+                tmp->setpos(0);
+                AddStat(HDR,hdrsize,it+1);
+                direct_encode_blockstream(HDR,  tmp, hdrsize);
+                if (type2==IMAGE32 || type2==IMAGE24) {
+                    FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
+                    transform_encode_block(type2, tmp, tmpsize-hdrsize, info&0xffffff,-1, blstr, it+1, hdrsize, treb, dblock);
+                    treb->close();
+                } else
+                    direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==PNG24 || type==PNG32 || type==PNG8 || type==PNG8GRAY) {
                 segment->putdata(type,tmpsize,0);
                 Filetype type2 =(Filetype)(info>>24);
-                type2=type2==IMAGE24?IMPNG24:type2==IMAGE32?IMPNG32:type2;
+                type2=type2==IMAGE24?IMPNG24:type2==IMAGE32?IMPNG32:type2==IMAGE8?IMPNG8:type2==IMAGE8GRAY?IMPNG8GRAY:type2;
                 if (it==itcount)    itcount=it+1;
                 int hdrsize=dataf->hdrsize;
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
                 direct_encode_blockstream(HDR,  tmp, hdrsize);
-                if (it==itcount)    itcount=it+1;
                 AddStat(type2,tmpsize-hdrsize,it+1);
-                direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
+                FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
+                transform_encode_block(type2, tmp, tmpsize-hdrsize, info,-1, blstr, it+1, hdrsize, treb,dblock);
+                treb->close();
             } else if (type==RLE) {
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=( 4+256);
@@ -516,11 +549,12 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 } else
                     direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==GIF) {
+                if ((it)<=itcount) itcount=itcount+1;
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=(tmp->getc()<<8)+tmp->getc();
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
-                direct_encode_blockstream(HDR, tmp, hdrsize);
+                direct_encode_blockstream(HDR, tmp, hdrsize,info2?(info2*256+GIF):0);
                 Filetype type2 =(Filetype)(info>>24);
                 AddStat(type2,tmpsize-hdrsize,it+1);
                 direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
@@ -558,10 +592,10 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 treb->close();
             } else if (streams->GetTypeInfo(type)&TR_RECURSIVE) {
                 int isinfo=0;
-                if (type==SZDD || type==ZLIB/*||  type==PREFLATE */ || type==BZIP2) isinfo=info;
+                if (type==SZDD || type==ZLIB||  type==PREFLATE  || type==BZIP2) isinfo=info;
                 else if (type==WIT) isinfo=winfo;
                 segment->putdata(type,tmpsize,isinfo);
-                if (type==ZLIB/*||  type==PREFLATE*/) {// PDF or PNG image && info
+                if (type==ZLIB) {// PDF or PNG image && info
                     Filetype type2=(Filetype)(info>>24);
                     if (it==itcount) itcount=it+1;
                     int hdrsize=7+5*tmp->getc();
@@ -589,6 +623,15 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                     if (type==ZIP) pt=(ParserType)info;
                     assert(pt<P_WLAST);
                     EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, type, pt);
+                } else if (type==PREFLATE) { 
+                    if (it==itcount) itcount=it+1;
+                    int hdrsize=dataf->hdrsize;// recon_info
+                    tmp->setpos(0);
+                    AddStat(HDR,hdrsize,it+1);
+                    direct_encode_blockstream(HDR, tmp, hdrsize);
+                    ParserType pt=P_WDEFAULT;
+                    assert(pt<P_WLAST);
+                    EncodeFileRecursive(tmp, tmpsize-hdrsize, blstr, it+1, DEFAULT, pt);
                 } else if (type==SHRINK || type==REDUCE|| type==IMPLODE) { 
                     if (it==itcount) itcount=it+1;
                     tmp->setpos(0);
@@ -603,9 +646,9 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
             }
         }
     } else {
-        // Fo recursion, copy content to tmp so parsers have the start offset 0, no transform.
+        // For recursion, copy content to tmp so parsers have the start offset 0, no transform.
         // We need to be careful, heavy recursion creates a large number of memory allocations.
-        // This seems to be faster then direct disk access (small files, hdd).
+        // This seems to be faster than direct disk access (small files, hdd).
         if (type==RECE) {
             FileTmp *treb=new FileTmp(len);
             Filter *dataf=GetFilter(DEFAULT);

@@ -117,7 +117,7 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                                 for (int i=0; i<TCOLORS-1; ++i) {
                                     ColorRGBA colori=bmcolor[i];
                                     ColorRGBA colorj=bmcolor[i+1];
-                                    int distance=abs(abs(colori.rgba[1]-colorj.rgba[1])) + abs(colori.rgba[2]-colorj.rgba[2]);
+                                    int distance=(abs(colori.rgba[1]-colorj.rgba[1])) + abs(colori.rgba[2]-colorj.rgba[2]);
                                     if (distance>64) largeDCount++;
                                 }
                                 bmcolor.clear();

@@ -171,14 +171,26 @@ U32 LogQt(const U8 Px, const U8 bits) {
   return (U32(0x100|Px))>>max(0,(int)(ilog2(Px)-bits));
 }
 
-
+/*
 U8 Paeth(U8 W, U8 N, U8 NW) {
   int p = W+N-NW;
   int pW=abs(p-(int)W), pN=abs(p-(int)N), pNW=abs(p-(int)NW);
   if (pW<=pN && pW<=pNW) return W;
   else if (pN<=pNW) return N;
   return NW;
+}*/
+
+uint32_t nextPowerOf2(uint32_t x) {
+  x--;
+  x |= x >> 1;
+  x |= x >> 2;
+  x |= x >> 4;
+  x |= x >> 8;
+  x |= x >> 16;
+  x++;
+  return x;
 }
+
 
 bool CharInArray(const char c, const char a[], const int len) {
   if (*a==0)

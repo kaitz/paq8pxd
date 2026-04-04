@@ -1,3 +1,11 @@
+v146
+    -Fix gif parser missing pal parsing. Do pal reorder and add as side data.
+    -In default predictor recompress gif pal.
+    -Adjust 8bit image predictor apm.
+    -Add png image data filter (from paq8px) in Codec and add types IMPNG8, IMPNG8GRAY, IMPNG24, IMPNG32 to stream 0.
+    -Remove png image pixel prediction from 8/24bit image models.
+    -In png parser detect zTXt chunk and report iCCP/zTXt as PREFLATE types.
+    -Test ZLIB transform fails and try PREFLATE instead.
 v145
     -Add new ContextMap3.
     -Replace ContextMap and ContextMap2 with ContextMap3.

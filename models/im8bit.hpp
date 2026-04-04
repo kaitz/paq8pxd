@@ -27,7 +27,7 @@ class im8bitModel1: public Model {
     int col;
     BlockData& xx;
     Buf& buf;
-    int ctx, lastPos, lastWasPNG, line, x, filter, gray,isPNG,jump;
+    int ctx, lastPos, line, x, filter, gray, jump;
     int framePos, prevFramePos, frameWidth, prevFrameWidth;
     U32& c4;
     int& c0;
@@ -44,9 +44,8 @@ class im8bitModel1: public Model {
     SmallStationaryContextMap pltMap[nPltMaps] = { {11,1},{11,1},{11,1},{11,1} };
     IndirectMap sceneMap[5]{ {8}, {8}, {22,1}, {11,1}, {11,1} };
     IndirectContext<U8> iCtx[nPltMaps] = { {16,8}, {16,8}, {16,8}, {16,8} };
-    U8 px, res, prvFrmPx, prvFrmPred;  // current PNG filter prediction, expected residual
-    RingBuffer buffer;                 // internal rotating buffer for PNG unfiltered pixel data
-    bool filterOn;
+    U8 res, prvFrmPx, prvFrmPred;  // current PNG filter prediction, expected residual
+
     int columns[2] ={ 1,1 }, column[2]={ 1,1 };
     Array<short> jumps;
     U8 WWWWWW, WWWWW, WWWW, WWW, WW, W;

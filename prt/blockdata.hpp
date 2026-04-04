@@ -49,7 +49,7 @@ public:
     } Match;
     struct {
         struct {
-            U8 WW, W, NN, N, Wp1, Np1, px;
+            U8 WW, W, NN, N, NE, Wp1, Np1, px;
         } pixels;
         U8 plane;
         U8 ctx;
