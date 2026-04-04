@@ -6,6 +6,7 @@ v146
     -Remove png image pixel prediction from 8/24bit image models.
     -In png parser detect zTXt chunk and report iCCP/zTXt as PREFLATE types.
     -Test ZLIB transform fails and try PREFLATE instead.
+    -In png parser detect 1/2/4bit images as type PNG8(IMAGE1,IMAGE4,IMAGE4).
 v145
     -Add new ContextMap3.
     -Replace ContextMap and ContextMap2 with ContextMap3.

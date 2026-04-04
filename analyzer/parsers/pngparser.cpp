@@ -115,8 +115,14 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                         if (pngw<0x1000000 && pngh) {
                             if ((pngbps==8||pngbps==16) && pngtype==2) info=(IMAGE24<<24)|(pngw*3), type=PNG24;
                             else if ((pngbps==8||pngbps==16) && pngtype==6 ) info=(IMAGE32<<24)|(pngw*4), type=PNG32;
+                            else if (pngbps==4 && pngtype==3) info=(IMAGE4<<24)|(pngw/2), type=PNG8; // 4bit image
+                            else if (pngbps==2 && pngtype==3) info=(IMAGE4<<24)|(pngw/4), type=PNG8; // 2bit image // where ?
+                            else if (pngbps==1 && pngtype==3) info=(IMAGE1<<24)|(pngw/8), type=PNG8; // 1bit image
                             else if ((pngbps==8||pngbps==16) && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?IMAGE8GRAY:IMAGE8)<<24)|(pngw), type=(!pngtype || pnggray)?PNG8GRAY:PNG8;
-                            else type=PNG24, info=(IMAGE24<<24)|(pngw*3);
+                            else {
+                             type=PNG24, info=(IMAGE24<<24)|(pngw*3);   
+                             //gray with alfa?
+                            }
                         } else {
                             type=PNG24;
                         }
@@ -139,8 +145,13 @@ DetectState PNGParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                             if (pngw<0x1000000 && pngh) {
                                 if (pngbps==8 && pngtype==2) info=(IMAGE24<<24)|(pngw*3), type=PNG24;
                                 else if (pngbps==8 && pngtype==6 ) info=(IMAGE32<<24)|(pngw*4), type=PNG32;
+                                else if (pngbps==4 && pngtype==3) info=(IMAGE4<<24)|(pngw/2), type=PNG8; // 4bit image
+                                else if (pngbps==2 && pngtype==3) info=(IMAGE4<<24)|(pngw/4), type=PNG8; // 2bit image // where ?
+                                else if (pngbps==1 && pngtype==3) info=(IMAGE1<<24)|(pngw/8), type=PNG8; // 1bit image
                                 else if (pngbps==8 && (!pngtype || pngtype==3)) info=(((!pngtype || pnggray)?IMAGE8GRAY:IMAGE8)<<24)|(pngw), type=(!pngtype || pnggray)?PNG8GRAY:PNG8;
-                                else type=PNG24, info=(IMAGE24<<24)|(pngw*3);
+                                else {
+                                 type=PNG24, info=(IMAGE24<<24)|(pngw*3);   
+                                }
                             } else {
                                 type=PNG24;
                             }
