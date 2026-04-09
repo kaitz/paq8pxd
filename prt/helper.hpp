@@ -38,8 +38,9 @@ constexpr auto isPowerOf2(T x) -> bool {
 +    (((x) & 0x000000ff) << 24))
 
 #define bswap64(n) ((bswap((n&0xFFFFFFFF00000000)>>32))|((bswap(n&0x00000000FFFFFFFF))<<32))
+short clp(int z);
 U8 Clip(int const Px);
-
+U8 Clip4(int const Px);
 #define TAB 0x09
 #define NEW_LINE 0x0A
 #define CARRIAGE_RETURN 0x0D
@@ -54,6 +55,7 @@ int max(int a, int b);
 U8 Clamp4(const int Px, const U8 n1, const U8 n2, const U8 n3, const U8 n4);
 U8 LogMeanDiffQt(const U8 a, const U8 b, const U8 limit = 7);
 U32 LogQt(const U8 Px, const U8 bits);
+uint8_t DiffQt(const uint8_t a, const uint8_t b, const uint8_t limit = 7);
 
 //U8 Paeth(U8 W, U8 N, U8 NW);
 #define MAX_WORD_SIZE 64

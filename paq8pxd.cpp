@@ -57,7 +57,7 @@ This needs to be define globaly by compiler
 #ifdef WINDOWS
 #include <windows.h>
 #endif
-
+#include "prt/helper.hpp"
 #include "prt/cli.hpp"
 #include "prt/program.hpp"
 #include "prt/settings.hpp"
@@ -174,15 +174,6 @@ inline int pre(const int state) {
 inline int sc(int p) {
     if (p>0) return p>>7;
     return (p+127)>>7;// p+((1<<s)-1);
-}
-
-inline short clp(int z) {
-    if (z<-2047) {
-        z=-2047;
-    } else if (z>2047) {
-        z=2047;
-    }
-    return z;
 }
 
 void CalcTables() {

@@ -24,7 +24,7 @@ class PredictorEXE: public Predictors {
         M_INDIRECT, 
         M_NORMAL, 
         M_XML, 
-        M_WORD,
+        //M_WORD,
         M_SPARSEMATCH, 
         M_SPARSE_Y,
         M_PPM,M_CHART,M_LSTM};

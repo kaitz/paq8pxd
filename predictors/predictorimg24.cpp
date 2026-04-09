@@ -35,12 +35,12 @@ void PredictorIMG24::update() {
     models[M_MATCH1]->p(*m);
     //if (slow==true) models[M_NORMAL]->p(*m);
     if (x.settings.slow==true) models[M_LSTM]->p(*m);
-    models[M_IM24]->p(*m,x.finfo);
-    m->add((stretch(StateMaps[0].p(x.c0,x.y))+1)>>1);
-    m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1)>>1);
+    models[M_IM24]->p(*m,x.finfo,einfo.rates);
+    m->add((stretch(StateMaps[0].p(x.c0,x.y))+1));
+    m->add((stretch(StateMaps[1].p(x.c0|(x.buf(1)<<8),x.y))+1));
     mcxt[0]=x.Image.ctx&0x1FFF;
     int pr1, pr2, pr3;
-    int pr0=x.filetype==IMAGE24? m->p(1,1): m->p();
+    int pr0=x.filetype==IMAGE24? m->p(1-min(1,m->nx/(m->zpr+1)),1-min(1,m->nx/(m->zpr+1))): m->p();
     int limit=0x3FF>>((x.blpos<0xFFF)*4);
     // pr=pr0;
     pr  = Image.APMs[0].p(pr0, (x.c0<<4)|(x.Misses&0xF), x.y,limit);

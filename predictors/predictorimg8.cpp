@@ -31,8 +31,9 @@ void PredictorIMG8::update() {
         m->setErrLimit(el,einfo.rates); // slow, range 14...2
     }
     if (x.bpos==0) x.count++;
-    models[M_MATCH]->p(*m);
-    models[M_IM8]->p(*m,x.finfo);
+    models[M_MATCH]->p(*m,0,einfo.rates);
+    models[M_IM8]->p(*m,x.finfo,einfo.rates);
+    models[M_LINEAR]->p(*m);
     /*U64  cxt[16];
     for (int i=0; i<16; ++i) cxt[i]=x.cxt[i];
     for (int i=14; i>0; --i)  // update order 0-11 context hashes

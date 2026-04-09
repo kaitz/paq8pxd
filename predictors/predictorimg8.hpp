@@ -23,6 +23,7 @@ class PredictorIMG8: public Predictors {
     const std::vector<ModelTypes> activeModels { 
         M_MATCH,
         M_IM8,
+        M_LINEAR,
         //M_NORMAL,
         M_LSTM};
 public:

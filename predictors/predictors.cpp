@@ -15,7 +15,7 @@ Predictors::Predictors(Settings &set):x(set), mixerInputs(0) {
 void Predictors::loadModels(const std::vector<ModelTypes> &amodel) {
     models = new Model*[M_MODEL_COUNT];
     // reset
-    for (int i=0;i<M_MODEL_COUNT;i++)      models[i]=0;
+    for (int i=0;i<M_MODEL_COUNT;i++)      models[i]=nullptr;
     // create active models
     for (int i=0;i<amodel.size() ;i++) {
 #ifdef VERBOSE      
@@ -144,7 +144,7 @@ void Predictors::loadModels(const std::vector<ModelTypes> &amodel) {
     }
     // create blank models
     for (int i=0;i<M_MODEL_COUNT;i++) {
-        if (models[i]==0) models[i]=new blankModel1(x);
+        if (models[i]==nullptr) models[i]=new blankModel1(x);
     }
     // get mixer data from models
     for (int i=0;i<M_MODEL_COUNT;i++) {
@@ -153,17 +153,15 @@ void Predictors::loadModels(const std::vector<ModelTypes> &amodel) {
     // Add model mixer contexts
     for (int i=0; i<amodel.size(); i++) {
         const ModelTypes mType=amodel[i];
-        if (mType!=M_PPM && mType!=M_CHART && mType!=M_LSTM && models[mType]->mxp.size()){
-           /* printf("Add Model %d, mixers %d\n",mType,models[mType]->mxp.size());
-            for (size_t j=0; j<models[mType]->mxp.size(); j++) {
+        if (models[mType]->mxp.size()){
+            //printf("Add Model(%d) %s, mixers %d\n",mType,modelNames[amodel[i]].c_str(),models[mType]->mxp.size());
+            /*for (size_t j=0; j<models[mType]->mxp.size(); j++) {
             printf(" m%d: %d %d %d %d %d\n",j,models[mType]->mxp[j].m,models[mType]->mxp[j].dmul, models[mType]->mxp[j].elim, models[mType]->mxp[j].lr, models[mType]->mxp[j].bias);
              }*/
             mxp.insert(mxp.end(), models[mType]->mxp.begin(), models[mType]->mxp.end());    
         }
-        if (x.settings.slow==true && (mType==M_PPM || mType==M_CHART || mType==M_LSTM) && models[mType]->mxp.size()) {
-            mxp.insert(mxp.end(), models[mType]->mxp.begin(), models[mType]->mxp.end());    
-        }
     }
+    //printf("\n");
 }
 
 void Predictors::setContexts() {

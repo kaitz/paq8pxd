@@ -1,5 +1,6 @@
 #pragma once
 #include "../prt/types.hpp"
+#include "../prt/helper.hpp"
 #include "../prt/aerr.hpp"
 #include "../prt/mixers.hpp"
 

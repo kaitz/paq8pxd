@@ -87,9 +87,9 @@ StationaryMap::StationaryMap(int BitsOfContext, int InputBits, int Rate): Data((
     int Prediction,Error;
     U32 p0=cp[0];
 #ifdef SM
-     int pr=p0>>13;  // count, prediction
+     int pr=p0>>(13+Limit);  // count, prediction
      //if (m.x.count>0x4ffff)
-       p0+=(((m.x.y<<19)-pr));
+       p0+=(((m.x.y<<(19-Limit))-pr));
     /* else {
        int n=p0&1023;
        p0+=(n<Limit);     

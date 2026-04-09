@@ -2,7 +2,7 @@
 //////////////////////////// im8bitModel /////////////////////////////////
 // Model for 8-bit image data
 
-im8bitModel1::im8bitModel1( BlockData& bd):inpts(48+1+1+1+1+1+1-3),
+im8bitModel1::im8bitModel1( BlockData& bd):inpts(48+1+1+1+1+1+1+1+1),
   cm(bd,inpts,CMlimit(bd.MEM()*4)),
   cmp(bd,nPltMaps,CMlimit(bd.MEM()/4)),
   col(0),xx(bd),buf(bd.buf), ctx(0),lastPos(0), line(0), x(0),
@@ -134,7 +134,7 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
             iCtx[1]=W|(N<<8);
             iCtx[2]=W|(WW<<8);
             iCtx[3]=N|(NN<<8);
-            U32 bcxt[53];
+            U32 bcxt[55+1];
             i=0;
             bcxt[i++]=( W);
             bcxt[i++]=(( W+ column[0]*256));
@@ -186,13 +186,16 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
             bcxt[i++]=(( Clip((buf(w*5)-6*buf(w*4)+15*NNN-20*NN+15*N+Clamp4(W*2-NWW,W,NW,N,NN))/6)));
             bcxt[i++]=(( N+  column[1]*256 ));
             bcxt[i++]=(( W+  column[1]*256 )); //48
-            /*bcxt[i++]=hash(++i, std::sqrt(W*WW+NW*NWW),std::sqrt(N*NN+ NE*NNE), px);
-                bcxt[i++]=hash(++i, std::sqrt(W*WW+NW*NWW),std::sqrt(N*NN+ NE*NNE),std::sqrt(N*NW+ NN*NNW) ,px);
-                bcxt[i++]=hash(++i, std::sqrt(W*WW+NW*NWW)-std::sqrt(W*NW+ N*128) ,px);*/
-            for (int j=0; j<53-3; j++) cm.set(bcxt[j]);
+            bcxt[i++]=hash( N+W-NW,W);//++
+            bcxt[i++]=hash( N+NNE-NNW,W);//++
+            bcxt[i++]=(hash( N>>2, W>>2, NE>>2));//++
+            bcxt[i++]=(hash( NE>>2, N>>2, NW>>2));//++
+            bcxt[i++]=(hash( W>>2, NE>>2, NNE>>2));//++
+
+            for (int j=0; j<55; j++) cm.set(bcxt[j]);
             for (int j=0; j<nPltMaps; j++) //4
-            cmp.set(( iCtx[j]()*191+W));
-            ctx = min(0xfF,(x/*-isPNG*/)/min(0x20,columns[0]));
+                cmp.set(( iCtx[j]()*191+W));
+            ctx = min(0xfF,x/min(0x20,columns[0]));
             res = W;
         }
         else{
@@ -251,10 +254,7 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
             MapCtxs[j++] = Clip((WWW-4*WW+6*W+Clip(NE*3-NNE*3+buf(w*3-1)))/4);
             MapCtxs[j++] = Clip((-NNEE+3*NE+Clip(W*4-NW*6+NNW*4-buf(w*3+1)))/3);
             MapCtxs[j++] = ((W+N)*3-NW*2)/4;
-            for (j=0; j<nOLS; j++) {
-                ols[j].Update(W);
-                pOLS[j] = Clip(int(roundf(ols[j].Predict(ols_ctxs[j]))));
-            }
+            
 
             cm.set(hash(++i, N));
             cm.set(hash(++i, N));//
@@ -288,6 +288,10 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
 
             res = Clamp4(W+N-NW,W,NW,N,NE);
         }
+        for (j=0; j<nOLS; j++) {
+                ols[j].Update(W);
+                pOLS[j] = Clip(int(roundf(ols[j].Predict(ols_ctxs[j]))));
+            }
         xx.Image.pixels.W = W;
         xx.Image.pixels.N = N;
         xx.Image.pixels.NN = NN;
@@ -301,34 +305,34 @@ int im8bitModel1::p(Mixers& m ,int w, int val2) {
     if (gray) {
         int i=1;
         Map[i++].set((((U8)(Clip(W+N-NW)-B))*8+bpos)|(LogMeanDiffQt(Clip(N+NE-NNE),Clip(N+NW-NNW))<<11));
-        
         for (int j=0; j<nMaps1; i++, j++)
-        Map[i].set((MapCtxs[j]-B)*8+bpos);
+            Map[i].set((MapCtxs[j]-B)*8+bpos);
 
-        for (int j=0; i<nMaps; i++, j++)
-        Map[i].set((pOLS[j]-B)*8+bpos);
+        
     }
+    for (int j=0; j<nOLS; j++)
+        MapOLS[j].set((pOLS[j]-B)*8+bpos);
     sceneMap[2].set_direct(finalize64(hash(x, line), 19)*8+bpos);
     sceneMap[3].set_direct((prvFrmPx-B)*8+bpos);
     sceneMap[4].set_direct((prvFrmPred-B)*8+bpos);
-    // }
-    // Predict next bit
 
+    // Predict next bit
     col=(col+1)&7;
-    if (val2==1)  return 1;
     cm.mix(m);
     cmp.mix(m);
     if (gray) {
         for (int i=0; i<nMaps; i++)
-        Map[i].mix1(m,4);
+            Map[i].mix1(m,4,4,0-((val2-2)/3));
     } else {
         for (int i=0; i<nPltMaps; i++) {
             pltMap[i].set((bpos<<8)|iCtx[i]());
             pltMap[i].mix(m,7,4);
         }
     }
+    for (int i=0; i<nOLS; i++)
+        MapOLS[i].mix1(m,4,4,0-((val2-2)/3));
     for (int i=0; i<5; i++)
-    sceneMap[i].mix(m, (prevFramePos>0 && prevFrameWidth==w), 4, 255);
+        sceneMap[i].mix(m, (prevFramePos>0 && prevFrameWidth==w), 4, 255);
 
     mxcxt[0]=ctx;
     mxcxt[1]=col*2+(c0==((0x100|res)>>(8-bpos)));

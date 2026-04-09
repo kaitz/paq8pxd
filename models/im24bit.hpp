@@ -27,7 +27,6 @@ class im24bitModel1: public Model {
     int column[2];
     BlockData& xx;
     Buf& buf; 
-    RingBuffer buffer; // internal rotating buffer for PNG unfiltered pixel data
     int w, line, R1, R2;
     U32& c4;
     int& c0;
@@ -81,7 +80,7 @@ class im24bitModel1: public Model {
         {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
         {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
         {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},{11,1}, {11,1}, {11,1}, {11,1}};
-    Array<U32> mixCxt;
+
 public:
     int mxcxt[13];
     im24bitModel1(BlockData& bd);

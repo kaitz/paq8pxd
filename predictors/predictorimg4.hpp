@@ -14,7 +14,6 @@ class PredictorIMG4: public Predictors {
         APM APMs[4];
         APM1 APM1s[2];
     } Image;
-    eSSE sse;
     const std::vector<ModelTypes> activeModels { 
         M_MATCH ,
         M_IM4,

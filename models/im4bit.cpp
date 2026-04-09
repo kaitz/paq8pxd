@@ -2,24 +2,16 @@
 
 //////////////////////////// im4bitModel /////////////////////////////////
 // Model for 4-bit image data
-static inline short clp(int z) {
-    if (z<-2047) {
-        z=-2047;
-    } else if (z>2047) {
-        z=2047;
-    }
-    return z;
-}
 
 im4bitModel1::im4bitModel1( BlockData& bd, U32 val): x(bd),buf(bd.buf),
     t(CMlimit((x.settings.level>14?x.MEM()/2:x.MEM())/4) ),
-    S(14+1+1+1+1),cp(S),cxt(S),map(16), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
+    S(14+1+1+1+1+1+1),cp(S),cxt(S),map(16), WWW(0), WW(0), W(0), NWW(0), NW(0), N(0), NE(0),
     NEE(0), NNWW(0), NNW(0), NN(0), NNE(0), NNEE(0),col(0), line(0), run(0), runN(0), prevColor(0), px(0),
     mapL({
       { 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},
       { 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},
-      { 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2}
-    }) {
+      { 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2},{ 16, 128*2}
+    }),nPrd(5) {
 
     sm=new StateMap[S];
     for (int i=0;i<S;i++)
@@ -31,27 +23,42 @@ im4bitModel1::im4bitModel1( BlockData& bd, U32 val): x(bd),buf(bd.buf),
     mxp.push_back( { 512,64,0,28,&mxcxt[2],0,false} );
     mxp.push_back( {1024,64,0,28,&mxcxt[3],0,false} );
     mxp.push_back( { 512,64,0,28,&mxcxt[4],0,false} );
-    mxp.push_back( {   1,64,0,28,&mxcxt[5],0,false} );
+    mxp.push_back( { 256,64,0,28,&mxcxt[5],0,false} );
     mxp.push_back( { 256,64,0,28,&mxcxt[6],0,false} );
 }
 
 int im4bitModel1::p(Mixers& m, int w, int val2)  {
-    int i;
-
-    for (i=0;i<S;i++)
+    
+    for (int i=0;i<S;i++)
         *cp[i]=nex(*cp[i],x.y);
 
     if (x.bpos==0 || x.bpos==4) {
-        WW=W, NWW=NW, NW=N, N=NE, NE=NEE, NNWW=NWW, NNW=NN, NN=NNE, NNE=NNEE;
+        WWW=WW, WW=W, NWW=NW, NW=N, N=NE, NE=NEE, NNWW=NWW, NNW=NN, NN=NNE, NNE=NNEE;
         if (x.bpos==0) {
-            W=x.c4&0xF, NEE=buf(w-1)>>4, NNEE=buf(w*2-1)>>4;}
-        else {
-            W=x.c0&0xF, NEE=buf(w-1)&0xF, NNEE=buf(w*2-1)&0xF;
+            W=x.c4&0xF,NNN=buf(w*2)>>4, NEE=buf(w-1)>>4, NNEE=buf(w*2-1)>>4;
+        } else {
+            W=x.c0&0xF,NNN=buf(w*2)&0xF, NEE=buf(w-1)&0xF, NNEE=buf(w*2-1)&0xF;
         }
         run=(W!=WW || col==0)?(prevColor=WW,0):min(0xFFF,run+1);
         runN=(N!=NW || col==0)?0:min(0xFFF,runN+1);
-        px=1, i=0;
 
+        x.Image.pixels.W = W;
+        x.Image.pixels.N = N;
+        x.Image.pixels.NN = NN;
+        x.Image.pixels.WW = WW;
+        x.Image.ctx=
+         ((abs(W-N)>7)<<8)|
+         ((W>N)<<7)|
+         ((W>NW)<<6)|
+         ((abs(N-NW)>7)<<5)|
+         ((N>NW)<<4)|
+         ((abs(N-NE)>7)<<3)|
+         ((N>NE)<<2)|
+         ((W>WW)<<1)|
+         (N>NN);
+
+        px=1;
+        int i=0;
         cxt[i++]=hash(W,NW,N);
         cxt[i++]=hash(N, min(0xFFF, col/8));
         cxt[i++]=hash(W,NW,N,NN,NE);
@@ -69,7 +76,8 @@ int im4bitModel1::p(Mixers& m, int w, int val2)  {
         cxt[i++]=hash(i,N,NWW,NEE);
         cxt[i++]=hash(i,NE,NNE);
         cxt[i++]=hash(i,NE,NEE);
-        //N,NNE,NEE
+        cxt[i++]=hash(i,W*3-WW*3+WWW,NW,N);
+        cxt[i++]=hash(i,x.Image.ctx,W);
         cxt[i++]=hash(i,0);
 
         for (int i=0; i<S; i++) {
@@ -77,16 +85,21 @@ int im4bitModel1::p(Mixers& m, int w, int val2)  {
             cp[i]=t[cxt[i]];
         }
         col++;
-        if (col==w*2) {col=0; line++;}
-        x.Image.pixels.W = W;
-        x.Image.pixels.N = N;
-        x.Image.pixels.NN = NN;
-        x.Image.pixels.WW = WW;
-        x.Image.ctx = W*16+px;
+        if (col==w*2) {
+            col=0; line++;
+        }
+
+        i=0;
+        prd[i++]=Clip4(W*2-NE);
+        prd[i++]=Clip4(W*2-NW);
+        prd[i++]=Clip4(W*2-N);
+        prd[i++]=Clip4(W*2-WW);
+        prd[i++]=Clip4(W*3-WW*3+WWW>>1);
+        prd[i++]=Clip4(N*3-NN*3+NNN>>1);
     } else {
         px+=px+x.y;
         int j=(x.y+1)<<(x.bpos&3);
-        for (i=0; i<S; i++)
+        for (int i=0; i<S; i++)
             cp[i]+=j;
     }
     x.Image.pixels.px=px;
@@ -102,12 +115,17 @@ int im4bitModel1::p(Mixers& m, int w, int val2)  {
     }
     m.add(stretch(map.p3(px,x.y,1)));
 
+    const U8 B=px<<(4-(x.bpos&3));
+    for (int i=0; i<nPrd; i++) {
+        sMap[i].set((prd[i]-B)*4+(x.bpos&3));
+        sMap[i].mix(m, 8, 1, 1);
+    }
     mxcxt[0]=W*16+px;
     mxcxt[1]=min(31,col/max(1,w/16))+N*32;
     mxcxt[2]=(x.bpos&3)+4*W+64*min(7,ilog2(run+1));  // current line
     mxcxt[3]=W+NE*16+(x.bpos&3)*256;
     mxcxt[4]=(x.bpos&3)+4*N+64*min(7,ilog2(runN+1)); // above line
-    mxcxt[5]=0-(px==1);                              // skip for first msb bit in pixel
+    mxcxt[5]=x.Image.ctx;
     mxcxt[6]=NEE*16+N;
     return 0;
 }

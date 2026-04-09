@@ -505,6 +505,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 int hdrsize=dataf->hdrsize+4;
                 tmp->setpos(0);
                 AddStat(HDR,hdrsize,it+1);
+                AddStat(type2,tmpsize-hdrsize,it+1);
                 direct_encode_blockstream(HDR,  tmp, hdrsize);
                 if (type2==IMAGE32 || type2==IMAGE24) {
                     FileTmp* treb=new FileTmp(64 * 1024 * 1024/2);
@@ -549,7 +550,7 @@ void Codec::transform_encode_block(Filetype type, File*in, U64 len, int info, in
                 } else
                     direct_encode_blockstream(type2, tmp, tmpsize-hdrsize, info&0xffffff);
             } else if (type==GIF) {
-                if ((it)<=itcount) itcount=itcount+1;
+                if (it==itcount) itcount=itcount+1;
                 segment->putdata(type,tmpsize,0);
                 int hdrsize=(tmp->getc()<<8)+tmp->getc();
                 tmp->setpos(0);

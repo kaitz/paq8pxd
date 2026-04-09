@@ -167,7 +167,7 @@ exeModel1::exeModel1(BlockData& bd,U32 val):x(bd),buf(bd.buf),N1(10), N2(10+1+1-
     mxp.push_back( {8192,64,0,28,&mxcxt[3],0,false} );
     mxp.push_back( {8192,64,0,28,&mxcxt[4],0,false} );
     mxp.push_back( {8192,64,0,28,&mxcxt[5],0,false} );
-    mxp.push_back( { 256,64,0,28,&mxcxt[6],0,false} );
+    mxp.push_back( {4096,64,0,28,&mxcxt[6],0,false} );
     mxp.push_back( {8192,64,0,28,&mxcxt[7],0,false} );
 }
 
@@ -459,7 +459,7 @@ int exeModel1::p(Mixers& m,int val1,int val2) {
 
     if (Valid /*|| val1*/){
         iMap.set(hash(BrkCtx, x.bpos));
-        if(x.filetype==EXE ) iMap.mix(m,1,4); 
+        if(x.filetype==EXE ) iMap.mix(m,4,4); 
         else m.add(0),m.add(0);
         x.x86_64.state = 0x80u | (static_cast<std::uint8_t>(State) << 3u) | Op.BytesRead;
         x.x86_64.flags=Op.Flags;
@@ -481,7 +481,7 @@ int exeModel1::p(Mixers& m,int val1,int val2) {
     mxcxt[3]=finalize64(hash(Op.Code, State, OpN(Cache, 1)&CodeMask),13);
     mxcxt[4]=finalize64(hash(State, x.bpos, Op.Code, Op.BytesRead,(Op.Prefix!=0)),13);
     mxcxt[5]=finalize64(hash(State, (x.bpos<<2)|(x.c0&3), OpCategMask&CategoryMask, ((Op.Category==OP_GEN_BRANCH)<<2)|(((Op.Flags&fMODE)==fAM)<<1)|(Op.BytesRead>0)),13);
-    mxcxt[6]=StateW&255;
-    mxcxt[7]=finalize64(hash(State, x.bpos, Op.Category,Op.Flags, Op.BytesRead),13);
+    mxcxt[6]=StateW&0xfff;
+    mxcxt[7]=finalize64(hash(State, val2, Op.Category,Op.Flags, Op.BytesRead),13);
     return Valid;
 }

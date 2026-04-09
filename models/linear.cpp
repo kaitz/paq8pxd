@@ -22,7 +22,7 @@ int linearPredictionModel::p(Mixers& m, int val1, int val2) {
     const U8 B=x.c0<<(8-x.bpos);
     for (int i=0; i<nLnrPrd; i++) {
         sMap[i].set((prd[i]-B)*8+x.bpos);
-        sMap[i].mix(m, 6, 1, 2);
+        sMap[i].mix(m, 6, 2, 2);
     }
     return 0;
 }

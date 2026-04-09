@@ -63,11 +63,11 @@ void PredictorEXE::update()  {
     order=models[M_NORMAL]->p(*m);
     int rec=0;
     rec=models[M_RECORD]->p(*m);
-    models[M_WORD]->p(*m,order);
+    //models[M_WORD]->p(*m,order);
     models[M_SPARSE_Y]->p(*m,ismatch,order);
     models[M_DISTANCE]->p(*m);
     models[M_INDIRECT]->p(*m);
-    models[M_EXE] ->p(*m,1);
+    models[M_EXE] ->p(*m,1,order);
     if (x.settings.slow==false) models[M_XML]->p(*m);
     if (x.settings.slow==true) models[M_PPM]->p(*m); 
     if (x.settings.slow==true) models[M_CHART]->p(*m);
@@ -86,7 +86,7 @@ void PredictorEXE::update()  {
     }
     else c=c3/128+(x.c4>>31)*2+4*(c2/64)+(c1&240); 
     mcxt[6]=c;
-    int pr0=m->p(2,1);
+    int pr0=m->p(2-min(1,m->nx/(m->zpr+1)),1);
     int const limit = 0x3FFu >> (static_cast<int>(x.blpos < 0xFFFu) * 4);
     pr = x86_64.APMs[0].p(pr0, (x.x86_64.state << 3u) | x.bpos,x.y, limit);
     int  pr1 = x86_64.APMs[1].p(pr0, (x.c0 << 8u) | x.x86_64.state,x.y, limit);

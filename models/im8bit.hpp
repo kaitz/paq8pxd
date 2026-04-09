@@ -18,7 +18,7 @@ class im8bitModel1: public Model {
         nOLS = 5,
         nMaps0 = 2,
         nMaps1 = 55,
-        nMaps = 62,  //nMaps0 + nMaps1 + nOLS
+        nMaps = 62-5,  //nMaps0 + nMaps1 + nOLS
         nPltMaps = 4
     } im8M;
     int inpts;
@@ -40,7 +40,9 @@ class im8bitModel1: public Model {
         {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
         {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
         {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1},
-        {11,1}, {11,1}, {11,1}, {11,1}, {11,1}, {11,1} };
+        {11,1} };
+    StationaryMap MapOLS[5] = {
+             {11,1}, {11,1}, {11,1}, {11,1}, {11,1} };
     SmallStationaryContextMap pltMap[nPltMaps] = { {11,1},{11,1},{11,1},{11,1} };
     IndirectMap sceneMap[5]{ {8}, {8}, {22,1}, {11,1}, {11,1} };
     IndirectContext<U8> iCtx[nPltMaps] = { {16,8}, {16,8}, {16,8}, {16,8} };
@@ -76,7 +78,7 @@ class im8bitModel1: public Model {
 public:
     int mxcxt[9];
     im8bitModel1(BlockData& bd);
-    int inputs() {return inpts*cm.inputs()+cm.inputs()*4+ nMaps*2+nPltMaps*2;}
+    int inputs() {return inpts*cm.inputs()+cm.inputs()*4+nOLS*2+ nMaps*2+nPltMaps*2;}
     int p(Mixers& m, int w=0, int val2=0);
     // Square buf(i)
     inline int sqrbuf(int i) {

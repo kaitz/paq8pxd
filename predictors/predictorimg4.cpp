@@ -2,14 +2,11 @@
 
 // 4-bit image predicor
 PredictorIMG4::PredictorIMG4(Settings &set):Predictors(set), pr(16384), StateMaps{ 16, 256, 256},
-    Image{{{0x1000,20}, {0x10000,20}, {0x10000,20}, {0x10000}},  {{0x10000,x}, {0x10000,x}}},
-    sse(x) {
+    Image{{{0x1000,20}, {0x10000}, {0x10000}, {0x10000}},  {{0x10000,x}, {0x10000,x}}},fAPM{0x1000,20}, fAPM1{0x10000,x} {
     
     loadModels(activeModels);  
     // add extra 
     mixerInputs+=1+3;
-    sse.p(pr);
-    //for (int i=0;i<1;i++) mcxt[i]=0;
 
     mxp.push_back( {1,8,7,14,&mcxt[0],0,false} ); // final mixer
     // create mixer
@@ -38,19 +35,17 @@ void PredictorIMG4::update()  {
     int pr1, pr2, pr3;
     int limit=0x3FF;//>>((x.blpos<0xFFF)*4);
     pr  = Image.APMs[0].p(pr0, (x.Image.pixels.px<<4)|(x.Misses&0xF), x.y, limit);
-    pr1 = Image.APMs[1].p(pr0, (x.Image.pixels.px*16+ x.Image.pixels.W)*256+ x.Image.pixels.N*16+(x.Misses&0xF),x.y, limit);
-    pr2 = Image.APMs[2].p(pr0, (x.Image.pixels.px*16+ x.Image.pixels.N)*256+ x.Image.pixels.NN*16+(x.Misses&0xF),x.y, limit);
-    pr3 = Image.APMs[3].p(pr0, (x.Image.pixels.px*16+ x.Image.pixels.W)*256+ x.Image.pixels.WW*16+(x.Misses&0xF),x.y, limit);
+    pr1 = Image.APMs[1].p(pr0, hash(x.Image.pixels.px, x.Image.pixels.W, x.Image.pixels.N,(x.Misses&0xF))&0xffff,x.y, limit);
+    pr2 = Image.APMs[2].p(pr0, hash(x.Image.pixels.px, x.Image.pixels.N, x.Image.pixels.NN,(x.Misses&0xF))&0xffff,x.y, limit);
+    pr3 = Image.APMs[3].p(pr0, hash(x.Image.pixels.px, x.Image.pixels.W, x.Image.pixels.WW,(x.Misses&0xF))&0xffff,x.y, limit);
     pr0 = (pr0+pr1+pr2+pr3+2)>>2;
 
-    pr1 = Image.APM1s[0].p(pr0, x.Image.pixels.px+ x.Match.byte*256+ x.Image.pixels.N*16, 5);
-    pr2 = Image.APM1s[1].p(pr, x.Image.pixels.px+ x.Image.pixels.W*256+ x.Image.pixels.N*16, 6);
+    pr1 = Image.APM1s[0].p(pr0, hash(x.Image.pixels.px,x.Match.byte, x.Image.pixels.N,x.Image.ctx)&0xffff, 5);
+    pr2 = Image.APM1s[1].p(pr, hash(x.Image.pixels.px, x.Image.pixels.W, x.Image.pixels.N,x.Image.ctx)&0xffff, 6);
     pr = (pr*2+pr1+pr2+2)>>2;
     pr = (pr+pr0*3+1)>>2;
-    sse.update();
-    pr = sse.p(pr);
-     /*pr=(4096-pr)*(32768/4096);
+    pr=(4096-pr)*(32768/4096);
     if(pr<1) pr=1;
-    if(pr>32767) pr=32767;*/
+    if(pr>32767) pr=32767;
 }
 

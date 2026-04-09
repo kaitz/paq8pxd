@@ -228,9 +228,9 @@ int recordModel1::p(Mixers& m, int rrlen, int val2) {
     if (x.filetype==DICTTXT || x.filetype==BIGTEXT || x.filetype==TEXT || x.filetype==TEXT0  ||x.filetype==EXE|| x.filetype==DECA || x.filetype==DBASE) {
     } else {
         for (int i=0;i<nMaps;i++)
-            Maps[i].mix1(m, 1, 3);
+            Maps[i].mix1(m, 4, 4);
         for (int i=0;i<3;i++)
-            iMap[i].mix(m, 1, 3, 255); 
+            iMap[i].mix(m, 4, 4, 255); 
     }
     sMap[0].mix(m, 6, 1, 1);
     sMap[1].mix(m, 6, 1, 1);
