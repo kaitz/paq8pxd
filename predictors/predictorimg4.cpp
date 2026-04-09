@@ -2,7 +2,7 @@
 
 // 4-bit image predicor
 PredictorIMG4::PredictorIMG4(Settings &set):Predictors(set), pr(16384), StateMaps{ 16, 256, 256},
-    Image{{{0x1000,20}, {0x10000}, {0x10000}, {0x10000}},  {{0x10000,x}, {0x10000,x}}},fAPM{0x1000,20}, fAPM1{0x10000,x} {
+    Image{{{0x1000,20}, {0x10000}, {0x10000}, {0x10000}},  {{0x10000,x}, {0x10000,x}}} {
     
     loadModels(activeModels);  
     // add extra 
