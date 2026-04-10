@@ -142,9 +142,9 @@ void Predictor::update()  {
         models[M_INDIRECT]->p(*m);
         models[M_NEST]->p(*m);
         models[M_DMC]->p(*m);
-        if (x.settings.slow==true) models[M_PPM]->p(*m); 
-        if (x.settings.slow==true) models[M_CHART]->p(*m);
-        if (x.settings.slow==true) models[M_LSTM]->p(*m);
+        models[M_PPM]->p(*m); 
+        models[M_CHART]->p(*m);
+        models[M_LSTM]->p(*m);
         xmlstate=models[M_XML]->p(*m);
         models[M_TEXT]->p(*m);
         //Valid=models[M_EXE]->p(*m);

@@ -27,7 +27,7 @@ void PredictorIMG4::update()  {
     }
     models[M_MATCH]->p(*m); // byte level, my be bad
     models[M_IM4]->p(*m,x.finfo);
-    if (x.settings.slow==true) models[M_LSTM]->p(*m);
+    models[M_LSTM]->p(*m);
     m->add((stretch(StateMaps[0].p(x.Image.pixels.px,x.y))+1));
     m->add((stretch(StateMaps[1].p(x.Image.pixels.px|(x.Image.pixels.W<<4),x.y))+1));
     m->add((stretch(StateMaps[2].p(x.Image.pixels.px|(x.Image.pixels.N<<4),x.y))+1));

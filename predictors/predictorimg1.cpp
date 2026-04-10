@@ -26,7 +26,7 @@ void PredictorIMG1::update()  {
         m->setErrLimit(el); // slow, range 14...2
     }
     int ismatch=models[M_MATCH]->p(*m);
-    if (x.settings.slow==true) models[M_LSTM]->p(*m);
+    models[M_LSTM]->p(*m);
     mcxt[0]=ismatch;
     models[M_IM1]->p(*m, x.finfo);
     pr=m->p(3,1);

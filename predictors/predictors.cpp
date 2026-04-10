@@ -12,7 +12,7 @@ Predictors::Predictors(Settings &set):x(set), mixerInputs(0) {
     models=nullptr;
 }
 
-void Predictors::loadModels(const std::vector<ModelTypes> &amodel) {
+void Predictors::loadModels(const std::vector<MType> &amodel) {
     models = new Model*[M_MODEL_COUNT];
     // reset
     for (int i=0;i<M_MODEL_COUNT;i++)      models[i]=nullptr;
@@ -21,126 +21,120 @@ void Predictors::loadModels(const std::vector<ModelTypes> &amodel) {
 #ifdef VERBOSE      
         printf("Creating %s\n",modelNames[amodel[i]].c_str());
 #endif
-        switch (amodel[i]){
-        case M_RECORD:{
-                models[M_RECORD] =      new recordModel1(x);
-                break;
-            }
-        case M_MATCH:{
-                models[M_MATCH] =       new matchModel1(x);
-                break;
-            }
-        case M_MATCH1:{
-                models[M_MATCH1] =      new matchModel2(x);
-                break;
-            }
-        case M_DISTANCE: {
-                models[M_DISTANCE] =    new distanceModel1(x);
-                break;
-            }
-        case M_EXE:{
-                models[M_EXE] =         new exeModel1(x);
-                break;
-            }
-        case M_INDIRECT:{
-                models[M_INDIRECT] =    new indirectModel1(x);
-                break;
-            }
-        case M_DMC:{
-                models[M_DMC] =         new dmcModel1(x);
-                break;
-            } 
-        case M_NEST:{
-                models[M_NEST] =        new nestModel1(x);
-                break;
-            }
-        case M_NORMAL:{
-                models[M_NORMAL] =      new normalModel1(x);
-                break;
-            }
-        case M_XML:{
-                models[M_XML] =         new XMLModel1(x);
-                break;
-            } 
-        case M_TEXT:{
-                models[M_TEXT] =        new TextModel(x,16);
-                break;
-            }
-        case M_WORD:{
-                models[M_WORD] =        new wordModel1(x);
-                break;
-            } 
-        case M_LINEAR:{
-                models[M_LINEAR] =      new linearPredictionModel(x);
-                break;
-            }
-        case M_SPARSEMATCH:{
-                models[M_SPARSEMATCH] = new SparseMatchModel(x);
-                break;
-            }
-        case M_SPARSE_Y:{
-                models[M_SPARSE_Y] =    new sparseModely(x);
-                break;
-            }
-        case M_DEC:{
-                models[M_DEC] =         new decModel1(x);
-                break;
-            }
-        case M_IM8:{
-                models[M_IM8] =         new im8bitModel1(x);
-                break;
-            }
-        case M_IM24:{
-                models[M_IM24] =        new im24bitModel1(x);
-                break;
-            }
-        case M_SPARSE:{
-                models[M_SPARSE] =      new sparseModelx(x);
-                break;
-            }
-        case M_JPEG:{
-                models[M_JPEG] =        new jpegModelx(x);
-                break;
-            }
-        case M_WAV:{
-                models[M_WAV] =         new wavModel1(x);
-                break;
-            }
-        case M_IM4:{
-                models[M_IM4] =         new im4bitModel1(x);
-                break;
-            }
-        case M_IM1:{
-                models[M_IM1] =         new im1bitModel1(x);
-                break;
-            }
-        case M_PPM:{
-                if (x.settings.slow==true)
-                models[M_PPM] =         new ppmdModel1(x);
-                else
-                models[M_PPM] =         new blankModel1(x); 
-                break;
-            }
-        case M_CHART:{
-                if (x.settings.slow==true)
-                models[M_CHART] =       new chartModel(x);
-                else
-                models[M_CHART] =       new blankModel1(x);
-                break;
-            }
-        case M_LSTM:{
-                if (x.settings.slow==true)
-                models[M_LSTM] =        new lstmModel1(x);
-                else
-                models[M_LSTM] =        new blankModel1(x);
-                break;
-            }
-        default:{
-                quit("Error: wrong model.");
-                break;
+        bool loadModel=((amodel[i].mode&EXTREME)==EXTREME && x.settings.slow==true) || ((amodel[i].mode&SLOW)==SLOW && x.settings.slow==false);
+        if (loadModel==true){
+            
+            switch (amodel[i].type){
+            case M_RECORD:{
+                    models[M_RECORD] =      new recordModel1(x);
+                    break;
+                }
+            case M_MATCH:{
+                    models[M_MATCH] =       new matchModel1(x);
+                    break;
+                }
+            case M_MATCH1:{
+                    models[M_MATCH1] =      new matchModel2(x);
+                    break;
+                }
+            case M_DISTANCE: {
+                    models[M_DISTANCE] =    new distanceModel1(x);
+                    break;
+                }
+            case M_EXE:{
+                    models[M_EXE] =         new exeModel1(x);
+                    break;
+                }
+            case M_INDIRECT:{
+                    models[M_INDIRECT] =    new indirectModel1(x);
+                    break;
+                }
+            case M_DMC:{
+                    models[M_DMC] =         new dmcModel1(x);
+                    break;
+                } 
+            case M_NEST:{
+                    models[M_NEST] =        new nestModel1(x);
+                    break;
+                }
+            case M_NORMAL:{
+                    models[M_NORMAL] =      new normalModel1(x);
+                    break;
+                }
+            case M_XML:{
+                    models[M_XML] =         new XMLModel1(x);
+                    break;
+                } 
+            case M_TEXT:{
+                    models[M_TEXT] =        new TextModel(x,16);
+                    break;
+                }
+            case M_WORD:{
+                    models[M_WORD] =        new wordModel1(x);
+                    break;
+                } 
+            case M_LINEAR:{
+                    models[M_LINEAR] =      new linearPredictionModel(x);
+                    break;
+                }
+            case M_SPARSEMATCH:{
+                    models[M_SPARSEMATCH] = new SparseMatchModel(x);
+                    break;
+                }
+            case M_SPARSE_Y:{
+                    models[M_SPARSE_Y] =    new sparseModely(x);
+                    break;
+                }
+            case M_DEC:{
+                    models[M_DEC] =         new decModel1(x);
+                    break;
+                }
+            case M_IM8:{
+                    models[M_IM8] =         new im8bitModel1(x);
+                    break;
+                }
+            case M_IM24:{
+                    models[M_IM24] =        new im24bitModel1(x);
+                    break;
+                }
+            case M_SPARSE:{
+                    models[M_SPARSE] =      new sparseModelx(x);
+                    break;
+                }
+            case M_JPEG:{
+                    models[M_JPEG] =        new jpegModelx(x);
+                    break;
+                }
+            case M_WAV:{
+                    models[M_WAV] =         new wavModel1(x);
+                    break;
+                }
+            case M_IM4:{
+                    models[M_IM4] =         new im4bitModel1(x);
+                    break;
+                }
+            case M_IM1:{
+                    models[M_IM1] =         new im1bitModel1(x);
+                    break;
+                }
+            case M_PPM:{
+                    models[M_PPM] =         new ppmdModel1(x);
+                    break;
+                }
+            case M_CHART:{
+                    models[M_CHART] =       new chartModel(x);
+                    break;
+                }
+            case M_LSTM:{
+                    models[M_LSTM] =        new lstmModel1(x);
+                    break;
+                }
+            default:{
+                    quit("Error: wrong model.");
+                    break;
+                }
             }
         }
-        
     }
     // create blank models
     for (int i=0;i<M_MODEL_COUNT;i++) {
@@ -152,16 +146,15 @@ void Predictors::loadModels(const std::vector<ModelTypes> &amodel) {
     }
     // Add model mixer contexts
     for (int i=0; i<amodel.size(); i++) {
-        const ModelTypes mType=amodel[i];
+        const ModelTypes mType=amodel[i].type;
         if (models[mType]->mxp.size()){
             //printf("Add Model(%d) %s, mixers %d\n",mType,modelNames[amodel[i]].c_str(),models[mType]->mxp.size());
             /*for (size_t j=0; j<models[mType]->mxp.size(); j++) {
             printf(" m%d: %d %d %d %d %d\n",j,models[mType]->mxp[j].m,models[mType]->mxp[j].dmul, models[mType]->mxp[j].elim, models[mType]->mxp[j].lr, models[mType]->mxp[j].bias);
-             }*/
+            }*/
             mxp.insert(mxp.end(), models[mType]->mxp.begin(), models[mType]->mxp.end());    
         }
     }
-    //printf("\n");
 }
 
 void Predictors::setContexts() {

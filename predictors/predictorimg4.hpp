@@ -14,10 +14,11 @@ class PredictorIMG4: public Predictors {
         APM APMs[4];
         APM1 APM1s[2];
     } Image;
-    const std::vector<ModelTypes> activeModels { 
-        M_MATCH ,
-        M_IM4,
-        M_LSTM};
+    const std::vector<MType> activeModels { 
+        {M_MATCH, SLOW|EXTREME},
+        {M_IM4,   SLOW|EXTREME},
+        {M_LSTM,       EXTREME}
+    };
 public:
     int mcxt[1];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 

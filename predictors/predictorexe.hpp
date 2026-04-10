@@ -15,19 +15,21 @@ class PredictorEXE: public Predictors {
     } x86_64;
     U32 count;
     eSSE sse;
-    const std::vector<ModelTypes> activeModels { 
-        M_RECORD,
-        M_MATCH ,
-        M_MATCH1, 
-        M_DISTANCE, 
-        M_EXE, 
-        M_INDIRECT, 
-        M_NORMAL, 
-        M_XML, 
-        //M_WORD,
-        M_SPARSEMATCH, 
-        M_SPARSE_Y,
-        M_PPM,M_CHART,M_LSTM};
+    const std::vector<MType> activeModels { 
+        {M_RECORD,      SLOW|EXTREME},
+        {M_MATCH,       SLOW|EXTREME},
+        {M_MATCH1,      SLOW|EXTREME},
+        {M_DISTANCE,    SLOW|EXTREME},
+        {M_EXE,         SLOW|EXTREME},
+        {M_INDIRECT,    SLOW|EXTREME},
+        {M_NORMAL,      SLOW|EXTREME},
+        {M_XML,         SLOW},
+        {M_SPARSEMATCH, SLOW|EXTREME},
+        {M_SPARSE_Y,    SLOW|EXTREME},
+        {M_PPM,              EXTREME},
+        {M_CHART,            EXTREME},
+        {M_LSTM,             EXTREME}
+    };
 public:
     int mcxt[8];
     PredictorEXE(Settings &set);

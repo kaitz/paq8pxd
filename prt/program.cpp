@@ -470,11 +470,10 @@ void Program::Compress() {
     int len=header_string.size();
     assert(en->getMode()==COMPRESS);
     U64 start=en->size();
-    en->compress(0); // block type 0
-    en->compress(len>>24); en->compress(len>>16); en->compress(len>>8); en->compress(len); // block length
     for (int i=0; i<len; i++) en->compress(header_string[i]);
+    en->compress(0); // end
     if (settings.verbose){
-        printf("File list compressed from %d to %0lu bytes.\n",len,en->size()-start);
+        printf("File list compressed from %d to %0lu bytes.\n%s\n",len+2,en->size()-start,header_string.c_str());
     }
 
     // Fill fname[files], fsize[files] with input filenames and sizes
@@ -551,8 +550,8 @@ void Program::Compress() {
     //write stream size if present
     for (int i=0; i<streams.Count(); i++) {
         if (streams.streams[i]->streamsize>0) {
-            archive->put64(streams.streams[i]->streamsize);
-            archive->put64(streams.streams[i]->cstreamsize);
+            archive->putVLI(streams.streams[i]->streamsize);
+            archive->putVLI(streams.streams[i]->cstreamsize);
         }
     }
     printf("Total %0" PRIi64 " bytes compressed to %0" PRIi64 " bytes.\n", total_size,  archive->curpos()); 
@@ -684,8 +683,8 @@ void Program::Decompress() {
     //read stream sizes if stream bit is set
     for (int i=0;i<streams.Count();i++){
         if ((streambit>>(streams.Count()-i))&1){
-            streams.streams[i]->streamsize=archive->get64();
-            streams.streams[i]->cstreamsize=archive->get64();
+            streams.streams[i]->streamsize=archive->getVLI();
+            streams.streams[i]->cstreamsize=archive->getVLI();
         }
     }
     archive->setpos(currentpos); 
@@ -698,16 +697,11 @@ void Program::Decompress() {
     
     // Deompress header
     printf("Reading file list...\n");
-    if (en->decompress()!=0) printf("%s: header corrupted\n", archiveName.c_str()), quit("");
-    int hdrlen=0;
-    hdrlen+=en->decompress()<<24;
-    hdrlen+=en->decompress()<<16;
-    hdrlen+=en->decompress()<<8;
-    hdrlen+=en->decompress();
-    header_string.resize(hdrlen);
-    for (int i=0; i<hdrlen; i++) {
-        header_string[i]=en->decompress();
-        if (header_string[i]=='\n') files++;
+    header_string="";
+    unsigned char b=0;
+    while ((b=en->decompress())!=0) {
+        header_string+=b;
+        if (b=='\n') files++;
     }
     
     // Fill fname[files], fsize[files] with input filenames and sizes

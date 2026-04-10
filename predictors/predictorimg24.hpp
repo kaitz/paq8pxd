@@ -17,12 +17,12 @@ class PredictorIMG24: public Predictors {
     APMPost APMPostA, APMPostB;
     StateMap StateMaps[2];
     eSSE sse;
-    const std::vector<ModelTypes> activeModels { 
-        M_MATCH ,
-        M_MATCH1, 
-        M_IM24,
-        //M_NORMAL,
-        M_LSTM    };
+    const std::vector<MType> activeModels { 
+        {M_MATCH,  SLOW|EXTREME},
+        {M_MATCH1, SLOW|EXTREME},
+        {M_IM24,   SLOW|EXTREME},
+        {M_LSTM,        EXTREME}
+    };
 public:
     int mcxt[2];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 

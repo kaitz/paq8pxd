@@ -39,7 +39,6 @@ void PredictorJPEG::update() {
     Bypass=false;
     int ismatch=models[M_MATCH]->p(*m);
     models[M_MATCH1]->p(*m);
-    if (x.settings.slow==true) models[M_LSTM]->p(*m);
     if (x.settings.slow==false && (x.Match.length>0xFF || x.Match.bypass)) {//256b
         x.Match.bypass =   Bypass =    true;
         pr= x.Match.bypassprediction;

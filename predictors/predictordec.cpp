@@ -63,8 +63,8 @@ void PredictorDEC::update()  {
     models[M_DMC]->p(*m);
     models[M_DEC]->p(*m);
     mcxt[6]=order << 3U | x.bpos;
-    if (x.settings.slow==true) models[M_CHART]->p(*m);
-    if (x.settings.slow==true) models[M_LSTM]->p(*m);
+    models[M_CHART]->p(*m);
+    models[M_LSTM]->p(*m);
     U32 c1=x.buf(1), c2=x.buf(2), c3=x.buf(3), c;
     mcxt[0]=8+ c1 + (x.bpos>5)*256 + ( ((x.c0&((1<<x.bpos)-1))==0) || (x.c0==((2<<x.bpos)-1)) )*512;
     mcxt[1]=x.c0;

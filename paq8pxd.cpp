@@ -377,11 +377,23 @@ int main(int argc, char** argv) {
                 } else if (ccm.type==CL_EXTREME) {
                     settings.slow=true;
                     settings.level=ccm.val;
+                    if (settings.fast==true) {
+                        settings.showhelp=true;
+                        PrintHelp();
+                    }
                 } else if (ccm.type==CL_SLOW) {
                     settings.level=ccm.val;
+                    if (settings.slow==true || settings.fast==true) {
+                        settings.showhelp=true;
+                        PrintHelp();
+                    }
                 } else if (ccm.type==CL_FAST) {
                     settings.level=ccm.val;
                     settings.fast=true;
+                    if (settings.slow==true) {
+                        settings.showhelp=true;
+                        PrintHelp();
+                    }
                 } else if (ccm.type==CL_STORE) {
                     settings.level=0;
                 } else if (ccm.type==CL_THREADS) {

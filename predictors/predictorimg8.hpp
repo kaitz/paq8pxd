@@ -20,12 +20,13 @@ class PredictorIMG8: public Predictors {
     } Image;
     StateMap StateMaps[2];
     eSSE sse;
-    const std::vector<ModelTypes> activeModels { 
-        M_MATCH,
-        M_IM8,
-        M_LINEAR,
+    const std::vector<MType> activeModels { 
+        {M_MATCH,  SLOW|EXTREME},
+        {M_IM8,    SLOW|EXTREME},
+        {M_LINEAR, SLOW|EXTREME},
         //M_NORMAL,
-        M_LSTM};
+        {M_LSTM,        EXTREME}
+    };
 public:
     int mcxt[2];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 

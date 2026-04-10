@@ -30,6 +30,10 @@
 #include "../models/ppmd.hpp"
 #include "../prt/settings.hpp"
 
+struct MType {
+    ModelTypes type; // model
+    int      mode; // Slow, Extreme
+};
 
 //////////////////////////// Predictor /////////////////////////
 // A Predictor estimates the probability that the next bit of
@@ -56,7 +60,7 @@ public:
     Predictors(Settings &);
     virtual int p() const =0;
     virtual void update()=0;
-    void loadModels( const std::vector<ModelTypes> &amodel);
+    void loadModels( const std::vector<MType> &amodel);
     void setContexts();
     void update0();
 };

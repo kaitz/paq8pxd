@@ -179,9 +179,9 @@ void PredictorTXTWRT::update() {
     models[M_DMC]->p(*m);
     rlen=models[M_RECORD]->p(*m);
     models[M_TEXT]->p(*m,(state&7));
-    if (x.settings.slow==true) models[M_PPM]->p(*m);
-    if (x.settings.slow==true) models[M_CHART]->p(*m);
-    if (x.settings.slow==true) models[M_LSTM]->p(*m);
+    models[M_PPM]->p(*m);
+    models[M_CHART]->p(*m);
+    models[M_LSTM]->p(*m);
     int dd=((pr>>9)>0?1:0)+((pr>>9)>14?1:0);
     dd=(dd<<7)|(x.bc4&127);
     dd=(dd<<8)|(x.buf(1));

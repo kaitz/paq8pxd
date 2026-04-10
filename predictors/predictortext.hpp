@@ -24,20 +24,23 @@ class PredictorTXTWRT: public Predictors {
     eSSE sse;
     int decodedTextLen,lasttag;
     int counttags,lState;
-    const std::vector<ModelTypes> activeModels { 
-        M_RECORD,
-        M_MATCH,
-        M_MATCH1,  
-        M_INDIRECT, 
-        M_DMC, 
-        M_NEST, 
-        M_NORMAL, 
-        M_XML, 
-        M_TEXT, 
-        M_WORD, 
-        M_SPARSEMATCH, 
-        M_SPARSE,
-        M_PPM,M_CHART,M_LSTM};
+    const std::vector<MType> activeModels { 
+        {M_RECORD,      SLOW|EXTREME},
+        {M_MATCH,       SLOW|EXTREME},
+        {M_MATCH1,      SLOW|EXTREME},
+        {M_INDIRECT,    SLOW|EXTREME},
+        {M_DMC,         SLOW|EXTREME},
+        {M_NEST,        SLOW|EXTREME},
+        {M_NORMAL,      SLOW|EXTREME},
+        {M_XML,         SLOW|EXTREME},
+        {M_TEXT,        SLOW|EXTREME},
+        {M_WORD,        SLOW|EXTREME},
+        {M_SPARSEMATCH, SLOW|EXTREME},
+        {M_SPARSE,      SLOW|EXTREME},
+        {M_PPM,              EXTREME},
+        {M_CHART,            EXTREME},
+        {M_LSTM,             EXTREME}
+    };
 public:
     int mcxt[9];
     PredictorTXTWRT(Settings &set);

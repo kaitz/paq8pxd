@@ -13,13 +13,12 @@ class PredictorJPEG: public Predictors {
         APM APMs[1];
     } Jpeg;
     bool Bypass; 
-    const std::vector<ModelTypes> activeModels { 
-        M_JPEG,
-        M_MATCH ,
-        M_MATCH1, 
-        M_NORMAL, 
-        //M_LSTM
-        };
+    const std::vector<MType> activeModels { 
+        {M_JPEG,   SLOW|EXTREME},
+        {M_MATCH,  SLOW|EXTREME},
+        {M_MATCH1, SLOW|EXTREME},
+        {M_NORMAL, SLOW|EXTREME}
+    };
 public:
     int mcxt[7];
     int p() const {/*assert(pr>=0 && pr<4096);*/ return pr;} 

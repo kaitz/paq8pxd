@@ -8,11 +8,14 @@ v146
     -Test ZLIB transform fails and try PREFLATE instead.
     -In png parser detect 1/2/4bit images as type PNG8(IMAGE1,IMAGE4,IMAGE4).
     -Change exe model mixers.
-    -Change 8bit image model. 5 new contexts.
+    -Change the 8bit image model. 5 new contexts.
     -Add linear model to 8bit predictor.
     -In 24bit image model adjust contexts, cleanup.
     -In 4bit image model add 2 new contexts, add extra 6 small stationary contexts. Adjust mixers.
     -Change 4bit predictor apm's.
+    -Change how models are loaded.
+    -Remove file list length from header.
+    -Show help if multiple compression modes have been selected.
 v145
     -Add new ContextMap3.
     -Replace ContextMap and ContextMap2 with ContextMap3.

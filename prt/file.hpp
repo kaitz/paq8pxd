@@ -37,13 +37,13 @@ public:
     return u64val; 
   }
   void put64(U64 x){putc((x >> 56) & 255);putc((x >> 48) & 255);putc((x >> 40) & 255);putc((x >> 32) & 255);putc((x >> 24) & 255); putc((x >> 16) & 255); putc((x >> 8) & 255); putc(x & 255);}
-  /*U64 getVLI() {
+  U64 getVLI() {
       U64 i = 0;
       int k = 0;
       U8 b = 0;
       do {
           b = max(0, getc());
-          i |= U64((b & 0x7FU) << k);
+          i |= U64(b & 0x7FU) << k;
           k += 7;
       } while((b >> 7U) > 0 );
       return i;
@@ -54,7 +54,25 @@ public:
           i >>= 7U;
       }
       putc(U8(i));
-  }*/
+  }
+  U32 getVLI32() {
+      U32 i = 0;
+      int k = 0;
+      U8 b = 0;
+      do {
+          b = max(0, getc());
+          i |= U32(b & 0x7FU) << k;
+          k += 7;
+      } while((b >> 7U) > 0 );
+      return i;
+  }
+  void putVLI32(U32 i) {
+      while( i > 0x7F ) {
+          putc(0x80U | (i & 0x7FU));
+          i >>= 7U;
+      }
+      putc(U8(i));
+  }
   virtual void setpos(U64 newpos) = 0;
   virtual void setend() = 0;
   virtual _off64_t curpos() = 0;

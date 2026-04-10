@@ -9,10 +9,11 @@ class PredictorAUDIO2: public Predictors {
     Mixers *m;
     EAPM a;
     eSSE sse;
-    const std::vector<ModelTypes> activeModels {
-        M_RECORD,
-        M_MATCH,    
-        M_WAV};
+    const std::vector<MType> activeModels {
+        {M_RECORD, SLOW|EXTREME},
+        {M_MATCH,  SLOW|EXTREME},    
+        {M_WAV,    SLOW|EXTREME}
+    };
     void setmixer();
 public:
     int mcxt[1];
