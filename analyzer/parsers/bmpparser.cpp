@@ -89,18 +89,11 @@ DetectState BMPParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                                     c=c*256+data[inSize++];
                                     c=c*256+data[inSize++]; 
                                     c=c*256+data[inSize++];
-                                    colori.c=(c);
+                                    colori.c=c;
                                     colori.i=j;
                                     bmcolor.push_back(colori);
                                 }
-                                // Sort colors by Cartesian distance
-                                std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b){
-                                    int a1=std::sqrt((a.rgba[3]) + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
-                                    int b1=std::sqrt((b.rgba[3]) + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
-                                    // plain a.c < b.c also works but is worse
-                                    //return (a.c < b.c);
-                                    return (a1 < b1);
-                                });
+                                RGBSort3D(bmcolor);
                                 // Map to new order
                                 for (int i=0; i<TCOLORS; ++i) {
                                     for (int j=0; j<TCOLORS; ++j) {
@@ -161,7 +154,6 @@ dType BMPParser::getType() {
     t.type=type;
     t.recursive=false;
     t.sData=&pal[0];
-    //printf("Get  data %d\n",pal[0]);
     return t;
 }
 

@@ -16,6 +16,10 @@ v146
     -Change how models are loaded.
     -Remove file list length from header.
     -Show help if multiple compression modes have been selected.
+    -Move pal reorder to helper. Adjust order method.
+    -Adjust 1bit image model mixer
+    -Fix tiff parser 4bit image width.
+    
 v145
     -Add new ContextMap3.
     -Replace ContextMap and ContextMap2 with ContextMap3.

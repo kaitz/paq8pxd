@@ -18,13 +18,7 @@
 
 #define MAX_PRI 7
 
-struct ColorRGBA {
-    union {
-	uint32_t  c;
-	uint8_t   rgba[4];
-	};
-	uint8_t   i;
-};
+
 // base class for file type detection
 
 // Forward declaration - actual class in prt/file.hpp

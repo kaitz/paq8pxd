@@ -8,8 +8,6 @@ class PredictorIMG1: public Predictors {
     int pr;  // next prediction
     Mixers *m;
     ErrorInfo einfo;
-    eSSE sse;
-    APM apm;
     const std::vector<MType> activeModels { 
         {M_MATCH, SLOW|EXTREME},
         {M_IM1,   SLOW|EXTREME},

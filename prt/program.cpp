@@ -473,7 +473,7 @@ void Program::Compress() {
     for (int i=0; i<len; i++) en->compress(header_string[i]);
     en->compress(0); // end
     if (settings.verbose){
-        printf("File list compressed from %d to %0lu bytes.\n%s\n",len+2,en->size()-start,header_string.c_str());
+        printf("File list compressed from %d to %0lu bytes.\n",len+2,en->size()-start);
     }
 
     // Fill fname[files], fsize[files] with input filenames and sizes

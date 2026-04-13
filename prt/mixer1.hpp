@@ -38,7 +38,7 @@ public:
     Mixer1(Array<short, 32> &t, int m, int n, const int dmul, const int elim, const int lr, int *context, const int bias=0, const bool alr=false):
       N(n),M(m),tx(t),wx(N*M),
       cxt(context), pr(2048), dotMul(dmul), errLimit(elim), errALimit(elim),
-      lrate(lr),count(0),tcount(0),aenabled(alr) {
+      lrate(lr),aenabled(alr),count(0),tcount(0) {
 
         assert(dmul<255);
         assert(lrate>0 && lrate<32);
@@ -65,11 +65,11 @@ public:
             if (aenabled && einfo.stat(pr,y)) {
                 lrate=einfo.rates*2;
             }
-            int err=((y<<12)-pr)*lrate/4;
+            const int err=((y<<12)-pr)*lrate/4;
             if (err<-errALimit || err>errALimit) {
                 train(&tx[0], &wx[*cxt*N], n, err);
-            } else count++;
-            tcount++;
+            } //else count++;
+            //tcount++;
         }
     }
 

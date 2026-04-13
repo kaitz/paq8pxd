@@ -95,7 +95,7 @@ int matchModel1::p(Mixers& m, int val1, int val2) {
         iCtx+=x.y, iCtx=(x.bpos<<16)|(buffer(1)<<8)|(expectedByte^B);
         Maps[2].set(iCtx());
     }
-    const int expectedBit =length != 0 ? (expectedByte>>(7-x.bpos))&1: 0;;
+    const int expectedBit =length != 0 ? (expectedByte>>x.bposshift)&1: 0;;
 
     if(length>0) {
         const bool isMatch = x.bpos==0 ? buffer(1)==buffer[index-1] : ((expectedByte+256)>>(8-x.bpos))==x.c0; // next bit matches the prediction?

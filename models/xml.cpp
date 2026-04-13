@@ -211,7 +211,7 @@ int XMLModel1::p(Mixers& m, int val1, int val2) {
     U8 s = ((StateBH[State]>>(28-x.bpos))&0x08) |
     ((StateBH[State]>>(21-x.bpos))&0x04) |
     ((StateBH[State]>>(14-x.bpos))&0x02) |
-    ((StateBH[State]>>( 7-x.bpos))&0x01) |
+    ((StateBH[State]>>x.bposshift)&0x01) |
     ((x.bpos)<<4);
     return (s<<3)|State;
 }

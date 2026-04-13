@@ -298,6 +298,7 @@ DetectState TIFFParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                 type=IMAGE1;info/=8;
             } else if (image.bits==4) {
                 type=IMAGE4;//??
+                info/=2;
             } else if (image.bits==8) {
                 type=IMAGE8;
             } else type=DEFAULT;

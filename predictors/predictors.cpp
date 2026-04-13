@@ -182,6 +182,7 @@ void Predictors::update0() {
         setContexts();
     }
     x.bpos=(x.bpos+1)&7;
+    x.bposshift=7-x.bpos;
     x.grp = (x.bpos>0)?AsciiGroupC0[(1<<x.bpos)-2+(x.c0&((1<<x.bpos)-1))]:0;
 }
 

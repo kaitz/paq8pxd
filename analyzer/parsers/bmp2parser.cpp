@@ -58,27 +58,19 @@ DetectState BMP2Parser::Parse(unsigned char *data, uint64_t len, uint64_t pos, b
                     jstart=of+bmp-1;
                     jend=info*y+jstart;
                     if (type==IMAGE8){
-                        //type=BM8_IMG;
+                        type=BM8_IMG;
                         TCOLORS=256;
                         for (int j=0; j<TCOLORS; j++) {
                             ColorRGBA colori;
                             uint32_t c=data[inSize++];
                             c=c*256+data[inSize++];
                             c=c*256+data[inSize++];
-                            c=c*256+0;
+                            c=c*256;
                             colori.c=c;
                             colori.i=j;
                             bmcolor.push_back(colori);
                         }
-                        // Sort colors by Cartesian distance
-                        std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b){
-                            // printf("%d %d %d %d,",a.rgba[0],a.rgba[1],a.rgba[2],a.rgba[3] );
-                            int a1=std::sqrt((a.rgba[3]) + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
-                            int b1=std::sqrt((b.rgba[3]) + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
-                            // plain a.c < b.c also works but is worse
-                            //return (a.c < b.c);
-                            return (a1 < b1);
-                        });
+                        RGBSort3D(bmcolor);
                         // Map to new order
                         for (int i=0; i<TCOLORS; ++i) {
                             for (int j=0; j<TCOLORS; ++j) {

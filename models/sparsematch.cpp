@@ -92,8 +92,8 @@ int SparseMatchModel::p(Mixers& m, int val1, int val2) {
     length = 0;
 
     if (valid) {
-        if (length>1 && ((sparse[hashIndex].bitMask>>(7-x.bpos))&1)>0) {
-            const int expectedBit = (expectedByte>>(7-x.bpos))&1;
+        if (length>1 && ((sparse[hashIndex].bitMask>>x.bposshift)&1)>0) {
+            const int expectedBit = (expectedByte>>x.bposshift)&1;
             const int sign = 2*expectedBit-1;
             m.add(sign*(min(length-1, 64)<<4)); // +/- 16..1024
             m.add(sign*(1<<min(length-2, 3))*min(length-1, 8)<<4); // +/- 16..1024

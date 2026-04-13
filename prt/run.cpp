@@ -42,7 +42,7 @@
   
   int RunContextMap::p() {  // predict next bit
     if ((cp[1]+256)>>(8-x.bpos)==x.c0)
-      return ((cp[1]>>(7-x.bpos)&1)*2-1)*ilog(cp[0]+1)*8;
+      return ((cp[1]>>x.bposshift&1)*2-1)*ilog(cp[0]+1)*8;
     else
       return 0;
   }

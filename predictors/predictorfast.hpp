@@ -57,7 +57,7 @@ public:
         pr0=(sm[0].p(t[cxt[0]],x.y)+sm[1].p(t[cxt[1]],x.y)+sm[2].p(t[cxt[2]],x.y)+sm[3].p(t[cxt[3]],x.y))>>2;
         // predict match
         if (len){
-            match=(x.buf[ptr]>>(7-x.bpos))&1;
+            match=(x.buf[ptr]>>x.bposshift)&1;
             if (match) { //1
                 pr0=mm1+(pr0);
             }else{

@@ -103,14 +103,7 @@ DetectState TGAParser::Parse(unsigned char *data, uint64_t len, uint64_t pos, bo
                     colori.i=i++;
                     bmcolor.push_back(colori);
                 }
-                // Sort colors by Cartesian distance
-                std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b){
-                    int a1=std::sqrt(a.rgba[3] + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
-                    int b1=std::sqrt(b.rgba[3] + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
-                    // plain a.c < b.c also works but is worse
-                    //return (a.c < b.c);
-                    return (a1 < b1);
-                });
+                RGBSort3D(bmcolor);
                 // Map to new order
                 for (int i=0; i<TCOLORS; ++i) {
                     for (int j=0; j<TCOLORS; ++j) {

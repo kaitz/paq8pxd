@@ -17,6 +17,7 @@ public:
     Segment segment; //for file segments type size info(if not -1)
     int y; // Last bit, 0 or 1, set by encoder
     int c0; // Last 0-7 bits of the partial byte with a leading 1 bit (1-255)
+    int bposshift;
     U32 c4,c8; // Last 4,4 whole bytes, packed.  Last byte is bits 0-7.
     int bpos; // bits in c0 (0 to 7)
     Buf buf;  // Rotating input queue set by Predictor

@@ -38,7 +38,7 @@ void Predictor::update()  {
     }
     // predict pal reordered bytes
     if (palactive==true && x.blpos>=paloff) {
-        pr=(((pal[(x.blpos-paloff)&255]>>(7-x.bpos))&1)*4096);
+        pr=(((pal[(x.blpos-paloff)&255]>>x.bposshift)&1)*4096);
         pr=(4096-pr)*(32768/4096);
         if (pr<1) pr=1;
         if (pr>32767) pr=32767;
@@ -58,13 +58,6 @@ void Predictor::update()  {
             else if (x.finfo==RLE) paloff=4,alpha=0; // tga
             if (x.finfo==IMAGE4) TCOLORS=16;
             int i=0;
-            struct ColorRGBA {
-                union {
-                    uint32_t c;
-                    uint8_t  rgba[4];
-                };
-                uint8_t   i;
-            };
             std::vector<ColorRGBA> bmcolor;
             for (int j=0; j<TCOLORS*(3+alpha); j=j+(3+alpha)) {
                 uint32_t c=x.buf(TCOLORS*(3+alpha)+paldoff-j);
@@ -78,18 +71,13 @@ void Predictor::update()  {
                 bmcolor.push_back(colori);
             }
             for (int j=TCOLORS*3; j<256*3; j=j+3) {
-                                    ColorRGBA colori;
-                                    uint32_t c=0xffffffff;
-                                    colori.c=c;
-                                    colori.i=i++;
-                                    bmcolor.push_back(colori);
-                                }
-            // Sort colors by Cartesian distance
-            std::sort(bmcolor.begin(), bmcolor.end(), [](const ColorRGBA &a, const ColorRGBA &b) {
-                int a1=std::sqrt(a.rgba[3] + (a.rgba[1]*a.rgba[1]) + (a.rgba[2]*a.rgba[2]));
-                int b1=std::sqrt(b.rgba[3] + (b.rgba[1]*b.rgba[1]) + (b.rgba[2]*b.rgba[2]));
-                return (a1 < b1);
-            });
+                ColorRGBA colori;
+                uint32_t c=0xffffffff;
+                colori.c=c;
+                colori.i=i++;
+                bmcolor.push_back(colori);
+            }
+            RGBSort3D(bmcolor);
             // Map to new order
             for (int i=0; i<TCOLORS; ++i) {
                 for (int j=0; j<TCOLORS; ++j) {

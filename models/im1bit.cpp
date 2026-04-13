@@ -20,7 +20,7 @@ row(0),col(0),im( {21, 1, 128, 127}) {
     mxp.push_back( {  16,64,0,28,&mxcxt[4],0,false} );
     mxp.push_back( {  64,64,0,28,&mxcxt[5],0,false} );
     mxp.push_back( {  41,64,0,28,&mxcxt[6],0,false} );
-    mxp.push_back( {   8,64,0,28,&mxcxt[7],0,false} );
+    mxp.push_back( {   8*4,64,0,28,&mxcxt[7],0,false} );
     mxp.push_back( {4096,64,0,28,&mxcxt[8],0,false} );
 }
 void im1bitModel1::add(Mixers& m, uint32_t n0, uint32_t n1) {
@@ -47,16 +47,16 @@ int im1bitModel1::p(Mixers& m,int w, int val2) {
     
     // update the contexts (pixels surrounding the predicted one)
     r0+=r0+x.y;
-    r1+=r1+((x.buf(w*1-1)>>(7-x.bpos))&1);
-    r2+=r2+((x.buf(w*2-1)>>(7-x.bpos))&1);
-    r3+=r3+((x.buf(w*3-1)>>(7-x.bpos))&1);
-    r4+=r4+((x.buf(w*4-1)>>(7-x.bpos))&1);
-    r5+=r5+((x.buf(w*5-1)>>(7-x.bpos))&1);
-    r6+=r6+((x.buf(w*6-1)>>(7-x.bpos))&1);
-    r7+=r7+((x.buf(w*7-1)>>(7-x.bpos))&1);
-    r8+=r8+((x.buf(w*8-1)>>(7-x.bpos))&1);
+    r1+=r1+((x.buf(w*1-1)>>x.bposshift)&1);
+    r2+=r2+((x.buf(w*2-1)>>x.bposshift)&1);
+    r3+=r3+((x.buf(w*3-1)>>x.bposshift)&1);
+    r4+=r4+((x.buf(w*4-1)>>x.bposshift)&1);
+    r5+=r5+((x.buf(w*5-1)>>x.bposshift)&1);
+    r6+=r6+((x.buf(w*6-1)>>x.bposshift)&1);
+    r7+=r7+((x.buf(w*7-1)>>x.bposshift)&1);
+    r8+=r8+((x.buf(w*8-1)>>x.bposshift)&1);
     col++;
-    if (col/8==w)row++,col=0;
+    if (col/8==w) row++,col=0;
     int c = 0; //base for each context
     const int y=x.y;
     i = 0; //context index
@@ -277,7 +277,7 @@ int im1bitModel1::p(Mixers& m,int w, int val2) {
     mxcxt[4]=surrounding4-1; // disabled if =0
     mxcxt[5]=mCtx6;
     mxcxt[6]=bitcount40-1; // disabled if =0
-    mxcxt[7]=x.bpos;
+    mxcxt[7]=x.bpos+((r0 & 0xff)==0)*8+((r1 & 0xff)==0)*16;
     mxcxt[8]=surrounding12;
     return 0;
 }

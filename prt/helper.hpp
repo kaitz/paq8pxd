@@ -64,3 +64,13 @@ bool CharInArray(const char c, const char a[], const int len) ;
 ParserType GetTypeFromExt(std::string ext);
 
 uint32_t nextPowerOf2(uint32_t x);
+
+struct ColorRGBA {
+    union {
+	uint32_t  c;
+	uint8_t   rgba[4];
+	};
+	uint8_t   i;
+};
+
+void RGBSort3D(std::vector<ColorRGBA> &rgb);

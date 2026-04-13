@@ -31,15 +31,15 @@ public:
 
     ~Mixers() {
         if (mf!=nullptr) {
-            U64 tskip=0;
-            U64 tcount=0;
+            //U64 tskip=0;
+            //U64 tcount=0;
             for (int i=0; i<C; ++i) {
-                tskip+=m[i]->count;
-                tcount+=m[i]->tcount;
+                //tskip+=m[i]->count;
+                //tcount+=m[i]->tcount;
                 delete m[i];
             }
-            tskip+=mf->count;
-            tcount+=mf->tcount;
+            //tskip+=mf->count;
+            //tcount+=mf->tcount;
             delete mf;
             mf=nullptr;
             //printf("Total mix skip %f%\n",tskip*100.0f/tcount);

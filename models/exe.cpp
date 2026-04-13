@@ -471,7 +471,7 @@ int exeModel1::p(Mixers& m,int val1,int val2) {
     U8 s = ((StateBH[Context]>>(28-x.bpos))&0x08) |
     ((StateBH[Context]>>(21-x.bpos))&0x04) |
     ((StateBH[Context]>>(14-x.bpos))&0x02) |
-    ((StateBH[Context]>>( 7-x.bpos))&0x01) |
+    ((StateBH[Context]>>x.bposshift)&0x01) |
     ((Op.Category==OP_GEN_BRANCH)<<4)|
     (((x.c0&((1<<x.bpos)-1))==0)<<5);
 
